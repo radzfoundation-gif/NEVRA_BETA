@@ -1,0 +1,68 @@
+<svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- NEVRA Logo - Organic Flowing "N" Design -->
+  <path d="M 20 20 
+           C 20 20, 20 25, 22 30
+           C 24 35, 28 40, 30 45
+           C 32 50, 30 55, 28 60
+           C 26 65, 24 70, 22 75
+           C 20 80, 20 85, 20 100
+           L 20 100
+           C 20 100, 20 95, 22 90
+           C 24 85, 28 80, 30 75
+           C 32 70, 34 65, 36 60
+           C 38 55, 40 50, 42 45
+           C 44 40, 46 35, 48 30
+           C 50 25, 50 20, 50 20
+           L 50 20
+           C 50 20, 50 25, 48 30
+           C 46 35, 44 40, 42 45
+           C 40 50, 38 55, 36 60
+           C 34 65, 32 70, 30 75
+           C 28 80, 24 85, 22 90
+           C 20 95, 20 100, 20 100
+           Z" 
+        stroke="white" 
+        stroke-width="3" 
+        fill="none" 
+        stroke-linecap="round" 
+        stroke-linejoin="round"/>
+  
+  <!-- Left vertical bar with organic curve -->
+  <path d="M 20 20 
+           L 20 100" 
+        stroke="white" 
+        stroke-width="3" 
+        stroke-linecap="round"/>
+  
+  <!-- Right vertical bar with organic curve -->
+  <path d="M 50 20 
+           L 50 100" 
+        stroke="white" 
+        stroke-width="3" 
+        stroke-linecap="round"/>
+  
+  <!-- Diagonal stroke with flowing curves -->
+  <path d="M 20 20 
+           C 25 25, 30 30, 35 35
+           C 40 40, 35 45, 30 50
+           C 25 55, 30 60, 35 65
+           C 40 70, 45 75, 50 100" 
+        stroke="white" 
+        stroke-width="3" 
+        fill="none" 
+        stroke-linecap="round" 
+        stroke-linejoin="round"/>
+  
+  <!-- Inner flowing curves for depth -->
+  <path d="M 25 25 
+           C 28 30, 32 35, 35 40
+           C 38 45, 35 50, 32 55
+           C 29 60, 32 65, 35 70
+           C 38 75, 42 80, 45 95" 
+        stroke="white" 
+        stroke-width="2" 
+        fill="none" 
+        stroke-linecap="round" 
+        stroke-linejoin="round" 
+        opacity="0.6"/>
+</svg>
