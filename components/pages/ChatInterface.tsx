@@ -13,7 +13,8 @@ import { generateCode, AIProvider, Framework } from '@/lib/ai';
 import { CodebaseExplorer as CodebaseExplorerClass, CodebaseAnalysis } from '@/lib/codebaseExplorer';
 import CodebaseExplorer from '@/components/CodebaseExplorer';
 import BuildingAnimation from '@/components/BuildingAnimation';
-import ProviderSelector from '@/components/ui/ProviderSelector';
+import AILoading from '@/components/ui/AILoading';
+// ProviderSelector removed - orchestrator now manages models automatically
 import FrameworkSelector from '@/components/ui/FrameworkSelector';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import clsx from 'clsx';
@@ -25,10 +26,10 @@ import SubscriptionPopup from '../SubscriptionPopup';
 import TokenBadge from '../TokenBadge';
 import { useTokenLimit, useTrackAIUsage } from '@/hooks/useTokenLimit';
 import { FREE_TOKEN_LIMIT } from '@/lib/tokenLimit';
-import { createChatSession, saveMessage, getUserSessions, getSessionMessages, updateSessionMode } from '@/lib/database';
+import { createChatSession, saveMessage, getSessionMessages, updateChatSession } from '@/lib/firebaseDatabase';
 import { useUser, useAuth } from '@clerk/clerk-react';
 import FeedbackPopup from '../FeedbackPopup';
-import { useUserPreferences, useChatSessions } from '@/hooks/useSupabase';
+import { useUserPreferences, useChatSessions } from '@/hooks/useFirebase';
 import Logo from '../Logo';
 import VoiceCall from '../VoiceCall';
 import Sidebar from '../Sidebar';
@@ -85,9 +86,9 @@ const cn = (...inputs: Parameters<typeof clsx>) => twMerge(clsx(inputs));
 
 const detectMode = (text: string): AppMode => {
   if (!text || text.trim().length === 0) return 'tutor';
-  
+
   const lowerText = text.toLowerCase().trim();
-  
+
   // Exclusion patterns - these should NOT trigger builder mode even if they contain builder keywords
   // HIGHEST PRIORITY: Clear question patterns that should always be tutor mode
   const clearQuestionPatterns = [
@@ -100,13 +101,13 @@ const detectMode = (text: string): AppMode => {
     // Learning intent
     /^(saya ingin belajar|saya perlu belajar|saya ingin tahu|saya perlu tahu|i want to learn|i need to learn)/i,
   ];
-  
+
   // Check clear question patterns FIRST (highest priority)
   const isClearQuestion = clearQuestionPatterns.some(pattern => pattern.test(text));
   if (isClearQuestion) {
     return 'tutor';
   }
-  
+
   const tutorOnlyPatterns = [
     // Schedule/Planning related (should be tutor mode)
     /jadwal|schedule|routine|plan|rencana|agenda|kalender|calendar/i,
@@ -120,13 +121,13 @@ const detectMode = (text: string): AppMode => {
     /^tolong\s+(bantu|help|jelaskan|explain|ajarkan)/i,
     /^bantu\s+(saya|aku|me|i)/i,
   ];
-  
+
   // Check if text matches tutor-only patterns (second priority)
   const matchesTutorOnly = tutorOnlyPatterns.some(pattern => pattern.test(text));
   if (matchesTutorOnly) {
     return 'tutor';
   }
-  
+
   // Builder keywords - English and Indonesian (only for web/app development)
   // Note: Removed generic words like 'buat', 'buatkan', 'create', 'make' to avoid false positives
   // Only include specific tech-related phrases
@@ -153,7 +154,7 @@ const detectMode = (text: string): AppMode => {
     'warna kuning', 'warna merah', 'warna biru', 'yellow', 'red', 'blue', 'green', 'warna hijau',
     'add', 'tambah', 'hapus', 'remove', 'delete', 'tambah button', 'add button', 'tambah gambar'
   ];
-  
+
   // Tutor keywords - Questions and learning intent
   // NOTE: 'tolong' is removed from tutor keywords to prevent false positives in builder mode
   const tutorKeywords = [
@@ -180,7 +181,7 @@ const detectMode = (text: string): AppMode => {
     'buatkan jadwal', 'buat jadwal', 'jadwal harian', 'daily schedule', 'morning routine',
     'evening routine', 'rutinitas', 'rutinitas pagi', 'rutinitas sore'
   ];
-  
+
   // Check for builder intent (only count if NOT in exclusion patterns)
   const builderScore = builderKeywords.reduce((score, keyword) => {
     if (lowerText.includes(keyword)) {
@@ -190,7 +191,7 @@ const detectMode = (text: string): AppMode => {
         return match && match[0].toLowerCase().includes(keyword);
       });
       if (isExcluded) return score;
-      
+
       // Give higher weight to more specific keywords
       if (['buat web', 'buat website', 'buat aplikasi', 'build web', 'create website', 'make app'].includes(keyword)) {
         return score + 3;
@@ -199,7 +200,7 @@ const detectMode = (text: string): AppMode => {
     }
     return score;
   }, 0);
-  
+
   // Check for tutor intent (questions)
   const tutorScore = tutorKeywords.reduce((score, keyword) => {
     if (lowerText.includes(keyword)) {
@@ -219,13 +220,13 @@ const detectMode = (text: string): AppMode => {
     }
     return score;
   }, 0);
-  
+
   // Check for question mark (strong indicator of tutor mode)
   const hasQuestionMark = text.includes('?');
   if (hasQuestionMark && tutorScore > 0) {
     return 'tutor';
   }
-  
+
   // Check for imperative builder commands
   const imperativeBuilderPatterns = [
     /^buat\s+(web|website|aplikasi|app|halaman|situs)/i,
@@ -234,21 +235,21 @@ const detectMode = (text: string): AppMode => {
     /^make\s+(web|website|app|application|page|site)/i,
     /^generate\s+(web|website|app|application|page|site)/i
   ];
-  
+
   const hasImperativeBuilder = imperativeBuilderPatterns.some(pattern => pattern.test(text));
   if (hasImperativeBuilder) {
     return 'builder';
   }
-  
+
   // Decision logic
   if (builderScore > tutorScore && builderScore > 0) {
     return 'builder';
   }
-  
+
   if (tutorScore > builderScore && tutorScore > 0) {
     return 'tutor';
   }
-  
+
   // If scores are equal or both zero, check for specific patterns
   if (builderScore === tutorScore) {
     // If text contains both, prioritize based on context
@@ -260,7 +261,7 @@ const detectMode = (text: string): AppMode => {
       return 'builder';
     }
   }
-  
+
   // Default to tutor mode for general queries
   return 'tutor';
 };
@@ -270,10 +271,10 @@ const extractTextFromErrorHtml = (html: string): string => {
   try {
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = html;
-    
+
     // Try to get text content
     let text = tempDiv.textContent || tempDiv.innerText || '';
-    
+
     // If we got text, clean it up but preserve structure
     if (text.trim().length > 0) {
       // Preserve line breaks for better readability
@@ -281,16 +282,16 @@ const extractTextFromErrorHtml = (html: string): string => {
         .replace(/\n{3,}/g, '\n\n') // Max 2 consecutive newlines
         .replace(/[ \t]+/g, ' ') // Multiple spaces to single space
         .trim();
-      
+
       // If text is meaningful (more than just whitespace), return it
       if (text.length > 20) {
         return text;
       }
     }
-    
+
     // Enhanced extraction: get all important elements
     const parts: string[] = [];
-    
+
     // Extract strong/heading elements (error titles)
     const strongMatches = html.match(/<strong[^>]*>([^<]+)<\/strong>/gi);
     if (strongMatches) {
@@ -301,7 +302,7 @@ const extractTextFromErrorHtml = (html: string): string => {
         }
       });
     }
-    
+
     // Extract paragraph elements
     const pMatches = html.match(/<p[^>]*class="[^"]*text-sm[^"]*"[^>]*>([^<]+)<\/p>/gi);
     if (pMatches) {
@@ -312,7 +313,7 @@ const extractTextFromErrorHtml = (html: string): string => {
         }
       });
     }
-    
+
     // Extract list items (suggestions)
     const liMatches = html.match(/<li[^>]*>([^<]+)<\/li>/gi);
     if (liMatches) {
@@ -323,7 +324,7 @@ const extractTextFromErrorHtml = (html: string): string => {
         }
       });
     }
-    
+
     // Extract span elements (notes)
     const spanMatches = html.match(/<span[^>]*class="[^"]*text-xs[^"]*"[^>]*>([^<]+)<\/span>/gi);
     if (spanMatches) {
@@ -334,7 +335,7 @@ const extractTextFromErrorHtml = (html: string): string => {
         }
       });
     }
-    
+
     // If we extracted meaningful parts, join them
     if (parts.length > 0) {
       const result = parts.join('\n\n');
@@ -342,13 +343,13 @@ const extractTextFromErrorHtml = (html: string): string => {
         return result;
       }
     }
-    
+
     // Last resort: try to extract any text from HTML
     const allText = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
     if (allText.length > 20) {
       return allText;
     }
-    
+
     // Final fallback: return original HTML (will be displayed as-is)
     return html;
   } catch (error) {
@@ -376,15 +377,15 @@ const extractCode = (response: string): { text: string; code: string | null } =>
       const text = response.replace(codeBlockMatch[0], '').trim() || response || 'No valid code found.';
       return { text, code: null };
     }
-    
+
     const text = response.replace(codeBlockMatch[0], '').trim();
     // If code looks like HTML, return it
     if (code.includes('<html') || code.includes('<!DOCTYPE') || code.includes('<div') || code.includes('<body')) {
       // CRITICAL: If text is empty after removing code block, use original response
       // This prevents losing content when code block extraction removes everything
-      return { 
-        text: text || response || 'Generated app successfully.', 
-        code 
+      return {
+        text: text || response || 'Generated app successfully.',
+        code
       };
     }
   }
@@ -392,10 +393,10 @@ const extractCode = (response: string): { text: string; code: string | null } =>
   // Check for raw HTML structure (with or without DOCTYPE)
   if (response.includes('<!DOCTYPE html>') || response.includes('<html') || response.includes('<body')) {
     // Extract HTML from response (might have text before/after)
-    const htmlMatch = response.match(/(<!DOCTYPE[\s\S]*?<\/html>)/i) || 
-                     response.match(/(<html[\s\S]*?<\/html>)/i) ||
-                     response.match(/(<body[\s\S]*?<\/body>)/i);
-    
+    const htmlMatch = response.match(/(<!DOCTYPE[\s\S]*?<\/html>)/i) ||
+      response.match(/(<html[\s\S]*?<\/html>)/i) ||
+      response.match(/(<body[\s\S]*?<\/body>)/i);
+
     if (htmlMatch && htmlMatch[1]) {
       const code = htmlMatch[1].trim();
       // Validate: code should not be empty or only whitespace/newlines
@@ -406,7 +407,7 @@ const extractCode = (response: string): { text: string; code: string | null } =>
       const text = response.replace(htmlMatch[0], '').trim();
       return { text: text || 'Generated app successfully.', code };
     }
-    
+
     // If entire response looks like HTML, use it directly
     if (response.trim().startsWith('<')) {
       const trimmedResponse = response.trim();
@@ -429,7 +430,7 @@ const extractCode = (response: string): { text: string; code: string | null } =>
         return { text: 'Generated app successfully.', code };
       }
     }
-    
+
     // Try to find body content
     const bodyStart = response.indexOf('<body');
     const bodyEnd = response.lastIndexOf('</body>');
@@ -457,12 +458,12 @@ ${bodyContent}
 const createReactPreviewHTML = (componentCode: string, framework?: string): string => {
   // CRITICAL: Validate that code is not an error HTML message
   const isErrorCode = componentCode.includes('<!-- Error Generating Code -->') ||
-                     componentCode.includes('text-red-500') ||
-                     componentCode.includes('bg-red-900') ||
-                     componentCode.includes('ANTHROPIC Error') ||
-                     componentCode.includes('OpenRouter API Error') ||
-                     componentCode.includes('This operation was aborted');
-  
+    componentCode.includes('text-red-500') ||
+    componentCode.includes('bg-red-900') ||
+    componentCode.includes('ANTHROPIC Error') ||
+    componentCode.includes('OpenRouter API Error') ||
+    componentCode.includes('This operation was aborted');
+
   if (isErrorCode) {
     // Return error HTML instead of trying to compile error message as React
     return `<!DOCTYPE html>
@@ -486,7 +487,7 @@ const createReactPreviewHTML = (componentCode: string, framework?: string): stri
 </body>
 </html>`;
   }
-  
+
   // Extract component name - try multiple patterns
   let componentName = 'App';
   const patterns = [
@@ -497,7 +498,7 @@ const createReactPreviewHTML = (componentCode: string, framework?: string): stri
     /function\s+(\w+)\s*\(/,
     /const\s+(\w+)\s*=\s*(?:\(|function)/,
   ];
-  
+
   for (const pattern of patterns) {
     const match = componentCode.match(pattern);
     if (match && match[1]) {
@@ -505,84 +506,84 @@ const createReactPreviewHTML = (componentCode: string, framework?: string): stri
       break;
     }
   }
-  
+
   // Helper function to strip TypeScript type annotations
   const stripTypeScript = (code: string): string => {
     let stripped = code;
-    
+
     // Remove generic type parameters from hooks and functions: useState<Type[]>() => useState()
     // Be careful with JSX tags, so we match specific patterns
     stripped = stripped.replace(/(useState|useEffect|useRef|useMemo|useCallback|useReducer|useContext)\s*<[^>]+>/g, '$1');
-    
+
     // Remove generic type parameters from other function calls: func<Type>() => func()
     // But avoid JSX tags by checking if it's followed by ( or whitespace
     stripped = stripped.replace(/(\w+)\s*<[^>]+>\s*(?=[(\s])/g, '$1 ');
-    
+
     // Remove type annotations from variable declarations: const x: Type[] = value => const x = value
     stripped = stripped.replace(/(const|let|var)\s+(\w+)\s*:\s*[^=]+=/g, '$1 $2 =');
-    
+
     // Remove type annotations from destructured assignments: const [x, y]: [Type, Type] = value => const [x, y] = value
     stripped = stripped.replace(/(const|let|var)\s+(\[[^\]]+\])\s*:\s*[^=]+=/g, '$1 $2 =');
-    
+
     // Remove type annotations from object destructuring: const { x, y }: { x: Type, y: Type } = value => const { x, y } = value
     stripped = stripped.replace(/(const|let|var)\s+(\{[^}]+\})\s*:\s*[^=]+=/g, '$1 $2 =');
-    
+
     // Remove type annotations from function parameters: (param: Type) => (param)
     // Handle complex cases with nested parentheses
     stripped = stripped.replace(/\(([^)]*)\)/g, (match, params) => {
       if (!params.includes(':')) return match; // No type annotations
-      
+
       return '(' + params
         .split(',')
         .map((p: string) => {
           const trimmed = p.trim();
           if (!trimmed.includes(':')) return trimmed;
-          
+
           // Handle default values: param: Type = value => param = value
           if (trimmed.includes('=')) {
             const [namePart, ...defaultParts] = trimmed.split('=');
             const name = namePart.trim().split(':')[0].trim();
             return `${name} = ${defaultParts.join('=').trim()}`;
           }
-          
+
           // Remove type annotation: param: Type => param
           return trimmed.split(':')[0].trim();
         })
         .join(', ') + ')';
     });
-    
+
     // Remove type assertions: value as Type => value
     stripped = stripped.replace(/\s+as\s+[A-Z][a-zA-Z0-9<>[\],\s|&]*/g, '');
-    
+
     // Remove return type annotations: function name(): Type { => function name() {
     stripped = stripped.replace(/\)\s*:\s*[A-Z][a-zA-Z0-9<>[\],\s|&]*\s*{/g, ') {');
     stripped = stripped.replace(/\)\s*:\s*[A-Z][a-zA-Z0-9<>[\],\s|&]*\s*=>/g, ') =>');
-    
+
     // Remove interface definitions (multi-line)
     stripped = stripped.replace(/interface\s+\w+\s*[^{]*\{[^}]*\}/gs, '');
-    
+
     // Remove type aliases
     stripped = stripped.replace(/type\s+\w+\s*=\s*[^;]+;/g, '');
-    
+
     return stripped;
   };
-  
+
   // Keep component code as-is, only remove external imports
   let cleanedCode = componentCode
     .replace(/^import\s+.*?from\s+['"](?!react|react-dom)[^'"]*['"];?$/gm, '') // Remove non-react imports
     .replace(/export\s+(default\s+)?/g, '') // Remove export keywords
     .trim();
-  
+
   // Strip TypeScript type annotations for Babel compatibility
   cleanedCode = stripTypeScript(cleanedCode);
-  
+
   // Escape code for safe embedding in HTML/JS (escape backticks, ${}, and </script>)
   const escapedCode = cleanedCode
     .replace(/\\/g, '\\\\')  // Escape backslashes first
     .replace(/`/g, '\\`')    // Escape backticks
     .replace(/\${/g, '\\${') // Escape template literal expressions
     .replace(/<\/script>/gi, '<\\/script>'); // Escape script closing tags
-  
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -623,9 +624,9 @@ const createReactPreviewHTML = (componentCode: string, framework?: string): stri
         } catch (tsError) {
           // If TypeScript preset not available, use react/env (code should already be stripped)
           transformed = Babel.transform(componentCode, {
-            presets: ['react', 'env'],
-            filename: 'component.tsx'
-          }).code;
+          presets: ['react', 'env'],
+          filename: 'component.tsx'
+        }).code;
         }
         
         // Execute transformed code with React hooks available
@@ -666,24 +667,24 @@ const createReactPreviewHTML = (componentCode: string, framework?: string): stri
 const getIframeSrc = (code: string, entryPath?: string, framework?: string) => {
   // Clean and validate code
   const cleanedCode = code ? code.trim() : '';
-  
+
   // Check if code is empty or only contains whitespace/newlines
   if (!cleanedCode || cleanedCode.length === 0 || /^[\s\n\r\t]+$/.test(cleanedCode)) {
     console.warn('⚠️ getIframeSrc called with empty or whitespace-only code');
     return 'data:text/html;charset=utf-8,<!DOCTYPE html><html><body><p>No code to display</p></body></html>';
   }
-  
+
   try {
     // Check if entry is React/TSX/JSX file or framework project
     const isReactFile = entryPath && /\.(tsx|jsx|ts|js)$/.test(entryPath);
     const isFrameworkProject = framework && framework !== 'html';
-    
+
     // If already HTML, return as is
     if (cleanedCode.includes('<!DOCTYPE') || cleanedCode.includes('<html')) {
       const encoded = encodeURIComponent(cleanedCode);
       return `data:text/html;charset=utf-8,${encoded}`;
     }
-    
+
     // For React/Next.js/Vite: Use direct React execution (no HTML conversion)
     let htmlCode = cleanedCode;
     if (isReactFile || isFrameworkProject) {
@@ -706,13 +707,13 @@ ${contentCode}
 </body>
 </html>`;
     }
-    
+
     // Final validation: ensure htmlCode is not empty
     if (!htmlCode || htmlCode.trim().length === 0) {
       console.warn('⚠️ Generated HTML code is empty');
       return 'data:text/html;charset=utf-8,<!DOCTYPE html><html><body><p>No code to display</p></body></html>';
     }
-    
+
     const encoded = encodeURIComponent(htmlCode);
     const dataUrl = `data:text/html;charset=utf-8,${encoded}`;
     console.log('🔗 Iframe src generated:', {
@@ -765,7 +766,7 @@ const ChatInterface: React.FC = () => {
   // Helper: Get optimal provider for mode (moved outside component to be accessible)
   const getOptimalProviderForMode = (mode: AppMode | null, isSubscribed: boolean = false): AIProvider => {
     if (!mode) return 'deepseek'; // Default to Mistral Devstral (free)
-    
+
     if (mode === 'builder') {
       // Builder mode: Mistral Devstral (free, good for code generation)
       return 'deepseek'; // Mistral Devstral for code generation
@@ -788,7 +789,7 @@ const ChatInterface: React.FC = () => {
       const detectedMode = codebaseMode ? 'builder' : (initialPrompt ? detectMode(initialPrompt) : 'tutor');
       const userMsgId = Date.now().toString();
       const content = initialPrompt || "Analyzing image...";
-      
+
       // Get optimal provider for detected mode (default to Mistral Devstral for free users)
       const optimalProvider = initialProvider || getOptimalProviderForMode(detectedMode, false);
 
@@ -823,20 +824,20 @@ const ChatInterface: React.FC = () => {
   // Always use React framework (not HTML) - auto-explore codebase
   const initialFramework = (initialState as any).framework || 'react';
   const [framework, setFramework] = useState<Framework>(initialFramework);
-  
+
   // Codebase mode state (from Home.tsx navigation)
   const [codebaseMode] = useState<boolean>((initialState as any).codebaseMode || false);
   const [targetFile] = useState<string | undefined>((initialState as any).targetFile);
-  
+
   // Get optimal default provider based on mode
   const getDefaultProvider = (mode: AppMode | null): AIProvider => {
     if (!mode) return 'deepseek'; // Default to Mistral Devstral
     return getOptimalProviderForMode(mode, isSubscribed);
   };
-  
+
   const defaultProvider = initialState.initialProvider || getDefaultProvider(initialState.mode);
   const [provider, setProvider] = useState<AIProvider>(defaultProvider as AIProvider);
-  
+
   // Auto-switch provider when mode changes - DISABLED FOR TESTING
   // useEffect(() => {
   //   if (appMode) {
@@ -847,7 +848,7 @@ const ChatInterface: React.FC = () => {
   //     }
   //   }
   // }, [appMode, isSubscribed, false, provider]);
-  
+
   // Update provider if Grok becomes locked/unlocked - DISABLED FOR TESTING
   // useEffect(() => {
   //   if (provider === 'gemini' && false && !isSubscribed) {
@@ -863,14 +864,15 @@ const ChatInterface: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>(initialState.messages);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [workflowStatus, setWorkflowStatus] = useState<{ status: string; message: string } | null>(null);
   const [attachedImages, setAttachedImages] = useState<string[]>([]);
   const MAX_IMAGES = 3;
   const MAX_SIZE_MB = 2;
-  
+
   // AI Memory State - History yang akan dikirim ke AI
   const [aiMemoryHistory, setAiMemoryHistory] = useState<Message[]>([]);
   const [lastResetTime, setLastResetTime] = useState<Date | null>(null);
-  
+
   // Helper: Get current WIB time
   const getWIBTime = (): Date => {
     const now = new Date();
@@ -878,18 +880,18 @@ const ChatInterface: React.FC = () => {
     const wibOffset = 7 * 60 * 60 * 1000;
     return new Date(now.getTime() + wibOffset);
   };
-  
+
   // Helper: Check if it's past 12:00 WIB today
   const shouldResetMemory = (): boolean => {
     const wibTime = getWIBTime();
     const hour = wibTime.getUTCHours();
     const minute = wibTime.getUTCMinutes();
-    
+
     // Check if it's 12:00 WIB or later
     if (hour > 12 || (hour === 12 && minute >= 0)) {
       const today = wibTime.toISOString().split('T')[0]; // YYYY-MM-DD
       const lastReset = localStorage.getItem('nevra_ai_memory_last_reset');
-      
+
       // Reset if we haven't reset today yet
       if (lastReset !== today) {
         return true;
@@ -897,30 +899,30 @@ const ChatInterface: React.FC = () => {
     }
     return false;
   };
-  
+
   // Reset AI memory at 12:00 WIB daily
   useEffect(() => {
     const checkAndReset = () => {
       if (shouldResetMemory()) {
         const wibTime = getWIBTime();
         const today = wibTime.toISOString().split('T')[0];
-        
+
         console.log('🔄 Resetting AI memory - Daily reset at 12:00 WIB');
         setAiMemoryHistory([]);
         setLastResetTime(new Date());
         localStorage.setItem('nevra_ai_memory_last_reset', today);
       }
     };
-    
+
     // Check immediately
     checkAndReset();
-    
+
     // Check every minute to catch 12:00 WIB
     const interval = setInterval(checkAndReset, 60000);
-    
+
     return () => clearInterval(interval);
   }, []);
-  
+
   // Update AI memory when messages change (only if token available)
   useEffect(() => {
     // Only update memory if token is available
@@ -1030,9 +1032,12 @@ const ChatInterface: React.FC = () => {
   // Sidebar State (only for tutor mode)
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  
+
   // Chat Sessions (for sidebar)
   const { sessions, deleteSession, refreshSessions } = useChatSessions();
+
+  // Track current session ID (separate from URL param sessionId)
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(sessionId || null);
 
   // New Features for Tutor Mode
   const [enableWebSearch, setEnableWebSearch] = useState(false);
@@ -1078,11 +1083,14 @@ const ChatInterface: React.FC = () => {
   useEffect(() => {
     const loadSessionMessages = async () => {
       if (!sessionId || !user) return;
-      
+
+      // Sync currentSessionId with URL param
+      setCurrentSessionId(sessionId);
+
       try {
         const token = await getToken({ template: SUPABASE_TEMPLATE }).catch(() => null);
         const sessionMessages = await getSessionMessages(sessionId, token);
-        
+
         // Convert database messages to Message format
         const convertedMessages: Message[] = sessionMessages.map((msg: any) => ({
           id: msg.id,
@@ -1092,14 +1100,14 @@ const ChatInterface: React.FC = () => {
           images: msg.images || undefined,
           timestamp: new Date(msg.created_at)
         }));
-        
+
         setMessages(convertedMessages);
-        
+
         // Update appMode from session if available
         if (sessionMessages.length > 0) {
           const sessions = await getUserSessions(user.id, token);
           const session = sessions.find(s => s.id === sessionId);
-          
+
           if (session?.mode) {
             setAppMode(session.mode as AppMode);
           }
@@ -1108,7 +1116,7 @@ const ChatInterface: React.FC = () => {
         console.error('Error loading session messages:', error);
       }
     };
-    
+
     loadSessionMessages();
   }, [sessionId, user, getToken]);
 
@@ -1155,7 +1163,7 @@ const ChatInterface: React.FC = () => {
 
     // Also listen to window resize
     window.addEventListener('resize', calculateScale);
-    
+
     return () => {
       resizeObserver.disconnect();
       window.removeEventListener('resize', calculateScale);
@@ -1175,7 +1183,7 @@ const ChatInterface: React.FC = () => {
       try {
         const token = await getToken({ template: SUPABASE_TEMPLATE }).catch(() => null);
         const dbMessages = await getSessionMessages(sessionId, token);
-        
+
         if (dbMessages && dbMessages.length > 0) {
           const restoredMessages = dbMessages.map((m) => ({
             id: m.id,
@@ -1186,7 +1194,7 @@ const ChatInterface: React.FC = () => {
             timestamp: new Date(m.created_at),
           }));
           setMessages(restoredMessages);
-          
+
           // Restore AI memory from session (only if token available)
           if (!hasExceeded || isSubscribed) {
             setAiMemoryHistory(restoredMessages.slice(-20)); // Keep last 20 messages
@@ -1226,12 +1234,12 @@ const ChatInterface: React.FC = () => {
           timestamp: new Date(m.created_at),
         }));
         setMessages(restoredMessages);
-        
+
         // Restore AI memory from session (only if token available)
         if (!hasExceeded || isSubscribed) {
           setAiMemoryHistory(restoredMessages.slice(-20)); // Keep last 20 messages
         }
-        
+
         setShowSplash(false);
         restoredSessionRef.current = true;
         navigate(`/chat/${latest.id}`, { replace: true });
@@ -1281,7 +1289,7 @@ const ChatInterface: React.FC = () => {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    
+
     if (attachedImages.length >= MAX_IMAGES) {
       alert(`Maximum ${MAX_IMAGES} images per message.`);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -1298,7 +1306,7 @@ const ChatInterface: React.FC = () => {
     });
 
     const filesToProcess = validFiles.slice(0, MAX_IMAGES - attachedImages.length);
-    
+
     if (filesToProcess.length === 0) {
       if (fileInputRef.current) fileInputRef.current.value = '';
       return;
@@ -1365,7 +1373,7 @@ const ChatInterface: React.FC = () => {
   const handleCameraCapture = async () => {
     let stream: MediaStream | null = null;
     let modal: HTMLElement | null = null;
-    
+
     const cleanup = () => {
       if (stream) {
         stream.getTracks().forEach(track => track.stop());
@@ -1386,11 +1394,11 @@ const ChatInterface: React.FC = () => {
     };
 
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ 
+      stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'environment' } // Use back camera on mobile
       });
       cameraStreamRef.current = stream;
-      
+
       // Create modal for camera preview
       modal = document.createElement('div');
       modal.className = 'fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-4';
@@ -1409,65 +1417,65 @@ const ChatInterface: React.FC = () => {
       `;
       document.body.appendChild(modal);
       cameraModalRef.current = modal;
-      
+
       const preview = modal.querySelector('#camera-preview') as HTMLVideoElement;
       if (!preview) {
         cleanup();
         return;
       }
       preview.srcObject = stream;
-      
+
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
       if (!ctx) {
         cleanup();
         return;
       }
-      
+
       const captureBtn = modal.querySelector('#capture-btn');
       const cancelBtn = modal.querySelector('#cancel-btn');
-      
+
       if (!captureBtn || !cancelBtn) {
         cleanup();
         return;
       }
-      
+
       const handleCapture = () => {
         if (attachedImages.length >= MAX_IMAGES) {
           alert(`Maximum ${MAX_IMAGES} images per message.`);
           cleanup();
           return;
         }
-        
+
         if (preview && ctx) {
           canvas.width = preview.videoWidth;
           canvas.height = preview.videoHeight;
           ctx.drawImage(preview, 0, 0);
-          
+
           const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
           setAttachedImages(prev => [...prev, dataUrl]);
         }
-        
+
         cleanup();
       };
-      
+
       const handleCancel = () => {
         cleanup();
       };
-      
+
       captureBtn.addEventListener('click', handleCapture);
       cancelBtn.addEventListener('click', handleCancel);
-      
+
       // Store listeners for cleanup
       cameraEventListenersRef.current = [
         { element: captureBtn as HTMLElement, event: 'click', handler: handleCapture },
         { element: cancelBtn as HTMLElement, event: 'click', handler: handleCancel }
       ];
-      
+
     } catch (error: unknown) {
       console.error('Error accessing camera:', error);
       let errorMessage = 'Unable to access camera.';
-      
+
       if (error instanceof DOMException) {
         if (error.name === 'NotAllowedError') {
           errorMessage = 'Camera access denied. Please allow camera access in your browser settings.';
@@ -1477,7 +1485,7 @@ const ChatInterface: React.FC = () => {
           errorMessage = 'Camera is being used by another application.';
         }
       }
-      
+
       alert(errorMessage);
       cleanup();
     }
@@ -1508,17 +1516,17 @@ const ChatInterface: React.FC = () => {
   const downloadProjectFiles = async () => {
     const files = fileManager.getAllFiles();
     if (files.length === 0) return;
-    
+
     // For React/Next.js/Vite projects, download all files sequentially
     // Create a simple download for each file (user can manually create folder structure)
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      const blob = new Blob([file.content], { 
+      const blob = new Blob([file.content], {
         type: file.path.endsWith('.json') ? 'application/json' :
-              file.path.endsWith('.css') ? 'text/css' :
-              file.path.endsWith('.ts') || file.path.endsWith('.tsx') ? 'text/typescript' :
+          file.path.endsWith('.css') ? 'text/css' :
+            file.path.endsWith('.ts') || file.path.endsWith('.tsx') ? 'text/typescript' :
               file.path.endsWith('.js') || file.path.endsWith('.jsx') ? 'text/javascript' :
-              'text/plain'
+                'text/plain'
       });
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
@@ -1529,13 +1537,13 @@ const ChatInterface: React.FC = () => {
       anchor.click();
       document.body.removeChild(anchor);
       URL.revokeObjectURL(url);
-      
+
       // Small delay between downloads to avoid browser blocking
       if (i < files.length - 1) {
         await new Promise(resolve => setTimeout(resolve, 200));
       }
     }
-    
+
     // Show notification
     setLogs(prev => [...prev, `> Downloaded ${files.length} file(s) from ${currentFramework || 'react'} project`]);
   };
@@ -1547,7 +1555,7 @@ const ChatInterface: React.FC = () => {
       await downloadProjectFiles();
       return;
     }
-    
+
     // Single-file HTML download
     if (!currentCode) return;
     const blob = new Blob([currentCode], { type: 'text/html' });
@@ -1573,8 +1581,8 @@ const ChatInterface: React.FC = () => {
     try {
       // Generate plan with built-in timeout (15 seconds in agenticPlanner)
       // Use Mistral Devstral for plan generation (now default)
-      const planProvider = provider === 'deepseek' ? 'deepseek' : 
-                          (provider === 'openai' || provider === 'gemini' || provider === 'anthropic') ? provider : 'deepseek';
+      const planProvider = provider === 'deepseek' ? 'deepseek' :
+        (provider === 'openai' || provider === 'gemini' || provider === 'anthropic') ? provider : 'deepseek';
       const plan = await generatePlan(promptText, planProvider as 'anthropic' | 'gemini' | 'openai' | 'deepseek');
       setCurrentPlan(plan);
       setShowPlanner(true);
@@ -1605,19 +1613,19 @@ const ChatInterface: React.FC = () => {
     const currentPromptTokens = 500;
     // Available tokens for history
     const availableTokens = maxTokens - systemPromptTokens - currentPromptTokens;
-    
+
     if (availableTokens <= 0) return [];
-    
+
     // Calculate total tokens in history
     let totalTokens = 0;
     const truncated: any[] = [];
-    
+
     // Keep latest messages first (most important)
     for (let i = history.length - 1; i >= 0; i--) {
       const msg = history[i];
       const msgText = msg.parts?.[0]?.text || msg.content || '';
       const msgTokens = estimateTokenCount(msgText);
-      
+
       if (totalTokens + msgTokens <= availableTokens) {
         truncated.unshift(msg);
         totalTokens += msgTokens;
@@ -1635,7 +1643,7 @@ const ChatInterface: React.FC = () => {
         break;
       }
     }
-    
+
     return truncated;
   };
 
@@ -1650,10 +1658,10 @@ const ChatInterface: React.FC = () => {
 
     // Check if we have existing code in messages (indicates builder context)
     const hasExistingCode = messages.some(m => m.role === 'ai' && m.code && m.code.trim().length > 0);
-    
+
     // Always detect mode from user input (unless explicitly overridden)
     let detectedMode = modeOverride || detectMode(text) || 'tutor';
-    
+
     // Debug logging
     console.log(`🔍 Mode Detection Debug:`, {
       text: text.substring(0, 50),
@@ -1662,7 +1670,7 @@ const ChatInterface: React.FC = () => {
       hasExistingCode,
       modeOverride
     });
-    
+
     // IMPORTANT: If we're in builder mode and have existing code, we need to be smart about mode switching
     // - Allow tutor questions (like "apa itu", "what is") to switch to tutor mode
     // - Keep edit commands in builder mode
@@ -1675,9 +1683,9 @@ const ChatInterface: React.FC = () => {
         /(warna|color)\s+(kuning|yellow|merah|red|biru|blue|hijau|green|putih|white|hitam|black)/i,
         /^(tambah|add)\s+(button|gambar|image|komponen|component)/i,
       ];
-      
+
       const isEditCommand = editCommandPatterns.some(pattern => pattern.test(text.trim()));
-      
+
       // Only force builder mode if it's a clear edit command
       // Otherwise, trust detectMode() which already handles tutor questions well
       if (isEditCommand) {
@@ -1687,35 +1695,34 @@ const ChatInterface: React.FC = () => {
       // If detectedMode is 'tutor' and it's NOT an edit command, allow the switch to tutor mode
       // This handles cases like "apa itu", "what is", etc.
     }
-    
+
     const mode = detectedMode;
-    
+
     // Auto-switch mode if detected mode is different from current mode
     if (detectedMode !== appMode && !modeOverride) {
       console.log(`🔄 Auto-switching mode: ${appMode} → ${detectedMode} (detected from: "${text.substring(0, 50)}...")`);
       setAppMode(detectedMode);
-      
+
       // When switching to tutor mode, reset activeTab to preview (hide code editor)
       if (detectedMode === 'tutor') {
         setActiveTab('preview');
         console.log(`📚 Switched to tutor mode, resetting tab to preview`);
       }
-      
+
       // Auto-switch to optimal provider for the new mode - DISABLED FOR TESTING
       // const optimalProvider = getOptimalProviderForMode(detectedMode, isSubscribed, false);
       // if (provider !== optimalProvider) {
       //   console.log(`🔄 Auto-switching provider: ${provider} → ${optimalProvider} (optimal for ${detectedMode} mode)`);
       //   setProvider(optimalProvider);
       // }
-      
+
       // Update session mode in database if session exists (non-blocking)
       if (sessionId && user) {
-        getToken({ template: SUPABASE_TEMPLATE })
-          .then(token => updateSessionMode(sessionId, detectedMode, token))
+        updateChatSession(sessionId, { mode: detectedMode })
           .then(() => console.log(`✅ Session mode updated to ${detectedMode}`))
           .catch(error => console.error('Error updating session mode:', error));
       }
-      
+
       // Show visual feedback for mode switch - DISABLED FOR TESTING (optimalProvider tidak lagi dihitung)
       // if (detectedMode === 'builder') {
       //   setLogs(prev => [...prev, `> Switched to Builder mode - Using ${optimalProvider === 'gemini' ? 'Claude Sonnet 4.5' : optimalProvider === 'openai' ? 'GPT-5.2' : 'Claude Opus 4.5'} (optimal for UI generation)`]);
@@ -1818,7 +1825,7 @@ const ChatInterface: React.FC = () => {
 
     // Initialize variables outside try block so they're accessible in error handler
     let historyForAI: any[] = [];
-    let currentSessionId = sessionId;
+    let activeSessionId = currentSessionId; // Use state instead of URL param
     let searchResults: any[] = [];
 
     try {
@@ -1830,12 +1837,12 @@ const ChatInterface: React.FC = () => {
         console.warn("Clerk Supabase template missing. See CLERK_SUPABASE_GUIDE.md");
       }
 
-      if (!currentSessionId && user) {
+      if (!activeSessionId && user) {
         try {
           const sessionTitle = text.trim().length > 0 ? text.substring(0, 30) + '...' : 'New Chat';
           const newSession = await createChatSession(user.id, mode || 'tutor', effectiveProvider, sessionTitle, token);
           if (newSession) {
-            currentSessionId = newSession.id;
+            activeSessionId = newSession.id;
             setCurrentSessionId(newSession.id);
             // Update URL without reloading
             window.history.replaceState(null, '', `/chat/${newSession.id}`);
@@ -1857,8 +1864,8 @@ const ChatInterface: React.FC = () => {
       }
 
       // 2. Save User Message
-      if (currentSessionId && user) {
-        await saveMessage(currentSessionId, 'user', text, undefined, imagesToSend, token);
+      if (activeSessionId && user) {
+        await saveMessage(activeSessionId, 'user', text, undefined, imagesToSend, token);
       }
 
       if (historyOverride) {
@@ -1871,26 +1878,26 @@ const ChatInterface: React.FC = () => {
         // If token exhausted, don't send history (AI won't remember)
         const shouldUseMemory = !hasExceeded || isSubscribed;
         const historyToUse = shouldUseMemory ? aiMemoryHistory : [];
-        
+
         const tempMessage: Message = { id: 'temp', role: 'user', content: text, timestamp: new Date() };
         const fullHistory = [...historyToUse, tempMessage].map(m => ({
           role: m.role === 'user' ? 'user' : 'model',
           parts: [{ text: m.code ? `${m.content}\n\nCode Generated:\n${m.code}` : m.content }]
         }));
-        
+
         // Truncate history if using OpenRouter (has prompt token limit ~2150 for free accounts)
         // Only truncate if provider is openai, gemini, or anthropic (OpenRouter providers)
         if ((effectiveProvider === 'openai' || effectiveProvider === 'gemini' || effectiveProvider === 'anthropic') && fullHistory.length > 0) {
           const OPENROUTER_PROMPT_TOKEN_LIMIT = 2000; // Safe limit for free accounts
           historyForAI = truncateHistory(fullHistory, OPENROUTER_PROMPT_TOKEN_LIMIT);
-          
+
           if (historyForAI.length < fullHistory.length) {
             console.log(`⚠️ History truncated: ${fullHistory.length} → ${historyForAI.length} messages (to fit OpenRouter prompt token limit)`);
           }
         } else {
           historyForAI = fullHistory;
         }
-        
+
         // Log memory status
         if (shouldUseMemory && historyToUse.length > 0) {
           console.log(`🧠 AI Memory: Using ${historyForAI.length} previous messages for context`);
@@ -1905,7 +1912,7 @@ const ChatInterface: React.FC = () => {
           const searchResponse = await performWebSearch(text, 5);
           searchResults = searchResponse.results;
           setSearchResults(searchResults);
-          
+
           // Enhance prompt with search context
           if (searchResults.length > 0) {
             const searchContext = searchResults
@@ -1948,15 +1955,15 @@ const ChatInterface: React.FC = () => {
       // For tutor mode, generate text response only (no code)
       let code: string | null = null;
       let responseText = '';
-      
+
       if (mode === 'builder') {
         // Set building state - show animation
         setIsBuildingCode(true);
-        
+
         // Always use React framework for builder mode (never HTML)
         // Use 'mode' variable (already updated) instead of 'appMode' (may be stale due to async state)
         const frameworkToUse = framework;
-        
+
         // Show building animation with file list
         const existingFiles = fileManager.getAllFiles();
         if (existingFiles.length > 0) {
@@ -1979,12 +1986,31 @@ const ChatInterface: React.FC = () => {
             },
           });
         }
-        
+
         // Debug: Log mode before generating code
         console.log(`🎯 Generating code with mode: ${mode}, framework: ${frameworkToUse}, text: "${text.substring(0, 50)}..."`);
-        
-        codeResponse = await generateCode(text, historyForAI, mode, effectiveProvider, imagesToSend, frameworkToUse);
-      
+
+        // Use workflow if enabled (check config)
+        const { WORKFLOW_CONFIG } = await import('@/lib/workflow/config');
+        const useWorkflow = WORKFLOW_CONFIG.enableWorkflow;
+
+        // Create status update callback
+        const onStatusUpdate = (status: string, message?: string) => {
+          setWorkflowStatus({ status, message: message || '' });
+        };
+
+        codeResponse = await generateCode(
+          text,
+          historyForAI,
+          mode,
+          effectiveProvider,
+          imagesToSend,
+          frameworkToUse,
+          useWorkflow ? { onStatusUpdate } : false,
+          activeSessionId,
+          user?.id
+        );
+
         // Handle multi-file or single-file response (BUILDER MODE ONLY)
         if (!codeResponse) {
           console.error('❌ No response received from generateCode');
@@ -1993,18 +2019,18 @@ const ChatInterface: React.FC = () => {
           setIsBuildingCode(false);
           return;
         }
-        
+
         if (codeResponse.type === 'multi-file') {
           // Multi-file project
           // CRITICAL: Check if any file contains error HTML
-          const hasErrorFile = codeResponse.files.some(file => 
+          const hasErrorFile = codeResponse.files.some(file =>
             file.content.includes('<!-- Error Generating Code -->') ||
             file.content.includes('text-red-500') ||
             file.content.includes('bg-red-900') ||
             file.content.includes('ANTHROPIC Error') ||
             file.content.includes('OpenRouter API Error')
           );
-          
+
           if (hasErrorFile) {
             // Error detected in files - don't set code for preview
             console.error('❌ Error response detected in multi-file response, not setting code for preview');
@@ -2021,23 +2047,23 @@ const ChatInterface: React.FC = () => {
               fileManager.setEntry(codeResponse.entry);
               const entryFile = fileManager.getFile(codeResponse.entry);
               code = entryFile?.content || null;
-              
+
               // If codebase mode, prioritize target file, otherwise use entry
-              const fileToSelect = (codebaseMode && targetFile && fileManager.hasFile(targetFile)) 
-                ? targetFile 
+              const fileToSelect = (codebaseMode && targetFile && fileManager.hasFile(targetFile))
+                ? targetFile
                 : codeResponse.entry;
-              
+
               // Set selected file
               setSelectedFile(fileToSelect);
               if (!openFiles.includes(fileToSelect)) {
                 setOpenFiles(prev => [...prev, fileToSelect]);
               }
-              
+
               // If codebase mode, switch to code tab
               if (codebaseMode) {
                 setActiveTab('code');
               }
-              
+
               // IMPORTANT: Set currentCode for preview (only if not error)
               if (code) {
                 setCurrentCode(code);
@@ -2050,17 +2076,17 @@ const ChatInterface: React.FC = () => {
               code = firstFile.content;
               setCurrentCode(code);
               setCurrentFramework(codeResponse.framework || 'react');
-              
+
               // If codebase mode, prioritize target file, otherwise use first file
-              const fileToSelect = (codebaseMode && targetFile && fileManager.hasFile(targetFile)) 
-                ? targetFile 
+              const fileToSelect = (codebaseMode && targetFile && fileManager.hasFile(targetFile))
+                ? targetFile
                 : firstFile.path;
-              
+
               setSelectedFile(fileToSelect);
               if (!openFiles.includes(fileToSelect)) {
                 setOpenFiles(prev => [...prev, fileToSelect]);
               }
-              
+
               // If codebase mode, switch to code tab
               if (codebaseMode) {
                 setActiveTab('code');
@@ -2071,15 +2097,15 @@ const ChatInterface: React.FC = () => {
         } else {
           // Single-file HTML (backward compatibility)
           code = codeResponse.content;
-          
+
           // CRITICAL: Check if response is an error HTML BEFORE processing
           const isErrorResponse = code.includes('<!-- Error Generating Code -->') ||
-                                 code.includes('text-red-500') ||
-                                 code.includes('bg-red-900') ||
-                                 code.includes('ANTHROPIC Error') ||
-                                 code.includes('OpenRouter API Error') ||
-                                 code.includes('This operation was aborted');
-          
+            code.includes('text-red-500') ||
+            code.includes('bg-red-900') ||
+            code.includes('ANTHROPIC Error') ||
+            code.includes('OpenRouter API Error') ||
+            code.includes('This operation was aborted');
+
           if (isErrorResponse) {
             // This is an error response - don't set as code for preview
             console.error('❌ Error response detected in builder mode, not setting code for preview');
@@ -2090,7 +2116,7 @@ const ChatInterface: React.FC = () => {
           } else {
             const extracted = extractCode(code);
             responseText = extracted.text || 'Generated app successfully.';
-            
+
             // Use extracted code if available, otherwise use original
             code = extracted.code || code;
 
@@ -2121,7 +2147,7 @@ const ChatInterface: React.FC = () => {
               }
             }
           }
-          
+
           // Convert single-file to FileManager for consistency
           fileManager.clear();
           if (code && !isErrorResponse) {
@@ -2134,12 +2160,12 @@ const ChatInterface: React.FC = () => {
             if (!openFiles.includes(fileName)) {
               setOpenFiles(prev => [...prev, fileName]);
             }
-            
+
             // If codebase mode, switch to code tab
             if (codebaseMode) {
               setActiveTab('code');
             }
-            
+
             // IMPORTANT: Set currentCode for preview (only if not error)
             setCurrentCode(code);
             // Keep framework from response, or use 'react' for builder mode (never HTML)
@@ -2161,13 +2187,13 @@ const ChatInterface: React.FC = () => {
             console.error('❌ No code extracted from single-file response');
           }
         }
-        
+
         // Clear building state
         setIsBuildingCode(false);
       } else {
         // TUTOR MODE: Generate text response only (no code)
         console.log(`📚 Tutor mode: Generating text response for: "${text.substring(0, 50)}..."`);
-        
+
         // Check if user is asking to build/create something in tutor mode
         // If so, auto-switch to builder mode for better code generation
         const buildRequestPatterns = [
@@ -2175,32 +2201,48 @@ const ChatInterface: React.FC = () => {
           /^(buatkan|buat|build|create|make|generate)\s+(saya|aku|me|i)\s+(web|website|app|aplikasi|page|halaman)/i,
         ];
         const isBuildRequest = buildRequestPatterns.some(pattern => pattern.test(text.trim()));
-        
+
         if (isBuildRequest) {
           console.log('🔄 Tutor mode detected build request, switching to builder mode...');
           setAppMode('builder');
           // Update session mode
-          if (currentSessionId && user) {
-            getToken({ template: SUPABASE_TEMPLATE })
-              .then(token => updateSessionMode(currentSessionId, 'builder', token))
+          if (activeSessionId && user) {
+            updateChatSession(activeSessionId, { mode: 'builder' })
               .catch(error => console.error('Error updating session mode:', error));
           }
           // Recursively call handleSend with builder mode
           return handleSend(text, 'builder', historyOverride);
         }
-        
+
         // For tutor mode, generate text response (no code)
         try {
-          codeResponse = await generateCode(text, historyForAI, mode, effectiveProvider, imagesToSend, 'html');
+          const { WORKFLOW_CONFIG } = await import('@/lib/workflow/config');
+          const useWorkflow = WORKFLOW_CONFIG.enableWorkflow;
+
+          const onStatusUpdate = (status: string, message?: string) => {
+            setWorkflowStatus({ status, message: message || '' });
+          };
+
+          codeResponse = await generateCode(
+            text,
+            historyForAI,
+            mode,
+            effectiveProvider,
+            imagesToSend,
+            'html',
+            useWorkflow ? { onStatusUpdate } : false,
+            activeSessionId,
+            user?.id
+          );
         } catch (error) {
           console.error('❌ Error calling generateCode in tutor mode:', error);
           codeResponse = null;
         }
-        
+
         // Extract text from response (tutor mode should not have code)
         // responseText already declared at line 1950 (outer scope)
         let code: string | null = null;
-        
+
         if (!codeResponse) {
           console.error('❌ No response received from generateCode in tutor mode');
           responseText = 'I apologize, but I encountered an error while processing your request.\n\n' +
@@ -2223,9 +2265,9 @@ const ChatInterface: React.FC = () => {
           // Single-file response - for tutor mode, use content directly as text
           // Tutor mode should return plain text, not code
           const content = codeResponse.content || '';
-          
-          console.log('📚 Tutor mode: Processing response', { 
-            contentLength: content.length, 
+
+          console.log('📚 Tutor mode: Processing response', {
+            contentLength: content.length,
             hasCodeBlocks: content.includes('```'),
             contentPreview: content.substring(0, 100),
             hasError: content.includes('Error') || content.includes('error') || content.includes('<!-- Error'),
@@ -2233,19 +2275,19 @@ const ChatInterface: React.FC = () => {
             provider: effectiveProvider,
             mode: mode
           });
-          
+
           // Check if response is an error HTML (from formatErrorHtml) - MUST CHECK FIRST
-          const isErrorResponse = content.includes('<!-- Error Generating Code -->') || 
-                                 content.includes('text-red-500') || 
-                                 content.includes('bg-red-900') ||
-                                 content.includes('Error:') ||
-                                 content.includes('error:');
-          
+          const isErrorResponse = content.includes('<!-- Error Generating Code -->') ||
+            content.includes('text-red-500') ||
+            content.includes('bg-red-900') ||
+            content.includes('Error:') ||
+            content.includes('error:');
+
           if (isErrorResponse) {
             // This is an error response - extract readable text from HTML
             console.log('📚 Tutor mode: Error response detected, extracting text from HTML');
             responseText = extractTextFromErrorHtml(content);
-            
+
             // Ensure we have meaningful text
             if (!responseText || responseText.trim().length === 0) {
               // Try to extract using DOM again
@@ -2254,12 +2296,12 @@ const ChatInterface: React.FC = () => {
               const extractedText = tempDiv.textContent || tempDiv.innerText || '';
               responseText = extractedText.trim() || content; // Fallback to original
             }
-            
+
             // Add helpful prefix for error messages in tutor mode
             if (responseText && !responseText.startsWith('🚫') && !responseText.startsWith('⚠️') && !responseText.startsWith('Error')) {
               responseText = `🚫 Error: ${responseText}`;
             }
-            
+
             console.log('📚 Tutor mode: Extracted error text', {
               extractedLength: responseText.length,
               extractedPreview: responseText.substring(0, 150),
@@ -2290,7 +2332,7 @@ const ChatInterface: React.FC = () => {
             if (content.includes('```') && content.length > 100) {
               // Has code blocks, try to extract text portion
               const extracted = extractCode(content);
-              console.log('📚 Tutor mode: Extracted from code blocks', { 
+              console.log('📚 Tutor mode: Extracted from code blocks', {
                 extractedTextLength: extracted.text?.length || 0,
                 hasExtractedText: !!(extracted.text && extracted.text.trim().length > 0),
                 extractedCodeLength: extracted.code?.length || 0
@@ -2306,7 +2348,7 @@ const ChatInterface: React.FC = () => {
               // No code blocks or simple response, use content directly
               responseText = content;
             }
-            
+
             // CRITICAL: Double-check that responseText is set
             // This handles edge cases where extractCode might return empty text
             if (!responseText || responseText.trim().length === 0) {
@@ -2318,7 +2360,7 @@ const ChatInterface: React.FC = () => {
               // Always fallback to original content if responseText is empty
               responseText = content;
             }
-            
+
             // Additional check: if content has HTML tags, try to extract text
             if (content.includes('<') && (!responseText || responseText.trim().length === 0)) {
               const tempDiv = document.createElement('div');
@@ -2329,16 +2371,16 @@ const ChatInterface: React.FC = () => {
               }
             }
           }
-          
+
           // Final validation - ensure we have a response
           if (!responseText || responseText.trim().length === 0) {
-            console.warn('📚 Tutor mode: Response text is still empty after processing', { 
+            console.warn('📚 Tutor mode: Response text is still empty after processing', {
               contentLength: content.length,
               hasContent: !!content,
               contentPreview: content.substring(0, 200),
               isErrorResponse
             });
-            
+
             // If it's an error response but we couldn't extract text, use a generic error message
             if (isErrorResponse) {
               responseText = '🚫 Error: API returned an error response. This usually means:\n\n' +
@@ -2359,8 +2401,8 @@ const ChatInterface: React.FC = () => {
                 '- Switching to a different AI provider';
             }
           }
-          
-          console.log('📚 Tutor mode: Final responseText', { 
+
+          console.log('📚 Tutor mode: Final responseText', {
             responseTextLength: responseText.length,
             responseTextPreview: responseText.substring(0, 100),
             isErrorResponse,
@@ -2368,7 +2410,7 @@ const ChatInterface: React.FC = () => {
             originalContentPreview: content.substring(0, 100),
             isEmpty: !responseText || responseText.trim().length === 0
           });
-          
+
           // CRITICAL: Ensure responseText is never empty if we have content
           if ((!responseText || responseText.trim().length === 0) && content && content.trim().length > 0) {
             console.warn('⚠️ ResponseText is empty but content exists! Using content directly.', {
@@ -2378,10 +2420,10 @@ const ChatInterface: React.FC = () => {
             // Use content directly as last resort
             responseText = content;
           }
-          
+
           // Don't set code for tutor mode
           code = null;
-          
+
           // Ensure responseText is set before final check
           if (!responseText || responseText.trim().length === 0) {
             if (codeResponse?.type === 'single-file' && codeResponse.content) {
@@ -2391,14 +2433,14 @@ const ChatInterface: React.FC = () => {
             }
           }
         }
-        
+
         // Clear building state (if it was set)
         setIsBuildingCode(false);
       }
 
       // 3. Save AI Response
-      if (currentSessionId && user) {
-        await saveMessage(currentSessionId, 'ai', responseText, code || undefined, undefined, token);
+      if (activeSessionId && user) {
+        await saveMessage(activeSessionId, 'ai', responseText, code || undefined, undefined, token);
       }
 
       // Combine search results with response if available
@@ -2416,7 +2458,7 @@ const ChatInterface: React.FC = () => {
             codeResponseContentLength: codeResponse?.type === 'single-file' ? codeResponse.content?.length : 0,
             originalResponseText: responseText
           });
-          
+
           // Check if codeResponse has content that we might have missed
           if (codeResponse && codeResponse.type === 'single-file' && codeResponse.content) {
             const content = codeResponse.content;
@@ -2425,7 +2467,7 @@ const ChatInterface: React.FC = () => {
               contentPreview: content.substring(0, 200),
               isError: content.includes('<!-- Error') || content.includes('text-red-500')
             });
-            
+
             // Try to extract from HTML if it's HTML content
             if (content.includes('<')) {
               const tempDiv = document.createElement('div');
@@ -2445,7 +2487,7 @@ const ChatInterface: React.FC = () => {
               console.log('📚 Tutor mode: Using non-HTML content directly');
             }
           }
-          
+
           // Only use fallback if we still don't have a response
           if (!finalResponseText || finalResponseText.trim().length === 0) {
             finalResponseText = 'I apologize, but I encountered an issue processing your request.\n\n' +
@@ -2464,15 +2506,15 @@ const ChatInterface: React.FC = () => {
       }
 
       const aiResponse: Message = {
-        id: (Date.now() + 1).toString(), 
-        role: 'ai', 
-        content: finalResponseText, 
-        code: code || undefined, 
+        id: (Date.now() + 1).toString(),
+        role: 'ai',
+        content: finalResponseText,
+        code: code || undefined,
         timestamp: new Date()
       };
-      
+
       setMessages(prev => [...prev, aiResponse]);
-      
+
       // Update AI memory with new messages (only if token available)
       if (!hasExceeded || isSubscribed) {
         setAiMemoryHistory(prev => {
@@ -2484,27 +2526,27 @@ const ChatInterface: React.FC = () => {
 
       if (code && mode === 'builder') {
         setLogs(prev => [...prev, '> Code generation complete.', '> Bundling assets...', '> Starting development server...']);
-        
+
         // Ensure currentCode is set (should already be set above, but double-check)
         if (!currentCode || currentCode !== code) {
           setCurrentCode(code);
         }
-        
+
         // Ensure entry is set in fileManager
         if (!fileManager.getEntry() && fileManager.getAllFiles().length > 0) {
           const firstFile = fileManager.getAllFiles()[0];
           fileManager.setEntry(firstFile.path);
         }
-        
+
         setActiveTab('preview');
         setRefreshKey(k => k + 1);
-        
+
         // Auto-save version
         const versionManager = getVersionManager();
         versionManager.saveVersion(fileManager.getAllFiles(), 'Auto-save after generation');
-        
+
         setTimeout(() => setLogs(prev => [...prev, '> Server running at http://localhost:3000', '> Ready.']), 800);
-        
+
         // Debug: Log code preview info
         console.log('✅ Code set for preview:', {
           hasCode: !!code,
@@ -2516,8 +2558,8 @@ const ChatInterface: React.FC = () => {
           fileManagerFiles: fileManager.getAllFiles().length
         });
       } else if (mode === 'builder' && !code) {
-        console.error('❌ No code to preview:', { 
-          codeResponse: codeResponse || null, 
+        console.error('❌ No code to preview:', {
+          codeResponse: codeResponse || null,
           extracted: codeResponse?.type === 'single-file' ? extractCode(codeResponse.content) : null,
           files: codeResponse?.type === 'multi-file' ? codeResponse.files.map(f => ({ path: f.path, contentLength: f.content?.length })) : null
         });
@@ -2525,9 +2567,9 @@ const ChatInterface: React.FC = () => {
       }
 
       // Track token usage dengan optimistic update
-      if (currentSessionId) {
+      if (activeSessionId) {
         // Track ke database (async, tidak blocking) - use effective provider
-        trackUsage(currentSessionId, effectiveProvider)
+        trackUsage(activeSessionId, effectiveProvider)
           .then((success) => {
             if (success) {
               console.log('✅ Token tracked successfully');
@@ -2556,33 +2598,50 @@ const ChatInterface: React.FC = () => {
     } catch (error) {
       setIsBuildingCode(false); // Clear building state on error
       console.error(error);
-      const errorMessage = error instanceof Error 
-        ? error.message 
-        : typeof error === 'string' 
-          ? error 
+      const errorMessage = error instanceof Error
+        ? error.message
+        : typeof error === 'string'
+          ? error
           : "Connection error. Please check your API Key.";
-      
+
       // Auto-fallback: If OpenRouter providers fail with prompt token limit error
       const isPromptTokenError = (effectiveProvider === 'openai' || effectiveProvider === 'gemini' || effectiveProvider === 'anthropic') &&
-        (errorMessage.toLowerCase().includes('prompt tokens') || 
-         errorMessage.toLowerCase().includes('prompt token') ||
-         errorMessage.toLowerCase().includes('token limit exceeded'));
-      
+        (errorMessage.toLowerCase().includes('prompt tokens') ||
+          errorMessage.toLowerCase().includes('prompt token') ||
+          errorMessage.toLowerCase().includes('token limit exceeded'));
+
       // Auto-retry with truncated history if prompt token limit error
       if (isPromptTokenError) {
         console.log(`🔄 ${effectiveProvider} prompt token limit exceeded, retrying with shorter history...`);
-        
+
         // Truncate history more aggressively
         const truncatedHistory = truncateHistory(historyForAI, 1500); // Even shorter limit
-        
+
         try {
           // Always use React framework for builder mode, html for tutor mode
-          const fallbackResponse = await generateCode(text, truncatedHistory, mode, effectiveProvider, imagesToSend, mode === 'builder' ? framework : 'html');
-          
+          const { WORKFLOW_CONFIG } = await import('@/lib/workflow/config');
+          const useWorkflow = WORKFLOW_CONFIG.enableWorkflow;
+
+          const onStatusUpdate = (status: string, message?: string) => {
+            setWorkflowStatus({ status, message: message || '' });
+          };
+
+          const fallbackResponse = await generateCode(
+            text,
+            truncatedHistory,
+            mode,
+            effectiveProvider,
+            imagesToSend,
+            mode === 'builder' ? framework : 'html',
+            useWorkflow ? { onStatusUpdate } : false,
+            activeSessionId,
+            user?.id
+          );
+
           // Handle response (same logic as above)
           let code: string | null = null;
           let responseText = '';
-          
+
           // For tutor mode, handle differently
           if (mode === 'tutor') {
             if (fallbackResponse.type === 'multi-file') {
@@ -2641,31 +2700,31 @@ const ChatInterface: React.FC = () => {
             }
             setIsBuildingCode(false);
           }
-          
+
           // Save response
-          if (currentSessionId && user) {
+          if (activeSessionId && user) {
             try {
               const token = await getToken({ template: SUPABASE_TEMPLATE });
-              await saveMessage(currentSessionId, 'ai', responseText, code || undefined, undefined, token);
+              await saveMessage(activeSessionId, 'ai', responseText, code || undefined, undefined, token);
             } catch (e) {
               console.error('Error saving fallback message:', e);
             }
           }
-          
+
           // Combine search results if available
           let finalResponseText = responseText || "Done.";
           if (searchResults.length > 0 && mode === 'tutor') {
             finalResponseText = combineSearchAndResponse(searchResults, responseText);
           }
-          
+
           setMessages(prev => [...prev, {
-            id: (Date.now() + 1).toString(), 
-            role: 'ai', 
-            content: finalResponseText, 
-            code: code || undefined, 
+            id: (Date.now() + 1).toString(),
+            role: 'ai',
+            content: finalResponseText,
+            code: code || undefined,
             timestamp: new Date()
           }]);
-          
+
           if (code && mode === 'builder') {
             setLogs(prev => [...prev, '> Code generation complete (with shortened history).', '> Bundling assets...', '> Starting development server...']);
             setCurrentCode(code);
@@ -2675,10 +2734,10 @@ const ChatInterface: React.FC = () => {
             versionManager.saveVersion(fileManager.getAllFiles(), 'Auto-save after generation');
             setTimeout(() => setLogs(prev => [...prev, '> Server running at http://localhost:3000', '> Ready.']), 800);
           }
-          
+
           // Track usage
-          if (currentSessionId) {
-            trackUsage(currentSessionId, effectiveProvider)
+          if (activeSessionId) {
+            trackUsage(activeSessionId, effectiveProvider)
               .then(() => {
                 setTimeout(() => {
                   refreshLimit();
@@ -2690,43 +2749,62 @@ const ChatInterface: React.FC = () => {
                 setTimeout(() => refreshLimit(), 1000);
               });
           }
-          
+
           setIsTyping(false);
+          setWorkflowStatus(null); // Clear status when done
           setIsBuildingCode(false);
           return; // Success with truncated history
         } catch (truncatedError) {
           setIsBuildingCode(false); // Clear building state on error
-          setIsTyping(false); // Also clear typing state
+          setIsTyping(false);
+          setWorkflowStatus(null); // Clear status when done // Also clear typing state
           console.error('Retry with truncated history also failed:', truncatedError);
           // Continue to try fallback provider
         }
       }
-      
+
       // Auto-fallback: If OpenRouter providers fail with token limit or credit error, switch to DeepSeek (free, no OpenRouter credits needed)
       const isCreditError = errorMessage.toLowerCase().includes('credit') || errorMessage.toLowerCase().includes('insufficient');
-      const isTokenLimitError = (effectiveProvider === 'openai' || effectiveProvider === 'gemini' || effectiveProvider === 'anthropic') && 
-        (errorMessage.toLowerCase().includes('prompt tokens') || 
-         errorMessage.toLowerCase().includes('token limit exceeded') ||
-         isCreditError);
-      
+      const isTokenLimitError = (effectiveProvider === 'openai' || effectiveProvider === 'gemini' || effectiveProvider === 'anthropic') &&
+        (errorMessage.toLowerCase().includes('prompt tokens') ||
+          errorMessage.toLowerCase().includes('token limit exceeded') ||
+          isCreditError);
+
       if (isTokenLimitError && effectiveProvider !== 'deepseek' as AIProvider) {
         const errorType = isCreditError ? 'credits exceeded' : 'token limit exceeded';
-        const providerName = effectiveProvider === 'openai' ? 'GPT-5-Nano' : 
-                            effectiveProvider === 'anthropic' ? 'GPT OSS 20B' :
-                            effectiveProvider === 'gemini' ? 'GPT OSS 20B' : 'GPT OSS 20B';
+        const providerName = effectiveProvider === 'openai' ? 'GPT-5-Nano' :
+          effectiveProvider === 'anthropic' ? 'GPT OSS 20B' :
+            effectiveProvider === 'gemini' ? 'GPT OSS 20B' : 'GPT OSS 20B';
         console.log(`🔄 ${effectiveProvider} ${errorType}, auto-switching to Mistral Devstral (free alternative)...`);
         setProvider('deepseek');
         setLogs(prev => [...prev, `⚠️ ${providerName} ${errorType}, retrying with Mistral Devstral (free, no OpenRouter credits needed)...`]);
-        
+
         // Retry with DeepSeek and shorter history
         const truncatedHistory = truncateHistory(historyForAI, 1500);
         try {
-          const fallbackResponse = await generateCode(text, truncatedHistory, mode, 'deepseek', imagesToSend, mode === 'builder' ? framework : 'html');
-          
+          const { WORKFLOW_CONFIG } = await import('@/lib/workflow/config');
+          const useWorkflow = WORKFLOW_CONFIG.enableWorkflow;
+
+          const onStatusUpdate = (status: string, message?: string) => {
+            setWorkflowStatus({ status, message: message || '' });
+          };
+
+          const fallbackResponse = await generateCode(
+            text,
+            truncatedHistory,
+            mode,
+            'deepseek',
+            imagesToSend,
+            mode === 'builder' ? framework : 'html',
+            useWorkflow ? { onStatusUpdate } : false,
+            activeSessionId,
+            user?.id
+          );
+
           // Handle response (same logic as above)
           let code: string | null = null;
           let responseText = '';
-          
+
           if (fallbackResponse.type === 'multi-file') {
             fileManager.clear();
             fallbackResponse.files.forEach(file => {
@@ -2747,6 +2825,7 @@ const ChatInterface: React.FC = () => {
             }
             setIsBuildingCode(false);
             setIsTyping(false);
+            setWorkflowStatus(null); // Clear status when done
             responseText = `Generated ${fallbackResponse.files.length} file(s) with Mistral Devstral.`;
           } else {
             code = fallbackResponse.content;
@@ -2771,32 +2850,33 @@ const ChatInterface: React.FC = () => {
             }
             setIsBuildingCode(false);
             setIsTyping(false);
+            setWorkflowStatus(null); // Clear status when done
           }
-          
+
           // Save response
-          if (currentSessionId && user) {
+          if (activeSessionId && user) {
             try {
               const token = await getToken({ template: SUPABASE_TEMPLATE });
-              await saveMessage(currentSessionId, 'ai', responseText, code || undefined, undefined, token);
+              await saveMessage(activeSessionId, 'ai', responseText, code || undefined, undefined, token);
             } catch (e) {
               console.error('Error saving fallback message:', e);
             }
           }
-          
+
           // Combine search results if available
           let finalResponseText = responseText || "Done.";
           if (searchResults.length > 0 && mode === 'tutor') {
             finalResponseText = combineSearchAndResponse(searchResults, responseText);
           }
-          
+
           setMessages(prev => [...prev, {
-            id: (Date.now() + 1).toString(), 
-            role: 'ai', 
-            content: finalResponseText, 
-            code: code || undefined, 
+            id: (Date.now() + 1).toString(),
+            role: 'ai',
+            content: finalResponseText,
+            code: code || undefined,
             timestamp: new Date()
           }]);
-          
+
           if (code && mode === 'builder') {
             setLogs(prev => [...prev, '> Code generation complete (Mistral Devstral).', '> Bundling assets...', '> Starting development server...']);
             setCurrentCode(code);
@@ -2806,10 +2886,10 @@ const ChatInterface: React.FC = () => {
             versionManager.saveVersion(fileManager.getAllFiles(), 'Auto-save after generation (Mistral Devstral)');
             setTimeout(() => setLogs(prev => [...prev, '> Server running at http://localhost:3000', '> Ready.']), 800);
           }
-          
+
           // Track usage with Claude Opus 4.5
-          if (currentSessionId) {
-            trackUsage(currentSessionId, 'anthropic')
+          if (activeSessionId) {
+            trackUsage(activeSessionId, 'anthropic')
               .then(() => {
                 setTimeout(() => {
                   refreshLimit();
@@ -2821,7 +2901,7 @@ const ChatInterface: React.FC = () => {
                 setTimeout(() => refreshLimit(), 1000);
               });
           }
-          
+
           return; // Success with fallback
         } catch (fallbackError) {
           setIsBuildingCode(false); // Clear building state on error
@@ -2829,11 +2909,11 @@ const ChatInterface: React.FC = () => {
           // Continue to show error message
         }
       }
-      
+
       // Show error message
       setIsBuildingCode(false); // Clear building state before showing error
       setIsTyping(false); // Ensure typing state is cleared
-      
+
       // Format error message based on mode
       let errorContent = '';
       if (mode === 'tutor') {
@@ -2854,11 +2934,11 @@ const ChatInterface: React.FC = () => {
         // For builder mode, show technical error
         errorContent = `Error: ${errorMessage}`;
       }
-      
+
       setMessages(prev => [...prev, {
-        id: Date.now().toString(), 
-        role: 'ai', 
-        content: errorContent, 
+        id: Date.now().toString(),
+        role: 'ai',
+        content: errorContent,
         timestamp: new Date()
       }]);
     } finally {
@@ -2982,7 +3062,7 @@ const ChatInterface: React.FC = () => {
           </Link>
         </div>
         <div className="flex items-center gap-2">
-          <button 
+          <button
             onClick={handleOpenSettings}
             className="p-2 rounded-md hover:bg-white/5 text-gray-400 hover:text-white transition-colors"
           >
@@ -2993,7 +3073,7 @@ const ChatInterface: React.FC = () => {
 
       {/* Chat List - Clean v0.app Style */}
       <div className={cn(
-        "relative flex-1 overflow-y-auto px-4 md:px-5 lg:px-6 py-6 md:py-8",
+        "relative flex-1 overflow-y-auto px-3 sm:px-4 md:px-5 lg:px-6 py-4 sm:py-6 md:py-8",
         messages.length === 0 ? "flex flex-col items-center justify-center text-center" : "block"
       )}>
         {messages.length === 0 ? (
@@ -3013,200 +3093,189 @@ const ChatInterface: React.FC = () => {
               </div>
               <h2 className="text-2xl font-semibold text-white">Describe what you want to build</h2>
               <p className="text-gray-400 text-sm max-w-xl">
-                Contoh: “Buat landing page SaaS modern dengan hero, fitur grid, pricing, dan footer.”<br/>
+                Contoh: “Buat landing page SaaS modern dengan hero, fitur grid, pricing, dan footer.”<br />
                 Sertakan gaya (minimalis, glassmorphism), warna, atau referensi UI jika ada.
               </p>
             </div>
           )
         ) : (
-        <div className="max-w-3xl mx-auto space-y-6">
-          {/* Show codebase exploration if active */}
-          {isExploringCodebase && (
-            <div className="flex flex-col gap-3 items-start animate-in fade-in slide-in-from-bottom-2 duration-300">
-              <div className="flex items-center gap-2 mb-1">
-                <div className="w-6 h-6 rounded-full bg-gray-800 border border-gray-700 flex items-center justify-center">
-                  <Bot size={14} className="text-gray-400" />
-                </div>
-                <span className="text-xs text-gray-400">NEVRA Builder</span>
-              </div>
-              <div className="max-w-[85%] bg-[#0a0a0a] border border-white/10 rounded-xl p-4">
-                <CodebaseExplorer 
-                  analysis={codebaseAnalysis}
-                  isExploring={isExploringCodebase}
-                />
-              </div>
-            </div>
-          )}
-
-          {messages.map((msg, idx) => (
-            <div key={msg.id} className={cn("flex flex-col gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300", msg.role === 'user' ? 'items-end' : 'items-start')}>
-              {msg.role === 'ai' && (
+          <div className="max-w-3xl mx-auto space-y-6">
+            {/* Show codebase exploration if active */}
+            {isExploringCodebase && (
+              <div className="flex flex-col gap-3 items-start animate-in fade-in slide-in-from-bottom-2 duration-300">
                 <div className="flex items-center gap-2 mb-1">
                   <div className="w-6 h-6 rounded-full bg-gray-800 border border-gray-700 flex items-center justify-center">
                     <Bot size={14} className="text-gray-400" />
                   </div>
-                  <span className="text-xs text-gray-500 font-medium">
-                    {appMode === 'tutor' ? 'Nevra Tutor' : 'Nevra Builder'}
-                  </span>
+                  <span className="text-xs text-gray-400">NEVRA Builder</span>
                 </div>
-              )}
-              <div className={cn(
-                "relative leading-relaxed transition-all duration-200",
-                msg.role === 'user'
-                  ? "rounded-2xl px-4 py-3 bg-white/[0.08] border border-white/10 text-white max-w-[85%]"
-                  : "rounded-2xl px-4 py-3 bg-white/[0.03] border border-white/10 text-gray-200 max-w-[90%]"
-              )}>
-                {msg.images && msg.images.length > 0 && (
-                  <div className="flex gap-3 mb-4 flex-wrap">
-                    {msg.images.map((img, imgIdx) => (
-                      <div key={imgIdx} className="relative group">
-                        <img src={img} alt="Attached" className={cn(
-                          "object-cover shadow-xl",
-                          appMode === 'tutor'
-                            ? "w-28 h-28 md:w-36 md:h-36 rounded-xl md:rounded-2xl border-2 border-blue-500/30"
-                            : "w-24 h-24 md:w-32 md:h-32 rounded-lg md:rounded-xl border border-purple-500/30 shadow-lg"
-                        )} />
-                        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl md:rounded-2xl"></div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {msg.role === 'ai' ? (
-                  <div className="prose prose-sm max-w-none prose-invert prose-p:text-gray-200 prose-headings:text-white prose-strong:text-white prose-code:text-purple-300 prose-pre:bg-[#0a0a0a] prose-pre:border prose-pre:border-white/10">
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
-                      rehypePlugins={[rehypeRaw]}
-                      components={{
-                        code({ node, inline, className, children, ...props }: any) {
-                          const match = /language-(\w+)/.exec(className || '');
-                          return !inline && match ? (
-                            <div className="overflow-hidden border border-white/10 rounded-lg bg-[#0a0a0a] my-3">
-                              <div className="flex items-center justify-between border-b border-white/10 px-4 py-2 bg-[#111]">
-                                <span className="text-xs font-medium text-gray-300 uppercase">{match[1]}</span>
-                                <button
-                                  onClick={() => {
-                                    navigator.clipboard.writeText(String(children).replace(/\n$/, ''));
-                                  }}
-                                  className="text-xs text-gray-400 hover:text-gray-200 px-2 py-1 rounded hover:bg-white/5 transition-colors"
-                                >
-                                  Copy
-                                </button>
-                              </div>
-                              <div className="overflow-x-auto">
-                                <SyntaxHighlighter
-                                  style={vscDarkPlus}
-                                  language={match[1]}
-                                  PreTag="div"
-                                  customStyle={{ 
-                                    margin: 0, 
-                                    padding: '1rem', 
-                                    background: 'transparent', 
-                                    fontSize: '13px', 
-                                    lineHeight: '1.6'
-                                  }}
-                                  {...props}
-                                >
-                                  {String(children).replace(/\n$/, '')}
-                                </SyntaxHighlighter>
-                              </div>
-                            </div>
-                          ) : (
-                            <code className="rounded px-1.5 py-0.5 text-xs font-medium bg-purple-500/20 text-purple-300 border border-purple-500/30" {...props}>
-                              {children}
-                            </code>
-                          );
-                        }
-                      }}
-                    >
-                      {msg.content}
-                    </ReactMarkdown>
-                  </div>
-                ) : (
-                  <div className="whitespace-pre-wrap text-white leading-relaxed text-sm">
-                    {msg.content}
-                  </div>
-                )}
+                <div className="max-w-[85%] bg-[#0a0a0a] border border-white/10 rounded-xl p-4">
+                  <CodebaseExplorer
+                    analysis={codebaseAnalysis}
+                    isExploring={isExploringCodebase}
+                  />
+                </div>
               </div>
-              {/* Action Buttons - Different for Tutor vs Builder */}
-              {msg.role === 'ai' && (
-                <div className="space-y-3 mt-4">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {appMode === 'builder' && msg.code && (
-                      <>
-                        <button 
-                          onClick={() => { 
-                            if (msg.code) {
-                              setCurrentCode(msg.code);
-                              fileManager.clear();
-                              fileManager.addFile('index.html', msg.code, 'page');
-                              fileManager.setEntry('index.html');
-                              setSelectedFile('index.html');
-                              if (!openFiles.includes('index.html')) {
-                                setOpenFiles(prev => [...prev, 'index.html']);
+            )}
+
+            {messages.map((msg, idx) => (
+              <div key={msg.id} className={cn("flex flex-col gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300", msg.role === 'user' ? 'items-end' : 'items-start')}>
+                {msg.role === 'ai' && (
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-6 h-6 rounded-full bg-gray-800 border border-gray-700 flex items-center justify-center">
+                      <Bot size={14} className="text-gray-400" />
+                    </div>
+                    <span className="text-xs text-gray-500 font-medium">
+                      {appMode === 'tutor' ? 'Nevra Tutor' : 'Nevra Builder'}
+                    </span>
+                  </div>
+                )}
+                <div className={cn(
+                  "relative leading-relaxed transition-all duration-200",
+                  msg.role === 'user'
+                    ? "rounded-2xl px-3 md:px-4 py-2.5 md:py-3 bg-white/[0.08] border border-white/10 text-white max-w-[85%] sm:max-w-[80%] md:max-w-[85%]"
+                    : "rounded-2xl px-3 md:px-4 py-2.5 md:py-3 bg-white/[0.03] border border-white/10 text-gray-200 max-w-[90%] sm:max-w-[85%] md:max-w-[90%]"
+                )}>
+                  {msg.images && msg.images.length > 0 && (
+                    <div className="flex gap-3 mb-4 flex-wrap">
+                      {msg.images.map((img, imgIdx) => (
+                        <div key={imgIdx} className="relative group">
+                          <img src={img} alt="Attached" className={cn(
+                            "object-cover shadow-xl",
+                            appMode === 'tutor'
+                              ? "w-28 h-28 md:w-36 md:h-36 rounded-xl md:rounded-2xl border-2 border-blue-500/30"
+                              : "w-24 h-24 md:w-32 md:h-32 rounded-lg md:rounded-xl border border-purple-500/30 shadow-lg"
+                          )} />
+                          <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl md:rounded-2xl"></div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {msg.role === 'ai' ? (
+                    <div className="prose prose-sm max-w-none prose-invert prose-p:text-gray-200 prose-headings:text-white prose-strong:text-white prose-code:text-purple-300 prose-pre:bg-[#0a0a0a] prose-pre:border prose-pre:border-white/10">
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        rehypePlugins={[rehypeRaw]}
+                        components={{
+                          code({ node, inline, className, children, ...props }: any) {
+                            const match = /language-(\w+)/.exec(className || '');
+                            return !inline && match ? (
+                              <div className="overflow-hidden border border-white/10 rounded-lg bg-[#0a0a0a] my-3">
+                                <div className="flex items-center justify-between border-b border-white/10 px-4 py-2 bg-[#111]">
+                                  <span className="text-xs font-medium text-gray-300 uppercase">{match[1]}</span>
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(String(children).replace(/\n$/, ''));
+                                    }}
+                                    className="text-xs text-gray-400 hover:text-gray-200 px-2 py-1 rounded hover:bg-white/5 transition-colors"
+                                  >
+                                    Copy
+                                  </button>
+                                </div>
+                                <div className="overflow-x-auto">
+                                  <SyntaxHighlighter
+                                    style={vscDarkPlus}
+                                    language={match[1]}
+                                    PreTag="div"
+                                    customStyle={{
+                                      margin: 0,
+                                      padding: '1rem',
+                                      background: 'transparent',
+                                      fontSize: '13px',
+                                      lineHeight: '1.6'
+                                    }}
+                                    {...props}
+                                  >
+                                    {String(children).replace(/\n$/, '')}
+                                  </SyntaxHighlighter>
+                                </div>
+                              </div>
+                            ) : (
+                              <code className="rounded px-1.5 py-0.5 text-xs font-medium bg-purple-500/20 text-purple-300 border border-purple-500/30" {...props}>
+                                {children}
+                              </code>
+                            );
+                          }
+                        }}
+                      >
+                        {msg.content}
+                      </ReactMarkdown>
+                    </div>
+                  ) : (
+                    <div className="whitespace-pre-wrap text-white leading-relaxed text-sm">
+                      {msg.content}
+                    </div>
+                  )}
+                </div>
+                {/* Action Buttons - Different for Tutor vs Builder */}
+                {msg.role === 'ai' && (
+                  <div className="space-y-3 mt-4">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {appMode === 'builder' && msg.code && (
+                        <>
+                          <button
+                            onClick={() => {
+                              if (msg.code) {
+                                setCurrentCode(msg.code);
+                                fileManager.clear();
+                                fileManager.addFile('index.html', msg.code, 'page');
+                                fileManager.setEntry('index.html');
+                                setSelectedFile('index.html');
+                                if (!openFiles.includes('index.html')) {
+                                  setOpenFiles(prev => [...prev, 'index.html']);
+                                }
+                                setRefreshKey(k => k + 1);
                               }
-                              setRefreshKey(k => k + 1);
-                            }
-                            setActiveTab('preview');
-                            if (isMobile) setMobileTab('workbench'); 
-                          }} 
-                          className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-gray-300 hover:text-white hover:bg-white/5 rounded-md transition-colors border border-white/10"
-                        >
-                          <Eye size={14} /> View Generated
-                        </button>
-                        <button 
+                              setActiveTab('preview');
+                              if (isMobile) setMobileTab('workbench');
+                            }}
+                            className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-gray-300 hover:text-white hover:bg-white/5 rounded-md transition-colors border border-white/10"
+                          >
+                            <Eye size={14} /> View Generated
+                          </button>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(msg.code || '');
+                            }}
+                            className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-gray-300 hover:text-white hover:bg-white/5 rounded-md transition-colors border border-white/10"
+                          >
+                            <Copy size={14} /> Copy Code
+                          </button>
+                        </>
+                      )}
+                      {appMode === 'tutor' && (
+                        <button
                           onClick={() => {
-                            navigator.clipboard.writeText(msg.code || '');
+                            navigator.clipboard.writeText(msg.content || '');
                           }}
                           className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-gray-300 hover:text-white hover:bg-white/5 rounded-md transition-colors border border-white/10"
                         >
-                          <Copy size={14} /> Copy Code
+                          <Copy size={14} /> Copy Message
                         </button>
-                      </>
-                    )}
-                    {appMode === 'tutor' && (
-                      <button 
-                        onClick={() => {
-                          navigator.clipboard.writeText(msg.content || '');
-                        }}
-                        className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-gray-300 hover:text-white hover:bg-white/5 rounded-md transition-colors border border-white/10"
-                      >
-                        <Copy size={14} /> Copy Message
-                      </button>
-                    )}
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
-          ))}
-          {isTyping && (
-            <div className={cn(
-              "flex items-center gap-3 md:gap-4 text-sm md:text-base pl-2 animate-pulse",
-              appMode === 'tutor' ? "text-gray-300" : "text-gray-400"
-            )}>
-              <div className={cn(
-                "flex items-center justify-center border shadow-lg",
-                appMode === 'tutor'
-                  ? "w-9 h-9 md:w-10 md:h-10 rounded-2xl bg-gradient-to-br from-blue-500/20 to-indigo-500/20 border-blue-500/30"
-                  : "w-7 h-7 md:w-8 md:h-8 rounded-lg md:rounded-xl bg-gradient-to-br from-purple-500/20 to-blue-500/20 border-purple-500/20"
-              )}>
-                <Loader2 size={isMobile ? (appMode === 'tutor' ? 20 : 18) : (appMode === 'tutor' ? 18 : 16)} className={cn(
-                  "animate-spin",
-                  appMode === 'tutor' ? "text-blue-400" : "text-purple-400"
-                )} />
+                )}
               </div>
-              <span className={appMode === 'tutor' ? "font-semibold" : "font-medium"}>Thinking...</span>
-            </div>
-          )}
-          <div ref={messagesEndRef} />
-        </div>
+            ))}
+            {isTyping && (
+              <div className="pl-2">
+                <AILoading
+                  mode={appMode || 'tutor'}
+                  status={workflowStatus?.message}
+                />
+              </div>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
         )}
       </div>
 
       {/* Input Area - ChatGPT Style - Show after first message or always for tutor mode */}
       {(messages.length > 0 || appMode === 'tutor') && (
-      <div className="relative p-4 md:p-6 border-t border-white/[0.08] bg-[#0a0a0a] shrink-0 pb-safe">
-        {/* DISABLED FOR TESTING - Token limit warnings */}
-        {/* {!isSubscribed && hasExceeded && !tokenLoading && (
+        <div className="relative p-4 md:p-6 border-t border-white/[0.08] bg-[#0a0a0a] shrink-0 pb-safe">
+          {/* DISABLED FOR TESTING - Token limit warnings */}
+          {/* {!isSubscribed && hasExceeded && !tokenLoading && (
           <div className="mb-3 md:mb-4 text-xs md:text-sm font-medium text-amber-300 bg-amber-500/10 border border-amber-500/30 px-3 md:px-4 py-2.5 md:py-3 rounded-lg md:rounded-xl flex items-center gap-2 md:gap-2.5 shadow-lg shadow-amber-500/10">
             <AlertTriangle size={isMobile ? 18 : 16} className="text-amber-400 shrink-0" />
             <div className="flex flex-col gap-1">
@@ -3215,350 +3284,329 @@ const ChatInterface: React.FC = () => {
             </div>
           </div>
         )} */}
-        {/* {!isSubscribed && false && provider === 'gemini' && (
+          {/* {!isSubscribed && false && provider === 'gemini' && (
           <div className="mb-3 md:mb-4 text-xs md:text-sm font-medium text-amber-300 bg-amber-500/10 border border-amber-500/30 px-3 md:px-4 py-2.5 md:py-3 rounded-lg md:rounded-xl flex items-center gap-2 md:gap-2.5 shadow-lg shadow-amber-500/10">
             <AlertTriangle size={isMobile ? 18 : 16} className="text-amber-400 shrink-0" />
             <span className="text-[11px] md:text-xs">Claude Sonnet 4.5 token limit reached. Switching to Mistral Devstral. Recharge tokens to unlock Claude Sonnet 4.5.</span>
           </div>
         )} */}
-        {/* Attached Images Preview - Above Input Box */}
-        {attachedImages.length > 0 && (
-          <div className="mb-3 md:mb-4">
-            <div className="flex items-center gap-2 mb-2">
-              <ImageIcon size={isMobile ? 14 : 12} className="text-purple-400" />
-              <span className="text-[10px] md:text-xs text-purple-400 font-medium">
-                {attachedImages.length} image{attachedImages.length > 1 ? 's' : ''} ready for AI analysis
-              </span>
-            </div>
-            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none -mx-3 md:mx-0 px-3 md:px-0">
-              {attachedImages.map((img, idx) => (
-                <div key={idx} className="relative group shrink-0">
-                  <img src={img} alt="Preview" className="w-12 h-12 md:w-14 md:h-14 object-cover rounded-md border border-purple-500/30 shadow-sm" />
-                  <button
-                    onClick={() => removeImage(idx)}
-                    className="absolute -top-1 -right-1 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all shadow-sm min-w-[20px] min-h-[20px] flex items-center justify-center"
-                  >
-                    <X size={10} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div className="max-w-3xl mx-auto w-full">
-          <div className="relative bg-white/[0.04] border border-white/10 rounded-2xl shadow-sm transition-all duration-200 hover:shadow-md hover:border-white/20 focus-within:shadow-md focus-within:border-white/20">
-            {/* Mobile: Simplified layout */}
-            {isMobile ? (
-              <>
-                {/* Textarea */}
-                <textarea
-                  value={input}
-                  onChange={(e) => {
-                    setInput(e.target.value);
-                    e.target.style.height = 'auto';
-                    e.target.style.height = `${Math.min(e.target.scrollHeight, 150)}px`;
-                  }}
-                  onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSend())}
-                  placeholder={appMode === 'tutor' ? "Ask me anything..." : "Describe your app..."}
-                  className="w-full bg-transparent border-0 rounded-2xl px-4 py-3 text-base text-white placeholder-gray-400 focus:outline-none resize-none min-h-[60px] max-h-[150px] leading-relaxed"
-                  style={{ paddingRight: '48px' }}
-                />
-                
-                {/* Send button */}
-                <button
-                  onClick={() => handleSend()}
-                  disabled={(!input.trim() && attachedImages.length === 0) || isTyping}
-                  className="absolute top-3 right-3 p-2 bg-white text-black rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-200"
-                >
-                  <Send size={16} />
-                </button>
-
-                {/* Attachment & Actions Row - ChatGPT Style */}
-                <div className="flex items-center justify-between px-4 py-2 border-t border-white/10">
-                  {/* Left: Attachment Dropdown */}
-                  <div className="relative" ref={attachmentMenuRef}>
+          {/* Attached Images Preview - Above Input Box */}
+          {attachedImages.length > 0 && (
+            <div className="mb-3 md:mb-4">
+              <div className="flex items-center gap-2 mb-2">
+                <ImageIcon size={isMobile ? 14 : 12} className="text-purple-400" />
+                <span className="text-[10px] md:text-xs text-purple-400 font-medium">
+                  {attachedImages.length} image{attachedImages.length > 1 ? 's' : ''} ready for AI analysis
+                </span>
+              </div>
+              <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none -mx-3 md:mx-0 px-3 md:px-0">
+                {attachedImages.map((img, idx) => (
+                  <div key={idx} className="relative group shrink-0">
+                    <img src={img} alt="Preview" className="w-12 h-12 md:w-14 md:h-14 object-cover rounded-md border border-purple-500/30 shadow-sm" />
                     <button
-                      onClick={() => setShowAttachmentMenu(!showAttachmentMenu)}
-                      className="p-2 rounded-md hover:bg-white/5 text-gray-400 hover:text-gray-300 transition-colors"
-                      title="Attach files"
+                      onClick={() => removeImage(idx)}
+                      className="absolute -top-1 -right-1 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all shadow-sm min-w-[20px] min-h-[20px] flex items-center justify-center"
                     >
-                      <Plus size={16} />
+                      <X size={10} />
                     </button>
-                    {showAttachmentMenu && (
-                      <>
-                        <div 
-                          className="fixed inset-0 z-40" 
-                          onClick={() => setShowAttachmentMenu(false)}
-                        />
-                        <div className="absolute bottom-full left-0 mb-2 w-56 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-xl overflow-hidden z-50">
-                          <button
-                            onClick={() => {
-                              documentInputRef.current?.click();
-                              setShowAttachmentMenu(false);
-                            }}
-                            className="w-full flex items-center gap-3 px-4 py-3 text-sm text-left text-gray-300 hover:bg-white/10 transition-colors"
-                          >
-                            <FileText size={18} className="text-green-400" />
-                            <div className="flex flex-col">
-                              <span className="font-medium">Upload Document</span>
-                              <span className="text-xs text-gray-500">PDF, DOCX, TXT, MD</span>
-                            </div>
-                          </button>
-                          <button
-                            onClick={() => {
-                              fileInputRef.current?.click();
-                              setShowAttachmentMenu(false);
-                            }}
-                            className="w-full flex items-center gap-3 px-4 py-3 text-sm text-left text-gray-300 hover:bg-white/10 transition-colors border-t border-white/10"
-                          >
-                            <ImageIcon size={18} className="text-blue-400" />
-                            <div className="flex flex-col">
-                              <span className="font-medium">Upload Image</span>
-                              <span className="text-xs text-gray-500">JPG, PNG, GIF</span>
-                            </div>
-                          </button>
-                          <button
-                            onClick={() => {
-                              handleCameraCapture();
-                              setShowAttachmentMenu(false);
-                            }}
-                            className="w-full flex items-center gap-3 px-4 py-3 text-sm text-left text-gray-300 hover:bg-white/10 transition-colors border-t border-white/10"
-                          >
-                            <Camera size={18} className="text-purple-400" />
-                            <div className="flex flex-col">
-                              <span className="font-medium">Take Photo</span>
-                              <span className="text-xs text-gray-500">Use camera</span>
-                            </div>
-                          </button>
-                        </div>
-                      </>
-                    )}
                   </div>
+                ))}
+              </div>
+            </div>
+          )}
 
-                  {/* Right: Web Search Toggle, Token & Provider */}
-                  <div className="flex items-center gap-2 ml-auto shrink-0">
-                    {appMode === 'tutor' && (
+          <div className="max-w-3xl mx-auto w-full">
+            <div className="relative bg-white/[0.04] border border-white/10 rounded-2xl shadow-sm transition-all duration-200 hover:shadow-md hover:border-white/20 focus-within:shadow-md focus-within:border-white/20">
+              {/* Mobile: Simplified layout */}
+              {isMobile ? (
+                <>
+                  {/* Textarea */}
+                  <textarea
+                    value={input}
+                    onChange={(e) => {
+                      setInput(e.target.value);
+                      e.target.style.height = 'auto';
+                      e.target.style.height = `${Math.min(e.target.scrollHeight, 150)}px`;
+                    }}
+                    onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSend())}
+                    placeholder={appMode === 'tutor' ? "Ask me anything..." : "Describe your app..."}
+                    className="w-full bg-transparent border-0 rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base text-white placeholder-gray-400 focus:outline-none resize-none min-h-[60px] max-h-[150px] leading-relaxed"
+                    style={{ paddingRight: '48px' }}
+                  />
+
+                  {/* Send button */}
+                  <button
+                    onClick={() => handleSend()}
+                    disabled={(!input.trim() && attachedImages.length === 0) || isTyping}
+                    className="absolute top-3 right-3 p-2.5 md:p-2 bg-white text-black rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-200 min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 flex items-center justify-center"
+                    aria-label="Send message"
+                  >
+                    <Send size={16} />
+                  </button>
+
+                  {/* Attachment & Actions Row - ChatGPT Style */}
+                  <div className="flex items-center justify-between px-4 py-2 border-t border-white/10">
+                    {/* Left: Attachment Dropdown */}
+                    <div className="relative" ref={attachmentMenuRef}>
+                      <button
+                        onClick={() => setShowAttachmentMenu(!showAttachmentMenu)}
+                        className="p-2.5 md:p-2 rounded-md hover:bg-white/5 text-gray-400 hover:text-gray-300 transition-colors min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 flex items-center justify-center"
+                        title="Attach files"
+                        aria-label="Attach files"
+                      >
+                        <Plus size={16} />
+                      </button>
+                      {showAttachmentMenu && (
+                        <>
+                          <div
+                            className="fixed inset-0 z-40"
+                            onClick={() => setShowAttachmentMenu(false)}
+                          />
+                          <div className="absolute bottom-full left-0 mb-2 w-56 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-xl overflow-hidden z-50">
+                            <button
+                              onClick={() => {
+                                documentInputRef.current?.click();
+                                setShowAttachmentMenu(false);
+                              }}
+                              className="w-full flex items-center gap-3 px-4 py-3.5 md:py-3 text-sm text-left text-gray-300 hover:bg-white/10 transition-colors min-h-[44px]"
+                            >
+                              <FileText size={18} className="text-green-400 shrink-0" />
+                              <div className="flex flex-col text-left">
+                                <span className="font-medium">Upload Document</span>
+                                <span className="text-xs text-gray-500">PDF, DOCX, TXT, MD</span>
+                              </div>
+                            </button>
+                            <button
+                              onClick={() => {
+                                fileInputRef.current?.click();
+                                setShowAttachmentMenu(false);
+                              }}
+                              className="w-full flex items-center gap-3 px-4 py-3.5 md:py-3 text-sm text-left text-gray-300 hover:bg-white/10 transition-colors border-t border-white/10 min-h-[44px]"
+                            >
+                              <ImageIcon size={18} className="text-blue-400 shrink-0" />
+                              <div className="flex flex-col text-left">
+                                <span className="font-medium">Upload Image</span>
+                                <span className="text-xs text-gray-500">JPG, PNG, GIF</span>
+                              </div>
+                            </button>
+                            <button
+                              onClick={() => {
+                                handleCameraCapture();
+                                setShowAttachmentMenu(false);
+                              }}
+                              className="w-full flex items-center gap-3 px-4 py-3.5 md:py-3 text-sm text-left text-gray-300 hover:bg-white/10 transition-colors border-t border-white/10 min-h-[44px]"
+                            >
+                              <Camera size={18} className="text-purple-400 shrink-0" />
+                              <div className="flex flex-col text-left">
+                                <span className="font-medium">Take Photo</span>
+                                <span className="text-xs text-gray-500">Use camera</span>
+                              </div>
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Right: Web Search Toggle, Token & Provider */}
+                    <div className="flex items-center gap-2 ml-auto shrink-0">
+                      {appMode === 'tutor' && (
+                        <button
+                          onClick={() => setEnableWebSearch(!enableWebSearch)}
+                          className={cn(
+                            "p-1.5 rounded-md border transition-all duration-200 min-w-[32px] min-h-[32px] flex items-center justify-center shrink-0",
+                            enableWebSearch
+                              ? "bg-blue-500/20 border-blue-500/30 text-blue-400"
+                              : "bg-white/5 border-white/10 hover:bg-blue-500/20 hover:border-blue-500/30 text-gray-400 hover:text-blue-400"
+                          )}
+                          title="Web Search"
+                        >
+                          <Search size={14} />
+                        </button>
+                      )}
+                      <div className="text-[10px] text-gray-400 font-medium">
+                        ${Math.max(0, FREE_TOKEN_LIMIT - tokensUsed)}
+                      </div>
+                      {/* Model selection removed - orchestrator manages models automatically */}
+                      <div className="text-xs text-gray-500 px-2 py-1 rounded border border-white/10">
+                        Auto
+                      </div>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Desktop: v0.app Clean Style - Large Input */}
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    className="hidden"
+                    multiple
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handleFileChange}
+                  />
+                  <input
+                    type="file"
+                    ref={documentInputRef}
+                    className="hidden"
+                    accept=".pdf,.docx,.txt,.md"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      try {
+                        const parsed = await parseDocument(file);
+                        setUploadedDocument(parsed);
+                        setShowDocumentViewer(true);
+                      } catch (error: unknown) {
+                        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+                        alert(`Failed to parse document: ${errorMessage}`);
+                      }
+                      if (documentInputRef.current) documentInputRef.current.value = '';
+                    }}
+                  />
+
+                  <div className="flex items-center gap-2 px-3 md:px-4 py-3 border-t border-white/10 bg-[#0a0a0a]/80 backdrop-blur-sm sticky bottom-0 left-0 right-0 z-20 pb-safe">
+                    {/* Left: Attachment Dropdown Button - ChatGPT Style */}
+                    <div className="relative shrink-0" ref={attachmentMenuRef}>
+                      <button
+                        onClick={() => setShowAttachmentMenu(!showAttachmentMenu)}
+                        className="p-2.5 md:p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-gray-400 hover:text-gray-300 transition-all min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 flex items-center justify-center"
+                        title="Attach files"
+                        aria-label="Attach files"
+                      >
+                        <Plus size={18} />
+                      </button>
+                      {showAttachmentMenu && (
+                        <>
+                          <div
+                            className="fixed inset-0 z-40"
+                            onClick={() => setShowAttachmentMenu(false)}
+                          />
+                          <div className="absolute bottom-full left-0 mb-2 w-56 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-xl overflow-hidden z-50">
+                            <button
+                              onClick={() => {
+                                documentInputRef.current?.click();
+                                setShowAttachmentMenu(false);
+                              }}
+                              className="w-full flex items-center gap-3 px-4 py-3.5 md:py-3 text-sm text-left text-gray-300 hover:bg-white/10 transition-colors min-h-[44px]"
+                            >
+                              <FileText size={18} className="text-green-400 shrink-0" />
+                              <div className="flex flex-col text-left">
+                                <span className="font-medium">Upload Document</span>
+                                <span className="text-xs text-gray-500">PDF, DOCX, TXT, MD</span>
+                              </div>
+                            </button>
+                            <button
+                              onClick={() => {
+                                fileInputRef.current?.click();
+                                setShowAttachmentMenu(false);
+                              }}
+                              className="w-full flex items-center gap-3 px-4 py-3.5 md:py-3 text-sm text-left text-gray-300 hover:bg-white/10 transition-colors border-t border-white/10 min-h-[44px]"
+                            >
+                              <ImageIcon size={18} className="text-blue-400 shrink-0" />
+                              <div className="flex flex-col text-left">
+                                <span className="font-medium">Upload Image</span>
+                                <span className="text-xs text-gray-500">JPG, PNG, GIF</span>
+                              </div>
+                            </button>
+                            <button
+                              onClick={() => {
+                                handleCameraCapture();
+                                setShowAttachmentMenu(false);
+                              }}
+                              className="w-full flex items-center gap-3 px-4 py-3.5 md:py-3 text-sm text-left text-gray-300 hover:bg-white/10 transition-colors border-t border-white/10 min-h-[44px]"
+                            >
+                              <Camera size={18} className="text-purple-400 shrink-0" />
+                              <div className="flex flex-col text-left">
+                                <span className="font-medium">Take Photo</span>
+                                <span className="text-xs text-gray-500">Use camera</span>
+                              </div>
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Input Field */}
+                    <textarea
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSend())}
+                      placeholder={appMode === 'tutor' ? "Ask me anything..." : "Describe your app..."}
+                      className="flex-1 bg-transparent border-0 text-white placeholder-gray-400 focus:outline-none resize-none min-h-[60px] md:min-h-[60px] max-h-[200px] leading-relaxed text-sm md:text-base"
+                    />
+
+                    {/* Right: Web Search Toggle & Send Button */}
+                    <div className="flex items-center gap-2 shrink-0">
                       <button
                         onClick={() => setEnableWebSearch(!enableWebSearch)}
                         className={cn(
-                          "p-1.5 rounded-md border transition-all duration-200 min-w-[32px] min-h-[32px] flex items-center justify-center shrink-0",
+                          "p-2.5 md:p-2 rounded-lg transition-all border min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 flex items-center justify-center",
                           enableWebSearch
                             ? "bg-blue-500/20 border-blue-500/30 text-blue-400"
                             : "bg-white/5 border-white/10 hover:bg-blue-500/20 hover:border-blue-500/30 text-gray-400 hover:text-blue-400"
                         )}
-                        title="Web Search"
+                        title={enableWebSearch ? "Web search enabled - Click to disable" : "Enable web search - Get real-time information"}
+                        aria-label={enableWebSearch ? "Disable web search" : "Enable web search"}
                       >
-                        <Search size={14} />
+                        <Search size={18} />
                       </button>
-                    )}
-                    <div className="text-[10px] text-gray-400 font-medium">
-                      ${Math.max(0, FREE_TOKEN_LIMIT - tokensUsed)}
+                      <button
+                        onClick={() => handleSend()}
+                        disabled={(!input.trim() && attachedImages.length === 0) || isTyping}
+                        className="p-2.5 md:p-2 rounded-lg bg-white text-black hover:bg-gray-200 transition-colors disabled:opacity-40 disabled:cursor-not-allowed min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 flex items-center justify-center"
+                        aria-label="Send message"
+                      >
+                        <Send size={18} />
+                      </button>
                     </div>
-                    <ProviderSelector
-                      value={provider}
-                      onChange={(p) => {
-                        // DISABLED FOR TESTING - Allow all provider selection
-                        // if (p === 'openai' && !isSubscribed) {
-                        //   setShowSubscriptionPopup(true);
-                        //   return;
-                        // }
-                        // if (p === 'gemini' && false && !isSubscribed) {
-                        //   alert('Claude Sonnet 4.5 token limit has been reached. Please recharge tokens to use Claude Sonnet 4.5, or select another provider.');
-                        //   return;
-                        // }
-                        setProvider(p);
-                      }}
-                      className="text-xs"
-                      isSubscribed={isSubscribed}
-                    />
                   </div>
-                </div>
-              </>
-            ) : (
-              <>
-                {/* Desktop: v0.app Clean Style - Large Input */}
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  className="hidden"
-                  multiple
-                  accept="image/*"
-                  capture="environment"
-                  onChange={handleFileChange}
-                />
-                <input
-                  type="file"
-                  ref={documentInputRef}
-                  className="hidden"
-                  accept=".pdf,.docx,.txt,.md"
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    try {
-                      const parsed = await parseDocument(file);
-                      setUploadedDocument(parsed);
-                      setShowDocumentViewer(true);
-                    } catch (error: unknown) {
-                      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-                      alert(`Failed to parse document: ${errorMessage}`);
-                    }
-                    if (documentInputRef.current) documentInputRef.current.value = '';
-                  }}
-                />
-                
-            <div className="flex items-center gap-2 px-3 md:px-4 py-3 border-t border-white/10 bg-[#0a0a0a]/80 backdrop-blur-sm sticky bottom-0 left-0 right-0 z-20">
-                  {/* Left: Attachment Dropdown Button - ChatGPT Style */}
-                  <div className="relative shrink-0" ref={attachmentMenuRef}>
-                    <button
-                      onClick={() => setShowAttachmentMenu(!showAttachmentMenu)}
-                      className="p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-gray-400 hover:text-gray-300 transition-all"
-                      title="Attach files"
-                    >
-                      <Plus size={18} />
-                    </button>
-                    {showAttachmentMenu && (
-                      <>
-                        <div 
-                          className="fixed inset-0 z-40" 
-                          onClick={() => setShowAttachmentMenu(false)}
-                        />
-                        <div className="absolute bottom-full left-0 mb-2 w-56 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-xl overflow-hidden z-50">
+
+                  {/* Status indicators & Provider - Below input */}
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0 px-3 md:px-4 py-2 border-t border-white/10">
+                    {/* Left: Status indicators */}
+                    <div className="flex items-center gap-3 md:gap-4 flex-wrap">
+                      {uploadedDocument && (
+                        <div className="flex items-center gap-2 text-xs text-green-400">
+                          <FileText size={14} className="shrink-0" />
+                          <span className="truncate max-w-[120px] sm:max-w-[200px]">{uploadedDocument.title}</span>
                           <button
                             onClick={() => {
-                              documentInputRef.current?.click();
-                              setShowAttachmentMenu(false);
+                              setUploadedDocument(null);
+                              setShowDocumentViewer(false);
                             }}
-                            className="w-full flex items-center gap-3 px-4 py-3 text-sm text-left text-gray-300 hover:bg-white/10 transition-colors"
+                            className="p-1.5 hover:bg-white/10 rounded transition-colors min-w-[32px] min-h-[32px] flex items-center justify-center"
+                            title="Remove document"
+                            aria-label="Remove document"
                           >
-                            <FileText size={18} className="text-green-400" />
-                            <div className="flex flex-col">
-                              <span className="font-medium">Upload Document</span>
-                              <span className="text-xs text-gray-500">PDF, DOCX, TXT, MD</span>
-                            </div>
-                          </button>
-                          <button
-                            onClick={() => {
-                              fileInputRef.current?.click();
-                              setShowAttachmentMenu(false);
-                            }}
-                            className="w-full flex items-center gap-3 px-4 py-3 text-sm text-left text-gray-300 hover:bg-white/10 transition-colors border-t border-white/10"
-                          >
-                            <ImageIcon size={18} className="text-blue-400" />
-                            <div className="flex flex-col">
-                              <span className="font-medium">Upload Image</span>
-                              <span className="text-xs text-gray-500">JPG, PNG, GIF</span>
-                            </div>
-                          </button>
-                          <button
-                            onClick={() => {
-                              handleCameraCapture();
-                              setShowAttachmentMenu(false);
-                            }}
-                            className="w-full flex items-center gap-3 px-4 py-3 text-sm text-left text-gray-300 hover:bg-white/10 transition-colors border-t border-white/10"
-                          >
-                            <Camera size={18} className="text-purple-400" />
-                            <div className="flex flex-col">
-                              <span className="font-medium">Take Photo</span>
-                              <span className="text-xs text-gray-500">Use camera</span>
-                            </div>
+                            <X size={12} />
                           </button>
                         </div>
-                      </>
-                    )}
-                  </div>
-
-                  {/* Input Field */}
-                  <textarea
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSend())}
-                    placeholder={appMode === 'tutor' ? "Ask me anything..." : "Describe your app..."}
-                    className="flex-1 bg-transparent border-0 text-white placeholder-gray-400 focus:outline-none resize-none min-h-[60px] max-h-[200px] leading-relaxed text-base"
-                  />
-
-                  {/* Right: Web Search Toggle & Send Button */}
-                  <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      onClick={() => setEnableWebSearch(!enableWebSearch)}
-                      className={cn(
-                        "p-2 rounded-lg transition-all border",
-                        enableWebSearch
-                          ? "bg-blue-500/20 border-blue-500/30 text-blue-400"
-                          : "bg-white/5 border-white/10 hover:bg-blue-500/20 hover:border-blue-500/30 text-gray-400 hover:text-blue-400"
                       )}
-                      title={enableWebSearch ? "Web search enabled - Click to disable" : "Enable web search - Get real-time information"}
-                    >
-                      <Search size={18} />
-                    </button>
-                    <button
-                      onClick={() => handleSend()}
-                      disabled={(!input.trim() && attachedImages.length === 0) || isTyping}
-                      className="p-2 rounded-lg bg-white text-black hover:bg-gray-200 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      <Send size={18} />
-                    </button>
-                  </div>
-                </div>
+                      {enableWebSearch && (
+                        <div className="flex items-center gap-2 text-xs text-blue-400">
+                          <Search size={14} className="shrink-0" />
+                          <span className="whitespace-nowrap">Web search enabled</span>
+                        </div>
+                      )}
+                    </div>
 
-                {/* Status indicators & Provider - Below input */}
-                <div className="flex items-center justify-between px-4 py-2 border-t border-white/10">
-                  {/* Left: Status indicators */}
-                  <div className="flex items-center gap-4">
-                    {uploadedDocument && (
-                      <div className="flex items-center gap-2 text-xs text-green-400">
-                        <FileText size={14} />
-                        <span className="truncate max-w-[200px]">{uploadedDocument.title}</span>
-                        <button
-                          onClick={() => {
-                            setUploadedDocument(null);
-                            setShowDocumentViewer(false);
-                          }}
-                          className="p-0.5 hover:bg-white/10 rounded transition-colors"
-                          title="Remove document"
-                        >
-                          <X size={12} />
-                        </button>
+                    {/* Right: Token (Model auto-managed by orchestrator) */}
+                    <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
+                      {/* Model auto-managed by orchestrator - no manual selection */}
+                      <div className="text-xs text-gray-500 px-2 py-1 rounded border border-white/10">
+                        Auto
                       </div>
-                    )}
-                    {enableWebSearch && (
-                      <div className="flex items-center gap-2 text-xs text-blue-400">
-                        <Search size={14} />
-                        <span>Web search enabled</span>
-                      </div>
-                    )}
+                      <span className="text-xs text-gray-400 whitespace-nowrap hidden sm:inline">
+                        ${Math.max(0, FREE_TOKEN_LIMIT - tokensUsed)} remaining
+                      </span>
+                    </div>
                   </div>
-                  
-                  {/* Right: Provider & Token (Framework auto-detected, no dropdown) */}
-                  <div className="flex items-center gap-3">
-                    {/* Framework auto-selected: React/Vite - no dropdown needed */}
-                    <ProviderSelector
-                      value={provider}
-                      onChange={(p) => {
-                        // DISABLED FOR TESTING - Allow all provider selection
-                        // if (p === 'openai' && !isSubscribed) {
-                        //   setShowSubscriptionPopup(true);
-                        //   return;
-                        // }
-                        // if (p === 'gemini' && false && !isSubscribed) {
-                        //   alert('Claude Sonnet 4.5 token limit has been reached. Please recharge tokens to use Claude Sonnet 4.5, or select another provider.');
-                        //   return;
-                        // }
-                        setProvider(p);
-                      }}
-                      className="text-xs"
-                      isSubscribed={isSubscribed}
-                    />
-                    <span className="text-xs text-gray-400">
-                      ${Math.max(0, FREE_TOKEN_LIMIT - tokensUsed)} remaining
-                    </span>
-                  </div>
-                </div>
-              </>
-            )}
+                </>
+              )}
+            </div>
           </div>
         </div>
-      </div>
       )}
     </div>
   );
@@ -3577,39 +3625,40 @@ const ChatInterface: React.FC = () => {
             <button
               onClick={() => setFileTreeOpen(!fileTreeOpen)}
               className={cn(
-                "p-2 rounded-lg transition-colors shrink-0",
+                "p-2.5 md:p-2 rounded-lg transition-colors shrink-0 min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 flex items-center justify-center",
                 "bg-white/5 hover:bg-white/10 border border-white/5",
                 fileTreeOpen && "bg-purple-500/20 border-purple-500/30"
               )}
               title={fileTreeOpen ? "Hide File Tree" : "Show File Tree"}
+              aria-label={fileTreeOpen ? "Hide File Tree" : "Show File Tree"}
             >
               <Folder size={16} className={fileTreeOpen ? "text-purple-400" : "text-gray-400"} />
             </button>
           )}
           {/* Tabs - Clean Dark Style */}
-          <div className="flex items-center gap-1 bg-white/5 rounded-lg p-1 border border-white/10">
+          <div className="flex items-center gap-0.5 sm:gap-1 bg-white/5 rounded-lg p-0.5 sm:p-1 border border-white/10 overflow-x-auto scrollbar-none">
             <button
               onClick={() => setActiveTab('preview')}
               className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-all",
+                "flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 md:px-3 py-2 md:py-1.5 text-[10px] sm:text-xs font-medium rounded-md transition-all min-h-[44px] md:min-h-0 whitespace-nowrap shrink-0",
                 activeTab === 'preview'
                   ? "bg-white text-black shadow-sm"
                   : "text-gray-400 hover:text-gray-300"
               )}
             >
-              <Play size={12} className={activeTab === 'preview' ? "fill-current" : ""} />
+              <Play size={isMobile ? 10 : 12} className={activeTab === 'preview' ? "fill-current" : ""} />
               <span>Preview</span>
             </button>
             <button
               onClick={() => setActiveTab('design')}
               className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-all",
+                "flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 md:px-3 py-2 md:py-1.5 text-[10px] sm:text-xs font-medium rounded-md transition-all min-h-[44px] md:min-h-0 whitespace-nowrap shrink-0",
                 activeTab === 'design'
                   ? "bg-white text-black shadow-sm"
                   : "text-gray-400 hover:text-gray-300"
               )}
             >
-              <Palette size={12} />
+              <Palette size={isMobile ? 10 : 12} />
               <span>Design</span>
             </button>
             <button
@@ -3623,46 +3672,64 @@ const ChatInterface: React.FC = () => {
                 }
               }}
               className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-all",
+                "flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 md:px-3 py-2 md:py-1.5 text-[10px] sm:text-xs font-medium rounded-md transition-all min-h-[44px] md:min-h-0 whitespace-nowrap shrink-0",
                 activeTab === 'code'
                   ? "bg-white text-black shadow-sm"
                   : "text-gray-400 hover:text-gray-300"
               )}
             >
-              <Code size={12} />
+              <Code size={isMobile ? 10 : 12} />
               <span>Code</span>
             </button>
           </div>
           {/* Design Tools (when Design tab is active) */}
           {activeTab === 'design' && (
-            <div className="flex items-center gap-1 ml-2 pl-2 border-l border-white/10">
+            <div className={cn(
+              "flex items-center gap-1 ml-2 pl-2 border-l border-white/10",
+              isMobile && "hidden"
+            )}>
               <button
                 onClick={() => setShowDesignTools(!showDesignTools)}
-                className="p-1.5 text-gray-400 hover:text-white hover:bg-white/5 rounded-md transition-colors"
+                className="p-2 text-gray-400 hover:text-white hover:bg-white/5 rounded-md transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
                 title="Fonts"
+                aria-label="Fonts"
               >
                 <Type size={12} />
               </button>
               <button
                 onClick={() => setShowDesignTools(!showDesignTools)}
-                className="p-1.5 text-gray-400 hover:text-white hover:bg-white/5 rounded-md transition-colors"
+                className="p-2 text-gray-400 hover:text-white hover:bg-white/5 rounded-md transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
                 title="Colors"
+                aria-label="Colors"
               >
                 <Palette size={12} />
               </button>
               <button
                 onClick={() => setShowDesignTools(!showDesignTools)}
-                className="p-1.5 text-gray-400 hover:text-white hover:bg-white/5 rounded-md transition-colors"
+                className="p-2 text-gray-400 hover:text-white hover:bg-white/5 rounded-md transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
                 title="Assets"
+                aria-label="Assets"
               >
                 <ImageIcon size={12} />
               </button>
             </div>
           )}
+
+          {/* Design Tools Toggle Button - Mobile Only */}
+          {activeTab === 'design' && isMobile && (
+            <button
+              onClick={() => setShowDesignTools(!showDesignTools)}
+              className="p-2 text-gray-400 hover:text-white hover:bg-white/5 rounded-md transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center ml-2"
+              title="Design Tools"
+              aria-label="Design Tools"
+            >
+              <Palette size={16} />
+            </button>
+          )}
         </div>
 
-        {/* Center: Canvas Controls - Clean Dark Style */}
-        {activeTab === 'preview' && (
+        {/* Center: Canvas Controls - Clean Dark Style - Hide on mobile, show in right section */}
+        {activeTab === 'preview' && !isMobile && (
           <div className="flex items-center gap-2 absolute left-1/2 -translate-x-1/2">
             <div className="flex items-center bg-white/5 rounded-lg p-0.5 border border-white/10">
               <button
@@ -3670,8 +3737,9 @@ const ChatInterface: React.FC = () => {
                   const newZoom = Math.max(canvasZoom - 10, 25);
                   setCanvasZoom(newZoom);
                 }}
-                className="p-1.5 hover:bg-white/10 rounded transition-colors w-6 h-6 flex items-center justify-center"
+                className="p-1.5 hover:bg-white/10 rounded transition-colors w-6 h-6 flex items-center justify-center min-w-[24px] min-h-[24px]"
                 disabled={canvasZoom <= 25}
+                aria-label="Zoom out"
               >
                 <ZoomOut size={12} className={canvasZoom <= 25 ? "text-gray-600" : "text-gray-400"} />
               </button>
@@ -3681,8 +3749,9 @@ const ChatInterface: React.FC = () => {
                   const newZoom = Math.min(canvasZoom + 10, 200);
                   setCanvasZoom(newZoom);
                 }}
-                className="p-1.5 hover:bg-white/10 rounded transition-colors w-6 h-6 flex items-center justify-center"
+                className="p-1.5 hover:bg-white/10 rounded transition-colors w-6 h-6 flex items-center justify-center min-w-[24px] min-h-[24px]"
                 disabled={canvasZoom >= 200}
+                aria-label="Zoom in"
               >
                 <ZoomIn size={12} className={canvasZoom >= 200 ? "text-gray-600" : "text-gray-400"} />
               </button>
@@ -3693,96 +3762,128 @@ const ChatInterface: React.FC = () => {
         {/* Right: Actions */}
         <div className={cn(
           "flex items-center shrink-0",
-          isMobile ? "gap-1" : "gap-2"
+          isMobile ? "gap-0.5" : "gap-2"
         )}>
+          {/* Canvas Controls - Mobile only (moved here) */}
+          {activeTab === 'preview' && isMobile && (
+            <div className="flex items-center bg-white/5 rounded-lg p-0.5 border border-white/10 mr-1">
+              <button
+                onClick={() => {
+                  const newZoom = Math.max(canvasZoom - 10, 25);
+                  setCanvasZoom(newZoom);
+                }}
+                className="p-1.5 hover:bg-white/10 rounded transition-colors min-w-[32px] min-h-[32px] flex items-center justify-center"
+                disabled={canvasZoom <= 25}
+                aria-label="Zoom out"
+              >
+                <ZoomOut size={12} className={canvasZoom <= 25 ? "text-gray-600" : "text-gray-400"} />
+              </button>
+              <span className="text-[10px] text-gray-400 min-w-[32px] text-center font-mono">{canvasZoom}%</span>
+              <button
+                onClick={() => {
+                  const newZoom = Math.min(canvasZoom + 10, 200);
+                  setCanvasZoom(newZoom);
+                }}
+                className="p-1.5 hover:bg-white/10 rounded transition-colors min-w-[32px] min-h-[32px] flex items-center justify-center"
+                disabled={canvasZoom >= 200}
+                aria-label="Zoom in"
+              >
+                <ZoomIn size={12} className={canvasZoom >= 200 ? "text-gray-600" : "text-gray-400"} />
+              </button>
+            </div>
+          )}
+
           {/* Undo/Redo - Hide on very small mobile screens */}
           {!isMobile && (
-          <div className="flex items-center gap-0.5 bg-white/5 rounded-lg p-0.5 border border-white/5 mr-1">
-            <button
-              onClick={() => {
-                const undoRedo = getUndoRedoManager();
-                const operation = undoRedo.undo();
-                if (operation && selectedFile) {
-                  // Get content from operation (oldContent for undo)
-                  const content = operation.oldContent || '';
-                  if (content) {
-                    fileManager.addFile(selectedFile, content, 'page');
-                    setCurrentCode(content);
-                    setRefreshKey(k => k + 1);
+            <div className="flex items-center gap-0.5 bg-white/5 rounded-lg p-0.5 border border-white/5 mr-1">
+              <button
+                onClick={() => {
+                  const undoRedo = getUndoRedoManager();
+                  const operation = undoRedo.undo();
+                  if (operation && selectedFile) {
+                    // Get content from operation (oldContent for undo)
+                    const content = operation.oldContent || '';
+                    if (content) {
+                      fileManager.addFile(selectedFile, content, 'page');
+                      setCurrentCode(content);
+                      setRefreshKey(k => k + 1);
+                    }
                   }
-                }
-              }}
-              className="p-1.5 hover:bg-white/10 rounded-md transition-colors"
-              title="Undo"
-            >
-              <Undo2 size={12} className="text-gray-400" />
-            </button>
-            <button
-              onClick={() => {
-                const undoRedo = getUndoRedoManager();
-                const operation = undoRedo.redo();
-                if (operation && selectedFile) {
-                  // Get content from operation (newContent for redo)
-                  const content = operation.newContent || '';
-                  if (content) {
-                    fileManager.addFile(selectedFile, content, 'page');
-                    setCurrentCode(content);
-                    setRefreshKey(k => k + 1);
+                }}
+                className="p-1.5 hover:bg-white/10 rounded-md transition-colors"
+                title="Undo"
+              >
+                <Undo2 size={12} className="text-gray-400" />
+              </button>
+              <button
+                onClick={() => {
+                  const undoRedo = getUndoRedoManager();
+                  const operation = undoRedo.redo();
+                  if (operation && selectedFile) {
+                    // Get content from operation (newContent for redo)
+                    const content = operation.newContent || '';
+                    if (content) {
+                      fileManager.addFile(selectedFile, content, 'page');
+                      setCurrentCode(content);
+                      setRefreshKey(k => k + 1);
+                    }
                   }
-                }
-              }}
-              className="p-1.5 hover:bg-white/10 rounded-md transition-colors"
-              title="Redo"
-            >
-              <Redo2 size={12} className="text-gray-400" />
-            </button>
-          </div>
+                }}
+                className="p-1.5 hover:bg-white/10 rounded-md transition-colors"
+                title="Redo"
+              >
+                <Redo2 size={12} className="text-gray-400" />
+              </button>
+            </div>
           )}
 
           {/* Device Preview Toggles - Responsive sizing */}
           {activeTab === 'preview' && (
             <div className={cn(
               "flex items-center gap-0.5 bg-white/5 rounded-lg p-0.5 border border-white/5",
-              isMobile ? "mr-1" : "mr-1"
+              isMobile ? "mr-0.5" : "mr-1"
             )}>
               <button
                 onClick={() => setPreviewDevice('desktop')}
                 className={cn(
-                  "rounded-md transition-colors",
-                  isMobile ? "p-1" : "p-1.5",
-                  previewDevice === 'desktop' 
-                    ? "bg-white/10 text-white" 
+                  "rounded-md transition-colors min-w-[32px] min-h-[32px] flex items-center justify-center",
+                  isMobile ? "p-1.5" : "p-1.5",
+                  previewDevice === 'desktop'
+                    ? "bg-white/10 text-white"
                     : "text-gray-500 hover:text-gray-300"
                 )}
                 title="Desktop"
+                aria-label="Desktop view"
               >
-                <Monitor size={isMobile ? 10 : 12} />
+                <Monitor size={isMobile ? 12 : 12} />
               </button>
               <button
                 onClick={() => setPreviewDevice('tablet')}
                 className={cn(
-                  "rounded-md transition-colors",
-                  isMobile ? "p-1" : "p-1.5",
-                  previewDevice === 'tablet' 
-                    ? "bg-white/10 text-white" 
+                  "rounded-md transition-colors min-w-[32px] min-h-[32px] flex items-center justify-center",
+                  isMobile ? "p-1.5" : "p-1.5",
+                  previewDevice === 'tablet'
+                    ? "bg-white/10 text-white"
                     : "text-gray-500 hover:text-gray-300"
                 )}
                 title="Tablet"
+                aria-label="Tablet view"
               >
-                <Smartphone size={isMobile ? 10 : 12} className="rotate-90" />
+                <Smartphone size={isMobile ? 12 : 12} className="rotate-90" />
               </button>
               <button
                 onClick={() => setPreviewDevice('mobile')}
                 className={cn(
-                  "rounded-md transition-colors",
-                  isMobile ? "p-1" : "p-1.5",
-                  previewDevice === 'mobile' 
-                    ? "bg-white/10 text-white" 
+                  "rounded-md transition-colors min-w-[32px] min-h-[32px] flex items-center justify-center",
+                  isMobile ? "p-1.5" : "p-1.5",
+                  previewDevice === 'mobile'
+                    ? "bg-white/10 text-white"
                     : "text-gray-500 hover:text-gray-300"
                 )}
                 title="Mobile"
+                aria-label="Mobile view"
               >
-                <Smartphone size={isMobile ? 10 : 12} />
+                <Smartphone size={isMobile ? 12 : 12} />
               </button>
             </div>
           )}
@@ -3807,12 +3908,13 @@ const ChatInterface: React.FC = () => {
               }
             }}
             className={cn(
-              "flex items-center font-medium text-gray-300 hover:text-white hover:bg-white/5 rounded-lg transition-colors border border-white/5",
-              isMobile ? "gap-1 px-2 py-1.5 text-[10px]" : "gap-1.5 px-3 py-1.5 text-[11px]"
+              "flex items-center font-medium text-gray-300 hover:text-white hover:bg-white/5 rounded-lg transition-colors border border-white/5 min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0",
+              isMobile ? "gap-1 px-2 py-1.5 text-[10px] justify-center" : "gap-1.5 px-3 py-1.5 text-[11px]"
             )}
             title="Export"
+            aria-label="Export"
           >
-            <Download size={isMobile ? 10 : 10} />
+            <Download size={isMobile ? 14 : 10} />
             {!isMobile && <span>Export</span>}
           </button>
 
@@ -3831,73 +3933,87 @@ const ChatInterface: React.FC = () => {
         </div>
       </div>
 
-      {/* Design Tools Panel (Slide-in) */}
+      {/* Design Tools Panel (Slide-in) - Mobile: Full overlay, Desktop: Side panel */}
       {showDesignTools && activeTab === 'design' && (
-        <div className="absolute left-0 top-14 bottom-0 w-80 bg-[#1a1a1a] border-r border-white/10 z-40 shadow-2xl">
-          <div className="p-4 border-b border-white/10 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-white">Design Tools</h3>
-            <button
+        <>
+          {/* Backdrop for mobile */}
+          {isMobile && (
+            <div
+              className="fixed inset-0 bg-black/50 z-30"
               onClick={() => setShowDesignTools(false)}
-              className="p-1.5 hover:bg-white/10 rounded transition-colors"
-            >
-              <X size={16} className="text-gray-400" />
-            </button>
-          </div>
-          <div className="p-4 space-y-6 overflow-y-auto">
-            {/* Fonts */}
-            <div>
-              <label className="text-xs font-medium text-gray-400 mb-2 block">Fonts</label>
-              <div className="space-y-2">
-                {['Inter', 'Roboto', 'Poppins', 'Montserrat', 'Open Sans'].map((font) => (
-                  <button
-                    key={font}
-                    onClick={() => {
-                      // TODO: Apply font to code
-                      console.log('Font selected:', font);
-                    }}
-                    className="w-full px-3 py-2 text-left text-sm rounded-lg transition-colors bg-white/5 text-gray-300 hover:bg-white/10"
-                    style={{ fontFamily: font }}
-                  >
-                    {font}
-                  </button>
-                ))}
-              </div>
+            />
+          )}
+          <div className={cn(
+            "absolute left-0 top-14 bottom-0 bg-[#1a1a1a] border-r border-white/10 z-40 shadow-2xl transition-all",
+            isMobile ? "w-full" : "w-80"
+          )}>
+            <div className="p-3 md:p-4 border-b border-white/10 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-white">Design Tools</h3>
+              <button
+                onClick={() => setShowDesignTools(false)}
+                className="p-2 hover:bg-white/10 rounded transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+                aria-label="Close design tools"
+              >
+                <X size={16} className="text-gray-400" />
+              </button>
             </div>
+            <div className="p-3 md:p-4 space-y-4 md:space-y-6 overflow-y-auto">
+              {/* Fonts */}
+              <div>
+                <label className="text-xs font-medium text-gray-400 mb-2 block">Fonts</label>
+                <div className="space-y-2">
+                  {['Inter', 'Roboto', 'Poppins', 'Montserrat', 'Open Sans'].map((font) => (
+                    <button
+                      key={font}
+                      onClick={() => {
+                        // TODO: Apply font to code
+                        console.log('Font selected:', font);
+                      }}
+                      className="w-full px-3 py-2.5 md:py-2 text-left text-sm rounded-lg transition-colors bg-white/5 text-gray-300 hover:bg-white/10 min-h-[44px] md:min-h-0"
+                      style={{ fontFamily: font }}
+                    >
+                      {font}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-            {/* Colors */}
-            <div>
-              <label className="text-xs font-medium text-gray-400 mb-2 block">Colors</label>
-              <div className="grid grid-cols-5 gap-2">
-                {['#7e22ce', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16', '#f97316'].map((color) => (
-                  <button
-                    key={color}
-                    onClick={() => {
-                      // TODO: Apply color to code
-                      console.log('Color selected:', color);
-                    }}
-                    className="w-full aspect-square rounded-lg transition-all hover:scale-105"
-                    style={{ backgroundColor: color }}
-                    title={color}
-                  />
-                ))}
+              {/* Colors */}
+              <div>
+                <label className="text-xs font-medium text-gray-400 mb-2 block">Colors</label>
+                <div className="grid grid-cols-5 gap-2">
+                  {['#7e22ce', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16', '#f97316'].map((color) => (
+                    <button
+                      key={color}
+                      onClick={() => {
+                        // TODO: Apply color to code
+                        console.log('Color selected:', color);
+                      }}
+                      className="w-full aspect-square rounded-lg transition-all hover:scale-105 min-w-[44px] min-h-[44px]"
+                      style={{ backgroundColor: color }}
+                      title={color}
+                      aria-label={`Color ${color}`}
+                    />
+                  ))}
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        </>
       )}
 
       {/* Main Content Area */}
       <div className={cn(
         "flex-1 flex overflow-hidden relative bg-[#050505] transition-all",
-        showDesignTools && activeTab === 'design' ? "ml-80" : "ml-0"
+        showDesignTools && activeTab === 'design' && !isMobile ? "ml-80" : "ml-0"
       )}>
         {activeTab === 'design' ? (
-          <div className="flex-1 p-8 overflow-auto">
+          <div className="flex-1 p-4 sm:p-6 md:p-8 overflow-auto">
             <div className="max-w-4xl mx-auto">
-              <h2 className="text-2xl font-bold mb-6">Design Settings</h2>
-              <p className="text-gray-400 mb-4">Use the design tools in the toolbar to customize fonts, colors, and assets.</p>
-              <div className="bg-[#1a1a1a] rounded-lg border border-white/10 p-6">
-                <p className="text-sm text-gray-500">Design tools panel will appear when you click Fonts, Colors, or Assets buttons in the toolbar.</p>
+              <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">Design Settings</h2>
+              <p className="text-sm sm:text-base text-gray-400 mb-4">Use the design tools in the toolbar to customize fonts, colors, and assets.</p>
+              <div className="bg-[#1a1a1a] rounded-lg border border-white/10 p-4 sm:p-6">
+                <p className="text-xs sm:text-sm text-gray-500">Design tools panel will appear when you click Fonts, Colors, or Assets buttons in the toolbar.</p>
               </div>
             </div>
           </div>
@@ -3943,7 +4059,7 @@ const ChatInterface: React.FC = () => {
                         }
                       }}
                       onNewFile={(parentPath) => {
-                        const newPath = parentPath 
+                        const newPath = parentPath
                           ? `${parentPath}/new-file.tsx`
                           : `src/components/new-file.tsx`;
                         fileManager.addFile(newPath, '', 'component');
@@ -3980,7 +4096,7 @@ const ChatInterface: React.FC = () => {
             )}
             {/* Overlay untuk mobile ketika file tree terbuka */}
             {(isMobile || isTablet) && fileTreeOpen && (
-              <div 
+              <div
                 className="absolute inset-0 bg-black/50 z-20"
                 onClick={() => setFileTreeOpen(false)}
               />
@@ -4007,33 +4123,33 @@ const ChatInterface: React.FC = () => {
                             : "text-gray-400 hover:text-white hover:bg-white/5"
                         )}
                       >
-                          <button
-                            onClick={() => setSelectedFile(path)}
-                            className="flex items-center gap-1 md:gap-2 flex-1 min-w-0"
-                          >
-                            <FileCode size={isMobile ? 10 : 12} />
-                            <span className={cn(
-                              "truncate",
-                              isMobile ? "max-w-[80px]" : "max-w-[120px]"
-                            )}>{path.split('/').pop()}</span>
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setOpenFiles(prev => prev.filter(p => p !== path));
-                              if (selectedFile === path) {
-                                const remaining = openFiles.filter(p => p !== path);
-                                setSelectedFile(remaining.length > 0 ? remaining[0] : null);
-                              }
-                            }}
-                            className={cn(
-                              "ml-1 hover:bg-white/10 rounded shrink-0",
-                              isMobile ? "p-0.5" : "p-0.5"
-                            )}
-                            title="Close file"
-                          >
-                            <X size={isMobile ? 10 : 12} />
-                          </button>
+                        <button
+                          onClick={() => setSelectedFile(path)}
+                          className="flex items-center gap-1 md:gap-2 flex-1 min-w-0"
+                        >
+                          <FileCode size={isMobile ? 10 : 12} />
+                          <span className={cn(
+                            "truncate",
+                            isMobile ? "max-w-[80px]" : "max-w-[120px]"
+                          )}>{path.split('/').pop()}</span>
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpenFiles(prev => prev.filter(p => p !== path));
+                            if (selectedFile === path) {
+                              const remaining = openFiles.filter(p => p !== path);
+                              setSelectedFile(remaining.length > 0 ? remaining[0] : null);
+                            }
+                          }}
+                          className={cn(
+                            "ml-1 hover:bg-white/10 rounded shrink-0",
+                            isMobile ? "p-0.5" : "p-0.5"
+                          )}
+                          title="Close file"
+                        >
+                          <X size={isMobile ? 10 : 12} />
+                        </button>
                       </div>
                     );
                   })}
@@ -4084,13 +4200,13 @@ const ChatInterface: React.FC = () => {
                     if (file) {
                       // Track undo/redo
                       undoRedoManager.mergeConsecutiveEdits(selectedFile, newContent);
-                      
+
                       fileManager.addFile(selectedFile, newContent, file.type);
                       // Update currentCode if it's the entry file
                       if (selectedFile === fileManager.getEntry()) {
                         setCurrentCode(newContent);
                       }
-                      
+
                       // Run code quality checks
                       if (selectedFile.endsWith('.ts') || selectedFile.endsWith('.tsx')) {
                         const tsErrors = checkTypeScript(newContent);
@@ -4102,23 +4218,23 @@ const ChatInterface: React.FC = () => {
                   }}
                   language={
                     selectedFile.endsWith('.tsx') ? 'tsx' :
-                    selectedFile.endsWith('.jsx') ? 'jsx' :
-                    selectedFile.endsWith('.css') ? 'css' :
-                    selectedFile.endsWith('.html') ? 'html' :
-                    selectedFile.endsWith('.json') ? 'json' :
-                    'typescript'
+                      selectedFile.endsWith('.jsx') ? 'jsx' :
+                        selectedFile.endsWith('.css') ? 'css' :
+                          selectedFile.endsWith('.html') ? 'html' :
+                            selectedFile.endsWith('.json') ? 'json' :
+                              'typescript'
                   }
                   filePath={selectedFile}
                   onSave={() => {
                     // Auto-format on save
                     const file = fileManager.getFile(selectedFile);
                     if (file) {
-                      const formatted = formatCode(file.content, 
+                      const formatted = formatCode(file.content,
                         selectedFile.endsWith('.tsx') ? 'tsx' :
-                        selectedFile.endsWith('.jsx') ? 'jsx' :
-                        selectedFile.endsWith('.ts') ? 'typescript' :
-                        selectedFile.endsWith('.css') ? 'css' :
-                        'typescript'
+                          selectedFile.endsWith('.jsx') ? 'jsx' :
+                            selectedFile.endsWith('.ts') ? 'typescript' :
+                              selectedFile.endsWith('.css') ? 'css' :
+                                'typescript'
                       );
                       fileManager.addFile(selectedFile, formatted, file.type);
                       if (selectedFile === fileManager.getEntry()) {
@@ -4161,78 +4277,79 @@ const ChatInterface: React.FC = () => {
             isMobile ? "p-4" : "p-6"
           )}>
             {/* Address Bar - Clean Dark Style */}
-             <div className={cn(
-               "bg-white/5 border border-white/10 rounded-lg shadow-sm mb-4 transition-all shrink-0 z-10 text-xs text-gray-400 flex items-center gap-3",
-               previewDevice === 'desktop' 
-                 ? isMobile ? "w-full px-3 py-2" : "w-[600px] px-4 py-2.5"
-                 : "w-full max-w-[calc(100%-2rem)] px-3 py-2"
-             )}>
-                <div className="flex gap-1.5 shrink-0">
-                  <div className="w-2.5 h-2.5 rounded-full bg-red-400/60"></div>
-                  <div className="w-2.5 h-2.5 rounded-full bg-yellow-400/60"></div>
-                  <div className="w-2.5 h-2.5 rounded-full bg-green-400/60"></div>
-                </div>
-                <div className="flex-1 text-center font-mono text-gray-400 flex items-center justify-center gap-2 min-w-0">
-                  <Globe size={12} className="shrink-0" />
-                  <span className="truncate">localhost:3000</span>
-                </div>
-                 <button 
-                   onClick={() => setRefreshKey(k => k + 1)} 
-                   className="p-1.5 rounded hover:bg-white/10 text-gray-500 hover:text-gray-300 transition-all shrink-0"
-                 >
-                   <RefreshCw size={14} />
-                 </button>
-             </div>
+            <div className={cn(
+              "bg-white/5 border border-white/10 rounded-lg shadow-sm mb-3 sm:mb-4 transition-all shrink-0 z-10 text-xs text-gray-400 flex items-center gap-2 sm:gap-3",
+              previewDevice === 'desktop'
+                ? isMobile ? "w-full px-2 sm:px-3 py-1.5 sm:py-2" : "w-[600px] px-4 py-2.5"
+                : "w-full max-w-[calc(100%-1rem)] sm:max-w-[calc(100%-2rem)] px-2 sm:px-3 py-1.5 sm:py-2"
+            )}>
+              <div className="flex gap-1.5 shrink-0">
+                <div className="w-2.5 h-2.5 rounded-full bg-red-400/60"></div>
+                <div className="w-2.5 h-2.5 rounded-full bg-yellow-400/60"></div>
+                <div className="w-2.5 h-2.5 rounded-full bg-green-400/60"></div>
+              </div>
+              <div className="flex-1 text-center font-mono text-gray-400 flex items-center justify-center gap-2 min-w-0">
+                <Globe size={12} className="shrink-0" />
+                <span className="truncate">localhost:3000</span>
+              </div>
+              <button
+                onClick={() => setRefreshKey(k => k + 1)}
+                className="p-1.5 sm:p-1.5 rounded hover:bg-white/10 text-gray-500 hover:text-gray-300 transition-all shrink-0 min-w-[32px] min-h-[32px] flex items-center justify-center"
+                aria-label="Refresh preview"
+              >
+                <RefreshCw size={14} />
+              </button>
+            </div>
 
             {/* Iframe Preview Container - iPhone 17 Pro Max Mockup */}
-            <div 
+            <div
               ref={previewContainerRef}
               className={cn(
                 "relative z-0 transition-all duration-300 origin-center flex flex-col shrink-0 shadow-2xl overflow-visible",
-                previewDevice === 'mobile' 
-                  ? isMobile 
-                    ? "w-full max-w-[430px] h-[932px] mx-auto" 
+                previewDevice === 'mobile'
+                  ? isMobile
+                    ? "w-full max-w-[calc(100vw-2rem)] sm:max-w-[430px] h-[calc(100vh-200px)] sm:h-[932px] mx-auto"
                     : "w-[430px] h-[932px]"
                   : previewDevice === 'tablet'
                     ? isMobile
-                      ? "w-full max-w-[600px] h-[700px] mx-auto"
+                      ? "w-full max-w-[calc(100vw-2rem)] sm:max-w-[600px] h-[calc(100vh-200px)] sm:h-[700px] mx-auto"
                       : "w-[768px] h-[1024px]"
                     : "w-full h-full max-w-full max-h-full rounded-lg border border-white/10 bg-[#1a1a1a]"
               )}
               style={
-                previewDevice === 'mobile' || previewDevice === 'tablet' 
+                previewDevice === 'mobile' || previewDevice === 'tablet'
                   ? {
-                      transform: `scale(${deviceScale * (canvasZoom / 100)})`,
-                      transformOrigin: 'center',
-                      margin: '0 auto'
-                    }
+                    transform: `scale(${deviceScale * (canvasZoom / 100)})`,
+                    transformOrigin: 'center',
+                    margin: '0 auto'
+                  }
                   : {
-                      transform: `scale(${canvasZoom / 100})`,
-                      transformOrigin: 'center',
-                    }
+                    transform: `scale(${canvasZoom / 100})`,
+                    transformOrigin: 'center',
+                  }
               }>
               {/* iPhone 17 Pro Max Frame - Premium Design */}
               {previewDevice === 'mobile' && (
                 <>
                   {/* Outer Frame - Premium Bezel with realistic depth */}
                   <div className="absolute inset-0 rounded-[3.5rem] bg-gradient-to-b from-[#2d2d2d] via-[#1a1a1a] to-[#2d2d2d] shadow-[0_0_0_6px_#1a1a1a,0_0_0_7px_#0a0a0a,0_0_0_8px_#050505,0_25px_70px_rgba(0,0,0,0.9)] pointer-events-none z-0" />
-                  
+
                   {/* Inner Screen Border - No padding */}
                   <div className="absolute inset-0 rounded-[3.5rem] border-[2.5px] border-[#0a0a0a]/80 pointer-events-none z-10" />
                   <div className="absolute inset-0 rounded-[3.5rem] border border-white/5 pointer-events-none z-10" />
-                  
+
                   {/* Dynamic Island - iPhone 17 Pro Max Style */}
                   <div className="absolute top-[8px] left-1/2 -translate-x-1/2 z-30 pointer-events-none">
                     <div className="w-[126px] h-[37px] bg-[#000000] rounded-full shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08),inset_0_1px_2px_rgba(0,0,0,0.8),0_2px_10px_rgba(0,0,0,0.7)] flex items-center justify-center relative">
                       {/* Dynamic Island Inner Glow */}
                       <div className="absolute inset-0 rounded-full bg-gradient-to-b from-white/[0.03] via-transparent to-black/50"></div>
-                      
+
                       {/* Dynamic Island Content */}
                       <div className="flex items-center gap-2.5 z-10">
                         <div className="w-[5px] h-[5px] rounded-full bg-white/30 shadow-[0_0_2px_rgba(255,255,255,0.2)]"></div>
                         <div className="w-[3px] h-[3px] rounded-full bg-white/20"></div>
                       </div>
-                      
+
                       {/* Camera cutout hint */}
                       <div className="absolute left-4 w-[6px] h-[6px] rounded-full bg-black/80 border border-white/10"></div>
                       <div className="absolute right-4 w-[8px] h-[8px] rounded-full bg-black/80 border border-white/10"></div>
@@ -4253,16 +4370,16 @@ const ChatInterface: React.FC = () => {
                       <div className="w-[3px] h-[6px] bg-white rounded-t-[1px]"></div>
                       <div className="w-[3px] h-[7px] bg-white rounded-t-[1px]"></div>
                     </div>
-                    
+
                     {/* WiFi */}
                     <div className="w-[16px] h-[12px] relative -mt-0.5">
                       <svg viewBox="0 0 16 12" className="w-full h-full" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round">
                         <path d="M8 2C10 2 12 3 13.5 4.5" />
                         <path d="M8 6.5C9 6.5 10 7 11 8" />
-                        <circle cx="8" cy="10.5" r="1" fill="white"/>
+                        <circle cx="8" cy="10.5" r="1" fill="white" />
                       </svg>
                     </div>
-                    
+
                     {/* Battery */}
                     <div className="w-[26px] h-[13px] border border-white rounded-[2.5px] relative">
                       <div className="absolute left-[2.5px] top-[2.5px] w-[19px] h-[7px] bg-white rounded-[1px]"></div>
@@ -4274,13 +4391,13 @@ const ChatInterface: React.FC = () => {
 
               <div className={cn(
                 "flex-1 bg-[#1a1a1a] relative overflow-hidden min-h-0 flex flex-col",
-                previewDevice === 'mobile' 
-                  ? "rounded-[3.5rem]" 
-                  : previewDevice === 'tablet' 
-                    ? "rounded-[1.5rem]" 
+                previewDevice === 'mobile'
+                  ? "rounded-[3.5rem]"
+                  : previewDevice === 'tablet'
+                    ? "rounded-[1.5rem]"
                     : "rounded-t-lg"
               )}>
-                
+
                 {!isSubscribed && hasExceeded && (
                   <div className="absolute inset-0 z-30 bg-[#0a0a0a]/95 backdrop-blur flex flex-col items-center justify-center text-center px-6">
                     <div className="text-lg font-semibold text-white mb-2">Quota reached</div>
@@ -4302,10 +4419,10 @@ const ChatInterface: React.FC = () => {
                   <>
                     {(() => {
                       // Get code for preview
-                      const previewCode = currentCode || 
-                        fileManager.getFile(fileManager.getEntry())?.content || 
+                      const previewCode = currentCode ||
+                        fileManager.getFile(fileManager.getEntry())?.content ||
                         '';
-                      
+
                       // Validate code before rendering
                       // Check if code is empty or only contains whitespace/newlines
                       const trimmedCode = previewCode ? previewCode.trim() : '';
@@ -4319,10 +4436,10 @@ const ChatInterface: React.FC = () => {
                           </div>
                         );
                       }
-                      
+
                       // Use getIframeSrc which handles React/TSX conversion automatically
                       const entryPath = fileManager.getEntry() || selectedFile || undefined;
-                      
+
                       return (
                         <iframe
                           ref={previewIframeRef}
@@ -4375,16 +4492,16 @@ const ChatInterface: React.FC = () => {
                         Try to Restore from Chat
                       </button>
                     </div>
-                     <div className="relative">
-                       <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-purple-500/20 to-blue-500/20 shadow-2xl flex items-center justify-center animate-pulse border border-purple-500/30">
-                         <Layout size={40} className="text-purple-400/60" />
-                       </div>
-                       <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-purple-400/20 to-blue-400/20 blur-xl animate-pulse"></div>
-                     </div>
-                     <div className="text-center">
-                       <p className="text-base font-semibold text-gray-300 mb-1">Ready to build</p>
-                       <p className="text-sm text-gray-400">Your generated app will appear here</p>
-                     </div>
+                    <div className="relative">
+                      <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-purple-500/20 to-blue-500/20 shadow-2xl flex items-center justify-center animate-pulse border border-purple-500/30">
+                        <Layout size={40} className="text-purple-400/60" />
+                      </div>
+                      <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-purple-400/20 to-blue-400/20 blur-xl animate-pulse"></div>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-base font-semibold text-gray-300 mb-1">Ready to build</p>
+                      <p className="text-sm text-gray-400">Your generated app will appear here</p>
+                    </div>
                   </div>
                 )}
               </div>
@@ -4445,15 +4562,15 @@ const ChatInterface: React.FC = () => {
             <span className="text-xs font-mono font-semibold text-gray-300">Terminal</span>
             <div className="flex-1" />
             <div className="flex items-center gap-2">
-               {terminalOpen && (
-                 <button 
-                   onClick={(e) => { e.stopPropagation(); setLogs([]); }} 
-                   className="text-[10px] font-medium text-gray-500 hover:text-white px-2 py-1 rounded-md hover:bg-white/5 transition-colors"
-                 >
-                   Clear
-                 </button>
-               )}
-               <ChevronDown size={14} className={cn("text-gray-500 transition-transform duration-300", terminalOpen ? "" : "rotate-180")} />
+              {terminalOpen && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setLogs([]); }}
+                  className="text-[10px] font-medium text-gray-500 hover:text-white px-2 py-1 rounded-md hover:bg-white/5 transition-colors"
+                >
+                  Clear
+                </button>
+              )}
+              <ChevronDown size={14} className={cn("text-gray-500 transition-transform duration-300", terminalOpen ? "" : "rotate-180")} />
             </div>
           </div>
           {terminalOpen && (
@@ -4583,7 +4700,7 @@ const ChatInterface: React.FC = () => {
                   </PanelResizeHandle>
                 </>
               )}
-              
+
               {/* Panel 1: Chat - Increased default size for better UX */}
               <Panel
                 defaultSize={

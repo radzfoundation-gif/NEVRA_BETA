@@ -87,3 +87,28 @@ WHERE table_schema = 'public'
 
 -- Should show: data_type = 'text'
 
+
+
+
+
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyDAlq1kQBgQk3Vzfd5hh_KobDpG26iiU_4",
+  authDomain: "nevra-c1ab9.firebaseapp.com",
+  projectId: "nevra-c1ab9",
+  storageBucket: "nevra-c1ab9.firebasestorage.app",
+  messagingSenderId: "200586237080",
+  appId: "1:200586237080:web:1df8786182199984b9aced",
+  measurementId: "G-4DP8PNC7C1"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);

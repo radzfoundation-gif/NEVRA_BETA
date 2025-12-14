@@ -2,7 +2,7 @@ export type AIProvider = 'anthropic' | 'deepseek' | 'openai' | 'gemini';
 export type Framework = 'html' | 'react' | 'nextjs' | 'vite';
 
 // --- ENHANCED SYSTEM PROMPTS (Bolt.new / v0.app Level) ---
-const BUILDER_PROMPT = `
+export const BUILDER_PROMPT = `
 You are NEVRA BUILDER, an elite Frontend Engineer/UX Architect inspired by bolt.new and v0.app. Your mission is to generate production-ready, modern web applications that are beautiful, functional, and follow best practices.
 
 🎯 CORE PRINCIPLES:
@@ -328,7 +328,7 @@ Valid icon names (use exact strings): Zap, Heart, Star, ArrowRight, CheckCircle,
 - Make it beautiful AND functional
 `;
 
-const TUTOR_PROMPT = `
+export const TUTOR_PROMPT = `
 You are NEVRA TUTOR, a world-class AI Educator and Mentor. You can reason over text AND images (when provided).
 
 MISSION:
@@ -603,8 +603,68 @@ export const generateCode = async (
   mode: 'builder' | 'tutor' = 'builder',
   provider: AIProvider = 'deepseek', // Default to Mistral Devstral (free)
   images: string[] = [],
-  framework: Framework = 'html'
+  framework: Framework = 'html',
+  useWorkflow: boolean | { onStatusUpdate?: (status: string, message?: string) => void } = false, // Feature flag or config object
+  sessionId?: string,
+  userId?: string
 ): Promise<CodeResponse> => {
+  // Use workflow if enabled
+  const workflowEnabled = typeof useWorkflow === 'object' ? true : useWorkflow;
+  const statusCallback = typeof useWorkflow === 'object' ? useWorkflow.onStatusUpdate : undefined;
+  
+  if (workflowEnabled) {
+    try {
+      const { executeWorkflow } = await import('./workflow/orchestrator');
+      const { WORKFLOW_CONFIG } = await import('./workflow/config');
+      
+      // Check if workflow is enabled in config
+      if (WORKFLOW_CONFIG.enableWorkflow) {
+        const context = {
+          prompt,
+          history: history.map((msg: any) => ({
+            role: msg.role || (msg.parts?.[0]?.text ? 'user' : 'ai'),
+            content: msg.parts?.[0]?.text || msg.content || '',
+            code: msg.code,
+            images: msg.images,
+          })),
+          mode,
+          provider,
+          images,
+          framework,
+          sessionId,
+          userId,
+          onStatusUpdate: statusCallback,
+        };
+
+        const result = await executeWorkflow(context);
+
+        // Convert workflow result to CodeResponse
+        if (result.files && result.files.length > 0) {
+          return {
+            type: 'multi-file',
+            files: result.files,
+            entry: result.files[0]?.path || 'src/App.tsx',
+            framework: framework === 'nextjs' ? 'next' : framework === 'vite' ? 'react' : framework,
+          };
+        } else if (result.code) {
+          return {
+            type: 'single-file',
+            content: result.code,
+          };
+        } else if (result.response) {
+          return {
+            type: 'single-file',
+            content: result.response,
+          };
+        }
+      }
+    } catch (error) {
+      console.error('Workflow execution failed, falling back to direct generation:', error);
+      // Fall through to direct generation
+    }
+  }
+
+  // Direct generation (existing code)
 
   // Enhance system prompt based on framework
   let systemPrompt = mode === 'builder' ? BUILDER_PROMPT : TUTOR_PROMPT;

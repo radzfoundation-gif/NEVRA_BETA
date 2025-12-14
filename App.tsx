@@ -64,7 +64,7 @@ const App: React.FC = () => {
 
   return (
     <ErrorBoundary>
-      <ClerkProvider 
+      <ClerkProvider
         publishableKey={CLERK_PUBLISHABLE_KEY}
         afterSignInUrl="/chat"
         afterSignUpUrl="/chat"
@@ -78,6 +78,16 @@ const App: React.FC = () => {
                 <Route path="/sign-up" element={<SignUpPage />} />
                 <Route
                   path="/chat"
+                  element={
+                    <ProtectedRoute>
+                      <ErrorBoundary>
+                        <ChatInterface />
+                      </ErrorBoundary>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/chat/:id"
                   element={
                     <ProtectedRoute>
                       <ErrorBoundary>

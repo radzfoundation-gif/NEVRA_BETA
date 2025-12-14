@@ -36,7 +36,7 @@ const debugLog = (data) => {
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY?.trim();
 const stripe = stripeSecretKey 
   ? new Stripe(stripeSecretKey, {
-      apiVersion: '2024-12-18.acacia',
+  apiVersion: '2024-12-18.acacia',
     })
   : null;
 
@@ -83,8 +83,8 @@ if (!process.env.VERCEL && !fs.existsSync(uploadsDir)) {
   // /tmp should exist in Vercel, but just in case
   try {
     fs.mkdirSync('/tmp', { recursive: true });
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
     }
   } catch (e) {
     console.warn('Could not create uploads directory:', e);
@@ -2313,6 +2313,77 @@ app.get('/api/payment/subscription', async (req, res) => {
 });
 
 // Create customer portal session for managing subscription
+// Workflow endpoint - Multi-stage AI workflow
+app.post('/api/workflow', async (req, res) => {
+  const {
+    prompt,
+    history = [],
+    mode = 'builder',
+    provider = 'deepseek',
+    images = [],
+    framework = 'html',
+    userId,
+    sessionId,
+  } = req.body || {};
+
+  if (!prompt) {
+    return res.status(400).json({ error: 'Prompt is required' });
+  }
+
+  try {
+    // For now, workflow is primarily client-side
+    // This endpoint can be used for server-side workflow execution in the future
+    // For now, it acts as a proxy that uses the existing generate endpoint
+    
+    // The actual workflow orchestration happens in the frontend (lib/workflow/orchestrator.ts)
+    // This endpoint is here for future server-side workflow execution
+    
+    // For now, just call the generate endpoint
+    // In the future, this could execute the full workflow server-side
+    const generateResponse = await fetch(`${req.protocol}://${req.get('host')}/api/generate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        prompt,
+        history,
+        mode,
+        provider,
+        images,
+        systemPrompt: mode === 'builder' 
+          ? 'You are NEVRA BUILDER, an elite Frontend Engineer.'
+          : 'You are NEVRA TUTOR, a world-class AI Educator.',
+      }),
+    });
+
+    if (!generateResponse.ok) {
+      const errorData = await generateResponse.json().catch(() => ({ error: 'Workflow execution failed' }));
+      return res.status(generateResponse.status).json(errorData);
+    }
+
+    const result = await generateResponse.json();
+    
+    // Return workflow result format
+    return res.json({
+      response: typeof result === 'string' ? result : result.content || '',
+      code: typeof result === 'string' ? result : result.content || undefined,
+      files: result.files || undefined,
+      metadata: {
+        tokensUsed: 0, // Will be calculated by workflow
+        executionTime: 0,
+        stagesExecuted: ['generate'], // Simplified for now
+      },
+    });
+  } catch (error) {
+    console.error('Workflow error:', error);
+    return res.status(500).json({ 
+      error: 'Workflow execution failed',
+      message: error.message 
+    });
+  }
+});
+
 app.post('/api/payment/portal', async (req, res) => {
   const { userId } = req.body;
 
@@ -2357,7 +2428,62 @@ export default app;
 
 // Start server - Only if not in Vercel environment
 if (process.env.VERCEL !== '1' && !process.env.VERCEL_ENV) {
-  app.listen(PORT, () => {
-    console.log(`API proxy listening on ${PORT}`);
+// Knowledge management endpoints (only in Node.js environment, not Vercel serverless)
+if (process.env.VERCEL !== '1' && !process.env.VERCEL_ENV) {
+  // Initialize Knowledge Scheduler (if enabled)
+  if (process.env.ENABLE_KNOWLEDGE_SCHEDULER === 'true') {
+    try {
+      // Dynamic import to avoid issues if knowledge module has issues
+      import('../lib/knowledge/scheduler/KnowledgeScheduler.js').then(({ KnowledgeScheduler }) => {
+        const intervalMinutes = parseInt(process.env.KNOWLEDGE_SCHEDULER_INTERVAL || '60', 10);
+        KnowledgeScheduler.start(intervalMinutes);
+        console.log(`📅 Knowledge Scheduler: Started (interval: ${intervalMinutes} minutes)`);
+      }).catch(err => {
+        console.warn('⚠️ Knowledge Scheduler: Failed to start', err.message);
+      });
+    } catch (error) {
+      console.warn('⚠️ Knowledge Scheduler: Not available', error.message);
+    }
+  }
+
+  // Knowledge management endpoints
+  app.post('/api/knowledge/trigger', async (req, res) => {
+    try {
+      const { KnowledgeScheduler } = await import('../lib/knowledge/scheduler/KnowledgeScheduler.js');
+      await KnowledgeScheduler.runPipeline();
+      res.json({ success: true, message: 'Knowledge pipeline triggered' });
+    } catch (error) {
+      console.error('Knowledge trigger error:', error);
+      res.status(500).json({ error: 'Failed to trigger knowledge pipeline' });
+    }
   });
+
+  app.post('/api/knowledge/source/:sourceId', async (req, res) => {
+    try {
+      const { sourceId } = req.params;
+      const { KnowledgeScheduler } = await import('../lib/knowledge/scheduler/KnowledgeScheduler.js');
+      await KnowledgeScheduler.runForSource(sourceId);
+      res.json({ success: true, message: `Processed source: ${sourceId}` });
+    } catch (error) {
+      console.error('Knowledge source processing error:', error);
+      res.status(500).json({ error: error.message || 'Failed to process source' });
+    }
+  });
+
+  app.get('/api/knowledge/sources', async (req, res) => {
+    try {
+      const { SourceRegistry } = await import('../lib/knowledge/sources/SourceRegistry.js');
+      SourceRegistry.initializeDefaults();
+      const sources = SourceRegistry.getAllSources();
+      res.json({ sources });
+    } catch (error) {
+      console.error('Knowledge sources error:', error);
+      res.status(500).json({ error: 'Failed to get sources' });
+    }
+  });
+}
+
+app.listen(PORT, () => {
+  console.log(`API proxy listening on ${PORT}`);
+});
 }

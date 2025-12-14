@@ -83,21 +83,29 @@ const Navbar: React.FC = () => {
 
         {/* Mobile Menu Toggle */}
         <button
-          className="md:hidden text-white"
+          className="md:hidden text-white p-2 -mr-2 min-w-[44px] min-h-[44px] flex items-center justify-center"
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
         >
-          {mobileMenuOpen ? <X /> : <Menu />}
+          {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
         </button>
       </div>
 
       {/* Mobile Menu */}
       {mobileMenuOpen && (
-        <div className="absolute top-full left-0 w-full bg-aura-black border-b border-aura-border p-6 flex flex-col gap-4 md:hidden">
+        <>
+          {/* Backdrop Overlay */}
+          <div 
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 md:hidden"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+          {/* Mobile Menu */}
+          <div className="fixed top-[73px] left-0 right-0 w-full bg-aura-black/95 backdrop-blur-md border-b border-aura-border p-6 flex flex-col gap-3 md:hidden z-50 max-h-[calc(100vh-73px)] overflow-y-auto">
           {['Agents', 'Workflows', 'Enterprise', 'Pricing'].map((item) => (
             <Link
               key={item}
               to={`/${item.toLowerCase()}`}
-              className="text-lg font-medium text-aura-secondary hover:text-white"
+                className="text-base font-medium text-aura-secondary hover:text-white py-3 px-2 rounded-lg hover:bg-white/5 transition-colors min-h-[44px] flex items-center"
               onClick={() => setMobileMenuOpen(false)}
             >
               {item}
@@ -109,7 +117,7 @@ const Navbar: React.FC = () => {
           <SignedOut>
             <Link
               to="/sign-in"
-              className="w-full bg-white text-black px-4 py-3 rounded-lg text-sm font-semibold text-center block"
+                className="w-full bg-white text-black px-4 py-3.5 rounded-lg text-sm font-semibold text-center block min-h-[44px] flex items-center justify-center"
               onClick={() => setMobileMenuOpen(false)}
             >
               Sign In
@@ -119,13 +127,14 @@ const Navbar: React.FC = () => {
           <SignedIn>
             <Link
               to="/chat"
-              className="w-full bg-white text-black px-4 py-3 rounded-lg text-sm font-semibold text-center block"
+                className="w-full bg-white text-black px-4 py-3.5 rounded-lg text-sm font-semibold text-center block min-h-[44px] flex items-center justify-center"
               onClick={() => setMobileMenuOpen(false)}
             >
               Deploy Agent
             </Link>
           </SignedIn>
         </div>
+        </>
       )}
     </nav>
   );

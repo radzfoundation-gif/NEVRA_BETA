@@ -8,7 +8,7 @@ import Integrations from '../Integrations';
 import CTA from '../CTA';
 import Footer from '../Footer';
 import Background from '../ui/Background';
-import ProviderSelector from '../ui/ProviderSelector';
+// ProviderSelector removed - orchestrator now manages models automatically
 import { FlipText } from '../ui/flip-text';
 import { AIProvider } from '@/lib/ai';
 import { useAuth, useUser } from '@clerk/clerk-react';
@@ -651,12 +651,13 @@ const Home: React.FC = () => {
 
           {/* Toggle Button (User Icon) - Visible when sidebar is closed */}
           <div
-            className={`fixed bottom-4 left-4 z-40 transition-all duration-300 ${isSidebarOpen ? 'opacity-0 pointer-events-none translate-x-[-20px]' : 'opacity-100 translate-x-0'}`}
+            className={`fixed bottom-4 left-4 z-40 transition-all duration-300 pb-safe ${isSidebarOpen ? 'opacity-0 pointer-events-none translate-x-[-20px]' : 'opacity-100 translate-x-0'}`}
           >
             <button
               onClick={() => setIsSidebarOpen(true)}
-              className="group flex items-center justify-center w-10 h-10 rounded-full bg-[#1a1a1a] border border-white/10 text-white hover:bg-[#2a2a2a] hover:border-purple-500/50 transition-all shadow-lg overflow-hidden"
+              className="group flex items-center justify-center w-12 h-12 md:w-10 md:h-10 rounded-full bg-[#1a1a1a] border border-white/10 text-white hover:bg-[#2a2a2a] hover:border-purple-500/50 transition-all shadow-lg overflow-hidden min-w-[48px] min-h-[48px]"
               title="Open Sidebar"
+              aria-label="Open sidebar"
             >
               {user?.imageUrl ? (
                 <img src={user.imageUrl} alt="User" className="w-full h-full object-cover opacity-80 group-hover:opacity-100" />
@@ -671,7 +672,7 @@ const Home: React.FC = () => {
       <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${isSidebarOpen ? 'md:ml-64' : ''}`}>
 
         {/* Hero Section */}
-        <section className="relative flex-1 flex flex-col justify-center items-center min-h-[85vh] px-4 md:px-6 pt-32">
+        <section className="relative flex-1 flex flex-col justify-center items-center min-h-[85vh] px-4 sm:px-6 md:px-6 pt-24 md:pt-32 pb-safe">
           <div className="max-w-3xl w-full relative z-10 flex flex-col items-center">
             
             <motion.div
@@ -688,7 +689,7 @@ const Home: React.FC = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.1 }}
-              className="text-5xl md:text-7xl font-display font-bold mb-6 text-white text-center tracking-tight leading-tight"
+              className="text-4xl sm:text-5xl md:text-7xl font-display font-bold mb-4 md:mb-6 text-white text-center tracking-tight leading-tight px-2"
             >
               Build{' '}
               <FlipText
@@ -707,7 +708,7 @@ const Home: React.FC = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.2 }}
-              className="text-xl text-gray-400 mb-10 text-center max-w-2xl leading-relaxed"
+              className="text-base sm:text-lg md:text-xl text-gray-400 mb-6 md:mb-10 text-center max-w-2xl leading-relaxed px-4"
             >
               Nevra accelerates full-stack development with intelligent AI.
             </motion.p>
@@ -755,7 +756,8 @@ const Home: React.FC = () => {
                       type="submit"
                       onClick={handleSearch}
                       disabled={!prompt.trim() && attachedImages.length === 0}
-                      className="bg-white text-black hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed rounded-lg p-2 transition-colors"
+                      className="bg-white text-black hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed rounded-lg p-2.5 md:p-2 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+                      aria-label="Send message"
                     >
                       <ArrowRight size={18} />
                     </button>
@@ -778,19 +780,19 @@ const Home: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      className="flex items-center gap-2 text-xs font-medium text-gray-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-white/5"
+                      className="flex items-center gap-2 text-xs font-medium text-gray-400 hover:text-white transition-colors px-3 py-2.5 md:py-1.5 rounded-lg hover:bg-white/5 min-h-[44px] md:min-h-0"
                     >
                       <Paperclip size={14} />
-                      <span>Attach</span>
+                      <span className="hidden sm:inline">Attach</span>
                     </button>
 
                     <button
                       type="button"
                       onClick={() => setShowImageMenu(!showImageMenu)}
-                      className="flex items-center gap-2 text-xs font-medium text-gray-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-white/5 relative"
+                      className="flex items-center gap-2 text-xs font-medium text-gray-400 hover:text-white transition-colors px-3 py-2.5 md:py-1.5 rounded-lg hover:bg-white/5 relative min-h-[44px] md:min-h-0"
                     >
                       <Camera size={14} />
-                      <span>Camera</span>
+                      <span className="hidden sm:inline">Camera</span>
                       {showImageMenu && (
                         <div className="absolute bottom-full left-0 mb-2 w-48 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-xl overflow-hidden z-50">
                           <button
@@ -808,18 +810,10 @@ const Home: React.FC = () => {
 
                     <div className="h-4 w-[1px] bg-white/10 mx-1"></div>
 
-                    <ProviderSelector
-                      value={provider}
-                      onChange={(p) => {
-                        // DISABLED FOR TESTING - Allow all provider selection
-                        // if (p === 'grok' && isGrokLocked && !isSubscribed) {
-                        //   alert('Gemini 3 Pro token limit has been reached.');
-                        //   return;
-                        // }
-                        setProvider(p);
-                      }}
-                      isSubscribed={isSubscribed}
-                    />
+                    {/* Model selection removed - orchestrator manages models automatically */}
+                    <div className="text-xs text-gray-500 px-2 py-1 rounded border border-white/10">
+                      Auto
+                    </div>
                   </div>
                   
                   {isSignedIn && (
@@ -835,27 +829,27 @@ const Home: React.FC = () => {
             </div>
 
             {/* Quick Actions Buttons */}
-            <div className="flex flex-wrap justify-center gap-3 mt-4 animate-fade-in-up delay-200">
+            <div className="flex flex-wrap justify-center gap-2 md:gap-3 mt-4 animate-fade-in-up delay-200 px-2">
               <button 
                 onClick={() => fileInputRef.current?.click()}
-                className="flex items-center gap-2 px-4 py-2 bg-[#1a1a1a] hover:bg-[#252525] border border-white/10 rounded-lg text-sm text-gray-400 hover:text-white transition-all"
+                className="flex items-center gap-2 px-3 md:px-4 py-2.5 md:py-2 bg-[#1a1a1a] hover:bg-[#252525] border border-white/10 rounded-lg text-xs md:text-sm text-gray-400 hover:text-white transition-all min-h-[44px]"
               >
                 <ImageIcon size={14} />
-                <span>Clone a Screenshot</span>
+                <span className="whitespace-nowrap">Clone a Screenshot</span>
               </button>
               <button 
                 onClick={() => setPrompt("Create a landing page for ")}
-                className="flex items-center gap-2 px-4 py-2 bg-[#1a1a1a] hover:bg-[#252525] border border-white/10 rounded-lg text-sm text-gray-400 hover:text-white transition-all"
+                className="flex items-center gap-2 px-3 md:px-4 py-2.5 md:py-2 bg-[#1a1a1a] hover:bg-[#252525] border border-white/10 rounded-lg text-xs md:text-sm text-gray-400 hover:text-white transition-all min-h-[44px]"
               >
-                <Layout size={14} /> {/* Assuming Layout icon is imported, if not I'll use Sparkles */}
-                <span>Landing Page</span>
+                <Layout size={14} />
+                <span className="whitespace-nowrap">Landing Page</span>
               </button>
               <button 
                 onClick={() => setShowTemplateBrowser(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-[#1a1a1a] hover:bg-[#252525] border border-white/10 rounded-lg text-sm text-gray-400 hover:text-white transition-all"
+                className="flex items-center gap-2 px-3 md:px-4 py-2.5 md:py-2 bg-[#1a1a1a] hover:bg-[#252525] border border-white/10 rounded-lg text-xs md:text-sm text-gray-400 hover:text-white transition-all min-h-[44px]"
               >
                 <Sparkles size={14} />
-                <span>Templates</span>
+                <span className="whitespace-nowrap">Templates</span>
               </button>
             </div>
 

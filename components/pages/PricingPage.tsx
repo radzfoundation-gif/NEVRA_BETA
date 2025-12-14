@@ -151,11 +151,11 @@ const PricingPage: React.FC = () => {
       <Navbar />
       <main className="flex-grow pt-24 relative z-10">
         <section className="relative py-20 px-6">
-          <div className="max-w-7xl mx-auto text-center mb-16">
-            <h1 className="font-display font-bold text-5xl md:text-6xl mb-6 text-white tracking-tight">
+          <div className="max-w-7xl mx-auto text-center mb-12 md:mb-16 px-4">
+            <h1 className="font-display font-bold text-3xl sm:text-4xl md:text-5xl lg:text-6xl mb-4 md:mb-6 text-white tracking-tight">
               Simple, Transparent Pricing
             </h1>
-            <p className="text-xl text-gray-400 max-w-2xl mx-auto">
+            <p className="text-base sm:text-lg md:text-xl text-gray-400 max-w-2xl mx-auto">
               Start free, scale as you grow. No hidden fees.
             </p>
             {loadingCurrency ? (
@@ -167,9 +167,9 @@ const PricingPage: React.FC = () => {
             )}
           </div>
 
-          <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 px-4">
             {/* Free Plan */}
-            <div className="p-8 rounded-2xl bg-[#0A0A0A] border border-white/10 flex flex-col">
+            <div className="p-6 md:p-8 rounded-2xl bg-[#0A0A0A] border border-white/10 flex flex-col">
               <div className="mb-4">
                 <h3 className="text-xl font-bold text-white">Free</h3>
                 <div className="text-3xl font-bold text-white mt-2">
@@ -190,7 +190,7 @@ const PricingPage: React.FC = () => {
                 ))}
               </ul>
               <button 
-                className="w-full py-3 rounded-lg border border-white/20 text-white hover:bg-white hover:text-black transition-colors font-medium"
+                className="w-full py-3.5 md:py-3 rounded-lg border border-white/20 text-white hover:bg-white hover:text-black transition-colors font-medium min-h-[44px] flex items-center justify-center"
                 onClick={() => handleCheckout('free')}
                 disabled={loadingPlan === 'free'}>
                 {loadingPlan === 'free' ? 'Processing...' : 'Start Free'}
@@ -198,7 +198,7 @@ const PricingPage: React.FC = () => {
             </div>
 
             {/* Premium Plan */}
-            <div className="p-8 rounded-2xl bg-[#111] border border-purple-500/50 relative flex flex-col shadow-2xl shadow-purple-900/20">
+            <div className="p-6 md:p-8 rounded-2xl bg-[#111] border border-purple-500/50 relative flex flex-col shadow-2xl shadow-purple-900/20">
               <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-purple-600 text-white px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide">
                 Most Popular
               </div>
@@ -228,14 +228,14 @@ const PricingPage: React.FC = () => {
               </ul>
               {isSubscribed ? (
                 <button
-                  className="w-full py-3 rounded-lg bg-green-600 text-white hover:bg-green-500 transition-colors font-medium shadow-lg shadow-green-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full py-3.5 md:py-3 rounded-lg bg-green-600 text-white hover:bg-green-500 transition-colors font-medium shadow-lg shadow-green-500/25 disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] flex items-center justify-center"
                   onClick={handleManageSubscription}
                   disabled={loadingPlan === 'manage' || loadingCurrency}>
                   {loadingPlan === 'manage' ? 'Loading...' : 'Manage Subscription'}
                 </button>
               ) : (
                 <button
-                  className="w-full py-3 rounded-lg bg-purple-600 text-white hover:bg-purple-500 transition-colors font-medium shadow-lg shadow-purple-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full py-3.5 md:py-3 rounded-lg bg-purple-600 text-white hover:bg-purple-500 transition-colors font-medium shadow-lg shadow-purple-500/25 disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] flex items-center justify-center"
                   onClick={() => handleCheckout('premium')}
                   disabled={loadingPlan === 'premium' || loadingCurrency}>
                   {loadingPlan === 'premium' ? 'Processing...' : 'Get Premium'}
