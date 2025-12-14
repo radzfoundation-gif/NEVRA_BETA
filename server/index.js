@@ -32,10 +32,13 @@ const debugLog = (data) => {
 
 // Note: pdf-parse will be imported dynamically when needed
 
-// Initialize Stripe
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY?.trim() || '', {
-  apiVersion: '2024-12-18.acacia',
-});
+// Initialize Stripe (only if API key is provided)
+const stripeSecretKey = process.env.STRIPE_SECRET_KEY?.trim();
+const stripe = stripeSecretKey 
+  ? new Stripe(stripeSecretKey, {
+      apiVersion: '2024-12-18.acacia',
+    })
+  : null;
 
 // Initialize Supabase client for subscription updates
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -44,7 +47,7 @@ const supabase = supabaseUrl && supabaseServiceKey
   ? createClient(supabaseUrl, supabaseServiceKey)
   : null;
 
-if (!process.env.STRIPE_SECRET_KEY) {
+if (!stripe) {
   console.warn('⚠️ STRIPE_SECRET_KEY not set. Stripe integration will not work.');
 }
 if (!supabase) {
