@@ -14,7 +14,7 @@ MOONSHOT Error: moonshot API key not configured
 Tambahkan ke file `.env` di root project:
 
 ```bash
-MOONSHOT_API_KEY=sk-rbkagNDoFmFCQILq5XOAbuLtBIFUC3Rk5frevqvx82wUCtag
+MOONSHOT_API_KEY=sk_your_moonshot_api_key_here
 MOONSHOT_MAX_TOKENS=8192
 ```
 

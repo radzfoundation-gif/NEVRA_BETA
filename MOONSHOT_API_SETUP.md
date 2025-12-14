@@ -17,7 +17,7 @@ Moonshot AI (Kimi) telah terintegrasi ke NEVRA sebagai provider AI tambahan.
 Tambahkan ke `.env` atau environment variables di server:
 
 ```bash
-MOONSHOT_API_KEY=sk-rbkagNDoFmFCQILq5XOAbuLtBIFUC3Rk5frevqvx82wUCtag
+MOONSHOT_API_KEY=sk_your_moonshot_api_key_here
 MOONSHOT_MAX_TOKENS=8192  # Optional, default: 8192
 ```
 
