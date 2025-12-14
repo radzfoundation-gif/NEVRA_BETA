@@ -667,7 +667,7 @@ app.post('/api/generate', async (req, res) => {
           } catch (sdkErr) {
             // #region agent log
             const errorMsg = sdkErr?.error?.message || sdkErr?.message || String(sdkErr);
-            const errorStatus = sdkErr?.status || sdkErr?.response?.status || 'unknown';
+            const errorStatus = sdkErr?.status || sdkErr?.response?.status || 500;
             const errorCode = sdkErr?.code || 'unknown';
             const fullError = JSON.stringify(sdkErr, Object.getOwnPropertyNames(sdkErr)).substring(0,500);
             debugLog({location:'server/index.js:410',message:'API call error caught',data:{errorMsg:errorMsg,status:errorStatus,code:errorCode,is401:errorStatus===401||errorMsg.toLowerCase().includes('401')||errorMsg.toLowerCase().includes('unauthorized'),fullError:fullError},sessionId:'debug-session',runId:'run1',hypothesisId:'E'});
@@ -776,7 +776,7 @@ app.post('/api/generate', async (req, res) => {
                                (sdkErr?.response?.data && typeof sdkErr.response.data === 'string' && 
                                 (sdkErr.response.data.includes('<html') || sdkErr.response.data.includes('<!DOCTYPE')));
             
-            const errorStatus = sdkErr?.status || sdkErr?.response?.status || 500;
+            // errorStatus already declared at line 670, no need to redeclare
             
             if (isHtmlError || errorStatus === 500) {
               console.error(`[${provider}] OpenRouter returned HTML error (likely invalid API key or service unavailable):`, errorString.slice(0, 500));
@@ -878,6 +878,7 @@ app.post('/api/generate', async (req, res) => {
             break; // Success, exit loop
           } catch (sdkErr) {
             const errorMsg = sdkErr?.error?.message || sdkErr?.message || String(sdkErr);
+            const errorStatus = sdkErr?.status || sdkErr?.response?.status || 500;
             lastError = sdkErr;
             
             // Check for prompt token limit error
@@ -928,7 +929,7 @@ app.post('/api/generate', async (req, res) => {
                                (sdkErr?.response?.data && typeof sdkErr.response.data === 'string' && 
                                 (sdkErr.response.data.includes('<html') || sdkErr.response.data.includes('<!DOCTYPE')));
             
-            if (isHtmlError || (sdkErr?.status || 500) === 500) {
+            if (isHtmlError || errorStatus === 500) {
               console.error(`[${provider}] OpenRouter returned HTML error (likely invalid API key or service unavailable):`, errorString.slice(0, 500));
               return sendResponse(500, {
                 error: `API Error (500): Server returned HTML instead of JSON. This usually means the API endpoint is incorrect, API key is invalid, or the service is unavailable.`,
@@ -945,7 +946,7 @@ app.post('/api/generate', async (req, res) => {
             }
             
             // Check for authentication errors (401, 403)
-            const errorStatus = sdkErr?.status || sdkErr?.response?.status || 500;
+            // errorStatus already declared at line 881
             if (errorStatus === 401 || errorStatus === 403 || errorMsg.toLowerCase().includes('unauthorized') || 
                 errorMsg.toLowerCase().includes('invalid api key') || errorMsg.toLowerCase().includes('authentication')) {
               return sendResponse(401, {
