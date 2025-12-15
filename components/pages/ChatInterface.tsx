@@ -26,7 +26,7 @@ import SubscriptionPopup from '../SubscriptionPopup';
 import TokenBadge from '../TokenBadge';
 import { useTokenLimit, useTrackAIUsage } from '@/hooks/useTokenLimit';
 import { FREE_TOKEN_LIMIT } from '@/lib/tokenLimit';
-import { createChatSession, saveMessage, getSessionMessages, updateChatSession } from '@/lib/firebaseDatabase';
+import { createChatSession, saveMessage, getSessionMessages, updateChatSession, getUserSessions } from '@/lib/firebaseDatabase';
 import { useUser, useAuth } from '@clerk/clerk-react';
 import FeedbackPopup from '../FeedbackPopup';
 import { useUserPreferences, useChatSessions } from '@/hooks/useFirebase';
@@ -1089,7 +1089,7 @@ const ChatInterface: React.FC = () => {
 
       try {
         const token = await getToken({ template: SUPABASE_TEMPLATE }).catch(() => null);
-        const sessionMessages = await getSessionMessages(sessionId, token);
+        const sessionMessages = await getSessionMessages(sessionId);
 
         // Convert database messages to Message format
         const convertedMessages: Message[] = sessionMessages.map((msg: any) => ({
@@ -1098,14 +1098,14 @@ const ChatInterface: React.FC = () => {
           content: msg.content,
           code: msg.code || undefined,
           images: msg.images || undefined,
-          timestamp: new Date(msg.created_at)
+          timestamp: new Date(msg.createdAt as any)
         }));
 
         setMessages(convertedMessages);
 
         // Update appMode from session if available
         if (sessionMessages.length > 0) {
-          const sessions = await getUserSessions(user.id, token);
+          const sessions = await getUserSessions(user.id);
           const session = sessions.find(s => s.id === sessionId);
 
           if (session?.mode) {
@@ -1182,7 +1182,7 @@ const ChatInterface: React.FC = () => {
 
       try {
         const token = await getToken({ template: SUPABASE_TEMPLATE }).catch(() => null);
-        const dbMessages = await getSessionMessages(sessionId, token);
+        const dbMessages = await getSessionMessages(sessionId);
 
         if (dbMessages && dbMessages.length > 0) {
           const restoredMessages = dbMessages.map((m) => ({
@@ -1191,7 +1191,7 @@ const ChatInterface: React.FC = () => {
             content: m.content,
             code: m.code || undefined,
             images: m.images || undefined,
-            timestamp: new Date(m.created_at),
+            timestamp: new Date(m.createdAt as any),
           }));
           setMessages(restoredMessages);
 
@@ -1217,11 +1217,11 @@ const ChatInterface: React.FC = () => {
 
       try {
         const token = await getToken({ template: SUPABASE_TEMPLATE }).catch(() => null);
-        const sessions = await getUserSessions(user.id, token);
+        const sessions = await getUserSessions(user.id);
         if (!sessions || sessions.length === 0) return;
 
         const latest = sessions[0];
-        const dbMessages = await getSessionMessages(latest.id, token);
+        const dbMessages = await getSessionMessages(latest.id);
 
         setAppMode(latest.mode as AppMode);
         setProvider(latest.provider as AIProvider);
@@ -1231,7 +1231,7 @@ const ChatInterface: React.FC = () => {
           content: m.content,
           code: m.code || undefined,
           images: m.images || undefined,
-          timestamp: new Date(m.created_at),
+          timestamp: new Date(m.createdAt as any),
         }));
         setMessages(restoredMessages);
 
@@ -1840,7 +1840,7 @@ const ChatInterface: React.FC = () => {
       if (!activeSessionId && user) {
         try {
           const sessionTitle = text.trim().length > 0 ? text.substring(0, 30) + '...' : 'New Chat';
-          const newSession = await createChatSession(user.id, mode || 'tutor', effectiveProvider, sessionTitle, token);
+          const newSession = await createChatSession(user.id, mode || 'tutor', effectiveProvider, sessionTitle);
           if (newSession) {
             activeSessionId = newSession.id;
             setCurrentSessionId(newSession.id);
@@ -1865,7 +1865,7 @@ const ChatInterface: React.FC = () => {
 
       // 2. Save User Message
       if (activeSessionId && user) {
-        await saveMessage(activeSessionId, 'user', text, undefined, imagesToSend, token);
+        await saveMessage(activeSessionId, 'user', text, undefined, imagesToSend);
       }
 
       if (historyOverride) {
@@ -2440,7 +2440,7 @@ const ChatInterface: React.FC = () => {
 
       // 3. Save AI Response
       if (activeSessionId && user) {
-        await saveMessage(activeSessionId, 'ai', responseText, code || undefined, undefined, token);
+        await saveMessage(activeSessionId, 'ai', responseText, code || undefined, undefined);
       }
 
       // Combine search results with response if available
@@ -2705,7 +2705,7 @@ const ChatInterface: React.FC = () => {
           if (activeSessionId && user) {
             try {
               const token = await getToken({ template: SUPABASE_TEMPLATE });
-              await saveMessage(activeSessionId, 'ai', responseText, code || undefined, undefined, token);
+              await saveMessage(activeSessionId, 'ai', responseText, code || undefined, undefined);
             } catch (e) {
               console.error('Error saving fallback message:', e);
             }
@@ -2857,7 +2857,7 @@ const ChatInterface: React.FC = () => {
           if (activeSessionId && user) {
             try {
               const token = await getToken({ template: SUPABASE_TEMPLATE });
-              await saveMessage(activeSessionId, 'ai', responseText, code || undefined, undefined, token);
+              await saveMessage(activeSessionId, 'ai', responseText, code || undefined, undefined);
             } catch (e) {
               console.error('Error saving fallback message:', e);
             }
@@ -3029,7 +3029,7 @@ const ChatInterface: React.FC = () => {
     if (sessionId && user) {
       try {
         const token = await getToken({ template: SUPABASE_TEMPLATE }).catch(() => null);
-        await saveMessage(sessionId, isAI ? 'ai' : 'user', text, undefined, undefined, token);
+        await saveMessage(sessionId, isAI ? 'ai' : 'user', text, undefined, undefined);
       } catch (error) {
         console.error('Error saving voice message:', error);
       }
