@@ -14,20 +14,27 @@ export class PromptEnhancer {
     basePrompt: string,
     contextAwareness: ContextAwareness | null,
     userProfile: UserProfile | null,
-    intentAnalysis: IntentAnalysis
+    intentAnalysis: IntentAnalysis,
+    isFirstMessage: boolean = false // Only greet on first message
   ): string {
     let enhanced = basePrompt;
 
-    // Add user name and personalization
+    // Add user name - but only greet on first message
     if (contextAwareness?.user.name || userProfile?.userName) {
       const userName = contextAwareness?.user.name || userProfile?.userName;
-      enhanced = `You are having a conversation with ${userName}.\n\nRemember their name throughout the conversation and use it naturally when appropriate.\n\n${enhanced}`;
+      if (isFirstMessage) {
+        // First message: greet the user warmly
+        enhanced = `You are having a conversation with ${userName}.\n\nThis is the FIRST message of the session. Start with a warm, brief greeting using their name (e.g., "Hi ${userName}!"). Keep the greeting short and natural.\n\n${enhanced}`;
+      } else {
+        // Subsequent messages: know their name but don't greet again
+        enhanced = `You are having a conversation with ${userName}.\n\nIMPORTANT: Do NOT greet or say hello again - you have already greeted the user earlier in this conversation. Just continue the conversation naturally.\n\n${enhanced}`;
+      }
     }
 
     // Add context awareness section
     if (contextAwareness) {
       const contextSummary = this.generateContextSummary(contextAwareness, intentAnalysis);
-      enhanced = `${enhanced}\n\n=== CONTEXT AWARENESS ===\nYou have access to comprehensive context about the current situation:\n\n${contextSummary}\n\nUse this context to:\n- Remember what happened before (PAST)\n- Understand what's happening now (CURRENT)\n- Anticipate what might come next (FUTURE)\n- Personalize responses using the user's name: ${contextAwareness.user.name || 'the user'}\n\nAlways stay aware of the full context and avoid confusion. If you're unsure about something, refer back to the context provided above.`;
+      enhanced = `${enhanced}\n\n=== CONTEXT AWARENESS ===\nYou have access to comprehensive context about the current situation:\n\n${contextSummary}\n\nUse this context to:\n- Remember what happened before (PAST)\n- Understand what's happening now (CURRENT)\n- Anticipate what might come next (FUTURE)\n\nAlways stay aware of the full context and avoid confusion.`;
     }
 
     // Add user preferences if available
@@ -63,7 +70,7 @@ export class PromptEnhancer {
     parts.push(`\n📚 PAST (What Happened Before):`);
     parts.push(`- Total Messages: ${context.past.userHistory.totalMessages}`);
     parts.push(`- Total Sessions: ${context.past.userHistory.totalSessions}`);
-    
+
     if (context.past.recentIntents.length > 0) {
       parts.push(`- Recent Intents:`);
       context.past.recentIntents.slice(0, 3).forEach((intent, i) => {
@@ -111,9 +118,26 @@ export class PromptEnhancer {
   /**
    * Format time ago
    */
-  private static formatTimeAgo(date: Date): string {
+  private static formatTimeAgo(date: Date | string | number | undefined): string {
+    if (!date) return 'recently';
+
+    // Convert to Date object if not already
+    let dateObj: Date;
+    if (date instanceof Date) {
+      dateObj = date;
+    } else if (typeof date === 'string' || typeof date === 'number') {
+      dateObj = new Date(date);
+    } else {
+      return 'recently';
+    }
+
+    // Check if valid date
+    if (isNaN(dateObj.getTime())) {
+      return 'recently';
+    }
+
     const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
+    const diffMs = now.getTime() - dateObj.getTime();
     const diffMins = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
@@ -122,7 +146,7 @@ export class PromptEnhancer {
     if (diffMins < 60) return `${diffMins}m ago`;
     if (diffHours < 24) return `${diffHours}h ago`;
     if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString();
+    return dateObj.toLocaleDateString();
   }
 
   /**
@@ -141,8 +165,8 @@ export class PromptEnhancer {
     let enhanced = userPrompt;
 
     // If user has pending improvements, subtly hint
-    if (contextAwareness.future.pendingImprovements.length > 0 && 
-        contextAwareness.future.pendingImprovements[0].toLowerCase().includes('improve')) {
+    if (contextAwareness.future.pendingImprovements.length > 0 &&
+      contextAwareness.future.pendingImprovements[0].toLowerCase().includes('improve')) {
       // Context is already in system prompt, no need to duplicate
     }
 

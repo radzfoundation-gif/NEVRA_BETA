@@ -1,6 +1,9 @@
 import { MemoryEntry, WorkflowResult } from './types';
-import { supabase } from '../supabase';
 import { WORKFLOW_CONFIG } from './config';
+import { saveUserMemory, getUserMemories } from '../firebaseDatabase';
+
+// In-memory cache for workflow memory (legacy/fallback)
+const memoryCache: Map<string, MemoryEntry[]> = new Map();
 
 /**
  * Save workflow result to memory
@@ -13,34 +16,22 @@ export async function saveToMemory(
   }
 
   try {
-    if (!supabase) {
-      console.warn('Supabase not initialized, skipping memory save');
-      return;
-    }
-
     const memoryEntry: MemoryEntry = {
       ...entry,
       timestamp: new Date(),
     };
 
-    // Save to Supabase (assuming a 'workflow_memory' table)
-    // Note: This is a placeholder - actual implementation depends on your Supabase schema
-    const { error } = await supabase
-      .from('workflow_memory')
-      .insert({
-        session_id: memoryEntry.sessionId,
-        user_id: memoryEntry.userId,
-        timestamp: memoryEntry.timestamp.toISOString(),
-        prompt: memoryEntry.prompt,
-        response: memoryEntry.response,
-        code: memoryEntry.code,
-        plan: memoryEntry.plan ? JSON.stringify(memoryEntry.plan) : null,
-        review: memoryEntry.review ? JSON.stringify(memoryEntry.review) : null,
-        metadata: memoryEntry.metadata,
-      });
+    if (entry.userId) {
+      await saveUserMemory(entry.userId, memoryEntry);
+    } else {
+      // Fallback to in-memory for anonymous users (though unlikely in this app's context)
+      const cacheKey = 'anonymous';
+      const existing = memoryCache.get(cacheKey) || [];
+      existing.unshift(memoryEntry);
+      if (existing.length > WORKFLOW_CONFIG.maxMemoryEntries) existing.pop();
+      memoryCache.set(cacheKey, existing);
+    }
 
-    // Memory saving is handled by existing message storage
-    // This is a placeholder for future dedicated workflow memory
     if (WORKFLOW_CONFIG.logStages) {
       console.log('💾 Memory: Workflow result logged', {
         sessionId: memoryEntry.sessionId,
@@ -48,7 +39,6 @@ export async function saveToMemory(
     }
   } catch (error) {
     console.error('Memory save error:', error);
-    // Don't throw - memory save is non-critical
   }
 }
 
@@ -58,24 +48,16 @@ export async function saveToMemory(
 export async function retrieveRelevantMemory(
   prompt: string,
   sessionId: string,
+  userId: string | undefined,
   limit: number = WORKFLOW_CONFIG.memoryRetrievalLimit
 ): Promise<MemoryEntry[]> {
-  if (!WORKFLOW_CONFIG.enableMemory) {
+  if (!WORKFLOW_CONFIG.enableMemory || !userId) {
     return [];
   }
 
   try {
-    if (!supabase) {
-      return [];
-    }
-
-    // For now, retrieve from existing chat messages
-    // Future: Can create dedicated workflow_memory table
-    // This is a simplified implementation using existing message storage
-    
-    // Return empty for now - can be enhanced to retrieve from messages table
-    // The existing message history in ChatInterface already provides context
-    return [];
+    const memories = await getUserMemories(userId, limit);
+    return memories as MemoryEntry[];
   } catch (error) {
     console.error('Memory retrieval error:', error);
     return [];

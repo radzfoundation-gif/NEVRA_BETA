@@ -11,7 +11,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import { createRequire } from 'module';
 import Stripe from 'stripe';
-import { createClient } from '@supabase/supabase-js';
+// Supabase removed - using Firebase now
 
 const execAsync = promisify(exec);
 const require = createRequire(import.meta.url);
@@ -25,7 +25,7 @@ const debugLog = (data) => {
   try {
     const logDir = path.dirname(DEBUG_LOG_PATH);
     if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
-    const logEntry = JSON.stringify({...data, timestamp: Date.now()}) + '\n';
+    const logEntry = JSON.stringify({ ...data, timestamp: Date.now() }) + '\n';
     fs.appendFileSync(DEBUG_LOG_PATH, logEntry, 'utf8');
   } catch (e) { console.error('Debug log error:', e); }
 };
@@ -34,31 +34,21 @@ const debugLog = (data) => {
 
 // Initialize Stripe (only if API key is provided)
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY?.trim();
-const stripe = stripeSecretKey 
+const stripe = stripeSecretKey
   ? new Stripe(stripeSecretKey, {
-  apiVersion: '2024-12-18.acacia',
-    })
-  : null;
-
-// Initialize Supabase client for subscription updates
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const supabase = supabaseUrl && supabaseServiceKey 
-  ? createClient(supabaseUrl, supabaseServiceKey)
+    apiVersion: '2024-12-18.acacia',
+  })
   : null;
 
 if (!stripe) {
   console.warn('⚠️ STRIPE_SECRET_KEY not set. Stripe integration will not work.');
-}
-if (!supabase) {
-  console.warn('⚠️ Supabase credentials not set. Subscription updates will not work.');
 }
 
 const app = express();
 const PORT = process.env.PORT || 8788;
 
 // CORS configuration: use CORS_ORIGIN if set, otherwise allow all origins
-const corsOrigin = process.env.CORS_ORIGIN 
+const corsOrigin = process.env.CORS_ORIGIN
   ? (process.env.CORS_ORIGIN === 'true' ? true : process.env.CORS_ORIGIN)
   : true;
 
@@ -73,18 +63,18 @@ app.use(express.json({ limit: '12mb' }));
 app.use('/api/payment/webhook', express.raw({ type: 'application/json' }));
 
 // Ensure uploads directory exists (skip in Vercel serverless)
-const uploadsDir = process.env.VERCEL 
+const uploadsDir = process.env.VERCEL
   ? '/tmp/uploads' // Vercel serverless uses /tmp
   : path.join(__dirname, 'uploads');
-  
+
 if (!process.env.VERCEL && !fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 } else if (process.env.VERCEL && !fs.existsSync('/tmp')) {
   // /tmp should exist in Vercel, but just in case
   try {
     fs.mkdirSync('/tmp', { recursive: true });
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
     }
   } catch (e) {
     console.warn('Could not create uploads directory:', e);
@@ -104,26 +94,31 @@ const OPENROUTER_KEY_RAW = process.env.OPENROUTER_API_KEY;
 const OPENROUTER_KEY_TRIMMED = OPENROUTER_KEY_RAW?.trim();
 // Puter.js API - No API key needed (User-Pays model)
 // Puter.js is serverless and doesn't require API keys
-debugLog({location:'server/index.js:52',message:'OPENROUTER_API_KEY env check',data:{rawExists:!!OPENROUTER_KEY_RAW,rawLength:OPENROUTER_KEY_RAW?.length||0,trimmedExists:!!OPENROUTER_KEY_TRIMMED,trimmedLength:OPENROUTER_KEY_TRIMMED?.length||0,firstChars:OPENROUTER_KEY_TRIMMED?.substring(0,10)||'N/A'},sessionId:'debug-session',runId:'run1',hypothesisId:'A'});
+debugLog({ location: 'server/index.js:52', message: 'OPENROUTER_API_KEY env check', data: { rawExists: !!OPENROUTER_KEY_RAW, rawLength: OPENROUTER_KEY_RAW?.length || 0, trimmedExists: !!OPENROUTER_KEY_TRIMMED, trimmedLength: OPENROUTER_KEY_TRIMMED?.length || 0, firstChars: OPENROUTER_KEY_TRIMMED?.substring(0, 10) || 'N/A' }, sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' });
 // #endregion
 
+// Groq API Key (very fast, generous free tier!)
+const GROQ_API_KEY = process.env.GROQ_API_KEY?.trim();
+
 const PROVIDER_KEYS = {
-  anthropic: OPENROUTER_KEY_TRIMMED || null, // GPT OSS 20B (Free) via OpenRouter
-  deepseek: OPENROUTER_KEY_TRIMMED || null, // Mistral AI Devstral 2512 (free) via OpenRouter
+  groq: GROQ_API_KEY || null, // Groq - VERY FAST, primary provider
+  anthropic: GROQ_API_KEY || OPENROUTER_KEY_TRIMMED || null, // Use Groq first, fallback to OpenRouter
+  deepseek: GROQ_API_KEY || OPENROUTER_KEY_TRIMMED || null, // Use Groq first, fallback to OpenRouter  
   openai: true, // GPT-5-Nano via Puter.js (no API key needed - User-Pays model)
-  gemini: OPENROUTER_KEY_TRIMMED || null, // GPT OSS 20B (Free) via OpenRouter (backward compatibility)
+  gemini: GROQ_API_KEY || OPENROUTER_KEY_TRIMMED || null, // Use Groq first, fallback to OpenRouter
 };
 
 // #region agent log
-debugLog({location:'server/index.js:58',message:'PROVIDER_KEYS initialized',data:{anthropic:!!PROVIDER_KEYS.anthropic,deepseek:!!PROVIDER_KEYS.deepseek,openai:!!PROVIDER_KEYS.openai,gemini:!!PROVIDER_KEYS.gemini,deepseekKeyLength:PROVIDER_KEYS.deepseek?.length||0},sessionId:'debug-session',runId:'run1',hypothesisId:'C'});
+debugLog({ location: 'server/index.js:58', message: 'PROVIDER_KEYS initialized', data: { groq: !!PROVIDER_KEYS.groq, anthropic: !!PROVIDER_KEYS.anthropic, deepseek: !!PROVIDER_KEYS.deepseek, openai: !!PROVIDER_KEYS.openai, gemini: !!PROVIDER_KEYS.gemini }, sessionId: 'debug-session', runId: 'run1', hypothesisId: 'C' });
 // #endregion
 
 // Debug: Log API key status (without exposing actual keys)
 console.log('🔑 API Key Status:', {
+  GROQ_API_KEY: GROQ_API_KEY ? `Set (${GROQ_API_KEY.substring(0, 10)}...)` : 'NOT SET',
   OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY ? `Set (${process.env.OPENROUTER_API_KEY.substring(0, 10)}...)` : 'NOT SET',
   PUTER_JS: 'No API key needed (User-Pays model)',
-  DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY ? `Set (${process.env.DEEPSEEK_API_KEY.substring(0, 10)}...)` : 'NOT SET',
   Providers: {
+    groq: PROVIDER_KEYS.groq ? '✅ Configured (PRIMARY)' : 'Missing',
     anthropic: PROVIDER_KEYS.anthropic ? 'Configured' : 'Missing',
     openai: PROVIDER_KEYS.openai ? 'Configured (Puter.js)' : 'Missing',
     gemini: PROVIDER_KEYS.gemini ? 'Configured' : 'Missing',
@@ -131,15 +126,27 @@ console.log('🔑 API Key Status:', {
   }
 });
 
+// Groq models (VERY FAST!)
+const GROQ_MODELS = {
+  default: 'llama-3.3-70b-versatile', // Best quality
+  fast: 'llama-3.1-8b-instant', // Fastest
+  tutor: 'llama-3.3-70b-versatile', // Good for explanations
+};
+
 const MODELS = {
-  anthropic: 'openai/gpt-oss-20b:free', // GPT OSS 20B (Free) via OpenRouter - replaced Claude Sonnet
-  deepseek: 'mistralai/devstral-2512:free', // Free Mistral AI Devstral 2512 via OpenRouter
-  openai: 'gpt-5-nano', // GPT-5-Nano via Puter.js - replaced MiniCPM V2.6
-  gemini: 'openai/gpt-oss-20b:free', // GPT OSS 20B (Free) via OpenRouter - backward compatibility
+  groq: GROQ_MODELS.default, // Primary: Groq Llama 3.3 70B
+  anthropic: GROQ_MODELS.default, // Use Groq instead of OpenRouter
+  deepseek: GROQ_MODELS.fast, // Use fast Groq model
+  openai: 'gpt-5-nano', // GPT-5-Nano via Puter.js
+  gemini: GROQ_MODELS.default, // Use Groq instead of OpenRouter
 };
 
 // Max tokens configuration (can be overridden via env)
 const MAX_TOKENS = {
+  groq: {
+    builder: 8192,
+    tutor: 4096,
+  },
   anthropic: {
     builder: parseInt(process.env.ANTHROPIC_MAX_TOKENS_BUILDER) || 8192,
     tutor: parseInt(process.env.ANTHROPIC_MAX_TOKENS_TUTOR) || 4096,
@@ -161,11 +168,19 @@ const MAX_TOKENS = {
 const hasOpenaiKey = !!PROVIDER_KEYS.openai;
 // Puter.js doesn't use API key (User-Pays model), so openaiKeyLength is 0
 const openaiKeyLength = typeof PROVIDER_KEYS.openai === 'string' ? PROVIDER_KEYS.openai.length : 0;
-const openaiKeyFirstChars = typeof PROVIDER_KEYS.openai === 'string' ? PROVIDER_KEYS.openai.substring(0,10) : 'Puter.js (no key)';
-debugLog({location:'server/index.js:97',message:'Before openaiClient init',data:{hasKey:hasOpenaiKey,keyLength:openaiKeyLength,firstChars:openaiKeyFirstChars},sessionId:'debug-session',runId:'run1',hypothesisId:'C'});
+const openaiKeyFirstChars = typeof PROVIDER_KEYS.openai === 'string' ? PROVIDER_KEYS.openai.substring(0, 10) : 'Puter.js (no key)';
+debugLog({ location: 'server/index.js:97', message: 'Before openaiClient init', data: { hasKey: hasOpenaiKey, keyLength: openaiKeyLength, firstChars: openaiKeyFirstChars }, sessionId: 'debug-session', runId: 'run1', hypothesisId: 'C' });
 // #endregion
 
-// OpenRouter client for anthropic, deepseek, gemini
+// Groq client (PRIMARY - VERY FAST!)
+const groqClient = GROQ_API_KEY ? new OpenAI({
+  baseURL: 'https://api.groq.com/openai/v1',
+  apiKey: GROQ_API_KEY,
+}) : null;
+
+console.log('🚀 Groq Client:', groqClient ? '✅ Initialized (PRIMARY)' : '❌ Not configured');
+
+// OpenRouter client for fallback
 const openaiClient = OPENROUTER_KEY_TRIMMED ? new OpenAI({
   baseURL: 'https://openrouter.ai/api/v1',
   apiKey: OPENROUTER_KEY_TRIMMED,
@@ -181,12 +196,12 @@ const openaiClient = OPENROUTER_KEY_TRIMMED ? new OpenAI({
 const PUTER_API_BASE = process.env.PUTER_API_BASE || 'https://api.puter.com/v1';
 
 // #region agent log
-debugLog({location:'server/index.js:104',message:'After openaiClient init',data:{clientExists:!!openaiClient,baseURL:openaiClient?.baseURL||'N/A'},sessionId:'debug-session',runId:'run1',hypothesisId:'C'});
+debugLog({ location: 'server/index.js:104', message: 'After clients init', data: { groqExists: !!groqClient, openrouterExists: !!openaiClient }, sessionId: 'debug-session', runId: 'run1', hypothesisId: 'C' });
 // #endregion
 
-// Helper: Truncate history to fit within token limit
-const truncateHistory = (history = [], maxMessages = 3) => {
-  // Keep only the last N messages to reduce token usage
+// Helper: Truncate history to fit within token limit (reduced for speed)
+const truncateHistory = (history = [], maxMessages = 2) => {
+  // Keep only the last 2 messages for faster processing
   return history.slice(-maxMessages);
 };
 
@@ -197,6 +212,102 @@ const formatHistory = (history = []) =>
       content: msg.parts?.[0]?.text ?? '',
     }))
     .filter((msg) => msg.content);
+
+// Auto Web Search Helper - Searches web for relevant info based on query
+const autoWebSearch = async (query, maxResults = 3) => {
+  const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
+
+  if (!TAVILY_API_KEY) {
+    console.log('[AutoSearch] No Tavily API key, skipping web search');
+    return null;
+  }
+
+  // Skip internal orchestrator prompts
+  const internalPromptMarkers = [
+    'Review the following', 'Analyze this workflow', 'Please provide:',
+    'Quality score', 'REJECTION DECISION', 'reflection', 'workflow execution',
+    '=== USER INTENT ===', '=== EXECUTION RESULT ===', '=== REVIEW RESULT ==='
+  ];
+
+  const isInternalPrompt = internalPromptMarkers.some(marker =>
+    query.includes(marker)
+  );
+
+  if (isInternalPrompt) {
+    console.log('[AutoSearch] Internal prompt detected, skipping web search');
+    return null;
+  }
+
+  // Limit query length - Tavily has limits
+  if (query.length > 200) {
+    console.log('[AutoSearch] Query too long, skipping web search');
+    return null;
+  }
+
+  // Keywords that suggest user wants current/real-time information
+  const currentInfoKeywords = [
+    'sekarang', 'saat ini', 'terkini', 'terbaru', 'hari ini',
+    'presiden', 'menteri', 'gubernur', 'walikota', 'bupati',
+    'current', 'now', 'today', 'latest', 'recent',
+    'siapa', 'berapa', 'kapan', 'dimana',
+    'who is', 'what is', 'when', 'where',
+    'berita', 'news', 'update', 'cuaca', 'weather',
+    '2024', '2025'
+  ];
+
+  const queryLower = query.toLowerCase();
+  const needsSearch = currentInfoKeywords.some(keyword => queryLower.includes(keyword));
+
+  if (!needsSearch) {
+    console.log('[AutoSearch] Query does not need web search');
+    return null;
+  }
+
+  try {
+    console.log(`[AutoSearch] Searching for: ${query}`);
+    const response = await fetch('https://api.tavily.com/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        api_key: TAVILY_API_KEY,
+        query: query,
+        max_results: maxResults,
+        search_depth: 'basic',
+        include_answer: true, // Get direct answer if available
+      }),
+    });
+
+    if (!response.ok) {
+      console.error('[AutoSearch] Tavily API error:', response.statusText);
+      return null;
+    }
+
+    const data = await response.json();
+    console.log(`[AutoSearch] Found ${data.results?.length || 0} results`);
+
+    // Format search results as context
+    let searchContext = '\\n\\n📡 WEB SEARCH RESULTS (REAL-TIME INFORMATION):\\n';
+
+    if (data.answer) {
+      searchContext += `\\n🎯 Direct Answer: ${data.answer}\\n`;
+    }
+
+    if (data.results && data.results.length > 0) {
+      data.results.slice(0, maxResults).forEach((result, i) => {
+        searchContext += `\\n${i + 1}. **${result.title}**\\n`;
+        searchContext += `   Source: ${result.url}\\n`;
+        searchContext += `   ${result.content?.substring(0, 300)}...\\n`;
+      });
+    }
+
+    searchContext += '\\n⚠️ Use the information above to provide accurate, up-to-date answers.\\n';
+
+    return searchContext;
+  } catch (error) {
+    console.error('[AutoSearch] Error:', error);
+    return null;
+  }
+};
 
 const buildOpenAIUserContent = (prompt, images = []) => {
   const content = [{ type: 'text', text: prompt }];
@@ -212,15 +323,15 @@ const buildOpenAIUserContent = (prompt, images = []) => {
 
 app.post('/api/generate', async (req, res) => {
   // #region agent log
-  debugLog({location:'server/index.js:132',message:'/api/generate endpoint called',data:{provider:req.body?.provider,mode:req.body?.mode},sessionId:'debug-session',runId:'run1',hypothesisId:'F'});
+  debugLog({ location: 'server/index.js:132', message: '/api/generate endpoint called', data: { provider: req.body?.provider, mode: req.body?.mode }, sessionId: 'debug-session', runId: 'run1', hypothesisId: 'F' });
   // #endregion
-  
+
   // Ensure response is always sent, even on unexpected errors
   let responseSent = false;
   let provider = 'deepseek'; // Default to Mistral Devstral (free)
   let mode = 'builder';
   let prompt = '';
-  
+
   const sendResponse = (status, data) => {
     if (!responseSent) {
       responseSent = true;
@@ -236,10 +347,10 @@ app.post('/api/generate', async (req, res) => {
   mode = body.mode || 'builder';
   const images = body.images || [];
 
-  console.log(`[${provider}] /api/generate called`, { 
-    hasPrompt: !!prompt, 
-    hasSystemPrompt: !!systemPrompt, 
-    mode, 
+  console.log(`[${provider}] /api/generate called`, {
+    hasPrompt: !!prompt,
+    hasSystemPrompt: !!systemPrompt,
+    mode,
     historyLength: history?.length || 0,
     imagesCount: images?.length || 0
   });
@@ -255,7 +366,7 @@ app.post('/api/generate', async (req, res) => {
       // GPT-5-Nano uses Puter.js (User-Pays model, no API key needed)
       // Puter.js doesn't require API keys, so we just check if provider is enabled
       if (!PROVIDER_KEYS.openai) {
-        return sendResponse(500, { 
+        return sendResponse(500, {
           error: `Puter.js provider not configured. Provider "${provider}" uses Puter.js for GPT-5-Nano. No API key needed (User-Pays model).`,
         });
       }
@@ -263,8 +374,8 @@ app.post('/api/generate', async (req, res) => {
       // OpenRouter providers
       const envValue = process.env.OPENROUTER_API_KEY;
       const hasEnvButEmpty = envValue !== undefined && (!envValue || envValue.trim() === '');
-      
-      return sendResponse(500, { 
+
+      return sendResponse(500, {
         error: `OpenRouter API key not configured. Provider "${provider}" uses OpenRouter. ${hasEnvButEmpty ? 'OPENROUTER_API_KEY exists but is empty. Please check your .env file.' : 'Please set OPENROUTER_API_KEY in your environment variables and restart the server.'}`,
         debug: process.env.NODE_ENV === 'development' ? {
           hasEnvVar: envValue !== undefined,
@@ -283,13 +394,40 @@ app.post('/api/generate', async (req, res) => {
   }
 
   const controller = new AbortController();
-  // Mistral Devstral can take longer, use 90 seconds for deepseek, 45 for others
-  const timeoutDuration = provider === 'deepseek' ? 90_000 : 45_000;
+  // Reduced timeouts for better UX - fast models should respond quickly
+  const timeoutDuration = provider === 'deepseek' ? 30_000 : 20_000;
   const timeout = setTimeout(() => controller.abort(), timeoutDuration);
 
   try {
-    // Enhance system prompt for free models (Mistral Devstral and GPT OSS 20B) to ensure they follow NEVRA guidelines
-    let enhancedSystemPrompt = systemPrompt;
+    // Inject current date/time context into system prompt for up-to-date knowledge
+    const now = new Date();
+    const currentDateContext = `
+📅 CURRENT DATE & TIME CONTEXT:
+- Current Date: ${now.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+- Current Time: ${now.toLocaleTimeString('id-ID')}
+- Year: ${now.getFullYear()}
+
+🔔 IMPORTANT FACTS (as of December 2024):
+- President of Indonesia: Prabowo Subianto (inaugurated October 20, 2024)
+- Vice President of Indonesia: Gibran Rakabuming Raka
+- Previous President: Joko Widodo (served 2014-2024)
+
+Always provide information based on your training data AND the current date context above. If asked about current events or leaders, use this context.
+
+`;
+
+    // Auto web search for real-time information (in tutor mode)
+    let webSearchContext = '';
+    if (mode === 'tutor') {
+      const searchResults = await autoWebSearch(prompt);
+      if (searchResults) {
+        webSearchContext = searchResults;
+        console.log('[Generate] Added web search context to prompt');
+      }
+    }
+
+    // Enhance system prompt for free models to ensure they follow NEVRA guidelines
+    let enhancedSystemPrompt = currentDateContext + webSearchContext + systemPrompt;
     if (provider === 'deepseek') {
       if (mode === 'tutor') {
         // For tutor mode, ensure Mistral Devstral follows NEVRA Tutor guidelines
@@ -367,10 +505,10 @@ app.post('/api/generate', async (req, res) => {
 - Always include proper error handling and React best practices`;
       }
     }
-    
+
     const messagesBase = [
       { role: 'system', content: enhancedSystemPrompt },
-      ...formatHistory(history),
+      ...formatHistory(truncateHistory(history, 2)), // Truncate history for speed
     ];
 
     let content;
@@ -435,10 +573,10 @@ app.post('/api/generate', async (req, res) => {
             } catch {
               errorData = { error: errorText || puterResponse.statusText };
             }
-            
+
             const errorMsg = errorData?.error?.message || errorData?.error || errorText || puterResponse.statusText;
             console.error(`[${provider}] Puter.js API error:`, errorMsg);
-            
+
             return sendResponse(puterResponse.status || 500, {
               error: `Puter.js API Error (GPT-5-Nano): ${errorMsg}`,
               detail: errorData?.error || errorMsg,
@@ -447,26 +585,26 @@ app.post('/api/generate', async (req, res) => {
 
           const puterData = await puterResponse.json();
           // Puter.js response format may vary, try multiple possible formats
-          content = puterData.choices?.[0]?.message?.content || 
-                   puterData.message?.content?.[0]?.text || 
-                   puterData.message?.content || 
-                   puterData.output_text || 
-                   puterData.response || 
-                   '';
-          
+          content = puterData.choices?.[0]?.message?.content ||
+            puterData.message?.content?.[0]?.text ||
+            puterData.message?.content ||
+            puterData.output_text ||
+            puterData.response ||
+            '';
+
           if (!content) {
             console.error(`[${provider}] No content in Puter.js response:`, puterData);
-            return sendResponse(500, { 
+            return sendResponse(500, {
               error: 'Puter.js API response missing content',
               detail: JSON.stringify(puterData)
             });
           }
-          
+
           console.log(`[${provider}] Puter.js API success, content length: ${content.length}`);
         } catch (fetchErr) {
           const errorMsg = fetchErr?.message || String(fetchErr);
           console.error(`[${provider}] Puter.js API fetch error:`, errorMsg);
-          
+
           // Check for timeout/abort
           if (fetchErr?.name === 'AbortError' || errorMsg.toLowerCase().includes('aborted') || errorMsg.toLowerCase().includes('timeout')) {
             return sendResponse(504, {
@@ -474,524 +612,101 @@ app.post('/api/generate', async (req, res) => {
               detail: 'Request timeout'
             });
           }
-          
+
           return sendResponse(500, {
             error: `Puter.js API Error (GPT-5-Nano): ${errorMsg}`,
             detail: errorMsg,
           });
         }
-        
+
         break;
       }
       case 'anthropic':
+      case 'groq':
+      case 'gemini':
       default: {
-        // GPT OSS 20B (Free) via OpenRouter - replaced Claude Sonnet
-        if (!openaiClient) {
-          return sendResponse(500, { error: 'OpenRouter client not initialized' });
+        // Use Groq as PRIMARY provider (VERY FAST!)
+        // Auto-fallback to OpenRouter if Groq rate limited
+        let client = groqClient || openaiClient;
+        let modelToUse = groqClient ? MODELS.groq : MODELS.anthropic;
+        let usingFallback = false;
+
+        if (!client) {
+          return sendResponse(500, { error: 'No AI client available. Please configure GROQ_API_KEY or OPENROUTER_API_KEY.' });
         }
+
+        console.log(`[${provider}] Using ${groqClient && !usingFallback ? 'Groq ⚡' : 'OpenRouter'} with model: ${modelToUse}`);
 
         const messages = [
           ...messagesBase,
           { role: 'user', content: buildOpenAIUserContent(prompt, images) },
         ];
 
-        // Use configurable max_tokens, with retry mechanism for credit errors
-        const baseMaxTokens = mode === 'builder' ? MAX_TOKENS.anthropic.builder : MAX_TOKENS.anthropic.tutor;
-        // Try with different max_tokens values if credit limit error occurs
-        const maxTokensOptions = [baseMaxTokens, Math.floor(baseMaxTokens * 0.75), Math.floor(baseMaxTokens * 0.5), Math.floor(baseMaxTokens * 0.25)];
-        let anthropicContent = null;
-        let lastError = null;
+        // Use configurable max_tokens
+        const maxTokensConfig = groqClient && !usingFallback ? MAX_TOKENS.groq : MAX_TOKENS.anthropic;
+        const baseMaxTokens = mode === 'builder' ? maxTokensConfig.builder : maxTokensConfig.tutor;
 
-        for (const maxTokens of maxTokensOptions) {
-          try {
-            const completion = await openaiClient.chat.completions.create({
-              model: MODELS.anthropic,
-              messages,
-              // Adjust temperature based on mode: higher for tutor (more natural), lower for builder (more structured)
-              temperature: mode === 'tutor' ? 0.7 : 0.5,
-              max_tokens: maxTokens,
-            }, {
-              signal: controller.signal,
-            });
+        try {
+          const completion = await client.chat.completions.create({
+            model: modelToUse,
+            messages,
+            temperature: mode === 'tutor' ? 0.7 : 0.5,
+            max_tokens: baseMaxTokens,
+          }, {
+            signal: controller.signal,
+          });
 
-            anthropicContent = completion.choices[0]?.message?.content;
-            break; // Success, exit loop
-          } catch (sdkErr) {
-            const errorMsg = sdkErr?.error?.message || sdkErr?.message || String(sdkErr);
-            const errorStatus = sdkErr?.status || sdkErr?.response?.status || 500;
-            lastError = sdkErr;
-            
-            // Check if error response contains HTML (usually means server error or invalid endpoint)
-            const errorString = String(sdkErr);
-            const isHtmlError = errorString.includes('<html') || errorString.includes('<!DOCTYPE') || 
-                               (sdkErr?.response?.data && typeof sdkErr.response.data === 'string' && 
-                                (sdkErr.response.data.includes('<html') || sdkErr.response.data.includes('<!DOCTYPE')));
-            
-            if (isHtmlError || errorStatus === 500) {
-              console.error(`[${provider}] OpenRouter returned HTML error (likely invalid API key or service unavailable):`, errorString.slice(0, 500));
+          const anthropicContent = completion.choices[0]?.message?.content;
+          content = anthropicContent;
+        } catch (sdkErr) {
+          const errorStatus = sdkErr?.status || sdkErr?.response?.status || 500;
+          const errorMsg = sdkErr?.error?.message || sdkErr?.message || String(sdkErr);
+
+          console.error(`[${provider}] ${groqClient && !usingFallback ? 'Groq' : 'OpenRouter'} SDK error:`, sdkErr);
+
+          // Auto-fallback to OpenRouter if Groq rate limited (429)
+          if (errorStatus === 429 && groqClient && openaiClient && !usingFallback) {
+            console.log(`[${provider}] 🔄 Groq rate limited, falling back to OpenRouter...`);
+            usingFallback = true;
+            client = openaiClient;
+            modelToUse = MODELS.anthropic;
+
+            try {
+              const fallbackCompletion = await client.chat.completions.create({
+                model: modelToUse,
+                messages,
+                temperature: mode === 'tutor' ? 0.7 : 0.5,
+                max_tokens: MAX_TOKENS.anthropic[mode === 'builder' ? 'builder' : 'tutor'],
+              }, {
+                signal: controller.signal,
+              });
+
+              content = fallbackCompletion.choices[0]?.message?.content;
+              console.log(`[${provider}] ✅ Fallback to OpenRouter successful`);
+            } catch (fallbackErr) {
+              console.error(`[${provider}] OpenRouter fallback also failed:`, fallbackErr);
               return sendResponse(500, {
-                error: `API Error (500): Server returned HTML instead of JSON. This usually means the API endpoint is incorrect, API key is invalid, or the service is unavailable.`,
-                detail: `OpenRouter API Error: ${errorMsg}`,
-                suggestions: [
-                  'Invalid API Key: Check your OPENROUTER_API_KEY in backend environment variables.',
-                  'API Endpoint Error: The API returned HTML instead of JSON. This usually means the endpoint is incorrect or the service is down.',
-                  'Verify your OPENROUTER_API_KEY is set correctly in backend',
-                  `Check if the model ${MODELS.anthropic} is available in your OpenRouter account`,
-                  'Try switching to Mistral Devstral provider as an alternative',
-                  'Check backend logs for detailed error information'
-                ]
+                error: `Both Groq and OpenRouter failed. Groq: ${errorMsg}. OpenRouter: ${fallbackErr?.message || String(fallbackErr)}`,
               });
             }
-            
-            // Check for prompt token limit error
-            const isPromptTokenError = errorMsg.toLowerCase().includes('prompt tokens') || 
-                                     errorMsg.toLowerCase().includes('prompt token limit');
-            
-            if (isPromptTokenError) {
-              // Try with shorter history by truncating older messages
-              console.log(`[${provider}] Prompt token limit hit, retrying with shorter history...`);
-              
-              // Truncate history to last 2 messages (roughly ~800 tokens)
-              const truncatedHistory = history.slice(-2);
-              const truncatedMessages = [
-                { role: 'system', content: systemPrompt },
-                ...formatHistory(truncatedHistory),
-                { role: 'user', content: buildOpenAIUserContent(prompt, images) },
-              ];
-              
-              try {
-                const retryCompletion = await openaiClient.chat.completions.create({
-                  model: MODELS.anthropic,
-                  messages: truncatedMessages,
-                  temperature: 0.5,
-                  max_tokens: Math.floor(baseMaxTokens * 0.5), // Use half tokens as safety
-                }, {
-                  signal: controller.signal,
-                });
-                
-                anthropicContent = retryCompletion.choices[0]?.message?.content;
-                console.log(`[${provider}] Success with truncated history`);
-                break; // Success, exit loop
-              } catch (retryErr) {
-                const retryErrorMsg = retryErr?.error?.message || retryErr?.message || String(retryErr);
-                console.error(`[${provider}] Retry with truncated history also failed:`, retryErrorMsg);
-                // Continue to return error
-              }
-            }
-            
-            // If it's a credit limit error, try with lower max_tokens
-            if (errorMsg.toLowerCase().includes('credit') || errorMsg.toLowerCase().includes('afford')) {
-              console.log(`[${provider}] Credit limit hit with ${maxTokens} tokens, retrying with lower value...`);
-              continue; // Try next lower value
-            }
-            
-            // Check for authentication errors (401, 403)
-            if (errorStatus === 401 || errorStatus === 403 || errorMsg.toLowerCase().includes('unauthorized') || 
-                errorMsg.toLowerCase().includes('invalid api key') || errorMsg.toLowerCase().includes('authentication')) {
-              return sendResponse(401, {
-                error: `OpenRouter API Authentication Failed (GPT OSS 20B): Invalid API key or insufficient permissions.`,
-                detail: errorMsg,
-                suggestions: [
-                  'Check your OPENROUTER_API_KEY in backend environment variables',
-                  'Verify the API key is correct and has not expired',
-                  'Ensure the API key has access to the model openai/gpt-oss-20b:free',
-                  'Get a new API key from https://openrouter.ai/keys if needed',
-                  'Restart the backend server after updating the API key'
-                ]
-              });
-            }
-            
-            // If it's not a credit error, break and return error
-            console.error(`[${provider}] SDK error:`, sdkErr);
+          } else {
             return sendResponse(errorStatus, {
-              error: `OpenRouter API Error (GPT OSS 20B): ${errorMsg}`,
+              error: `${groqClient && !usingFallback ? 'Groq' : 'OpenRouter'} API Error: ${errorMsg}`,
               detail: sdkErr?.error || errorMsg,
             });
           }
         }
-
-        // If all attempts failed due to credits
-        if (!anthropicContent && lastError) {
-          const errorMsg = lastError?.error?.message || lastError?.message || String(lastError);
-          return sendResponse(lastError?.status || 500, {
-            error: `OpenRouter API Error (GPT OSS 20B): ${errorMsg}`,
-            detail: lastError?.error || errorMsg,
-          });
-        }
-        
-        content = anthropicContent;
         break;
       }
-      case 'deepseek': {
-        // Mistral AI Devstral 2512 (free) via OpenRouter
-        // #region agent log
-        debugLog({location:'server/index.js:378',message:'DeepSeek handler entry',data:{openaiClientExists:!!openaiClient,providerKeyExists:!!PROVIDER_KEYS.deepseek,model:MODELS.deepseek,mode:mode},sessionId:'debug-session',runId:'run1',hypothesisId:'F'});
-        // #endregion
-
-        if (!openaiClient) {
-          return sendResponse(500, { error: 'OpenRouter client not initialized' });
-        }
-
-        const messages = [
-          ...messagesBase,
-          { role: 'user', content: buildOpenAIUserContent(prompt, images) },
-        ];
-
-        // Use configurable max_tokens, with retry mechanism for credit errors
-        const baseMaxTokens = mode === 'builder' ? MAX_TOKENS.deepseek.builder : MAX_TOKENS.deepseek.tutor;
-        // Try with different max_tokens values if credit limit error occurs
-        const maxTokensOptions = [baseMaxTokens, Math.floor(baseMaxTokens * 0.75), Math.floor(baseMaxTokens * 0.5), Math.floor(baseMaxTokens * 0.25)];
-        let deepseekContent = null;
-        let lastError = null;
-
-        for (const maxTokens of maxTokensOptions) {
-          try {
-            // #region agent log
-            debugLog({location:'server/index.js:398',message:'Before API call',data:{model:MODELS.deepseek,maxTokens:maxTokens,messagesCount:messages.length,apiKeyLength:typeof PROVIDER_KEYS.openai === 'string' ? PROVIDER_KEYS.openai.length : 0},sessionId:'debug-session',runId:'run1',hypothesisId:'D'});
-            // #endregion
-
-            const completion = await openaiClient.chat.completions.create({
-              model: MODELS.deepseek,
-              messages,
-              // Adjust temperature based on mode: higher for tutor (more natural), lower for builder (more structured)
-              temperature: mode === 'tutor' ? 0.7 : 0.3,
-              max_tokens: maxTokens,
-              top_p: 0.9, // Add top_p for better control
-            }, {
-              signal: controller.signal,
-            });
-
-            // #region agent log
-            debugLog({location:'server/index.js:407',message:'API call success',data:{hasContent:!!completion.choices?.[0]?.message?.content},sessionId:'debug-session',runId:'run1',hypothesisId:'D'});
-            // #endregion
-
-            deepseekContent = completion.choices[0]?.message?.content;
-            break; // Success, exit loop
-          } catch (sdkErr) {
-            // #region agent log
-            const errorMsg = sdkErr?.error?.message || sdkErr?.message || String(sdkErr);
-            const errorStatus = sdkErr?.status || sdkErr?.response?.status || 500;
-            const errorCode = sdkErr?.code || 'unknown';
-            const fullError = JSON.stringify(sdkErr, Object.getOwnPropertyNames(sdkErr)).substring(0,500);
-            debugLog({location:'server/index.js:410',message:'API call error caught',data:{errorMsg:errorMsg,status:errorStatus,code:errorCode,is401:errorStatus===401||errorMsg.toLowerCase().includes('401')||errorMsg.toLowerCase().includes('unauthorized'),fullError:fullError},sessionId:'debug-session',runId:'run1',hypothesisId:'E'});
-            // #endregion
-
-            lastError = sdkErr;
-            
-            // Check for abort/timeout error
-            const isAbortError = sdkErr?.name === 'AbortError' || 
-                               errorMsg.toLowerCase().includes('aborted') ||
-                               errorMsg.toLowerCase().includes('timeout') ||
-                               errorCode === 'ECONNABORTED';
-            
-            if (isAbortError) {
-              console.error(`[${provider}] Request timeout/aborted after ${timeoutDuration/1000}s`);
-              // Try one more time with shorter history if this is the first attempt
-              if (maxTokens === baseMaxTokens) {
-                console.log(`[${provider}] Retrying with shorter history due to timeout...`);
-                const truncatedHistory = history.slice(-2);
-                const truncatedMessages = [
-                  { role: 'system', content: enhancedSystemPrompt },
-                  ...formatHistory(truncatedHistory),
-                  { role: 'user', content: buildOpenAIUserContent(prompt, images) },
-                ];
-                
-                // Create new controller for retry
-                const retryController = new AbortController();
-                const retryTimeout = setTimeout(() => retryController.abort(), timeoutDuration);
-                
-                try {
-                  const retryCompletion = await openaiClient.chat.completions.create({
-                    model: MODELS.deepseek,
-                    messages: truncatedMessages,
-                    temperature: mode === 'tutor' ? 0.7 : 0.3, // Adjust based on mode
-                    max_tokens: Math.floor(baseMaxTokens * 0.5),
-                    top_p: 0.9,
-                  }, {
-                    signal: retryController.signal,
-                  });
-                  
-                  clearTimeout(retryTimeout);
-                  deepseekContent = retryCompletion.choices[0]?.message?.content;
-                  console.log(`[${provider}] Success with retry after timeout`);
-                  break; // Success, exit loop
-                } catch (retryErr) {
-                  clearTimeout(retryTimeout);
-                  const retryErrorMsg = retryErr?.error?.message || retryErr?.message || String(retryErr);
-                  console.error(`[${provider}] Retry after timeout also failed:`, retryErrorMsg);
-                  // Continue to return timeout error
-                }
-              }
-              
-              // If retry failed or not attempted, return timeout error
-              return sendResponse(504, {
-                error: `OpenRouter API Error (Mistral Devstral): Request timeout - The request took too long to complete (${timeoutDuration/1000}s). Mistral Devstral can be slower for complex prompts. Please try again with a shorter prompt or switch to a different provider.`,
-                detail: 'Request timeout - try with shorter prompt or different provider'
-              });
-            }
-            
-            // Check for prompt token limit error
-            const isPromptTokenError = errorMsg.toLowerCase().includes('prompt tokens') || 
-                                     errorMsg.toLowerCase().includes('prompt token limit');
-            
-            if (isPromptTokenError) {
-              // Try with shorter history by truncating older messages
-              console.log(`[${provider}] Prompt token limit hit, retrying with shorter history...`);
-              
-              // Truncate history to last 2 messages (roughly ~800 tokens)
-              const truncatedHistory = history.slice(-2);
-              const truncatedMessages = [
-                { role: 'system', content: enhancedSystemPrompt },
-                ...formatHistory(truncatedHistory),
-                { role: 'user', content: buildOpenAIUserContent(prompt, images) },
-              ];
-              
-              try {
-                const retryCompletion = await openaiClient.chat.completions.create({
-                  model: MODELS.deepseek,
-                  messages: truncatedMessages,
-                  temperature: mode === 'tutor' ? 0.7 : 0.3, // Adjust based on mode
-                  max_tokens: Math.floor(baseMaxTokens * 0.5), // Use half tokens as safety
-                  top_p: 0.9,
-                }, {
-                  signal: controller.signal,
-                });
-                
-                deepseekContent = retryCompletion.choices[0]?.message?.content;
-                console.log(`[${provider}] Success with truncated history`);
-                break; // Success, exit loop
-              } catch (retryErr) {
-                const retryErrorMsg = retryErr?.error?.message || retryErr?.message || String(retryErr);
-                console.error(`[${provider}] Retry with truncated history also failed:`, retryErrorMsg);
-                // Continue to return error
-              }
-            }
-            
-            // If it's a credit limit error, try with lower max_tokens
-            if (errorMsg.toLowerCase().includes('credit') || errorMsg.toLowerCase().includes('afford')) {
-              console.log(`[${provider}] Credit limit hit with ${maxTokens} tokens, retrying with lower value...`);
-              continue; // Try next lower value
-            }
-            
-            // Check if error response contains HTML (usually means server error or invalid endpoint)
-            const errorString = String(sdkErr);
-            const isHtmlError = errorString.includes('<html') || errorString.includes('<!DOCTYPE') || 
-                               (sdkErr?.response?.data && typeof sdkErr.response.data === 'string' && 
-                                (sdkErr.response.data.includes('<html') || sdkErr.response.data.includes('<!DOCTYPE')));
-            
-            // errorStatus already declared at line 670, no need to redeclare
-            
-            if (isHtmlError || errorStatus === 500) {
-              console.error(`[${provider}] OpenRouter returned HTML error (likely invalid API key or service unavailable):`, errorString.slice(0, 500));
-              // #region agent log
-              debugLog({location:'server/index.js:456',message:'HTML error response from OpenRouter',data:{status:errorStatus,errorMsg:errorMsg},sessionId:'debug-session',runId:'run1',hypothesisId:'E'});
-              // #endregion
-              return sendResponse(500, {
-                error: `API Error (500): Server returned HTML instead of JSON. This usually means the API endpoint is incorrect, API key is invalid, or the service is unavailable.`,
-                detail: `OpenRouter API Error (Mistral Devstral): ${errorMsg}`,
-                suggestions: [
-                  'Invalid API Key: Check your OPENROUTER_API_KEY in backend environment variables.',
-                  'API Endpoint Error: The API returned HTML instead of JSON. This usually means the endpoint is incorrect or the service is down.',
-                  'Verify your OPENROUTER_API_KEY is set correctly in backend',
-                  `Check if the model ${MODELS.deepseek} is available in your OpenRouter account`,
-                  'Try switching to a different provider as an alternative',
-                  'Check backend logs for detailed error information'
-                ]
-              });
-            }
-            
-            // Check for authentication errors (401, 403)
-            if (errorStatus === 401 || errorStatus === 403 || errorMsg.toLowerCase().includes('unauthorized') || 
-                errorMsg.toLowerCase().includes('invalid api key') || errorMsg.toLowerCase().includes('authentication')) {
-              // #region agent log
-              debugLog({location:'server/index.js:456',message:'Authentication error from OpenRouter',data:{status:errorStatus,errorMsg:errorMsg},sessionId:'debug-session',runId:'run1',hypothesisId:'E'});
-              // #endregion
-              return sendResponse(401, {
-                error: `OpenRouter API Authentication Failed (Mistral Devstral): Invalid API key or insufficient permissions.`,
-                detail: errorMsg,
-                suggestions: [
-                  'Check your OPENROUTER_API_KEY in backend environment variables',
-                  'Verify the API key is correct and has not expired',
-                  `Ensure the API key has access to the model ${MODELS.deepseek}`,
-                  'Get a new API key from https://openrouter.ai/keys if needed',
-                  'Restart the backend server after updating the API key'
-                ]
-              });
-            }
-            
-            // If it's not a credit error, break and return error
-            console.error(`[${provider}] SDK error:`, sdkErr);
-            // #region agent log
-            debugLog({location:'server/index.js:456',message:'Returning error response',data:{status:errorStatus,errorMsg:errorMsg,willReturn401:errorStatus===401},sessionId:'debug-session',runId:'run1',hypothesisId:'E'});
-            // #endregion
-            return sendResponse(errorStatus, {
-              error: `OpenRouter API Error (Mistral Devstral): ${errorMsg}`,
-              detail: sdkErr?.error || errorMsg,
-            });
-          }
-        }
-
-        // If all attempts failed due to credits
-        if (!deepseekContent && lastError) {
-          const errorMsg = lastError?.error?.message || lastError?.message || String(lastError);
-          const errorStatus = lastError?.status || lastError?.response?.status || 500;
-          // #region agent log
-          debugLog({location:'server/index.js:515',message:'All attempts failed, returning error',data:{status:errorStatus,errorMsg:errorMsg,willReturn401:errorStatus===401},sessionId:'debug-session',runId:'run1',hypothesisId:'E'});
-          // #endregion
-          return sendResponse(errorStatus, {
-            error: `OpenRouter API Error (Mistral Devstral): ${errorMsg}`,
-            detail: lastError?.error || errorMsg,
-          });
-        }
-        
-        content = deepseekContent;
-        break;
-      }
-      case 'gemini': {
-        // GPT OSS 20B (Free) via OpenRouter - backward compatibility
-        if (!openaiClient) {
-          return sendResponse(500, { error: 'OpenRouter client not initialized' });
-        }
-
-        const messages = [
-          ...messagesBase,
-          { role: 'user', content: buildOpenAIUserContent(prompt, images) },
-        ];
-
-        // Use configurable max_tokens, with retry mechanism for credit errors
-        const baseMaxTokens = mode === 'builder' ? MAX_TOKENS.gemini.builder : MAX_TOKENS.gemini.tutor;
-        // Try with different max_tokens values if credit limit error occurs
-        const maxTokensOptions = [baseMaxTokens, Math.floor(baseMaxTokens * 0.75), Math.floor(baseMaxTokens * 0.5), Math.floor(baseMaxTokens * 0.25)];
-        let geminiContent = null;
-        let lastError = null;
-
-        for (const maxTokens of maxTokensOptions) {
-          try {
-            const completion = await openaiClient.chat.completions.create({
-              model: MODELS.gemini,
-              messages,
-              // Adjust temperature based on mode: higher for tutor (more natural), lower for builder (more structured)
-              temperature: mode === 'tutor' ? 0.7 : 0.5,
-              max_tokens: maxTokens,
-            }, {
-              signal: controller.signal,
-            });
-
-            geminiContent = completion.choices[0]?.message?.content;
-            break; // Success, exit loop
-          } catch (sdkErr) {
-            const errorMsg = sdkErr?.error?.message || sdkErr?.message || String(sdkErr);
-            const errorStatus = sdkErr?.status || sdkErr?.response?.status || 500;
-            lastError = sdkErr;
-            
-            // Check for prompt token limit error
-            const isPromptTokenError = errorMsg.toLowerCase().includes('prompt tokens') || 
-                                     errorMsg.toLowerCase().includes('prompt token limit');
-            
-            if (isPromptTokenError) {
-              // Try with shorter history by truncating older messages
-              console.log(`[${provider}] Prompt token limit hit, retrying with shorter history...`);
-              
-              // Truncate history to last 2 messages (roughly ~800 tokens)
-              const truncatedHistory = history.slice(-2);
-              const truncatedMessages = [
-                { role: 'system', content: systemPrompt },
-                ...formatHistory(truncatedHistory),
-                { role: 'user', content: buildOpenAIUserContent(prompt, images) },
-              ];
-              
-              try {
-                const retryCompletion = await openaiClient.chat.completions.create({
-                  model: MODELS.gemini,
-                  messages: truncatedMessages,
-                  temperature: mode === 'tutor' ? 0.7 : 0.5, // Adjust based on mode
-                  max_tokens: Math.floor(baseMaxTokens * 0.5), // Use half tokens as safety
-                }, {
-                  signal: controller.signal,
-                });
-                
-                geminiContent = retryCompletion.choices[0]?.message?.content;
-                console.log(`[${provider}] Success with truncated history`);
-                break; // Success, exit loop
-              } catch (retryErr) {
-                const retryErrorMsg = retryErr?.error?.message || retryErr?.message || String(retryErr);
-                console.error(`[${provider}] Retry with truncated history also failed:`, retryErrorMsg);
-                // Continue to return error
-              }
-            }
-            
-            // If it's a credit limit error, try with lower max_tokens
-            if (errorMsg.toLowerCase().includes('credit') || errorMsg.toLowerCase().includes('afford')) {
-              console.log(`[${provider}] Credit limit hit with ${maxTokens} tokens, retrying with lower value...`);
-              continue; // Try next lower value
-            }
-            
-            // Check if error response contains HTML (usually means server error or invalid endpoint)
-            const errorString = String(sdkErr);
-            const isHtmlError = errorString.includes('<html') || errorString.includes('<!DOCTYPE') || 
-                               (sdkErr?.response?.data && typeof sdkErr.response.data === 'string' && 
-                                (sdkErr.response.data.includes('<html') || sdkErr.response.data.includes('<!DOCTYPE')));
-            
-            if (isHtmlError || errorStatus === 500) {
-              console.error(`[${provider}] OpenRouter returned HTML error (likely invalid API key or service unavailable):`, errorString.slice(0, 500));
-              return sendResponse(500, {
-                error: `API Error (500): Server returned HTML instead of JSON. This usually means the API endpoint is incorrect, API key is invalid, or the service is unavailable.`,
-                detail: `OpenRouter API Error: ${errorMsg}`,
-                suggestions: [
-                  'Invalid API Key: Check your OPENROUTER_API_KEY in backend environment variables.',
-                  'API Endpoint Error: The API returned HTML instead of JSON. This usually means the endpoint is incorrect or the service is down.',
-                  'Verify your OPENROUTER_API_KEY is set correctly in backend',
-                  `Check if the model ${MODELS.gemini} is available in your OpenRouter account`,
-                  'Try switching to Mistral Devstral provider as an alternative',
-                  'Check backend logs for detailed error information'
-                ]
-              });
-            }
-            
-            // Check for authentication errors (401, 403)
-            // errorStatus already declared at line 881
-            if (errorStatus === 401 || errorStatus === 403 || errorMsg.toLowerCase().includes('unauthorized') || 
-                errorMsg.toLowerCase().includes('invalid api key') || errorMsg.toLowerCase().includes('authentication')) {
-              return sendResponse(401, {
-                error: `OpenRouter API Authentication Failed (GPT OSS 20B): Invalid API key or insufficient permissions.`,
-                detail: errorMsg,
-                suggestions: [
-                  'Check your OPENROUTER_API_KEY in backend environment variables',
-                  'Verify the API key is correct and has not expired',
-                  `Ensure the API key has access to the model ${MODELS.gemini}`,
-                  'Get a new API key from https://openrouter.ai/keys if needed',
-                  'Restart the backend server after updating the API key'
-                ]
-              });
-            }
-            
-            // If it's not a credit error, break and return error
-            console.error(`[${provider}] SDK error:`, sdkErr);
-            return sendResponse(errorStatus, {
-              error: `OpenRouter API Error (GPT OSS 20B): ${errorMsg}`,
-              detail: sdkErr?.error || errorMsg,
-            });
-          }
-        }
-
-        // If all attempts failed due to credits
-        if (!geminiContent && lastError) {
-          const errorMsg = lastError?.error?.message || lastError?.message || String(lastError);
-          const errorStatus = lastError?.status || lastError?.response?.status || 500;
-          return sendResponse(errorStatus, {
-            error: `OpenRouter API Error (GPT OSS 20B): ${errorMsg}`,
-            detail: lastError?.error || errorMsg,
-          });
-        }
-        
-        content = geminiContent;
-        break;
-      }
+      // deepseek case is now handled by default case above (uses Groq)
     }
+    // Mistral AI Devstral 2512 (free) via OpenRouter
+    // NOTE: All providers now use Groq as primary (handled by default case)
+    // This orphan code block has been removed
 
     if (!content) {
       console.error(`[${provider}] No content in response`);
-      return sendResponse(500, { 
+      return sendResponse(500, {
         error: `${provider.toUpperCase()} response missing content`
       });
     }
@@ -1000,74 +715,34 @@ app.post('/api/generate', async (req, res) => {
   } catch (err) {
     // Clear timeout in case of error
     clearTimeout(timeout);
-    
+
     // Log error details for debugging
     console.error(`[${provider}] Error in /api/generate:`, {
       name: err?.name,
       message: err?.message,
-      stack: err?.stack?.substring(0, 500),
       provider,
       mode,
       hasPrompt: !!prompt
     });
-    
+
     if (err?.name === 'AbortError' || err?.message?.includes('aborted')) {
-      const providerName = provider === 'deepseek' ? 'Mistral Devstral' : 
-                          provider === 'anthropic' ? 'GPT OSS 20B' :
-                          provider === 'openai' ? 'GPT-5-Nano' : 
-                          provider === 'gemini' ? 'GPT OSS 20B' : provider;
-      return sendResponse(504, { 
-        error: `OpenRouter API Error (${providerName}): Request timeout - The request took too long to complete. This may happen with complex prompts. Please try again with a shorter prompt or switch to a different provider.`,
-        detail: 'Request timeout after 90 seconds (Mistral Devstral) or 45 seconds (other providers)'
+      return sendResponse(504, {
+        error: `Request timeout - The request took too long to complete.`,
+        detail: 'Request timeout'
       });
     }
-    
-    // Handle network errors
-    if (err?.message?.includes('fetch') || err?.message?.includes('network') || err?.code === 'ECONNREFUSED') {
-      return sendResponse(500, { 
-        error: 'Network error - Unable to connect to API service. Please check your internet connection and try again.',
-        detail: err?.message || 'Network connection failed'
-      });
-    }
-    
-    // Handle API key errors
-    if (err?.message?.includes('401') || err?.message?.includes('unauthorized') || err?.message?.includes('Invalid API key')) {
-      return sendResponse(500, { 
-        error: `API authentication failed. Please verify your ${provider === 'deepseek' ? 'OPENROUTER_API_KEY' : 'API key'} is correct and has sufficient credits.`,
-        detail: err?.message || 'Authentication error'
-      });
-    }
-    
-    // Generic error response
-    const errorMessage = err?.message || err?.toString() || 'Unknown error occurred';
-    return sendResponse(500, { 
-      error: `API Error: ${errorMessage}`,
-      detail: err?.stack?.substring(0, 500) || errorMessage
+
+    return sendResponse(500, {
+      error: 'An unexpected error occurred',
+      detail: err?.message || String(err)
     });
-  } finally {
-    clearTimeout(timeout);
-    
-    // Ensure response is sent even if something went wrong
-    // Check both responseSent flag and res.headersSent to avoid double response
-    if (!responseSent && !res.headersSent) {
-      console.error(`[${provider}] Warning: No response sent for /api/generate request`);
-      try {
-        responseSent = true;
-        res.status(500).json({ 
-          error: 'Internal server error - No response generated. Please check server logs.',
-          detail: 'The server encountered an unexpected error and could not generate a response.'
-        });
-      } catch (finalErr) {
-        // Only log if it's not the headers already sent error
-        if (finalErr.code !== 'ERR_HTTP_HEADERS_SENT') {
-          console.error('Failed to send final error response:', finalErr);
-        }
-      }
-    }
   }
 });
+// End of /api/generate endpoint
 
-// Root ping for platform health checks
+// Other orphan code removed (was dead code from old deepseek/gemini handlers)
+
+// Health check endpoints
 app.get('/', (_req, res) => {
   res.type('text/html').send('<h1>Nevra API OK</h1>');
 });
@@ -1075,7 +750,6 @@ app.get('/', (_req, res) => {
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true });
 });
-
 // Deployment endpoint
 app.post('/api/deploy', async (req, res) => {
   const { code, platform, projectName, apiToken } = req.body || {};
@@ -1119,8 +793,8 @@ app.post('/api/deploy', async (req, res) => {
 
       if (!vercelResponse.ok) {
         const error = await vercelResponse.json();
-        return res.status(500).json({ 
-          error: `Vercel deployment failed: ${error.error?.message || JSON.stringify(error)}` 
+        return res.status(500).json({
+          error: `Vercel deployment failed: ${error.error?.message || JSON.stringify(error)}`
         });
       }
 
@@ -1150,8 +824,8 @@ app.post('/api/deploy', async (req, res) => {
 
       if (!siteResponse.ok) {
         const error = await siteResponse.json();
-        return res.status(500).json({ 
-          error: `Netlify site creation failed: ${error.message || 'Unknown error'}` 
+        return res.status(500).json({
+          error: `Netlify site creation failed: ${error.message || 'Unknown error'}`
         });
       }
 
@@ -1172,8 +846,8 @@ app.post('/api/deploy', async (req, res) => {
 
       if (!deployResponse.ok) {
         const error = await deployResponse.json();
-        return res.status(500).json({ 
-          error: `Netlify deployment failed: ${error.message || 'Unknown error'}` 
+        return res.status(500).json({
+          error: `Netlify deployment failed: ${error.message || 'Unknown error'}`
         });
       }
 
@@ -1186,8 +860,8 @@ app.post('/api/deploy', async (req, res) => {
     }
   } catch (error) {
     console.error('Deployment error:', error);
-    return res.status(500).json({ 
-      error: `Deployment failed: ${error.message || 'Unknown error'}` 
+    return res.status(500).json({
+      error: `Deployment failed: ${error.message || 'Unknown error'}`
     });
   }
 });
@@ -1256,32 +930,32 @@ app.get('/api/github/auth', (req, res) => {
   if (!clientId) {
     return res.status(500).json({ error: 'GitHub Client ID not configured' });
   }
-  
+
   const redirectUri = process.env.GITHUB_REDIRECT_URI || `${req.protocol}://${req.get('host')}/api/github/callback`;
   const scope = 'repo';
   const state = req.query.state || Math.random().toString(36).substring(7);
-  
+
   const authUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}&state=${state}`;
-  
+
   res.json({ authUrl, state });
 });
 
 app.get('/api/github/callback', async (req, res) => {
   const { code, state } = req.query;
-  
+
   if (!code) {
     return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/?github_error=no_code`);
   }
-  
+
   try {
     const clientId = process.env.GITHUB_CLIENT_ID;
     const clientSecret = process.env.GITHUB_CLIENT_SECRET;
     const redirectUri = process.env.GITHUB_REDIRECT_URI || `${req.protocol}://${req.get('host')}/api/github/callback`;
-    
+
     if (!clientId || !clientSecret) {
       return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/?github_error=not_configured`);
     }
-    
+
     // Exchange code for access token
     const tokenResponse = await fetch('https://github.com/login/oauth/access_token', {
       method: 'POST',
@@ -1296,13 +970,13 @@ app.get('/api/github/callback', async (req, res) => {
         redirect_uri: redirectUri,
       }),
     });
-    
+
     const tokenData = await tokenResponse.json();
-    
+
     if (tokenData.error) {
       return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/?github_error=${tokenData.error}`);
     }
-    
+
     // Redirect to frontend with token
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
     res.redirect(`${frontendUrl}/?github_token=${tokenData.access_token}&state=${state}`);
@@ -1314,11 +988,11 @@ app.get('/api/github/callback', async (req, res) => {
 
 app.post('/api/github/repos', async (req, res) => {
   const { token } = req.body;
-  
+
   if (!token) {
     return res.status(401).json({ error: 'GitHub token required' });
   }
-  
+
   try {
     const response = await fetch('https://api.github.com/user/repos?sort=updated&per_page=100', {
       headers: {
@@ -1326,20 +1000,22 @@ app.post('/api/github/repos', async (req, res) => {
         Accept: 'application/vnd.github.v3+json',
       },
     });
-    
+
     if (!response.ok) {
       return res.status(response.status).json({ error: 'Failed to fetch repositories' });
     }
-    
+
     const repos = await response.json();
-    res.json({ repos: repos.map(repo => ({
-      id: repo.id,
-      name: repo.name,
-      fullName: repo.full_name,
-      private: repo.private,
-      url: repo.html_url,
-      defaultBranch: repo.default_branch,
-    })) });
+    res.json({
+      repos: repos.map(repo => ({
+        id: repo.id,
+        name: repo.name,
+        fullName: repo.full_name,
+        private: repo.private,
+        url: repo.html_url,
+        defaultBranch: repo.default_branch,
+      }))
+    });
   } catch (error) {
     console.error('GitHub repos error:', error);
     res.status(500).json({ error: 'Failed to fetch repositories' });
@@ -1348,11 +1024,11 @@ app.post('/api/github/repos', async (req, res) => {
 
 app.post('/api/github/create-repo', async (req, res) => {
   const { token, name, description, isPrivate } = req.body;
-  
+
   if (!token || !name) {
     return res.status(400).json({ error: 'Token and repository name required' });
   }
-  
+
   try {
     const response = await fetch('https://api.github.com/user/repos', {
       method: 'POST',
@@ -1368,12 +1044,12 @@ app.post('/api/github/create-repo', async (req, res) => {
         auto_init: true,
       }),
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       return res.status(response.status).json({ error: error.message || 'Failed to create repository' });
     }
-    
+
     const repo = await response.json();
     res.json({
       id: repo.id,
@@ -1390,16 +1066,16 @@ app.post('/api/github/create-repo', async (req, res) => {
 
 app.post('/api/github/push', async (req, res) => {
   const { token, repo, files, commitMessage, branch } = req.body;
-  
+
   if (!token || !repo || !files || !Array.isArray(files) || files.length === 0) {
     return res.status(400).json({ error: 'Token, repository, and files required' });
   }
-  
+
   try {
     const repoFullName = typeof repo === 'string' ? repo : repo.fullName;
     const targetBranch = branch || 'main';
     const message = commitMessage || 'Update from NEVRA';
-    
+
     // Get current tree SHA
     const refResponse = await fetch(`https://api.github.com/repos/${repoFullName}/git/ref/heads/${targetBranch}`, {
       headers: {
@@ -1407,7 +1083,7 @@ app.post('/api/github/push', async (req, res) => {
         Accept: 'application/vnd.github.v3+json',
       },
     });
-    
+
     let baseTreeSha;
     if (refResponse.ok) {
       const refData = await refResponse.json();
@@ -1422,13 +1098,13 @@ app.post('/api/github/push', async (req, res) => {
         baseTreeSha = commitData.tree.sha;
       }
     }
-    
+
     // Create blobs for all files
     const blobPromises = files.map(async (file) => {
       const content = typeof file === 'string' ? file : file.content;
       const path = typeof file === 'string' ? 'index.html' : (file.path || file.name || 'index.html');
       const blobContent = Buffer.from(content).toString('base64');
-      
+
       const blobResponse = await fetch(`https://api.github.com/repos/${repoFullName}/git/blobs`, {
         method: 'POST',
         headers: {
@@ -1441,11 +1117,11 @@ app.post('/api/github/push', async (req, res) => {
           encoding: 'base64',
         }),
       });
-      
+
       if (!blobResponse.ok) {
         throw new Error(`Failed to create blob for ${path}`);
       }
-      
+
       const blobData = await blobResponse.json();
       return {
         path,
@@ -1454,9 +1130,9 @@ app.post('/api/github/push', async (req, res) => {
         sha: blobData.sha,
       };
     });
-    
+
     const treeItems = await Promise.all(blobPromises);
-    
+
     // Create tree
     const treeResponse = await fetch(`https://api.github.com/repos/${repoFullName}/git/trees`, {
       method: 'POST',
@@ -1470,21 +1146,21 @@ app.post('/api/github/push', async (req, res) => {
         tree: treeItems,
       }),
     });
-    
+
     if (!treeResponse.ok) {
       const error = await treeResponse.json();
       throw new Error(error.message || 'Failed to create tree');
     }
-    
+
     const treeData = await treeResponse.json();
-    
+
     // Get current commit SHA
     let parentSha = null;
     if (refResponse.ok) {
       const refData = await refResponse.json();
       parentSha = refData.object.sha;
     }
-    
+
     // Create commit
     const commitResponse = await fetch(`https://api.github.com/repos/${repoFullName}/git/commits`, {
       method: 'POST',
@@ -1499,14 +1175,14 @@ app.post('/api/github/push', async (req, res) => {
         parents: parentSha ? [parentSha] : [],
       }),
     });
-    
+
     if (!commitResponse.ok) {
       const error = await commitResponse.json();
       throw new Error(error.message || 'Failed to create commit');
     }
-    
+
     const commitData = await commitResponse.json();
-    
+
     // Update branch reference
     const updateRefResponse = await fetch(`https://api.github.com/repos/${repoFullName}/git/refs/heads/${targetBranch}`, {
       method: 'PATCH',
@@ -1519,12 +1195,12 @@ app.post('/api/github/push', async (req, res) => {
         sha: commitData.sha,
       }),
     });
-    
+
     if (!updateRefResponse.ok) {
       const error = await updateRefResponse.json();
       throw new Error(error.message || 'Failed to update branch');
     }
-    
+
     res.json({
       success: true,
       url: `https://github.com/${repoFullName}`,
@@ -1548,11 +1224,11 @@ app.post('/api/search', async (req, res) => {
     // Use Tavily API for web search (free tier available)
     // Alternative: SerpAPI, Google Custom Search, or DuckDuckGo
     const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
-    
+
     if (!TAVILY_API_KEY) {
       // Fallback: Use DuckDuckGo HTML scraping (no API key needed)
       const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
-      
+
       // For now, return mock results (implement actual search later)
       const mockResults = [
         {
@@ -1590,7 +1266,7 @@ app.post('/api/search', async (req, res) => {
     }
 
     const tavilyData = await tavilyResponse.json();
-    
+
     const results = (tavilyData.results || []).map((result) => ({
       title: result.title || 'No title',
       url: result.url || '',
@@ -1607,7 +1283,7 @@ app.post('/api/search', async (req, res) => {
     });
   } catch (error) {
     console.error('Web search error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: error?.message || 'Web search failed',
       query,
       results: [],
@@ -1639,21 +1315,21 @@ app.post('/api/parse-document', upload.single('file'), async (req, res) => {
         // pdf-parse v2+ exports PDFParse class, create wrapper function
         const pdfParseModule = require('pdf-parse');
         const PDFParse = pdfParseModule.PDFParse;
-        
+
         if (!PDFParse || typeof PDFParse !== 'function') {
           throw new Error(`pdf-parse PDFParse class not found. Please reinstall: npm install pdf-parse`);
         }
-        
+
         const dataBuffer = fs.readFileSync(filePath);
-        
+
         // Create wrapper function compatible with old API
         const pdfParseWrapper = async (buffer) => {
           const parser = new PDFParse({ data: buffer });
           await parser.load();
-          
+
           const text = parser.getText();
           const info = parser.getInfo();
-          
+
           // Get page count (try different properties)
           let numPages = 0;
           if (parser.numPages !== undefined) {
@@ -1663,14 +1339,14 @@ app.post('/api/parse-document', upload.single('file'), async (req, res) => {
           } else if (info && info.Pages) {
             numPages = parseInt(info.Pages) || 0;
           }
-          
+
           return {
             text: text || '',
             numpages: numPages,
             info: info || {},
           };
         };
-        
+
         const pdfData = await pdfParseWrapper(dataBuffer);
         content = pdfData.text;
         pages = pdfData.numpages;
@@ -1703,7 +1379,7 @@ app.post('/api/parse-document', upload.single('file'), async (req, res) => {
           };
           pages = Math.ceil(metadata.wordCount / 500);
         } catch (err) {
-          return res.status(400).json({ 
+          return res.status(400).json({
             error: 'Unsupported file type',
             message: `File type ${fileExt} is not supported. Supported types: .pdf, .docx, .txt, .md`
           });
@@ -1716,11 +1392,11 @@ app.post('/api/parse-document', upload.single('file'), async (req, res) => {
       // Split content into sections (by paragraphs or headings)
       const sections = [];
       const paragraphs = content.split(/\n\n+/).filter(p => p.trim().length > 0);
-      
+
       paragraphs.forEach((para, index) => {
         // Check if paragraph looks like a heading (short and might be all caps or have specific patterns)
         const isHeading = para.length < 100 && (para === para.toUpperCase() || para.match(/^#{1,6}\s/));
-        
+
         if (isHeading || index === 0) {
           sections.push({
             title: isHeading ? para.trim() : `Section ${sections.length + 1}`,
@@ -1755,7 +1431,7 @@ app.post('/api/parse-document', upload.single('file'), async (req, res) => {
     }
   } catch (error) {
     console.error('Document parsing error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to parse document',
       message: error.message || 'An error occurred while parsing the document'
     });
@@ -1772,7 +1448,7 @@ app.post('/api/execute-code', async (req, res) => {
 
   // Code execution not available in Vercel serverless environment
   if (process.env.VERCEL || process.env.VERCEL_ENV) {
-    return res.status(503).json({ 
+    return res.status(503).json({
       error: 'Code execution is not available in serverless environment. Please use a dedicated server for this feature.',
       output: '',
       executionTime: 0
@@ -1785,35 +1461,35 @@ app.post('/api/execute-code', async (req, res) => {
 
   try {
     const startTime = Date.now();
-    
+
     // Create temporary Python file
     const tempDir = path.join(__dirname, 'temp');
     if (!fs.existsSync(tempDir)) {
       fs.mkdirSync(tempDir, { recursive: true });
     }
-    
+
     const tempFile = path.join(tempDir, `exec_${Date.now()}_${Math.random().toString(36).substring(7)}.py`);
-    
+
     try {
       // Write code to temporary file
       fs.writeFileSync(tempFile, code, 'utf-8');
-      
+
       // Execute Python code with timeout (10 seconds)
       const timeout = 10000; // 10 seconds
       const pythonCommand = process.env.PYTHON_COMMAND || 'python3';
-      
+
       const { stdout, stderr } = await execAsync(`${pythonCommand} "${tempFile}"`, {
         timeout,
         maxBuffer: 1024 * 1024, // 1MB max output
       });
-      
+
       const executionTime = Date.now() - startTime;
-      
+
       // Clean up temp file
       if (fs.existsSync(tempFile)) {
         fs.unlinkSync(tempFile);
       }
-      
+
       if (stderr && stderr.trim()) {
         res.json({
           output: stdout || '',
@@ -1832,9 +1508,9 @@ app.post('/api/execute-code', async (req, res) => {
       if (fs.existsSync(tempFile)) {
         fs.unlinkSync(tempFile);
       }
-      
+
       const executionTime = Date.now() - startTime;
-      
+
       // Handle different error types
       let errorMessage = 'Execution failed';
       if (execError.code === 'ETIMEDOUT' || execError.signal === 'SIGTERM' || execError.message?.includes('timeout')) {
@@ -1849,7 +1525,7 @@ app.post('/api/execute-code', async (req, res) => {
       } else if (execError.code === 'ENOENT') {
         errorMessage = 'Python not found. Please install Python 3 or set PYTHON_COMMAND environment variable.';
       }
-      
+
       res.json({
         output: '',
         error: errorMessage,
@@ -1858,7 +1534,7 @@ app.post('/api/execute-code', async (req, res) => {
     }
   } catch (error) {
     console.error('Code execution error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: error?.message || 'Code execution failed',
       output: '',
     });
@@ -1935,12 +1611,12 @@ IMPORTANT:
     ];
 
     let content = '';
-    
+
     // Create timeout promise (10 seconds for planning)
     const timeoutPromise = new Promise((_, reject) => {
       setTimeout(() => reject(new Error('Planning request timeout')), 10000);
     });
-    
+
     // Support all OpenRouter providers for planning with timeout
     let completion;
     try {
@@ -2071,7 +1747,7 @@ IMPORTANT:
 app.get('/api/currency/detect', async (req, res) => {
   try {
     const clientIp = req.headers['x-forwarded-for'] || req.connection.remoteAddress || req.ip;
-    
+
     // Try to detect from IP
     let countryCode = 'US';
     try {
@@ -2086,7 +1762,7 @@ app.get('/api/currency/detect', async (req, res) => {
 
     const currency = countryCode === 'ID' ? 'IDR' : 'USD';
     const exchangeRate = countryCode === 'ID' ? 16000 : 1;
-    
+
     res.json({
       currency,
       countryCode,
@@ -2121,10 +1797,10 @@ app.post('/api/payment/checkout', async (req, res) => {
   try {
     // Convert amount to cents (Stripe uses smallest currency unit)
     const amountInCents = Math.round(amount * 100);
-    
+
     // Get base URL for success/cancel URLs
     const baseUrl = process.env.FRONTEND_URL || req.headers.origin || 'http://localhost:5173';
-    
+
     // Create Stripe Checkout Session
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
@@ -2195,35 +1871,17 @@ app.post('/api/payment/webhook', async (req, res) => {
       case 'checkout.session.completed': {
         const session = event.data.object;
         const userId = session.client_reference_id || session.metadata?.userId;
-        
+
         if (!userId) {
           console.error('No user ID found in checkout session');
           return res.status(400).json({ error: 'Missing user ID' });
         }
 
-        // Update subscription status in Supabase
-        if (supabase) {
-          const { error } = await supabase
-            .from('user_preferences')
-            .upsert({
-              user_id: userId,
-              preferences: {
-                subscription: 'premium',
-                subscribed_at: new Date().toISOString(),
-                stripe_customer_id: session.customer,
-                stripe_subscription_id: session.subscription,
-              },
-            });
-
-          if (error) {
-            console.error('Error updating subscription:', error);
-            return res.status(500).json({ error: 'Failed to update subscription' });
-          }
-
-          console.log(`✅ Subscription activated for user ${userId}`);
-        } else {
-          console.warn('⚠️ Supabase not configured. Subscription not updated in database.');
-        }
+        // TODO: Implement Firebase subscription update
+        // For now, just log the subscription activation
+        console.log(`✅ Subscription activated for user ${userId}`);
+        console.log(`   Stripe Customer ID: ${session.customer}`);
+        console.log(`   Stripe Subscription ID: ${session.subscription}`);
         break;
       }
 
@@ -2231,36 +1889,13 @@ app.post('/api/payment/webhook', async (req, res) => {
       case 'customer.subscription.deleted': {
         const subscription = event.data.object;
         const customerId = subscription.customer;
-        
-        // Find user by Stripe customer ID and update subscription status
-        if (supabase && customerId) {
-          const { data: prefs } = await supabase
-            .from('user_preferences')
-            .select('user_id, preferences')
-            .contains('preferences', { stripe_customer_id: customerId });
+        const isActive = subscription.status === 'active' || subscription.status === 'trialing';
 
-          if (prefs && prefs.length > 0) {
-            const userId = prefs[0].user_id;
-            const isActive = subscription.status === 'active' || subscription.status === 'trialing';
-            
-            const { error } = await supabase
-              .from('user_preferences')
-              .upsert({
-                user_id: userId,
-                preferences: {
-                  ...prefs[0].preferences,
-                  subscription: isActive ? 'premium' : 'free',
-                  subscription_status: subscription.status,
-                },
-              });
-
-            if (error) {
-              console.error('Error updating subscription status:', error);
-            } else {
-              console.log(`✅ Subscription ${event.type} for user ${userId}: ${subscription.status}`);
-            }
-          }
-        }
+        // TODO: Implement Firebase subscription status update
+        console.log(`📋 Subscription ${event.type}:`);
+        console.log(`   Customer ID: ${customerId}`);
+        console.log(`   Status: ${subscription.status}`);
+        console.log(`   Is Active: ${isActive}`);
         break;
       }
 
@@ -2283,28 +1918,15 @@ app.get('/api/payment/subscription', async (req, res) => {
     return res.status(400).json({ error: 'User ID is required' });
   }
 
-  if (!supabase) {
-    return res.status(500).json({ error: 'Database not configured' });
-  }
-
   try {
-    const { data, error } = await supabase
-      .from('user_preferences')
-      .select('preferences')
-      .eq('user_id', userId)
-      .single();
-
-    if (error && error.code !== 'PGRST116') {
-      throw error;
-    }
-
-    const subscription = data?.preferences?.subscription || 'free';
-    const isActive = subscription === 'premium' || subscription === 'pro' || subscription === 'enterprise';
+    // TODO: Implement Firebase subscription check
+    // For now, return free tier for all users
+    console.log('[Subscription] Checking subscription for user:', userId);
 
     res.json({
-      subscription,
-      isActive,
-      subscribedAt: data?.preferences?.subscribed_at || null,
+      subscription: 'free',
+      isActive: false,
+      subscribedAt: null,
     });
   } catch (error) {
     console.error('Error fetching subscription:', error);
@@ -2334,10 +1956,10 @@ app.post('/api/workflow', async (req, res) => {
     // For now, workflow is primarily client-side
     // This endpoint can be used for server-side workflow execution in the future
     // For now, it acts as a proxy that uses the existing generate endpoint
-    
+
     // The actual workflow orchestration happens in the frontend (lib/workflow/orchestrator.ts)
     // This endpoint is here for future server-side workflow execution
-    
+
     // For now, just call the generate endpoint
     // In the future, this could execute the full workflow server-side
     const generateResponse = await fetch(`${req.protocol}://${req.get('host')}/api/generate`, {
@@ -2351,7 +1973,7 @@ app.post('/api/workflow', async (req, res) => {
         mode,
         provider,
         images,
-        systemPrompt: mode === 'builder' 
+        systemPrompt: mode === 'builder'
           ? 'You are NEVRA BUILDER, an elite Frontend Engineer.'
           : 'You are NEVRA TUTOR, a world-class AI Educator.',
       }),
@@ -2363,7 +1985,7 @@ app.post('/api/workflow', async (req, res) => {
     }
 
     const result = await generateResponse.json();
-    
+
     // Return workflow result format
     return res.json({
       response: typeof result === 'string' ? result : result.content || '',
@@ -2377,37 +1999,31 @@ app.post('/api/workflow', async (req, res) => {
     });
   } catch (error) {
     console.error('Workflow error:', error);
-    return res.status(500).json({ 
+    return res.status(500).json({
       error: 'Workflow execution failed',
-      message: error.message 
+      message: error.message
     });
   }
 });
 
 app.post('/api/payment/portal', async (req, res) => {
-  const { userId } = req.body;
+  const { userId, customerId } = req.body;
 
   if (!userId) {
     return res.status(400).json({ error: 'User ID is required' });
   }
 
-  if (!stripe || !supabase) {
-    return res.status(500).json({ error: 'Stripe or database not configured' });
+  if (!stripe) {
+    return res.status(500).json({ error: 'Stripe not configured' });
   }
 
   try {
-    // Get user's Stripe customer ID from database
-    const { data, error } = await supabase
-      .from('user_preferences')
-      .select('preferences')
-      .eq('user_id', userId)
-      .single();
-
-    if (error || !data?.preferences?.stripe_customer_id) {
-      return res.status(404).json({ error: 'No active subscription found' });
+    // TODO: Get customer ID from Firebase
+    // For now, require customerId to be passed from frontend
+    if (!customerId) {
+      return res.status(404).json({ error: 'No active subscription found. Customer ID required.' });
     }
 
-    const customerId = data.preferences.stripe_customer_id;
     const baseUrl = process.env.FRONTEND_URL || req.headers.origin || 'http://localhost:5173';
 
     // Create portal session
@@ -2428,62 +2044,62 @@ export default app;
 
 // Start server - Only if not in Vercel environment
 if (process.env.VERCEL !== '1' && !process.env.VERCEL_ENV) {
-// Knowledge management endpoints (only in Node.js environment, not Vercel serverless)
-if (process.env.VERCEL !== '1' && !process.env.VERCEL_ENV) {
-  // Initialize Knowledge Scheduler (if enabled)
-  if (process.env.ENABLE_KNOWLEDGE_SCHEDULER === 'true') {
-    try {
-      // Dynamic import to avoid issues if knowledge module has issues
-      import('../lib/knowledge/scheduler/KnowledgeScheduler.js').then(({ KnowledgeScheduler }) => {
-        const intervalMinutes = parseInt(process.env.KNOWLEDGE_SCHEDULER_INTERVAL || '60', 10);
-        KnowledgeScheduler.start(intervalMinutes);
-        console.log(`📅 Knowledge Scheduler: Started (interval: ${intervalMinutes} minutes)`);
-      }).catch(err => {
-        console.warn('⚠️ Knowledge Scheduler: Failed to start', err.message);
-      });
-    } catch (error) {
-      console.warn('⚠️ Knowledge Scheduler: Not available', error.message);
+  // Knowledge management endpoints (only in Node.js environment, not Vercel serverless)
+  if (process.env.VERCEL !== '1' && !process.env.VERCEL_ENV) {
+    // Initialize Knowledge Scheduler (if enabled)
+    if (process.env.ENABLE_KNOWLEDGE_SCHEDULER === 'true') {
+      try {
+        // Dynamic import to avoid issues if knowledge module has issues
+        import('../lib/knowledge/scheduler/KnowledgeScheduler.js').then(({ KnowledgeScheduler }) => {
+          const intervalMinutes = parseInt(process.env.KNOWLEDGE_SCHEDULER_INTERVAL || '60', 10);
+          KnowledgeScheduler.start(intervalMinutes);
+          console.log(`📅 Knowledge Scheduler: Started (interval: ${intervalMinutes} minutes)`);
+        }).catch(err => {
+          console.warn('⚠️ Knowledge Scheduler: Failed to start', err.message);
+        });
+      } catch (error) {
+        console.warn('⚠️ Knowledge Scheduler: Not available', error.message);
+      }
     }
+
+    // Knowledge management endpoints
+    app.post('/api/knowledge/trigger', async (req, res) => {
+      try {
+        const { KnowledgeScheduler } = await import('../lib/knowledge/scheduler/KnowledgeScheduler.js');
+        await KnowledgeScheduler.runPipeline();
+        res.json({ success: true, message: 'Knowledge pipeline triggered' });
+      } catch (error) {
+        console.error('Knowledge trigger error:', error);
+        res.status(500).json({ error: 'Failed to trigger knowledge pipeline' });
+      }
+    });
+
+    app.post('/api/knowledge/source/:sourceId', async (req, res) => {
+      try {
+        const { sourceId } = req.params;
+        const { KnowledgeScheduler } = await import('../lib/knowledge/scheduler/KnowledgeScheduler.js');
+        await KnowledgeScheduler.runForSource(sourceId);
+        res.json({ success: true, message: `Processed source: ${sourceId}` });
+      } catch (error) {
+        console.error('Knowledge source processing error:', error);
+        res.status(500).json({ error: error.message || 'Failed to process source' });
+      }
+    });
+
+    app.get('/api/knowledge/sources', async (req, res) => {
+      try {
+        const { SourceRegistry } = await import('../lib/knowledge/sources/SourceRegistry.js');
+        SourceRegistry.initializeDefaults();
+        const sources = SourceRegistry.getAllSources();
+        res.json({ sources });
+      } catch (error) {
+        console.error('Knowledge sources error:', error);
+        res.status(500).json({ error: 'Failed to get sources' });
+      }
+    });
   }
 
-  // Knowledge management endpoints
-  app.post('/api/knowledge/trigger', async (req, res) => {
-    try {
-      const { KnowledgeScheduler } = await import('../lib/knowledge/scheduler/KnowledgeScheduler.js');
-      await KnowledgeScheduler.runPipeline();
-      res.json({ success: true, message: 'Knowledge pipeline triggered' });
-    } catch (error) {
-      console.error('Knowledge trigger error:', error);
-      res.status(500).json({ error: 'Failed to trigger knowledge pipeline' });
-    }
+  app.listen(PORT, () => {
+    console.log(`API proxy listening on ${PORT}`);
   });
-
-  app.post('/api/knowledge/source/:sourceId', async (req, res) => {
-    try {
-      const { sourceId } = req.params;
-      const { KnowledgeScheduler } = await import('../lib/knowledge/scheduler/KnowledgeScheduler.js');
-      await KnowledgeScheduler.runForSource(sourceId);
-      res.json({ success: true, message: `Processed source: ${sourceId}` });
-    } catch (error) {
-      console.error('Knowledge source processing error:', error);
-      res.status(500).json({ error: error.message || 'Failed to process source' });
-    }
-  });
-
-  app.get('/api/knowledge/sources', async (req, res) => {
-    try {
-      const { SourceRegistry } = await import('../lib/knowledge/sources/SourceRegistry.js');
-      SourceRegistry.initializeDefaults();
-      const sources = SourceRegistry.getAllSources();
-      res.json({ sources });
-    } catch (error) {
-      console.error('Knowledge sources error:', error);
-      res.status(500).json({ error: 'Failed to get sources' });
-    }
-  });
-}
-
-app.listen(PORT, () => {
-  console.log(`API proxy listening on ${PORT}`);
-});
 }

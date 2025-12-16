@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { motion } from 'framer-motion';
 import {
   Send, Menu, Plus, MessageSquare, User,
   Code, Play, Layout, Smartphone, Monitor, Download,
   X, Settings, ChevronRight, ChevronDown, FileCode,
   Folder, Terminal as TerminalIcon, RefreshCw, Globe,
-  CheckCircle2, Loader2, GraduationCap, Brain, Bot, Paperclip, Image as ImageIcon, Trash2, AlertTriangle, Phone, Lock, Camera, ImagePlus, Clock, Undo2, Redo2, Github, Search, FileText, Terminal, MoreVertical, Copy, Eye, ZoomIn, ZoomOut, Type, Palette, Save, Sparkles, Zap
+  CheckCircle2, Loader2, GraduationCap, Brain, Bot, Paperclip, Image as ImageIcon, Trash2, AlertTriangle, Phone, Lock, Camera, ImagePlus, Clock, Undo2, Redo2, Github, Search, FileText, Terminal, MoreVertical, Copy, Eye, ZoomIn, ZoomOut, Type, Palette, Save, Sparkles, Zap, ThumbsUp, ThumbsDown, Check
 } from 'lucide-react';
 import { Link, useLocation, useParams, useNavigate } from 'react-router-dom';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -58,7 +59,7 @@ import PlannerPanel from '../PlannerPanel';
 import { generatePlan, Plan } from '@/lib/agenticPlanner';
 import DesignSystemManager from '../DesignSystemManager';
 import { designSystemManager, DesignSystem } from '@/lib/designSystem';
-import DatabasePanel from '../DatabasePanel';
+// DatabasePanel removed - using Firebase instead of Supabase
 import APIIntegrationWizard from '../APIIntegrationWizard';
 import MobileGenerator from '../MobileGenerator';
 
@@ -543,7 +544,7 @@ const createReactPreviewHTML = (componentCode: string, framework?: string): stri
           if (trimmed.includes('=')) {
             const [namePart, ...defaultParts] = trimmed.split('=');
             const name = namePart.trim().split(':')[0].trim();
-            return `${name} = ${defaultParts.join('=').trim()}`;
+            return `${name} = ${defaultParts.join('=').trim()} `;
           }
 
           // Remove type annotation: param: Type => param
@@ -981,7 +982,7 @@ const ChatInterface: React.FC = () => {
   const [showComponentLibrary, setShowComponentLibrary] = useState(false);
   const [showGitHubIntegration, setShowGitHubIntegration] = useState(false);
   const [showDesignSystem, setShowDesignSystem] = useState(false);
-  const [showDatabasePanel, setShowDatabasePanel] = useState(false);
+  // DatabasePanel removed - Firebase integration used instead
   const [showAPIIntegration, setShowAPIIntegration] = useState(false);
   const [showMobileGenerator, setShowMobileGenerator] = useState(false);
   const undoRedoManager = getUndoRedoManager();
@@ -1017,7 +1018,7 @@ const ChatInterface: React.FC = () => {
   const cameraModalRef = useRef<HTMLElement | null>(null);
   const cameraEventListenersRef = useRef<Array<{ element: HTMLElement; event: string; handler: EventListener }>>([]);
   const { getToken } = useAuth();
-  const SUPABASE_TEMPLATE = import.meta.env.VITE_CLERK_SUPABASE_TEMPLATE || 'supabase';
+  // SUPABASE_TEMPLATE removed - using Firebase
   const { trackUsage } = useTrackAIUsage();
   const [showSubscriptionPopup, setShowSubscriptionPopup] = useState(false);
 
@@ -1032,12 +1033,74 @@ const ChatInterface: React.FC = () => {
   // Sidebar State (only for tutor mode)
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [messageFeedback, setMessageFeedback] = useState<Record<string, 'like' | 'dislike'>>({});
 
   // Chat Sessions (for sidebar)
   const { sessions, deleteSession, refreshSessions } = useChatSessions();
 
   // Track current session ID (separate from URL param sessionId)
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(sessionId || null);
+
+  // Helper for clipboard copy with fallback
+  const copyToClipboard = async (text: string, onSuccess?: () => void) => {
+    console.log('🔄 Attempting to copy text:', text.substring(0, 50) + '...');
+
+    try {
+      // Method 1: Modern Clipboard API (works in secure contexts)
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        console.log('✅ Successfully copied using Clipboard API');
+        if (onSuccess) onSuccess();
+        return;
+      }
+    } catch (err) {
+      console.warn('⚠️ Clipboard API failed, trying fallback...', err);
+    }
+
+    // Method 2: Fallback using execCommand
+    try {
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+
+      // Make it invisible but accessible
+      textArea.style.position = 'fixed';
+      textArea.style.top = '0';
+      textArea.style.left = '0';
+      textArea.style.width = '2em';
+      textArea.style.height = '2em';
+      textArea.style.padding = '0';
+      textArea.style.border = 'none';
+      textArea.style.outline = 'none';
+      textArea.style.boxShadow = 'none';
+      textArea.style.background = 'transparent';
+      textArea.style.opacity = '0';
+      textArea.setAttribute('readonly', '');
+
+      document.body.appendChild(textArea);
+
+      // Select the text
+      textArea.select();
+      textArea.setSelectionRange(0, text.length);
+
+      // Copy using execCommand
+      const successful = document.execCommand('copy');
+
+      document.body.removeChild(textArea);
+
+      if (successful) {
+        console.log('✅ Successfully copied using execCommand fallback');
+        if (onSuccess) onSuccess();
+      } else {
+        console.error('❌ execCommand copy failed');
+        alert('Failed to copy text. Please try selecting and copying manually.');
+      }
+    } catch (err) {
+      console.error('❌ All copy methods failed:', err);
+      alert('Copy failed. Please copy the text manually.');
+    }
+  };
 
   // New Features for Tutor Mode
   const [enableWebSearch, setEnableWebSearch] = useState(false);
@@ -1088,7 +1151,7 @@ const ChatInterface: React.FC = () => {
       setCurrentSessionId(sessionId);
 
       try {
-        const token = await getToken({ template: SUPABASE_TEMPLATE }).catch(() => null);
+        const token = null;
         const sessionMessages = await getSessionMessages(sessionId);
 
         // Convert database messages to Message format
@@ -1181,7 +1244,7 @@ const ChatInterface: React.FC = () => {
       if (!sessionId || !user || restoredSessionRef.current) return;
 
       try {
-        const token = await getToken({ template: SUPABASE_TEMPLATE }).catch(() => null);
+        const token = null;
         const dbMessages = await getSessionMessages(sessionId);
 
         if (dbMessages && dbMessages.length > 0) {
@@ -1216,7 +1279,7 @@ const ChatInterface: React.FC = () => {
       if (sessionId || restoredSessionRef.current || !user) return;
 
       try {
-        const token = await getToken({ template: SUPABASE_TEMPLATE }).catch(() => null);
+        const token = null;
         const sessions = await getUserSessions(user.id);
         if (!sessions || sessions.length === 0) return;
 
@@ -1347,6 +1410,54 @@ const ChatInterface: React.FC = () => {
         alert(`Error processing images: ${error instanceof Error ? error.message : 'Unknown error'}`);
         if (fileInputRef.current) fileInputRef.current.value = '';
       });
+  };
+
+  // Feedback Tracking Logic
+  const checkFeedbackConditions = useCallback(() => {
+    if (!user) return;
+
+    const userId = user.id;
+    const STORAGE_PREFIX = `nevra_feedback_${userId}`;
+
+    // Get stored data
+    const chatCount = parseInt(localStorage.getItem(`${STORAGE_PREFIX}_count`) || '0');
+    const hasGivenFirstFeedback = localStorage.getItem(`${STORAGE_PREFIX}_first_given`) === 'true';
+    const lastFeedbackDateOffset = parseInt(localStorage.getItem(`${STORAGE_PREFIX}_last_date`) || '0');
+    const lastFeedbackDate = lastFeedbackDateOffset ? new Date(lastFeedbackDateOffset) : null;
+
+    // Increment chat count
+    const newCount = chatCount + 1;
+    localStorage.setItem(`${STORAGE_PREFIX}_count`, newCount.toString());
+
+    // Condition 1: First time - after 3 chats
+    if (!hasGivenFirstFeedback && newCount === 3) {
+      setTimeout(() => setShowFeedbackPopup(true), 2000); // Slight delay for UX
+      return;
+    }
+
+    // Condition 2: Recurring - 1 week after last feedback
+    if (hasGivenFirstFeedback && lastFeedbackDate) {
+      const oneWeekInMs = 7 * 24 * 60 * 60 * 1000;
+      const now = new Date();
+      if (now.getTime() - lastFeedbackDate.getTime() > oneWeekInMs) {
+        // Check if user is active enough (e.g., every 10th message after a week) to assume "continued use"
+        // Simpler approach: if it has been a week, show it on next chat.
+        setTimeout(() => setShowFeedbackPopup(true), 2000);
+      }
+    }
+  }, [user]);
+
+  // Handle Feedback Submission/Close
+  const handleFeedbackClose = () => {
+    setShowFeedbackPopup(false);
+    if (!user) return;
+
+    // Update tracking when closed (assumed seen/interacted)
+    const userId = user.id;
+    const STORAGE_PREFIX = `nevra_feedback_${userId}`;
+
+    localStorage.setItem(`${STORAGE_PREFIX}_first_given`, 'true');
+    localStorage.setItem(`${STORAGE_PREFIX}_last_date`, Date.now().toString());
   };
 
   // Cleanup camera on unmount
@@ -1762,7 +1873,7 @@ const ChatInterface: React.FC = () => {
     //   } else {
     //     // Double-check with server before proceeding
     //     try {
-    //       const token = await getToken({ template: SUPABASE_TEMPLATE }).catch(() => null);
+    //       const token = null;
     //       const grokLimit = await checkGrokTokenLimit(user.id, token);
     //       
     //       if (grokLimit.shouldFallback) {
@@ -1812,6 +1923,9 @@ const ChatInterface: React.FC = () => {
       setMessages(prev => [...prev, newMessage]);
       setInput('');
       setAttachedImages([]);
+
+      // Track feedback conditions
+      checkFeedbackConditions();
     }
 
     setIsTyping(true);
@@ -1821,7 +1935,7 @@ const ChatInterface: React.FC = () => {
     }
 
     // Optimistic token decrement even sebelum tracking ke server (agar badge sinkron)
-    incrementTokenUsage(10);
+    incrementTokenUsage();
 
     // Initialize variables outside try block so they're accessible in error handler
     let historyForAI: any[] = [];
@@ -1832,7 +1946,7 @@ const ChatInterface: React.FC = () => {
       // 1. Create session if it doesn't exist
       let token;
       try {
-        token = await getToken({ template: SUPABASE_TEMPLATE });
+        token = null;
       } catch (e) {
         console.warn("Clerk Supabase template missing. See CLERK_SUPABASE_GUIDE.md");
       }
@@ -2232,7 +2346,9 @@ const ChatInterface: React.FC = () => {
             'html',
             useWorkflow ? { onStatusUpdate } : false,
             activeSessionId,
-            user?.id
+            user?.id,
+            user?.fullName || user?.firstName || undefined, // Pass user's name for AI memory
+            user?.emailAddresses?.[0]?.emailAddress || undefined // Pass user's email
           );
         } catch (error) {
           console.error('❌ Error calling generateCode in tutor mode:', error);
@@ -2704,7 +2820,7 @@ const ChatInterface: React.FC = () => {
           // Save response
           if (activeSessionId && user) {
             try {
-              const token = await getToken({ template: SUPABASE_TEMPLATE });
+              const token = null;
               await saveMessage(activeSessionId, 'ai', responseText, code || undefined, undefined);
             } catch (e) {
               console.error('Error saving fallback message:', e);
@@ -2856,7 +2972,7 @@ const ChatInterface: React.FC = () => {
           // Save response
           if (activeSessionId && user) {
             try {
-              const token = await getToken({ template: SUPABASE_TEMPLATE });
+              const token = null;
               await saveMessage(activeSessionId, 'ai', responseText, code || undefined, undefined);
             } catch (e) {
               console.error('Error saving fallback message:', e);
@@ -3028,7 +3144,7 @@ const ChatInterface: React.FC = () => {
     // Save to database if session exists
     if (sessionId && user) {
       try {
-        const token = await getToken({ template: SUPABASE_TEMPLATE }).catch(() => null);
+        const token = null;
         await saveMessage(sessionId, isAI ? 'ai' : 'user', text, undefined, undefined);
       } catch (error) {
         console.error('Error saving voice message:', error);
@@ -3078,13 +3194,21 @@ const ChatInterface: React.FC = () => {
       )}>
         {messages.length === 0 ? (
           appMode === 'tutor' ? (
-            <div className="flex flex-col items-center justify-center w-full max-w-2xl px-4 space-y-4">
-              <h2 className="text-3xl md:text-4xl font-medium text-white">
-                Ready when you are.
-              </h2>
-              <p className="text-gray-400 text-sm max-w-xl">
-                Ask anything or share context, and I’ll help you learn, solve problems, or review code.
-              </p>
+            <div className="flex flex-col items-start justify-center w-full max-w-3xl px-4 space-y-2 mt-[-5vh]">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, ease: "easeOut" }}
+              >
+                <h1 className="text-5xl md:text-6xl font-medium tracking-tight">
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400">
+                    Hi {user?.firstName || 'there'}
+                  </span>
+                </h1>
+                <h1 className="text-5xl md:text-6xl font-medium text-white/20 tracking-tight mt-2">
+                  Where should we start?
+                </h1>
+              </motion.div>
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center w-full max-w-2xl px-4 space-y-4">
@@ -3165,7 +3289,7 @@ const ChatInterface: React.FC = () => {
                                   <span className="text-xs font-medium text-gray-300 uppercase">{match[1]}</span>
                                   <button
                                     onClick={() => {
-                                      navigator.clipboard.writeText(String(children).replace(/\n$/, ''));
+                                      copyToClipboard(String(children).replace(/\n$/, ''));
                                     }}
                                     className="text-xs text-gray-400 hover:text-gray-200 px-2 py-1 rounded hover:bg-white/5 transition-colors"
                                   >
@@ -3209,10 +3333,61 @@ const ChatInterface: React.FC = () => {
                 </div>
                 {/* Action Buttons - Different for Tutor vs Builder */}
                 {msg.role === 'ai' && (
-                  <div className="space-y-3 mt-4">
+                  <div className="space-y-3 mt-2">
                     <div className="flex items-center gap-2 flex-wrap">
+                      {/* Copy Button */}
+                      <button
+                        onClick={() => {
+                          copyToClipboard(msg.content, () => {
+                            setCopiedMessageId(msg.id);
+                            setTimeout(() => setCopiedMessageId(null), 2000); // Reset after 2 seconds
+                          });
+                        }}
+                        className="p-1.5 rounded-md hover:bg-white/10 text-gray-400 hover:text-white transition-colors flex items-center gap-1.5"
+                        title="Copy text"
+                      >
+                        {copiedMessageId === msg.id ? (
+                          <>
+                            <Check size={14} className="text-green-400" />
+                            <span className="text-xs text-green-400 font-medium animate-pulse">Copied!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy size={14} />
+                            <span className="text-xs">Copy</span>
+                          </>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => setMessageFeedback(prev => ({
+                          ...prev,
+                          [msg.id]: prev[msg.id] === 'like' ? undefined : 'like'
+                        } as any))}
+                        className={cn(
+                          "flex items-center gap-1.5 px-2 py-1 text-xs text-gray-500 hover:text-white rounded hover:bg-white/5 transition-colors",
+                          messageFeedback[msg.id] === 'like' && "text-blue-400 hover:text-blue-300"
+                        )}
+                        title="Good response"
+                      >
+                        <ThumbsUp size={14} className={cn(messageFeedback[msg.id] === 'like' && "fill-current")} />
+                      </button>
+                      <button
+                        onClick={() => setMessageFeedback(prev => ({
+                          ...prev,
+                          [msg.id]: prev[msg.id] === 'dislike' ? undefined : 'dislike'
+                        } as any))}
+                        className={cn(
+                          "flex items-center gap-1.5 px-2 py-1 text-xs text-gray-500 hover:text-white rounded hover:bg-white/5 transition-colors",
+                          messageFeedback[msg.id] === 'dislike' && "text-red-400 hover:text-red-300"
+                        )}
+                        title="Bad response"
+                      >
+                        <ThumbsDown size={14} className={cn(messageFeedback[msg.id] === 'dislike' && "fill-current")} />
+                      </button>
+
                       {appMode === 'builder' && msg.code && (
                         <>
+                          <div className="w-[1px] h-3 bg-white/10 mx-1" />
                           <button
                             onClick={() => {
                               if (msg.code) {
@@ -3235,7 +3410,7 @@ const ChatInterface: React.FC = () => {
                           </button>
                           <button
                             onClick={() => {
-                              navigator.clipboard.writeText(msg.code || '');
+                              copyToClipboard(msg.code || '');
                             }}
                             className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-gray-300 hover:text-white hover:bg-white/5 rounded-md transition-colors border border-white/10"
                           >
@@ -3243,16 +3418,7 @@ const ChatInterface: React.FC = () => {
                           </button>
                         </>
                       )}
-                      {appMode === 'tutor' && (
-                        <button
-                          onClick={() => {
-                            navigator.clipboard.writeText(msg.content || '');
-                          }}
-                          className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-gray-300 hover:text-white hover:bg-white/5 rounded-md transition-colors border border-white/10"
-                        >
-                          <Copy size={14} /> Copy Message
-                        </button>
-                      )}
+                      {/* Redundant copy button removed */}
                     </div>
                   </div>
                 )}
@@ -3558,6 +3724,14 @@ const ChatInterface: React.FC = () => {
                         aria-label="Send message"
                       >
                         <Send size={18} />
+                      </button>
+                      <button
+                        onClick={() => setShowVoiceCall(true)}
+                        className="p-2.5 md:p-2 rounded-lg bg-gradient-to-br from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white transition-all shadow-lg hover:shadow-purple-500/50 min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 flex items-center justify-center"
+                        aria-label="Voice Call"
+                        title="Voice Call with Nevra"
+                      >
+                        <Phone size={18} />
                       </button>
                     </div>
                   </div>
@@ -3925,7 +4099,7 @@ const ChatInterface: React.FC = () => {
               onOpenGitHub={() => setShowGitHubIntegration(true)}
               onOpenHistory={() => setShowVersionHistory(true)}
               onOpenDesignSystem={() => setShowDesignSystem(true)}
-              onOpenDatabase={() => setShowDatabasePanel(true)}
+              onOpenDatabase={() => { }} // Database panel removed - using Firebase
               onOpenAPI={() => setShowAPIIntegration(true)}
               onOpenMobile={() => setShowMobileGenerator(true)}
             />
@@ -4620,7 +4794,7 @@ const ChatInterface: React.FC = () => {
       /> */}
       <FeedbackPopup
         isOpen={showFeedbackPopup}
-        onClose={() => setShowFeedbackPopup(false)}
+        onClose={handleFeedbackClose}
       />
       {/* Voice Call Modal - Only for Tutor Mode */}
       {appMode === 'tutor' && (
@@ -4884,20 +5058,7 @@ const ChatInterface: React.FC = () => {
         />
       )}
 
-      {/* Database Panel (Builder Mode) */}
-      {appMode === 'builder' && (
-        <DatabasePanel
-          isOpen={showDatabasePanel}
-          onClose={() => setShowDatabasePanel(false)}
-          onGenerateCode={(code) => {
-            // Add generated code as new file
-            const fileName = `lib/database.ts`;
-            fileManager.addFile(fileName, code, 'other');
-            setOpenFiles(prev => [...prev, fileName]);
-            setSelectedFile(fileName);
-          }}
-        />
-      )}
+      {/* Database Panel removed - using Firebase */}
 
       {/* API Integration Wizard (Builder Mode) */}
       {appMode === 'builder' && (

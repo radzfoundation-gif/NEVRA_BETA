@@ -1,8 +1,21 @@
 import { Message, WorkflowState } from '../types';
-import { getUser } from '../../database';
+// Database removed - using stub for user lookup
 import { AgentMemoryEntry } from '../types';
 import { AgentMemoryEngine } from './AgentMemoryEngine';
 import { IntentAnalysis } from '../analyzers/IntentAnalyzer';
+
+// Stub user data (Supabase removed)
+interface StubUser {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+}
+
+// Stub getUser function
+async function getUser(userId: string): Promise<StubUser | null> {
+  // Return stub user data - actual user data comes from Clerk
+  return { id: userId, full_name: null, email: null };
+}
 
 /**
  * Context Awareness Engine
@@ -18,7 +31,7 @@ export interface ContextAwareness {
     activeSession?: string;
     isProcessing: boolean;
   };
-  
+
   // Past (History & Memory)
   past: {
     recentMessages: Message[];
@@ -37,7 +50,7 @@ export interface ContextAwareness {
       commonPatterns: string[];
     };
   };
-  
+
   // Future (Planned/Upcoming)
   future: {
     plannedTasks: Array<{
@@ -48,7 +61,7 @@ export interface ContextAwareness {
     upcomingIntents: string[];
     pendingImprovements: string[];
   };
-  
+
   // User Information
   user: {
     id: string;
@@ -61,6 +74,8 @@ export interface ContextAwareness {
 export class ContextAwarenessEngine {
   /**
    * Build comprehensive context awareness
+   * @param userName - User's display name from Clerk (takes priority over stub lookup)
+   * @param userEmail - User's email from Clerk
    */
   static async buildContext(
     userId: string | undefined,
@@ -68,16 +83,18 @@ export class ContextAwarenessEngine {
     currentState: WorkflowState,
     history: Message[],
     intentAnalysis: IntentAnalysis,
-    currentTask?: string
+    currentTask?: string,
+    userName?: string, // Direct from Clerk
+    userEmail?: string // Direct from Clerk
   ): Promise<ContextAwareness | null> {
     if (!userId) {
       return null;
     }
 
     try {
-      // Load user information
+      // Load user information (stub - userName/userEmail from Clerk takes priority)
       const user = await getUser(userId);
-      
+
       // Load agent memories
       const agentMemories = await AgentMemoryEngine.retrieveAgentMemory(
         intentAnalysis.primaryIntent,
@@ -104,8 +121,9 @@ export class ContextAwarenessEngine {
         future,
         user: {
           id: userId,
-          name: user?.full_name || null,
-          email: user?.email || null,
+          // Priority: directly passed userName/userEmail > stub user lookup
+          name: userName || user?.full_name || null,
+          email: userEmail || user?.email || null,
         },
       };
     } catch (error) {
@@ -146,13 +164,13 @@ export class ContextAwarenessEngine {
     // User history analysis
     const totalMessages = history.length;
     const totalSessions = new Set(history.map(msg => msg.timestamp?.getTime() || 0)).size;
-    
+
     // Common patterns from messages
     const commonPatterns: string[] = [];
     const messageTexts = history
       .filter(msg => msg.role === 'user')
       .map(msg => msg.content.toLowerCase());
-    
+
     // Extract common phrases/patterns
     const phraseCounts: Record<string, number> = {};
     messageTexts.forEach(text => {
@@ -169,7 +187,7 @@ export class ContextAwarenessEngine {
       .sort(([, a], [, b]) => b - a)
       .slice(0, 5)
       .map(([phrase]) => phrase);
-    
+
     commonPatterns.push(...topPhrases);
 
     return {
@@ -195,7 +213,7 @@ export class ContextAwarenessEngine {
     // Planned tasks from what to improve
     const allImprovements = agentMemories.flatMap(mem => mem.whatToImprove);
     const improvementCounts: Record<string, number> = {};
-    
+
     allImprovements.forEach(improvement => {
       improvementCounts[improvement] = (improvementCounts[improvement] || 0) + 1;
     });
@@ -258,7 +276,7 @@ export class ContextAwarenessEngine {
     parts.push(`\n=== PAST (What Happened Before) ===`);
     parts.push(`Total Messages: ${context.past.userHistory.totalMessages}`);
     parts.push(`Total Sessions: ${context.past.userHistory.totalSessions}`);
-    
+
     if (context.past.recentIntents.length > 0) {
       parts.push(`\nRecent Intents:`);
       context.past.recentIntents.forEach((intent, i) => {

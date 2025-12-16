@@ -1,6 +1,9 @@
 import { NormalizedKnowledge } from '../processors/KnowledgeNormalizer';
-import { supabase } from '../../supabase';
+// Supabase removed - using in-memory storage
 import { WORKFLOW_CONFIG } from '../../workflow/config';
+
+// In-memory cache for metadata index
+const metadataCache: Map<string, MetadataIndex> = new Map();
 
 /**
  * Metadata Index
@@ -19,7 +22,7 @@ export interface MetadataIndex {
   indexedAt: Date;
 }
 
-export class MetadataIndex {
+export class MetadataIndexService {
   /**
    * Index knowledge metadata
    */
@@ -29,13 +32,8 @@ export class MetadataIndex {
     }
 
     try {
-      if (!supabase) {
-        console.warn('Supabase not initialized, skipping metadata index');
-        return;
-      }
-
-      // Store in metadata_index table
-      const indexEntry: Omit<MetadataIndex, 'id' | 'indexedAt'> = {
+      const indexEntry: MetadataIndex = {
+        id: `idx_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         knowledgeId: knowledge.id,
         tags: knowledge.tags,
         categories: knowledge.categories,
@@ -44,42 +42,21 @@ export class MetadataIndex {
         qualityScore: knowledge.metadata.qualityScore,
         relevance: knowledge.metadata.relevance,
         publishedAt: knowledge.metadata.publishedAt,
+        indexedAt: new Date(),
       };
 
-      const { error } = await supabase
-        .from('metadata_index')
-        .insert({
-          knowledge_id: indexEntry.knowledgeId,
-          tags: indexEntry.tags,
-          categories: indexEntry.categories,
-          source_id: indexEntry.sourceId,
-          source_name: indexEntry.sourceName,
-          quality_score: indexEntry.qualityScore,
-          relevance: indexEntry.relevance,
-          published_at: indexEntry.publishedAt?.toISOString(),
-          indexed_at: new Date().toISOString(),
-        });
+      // Store in memory
+      metadataCache.set(knowledge.id, indexEntry);
 
-      if (error) {
-        // Table may not exist yet
-        if (WORKFLOW_CONFIG.logStages) {
-          console.warn('Metadata index table may not exist, logging index:', {
-            knowledgeId: knowledge.id,
-            tags: knowledge.tags.length,
-          });
-        }
-      } else {
-        if (WORKFLOW_CONFIG.logStages) {
-          console.log('📇 MetadataIndex: Metadata indexed', {
-            knowledgeId: knowledge.id,
-            tags: knowledge.tags.length,
-            categories: knowledge.categories.length,
-          });
-        }
+      if (WORKFLOW_CONFIG.logStages) {
+        console.log('📇 MetadataIndex: Metadata indexed in memory', {
+          knowledgeId: knowledge.id,
+          tags: knowledge.tags.length,
+          categories: knowledge.categories.length,
+        });
       }
     } catch (error) {
       console.error('MetadataIndex: Error indexing', error);
-      // Don't throw - indexing is non-critical
     }
   }
 
@@ -96,23 +73,17 @@ export class MetadataIndex {
    * Search by tags
    */
   static async searchByTags(tags: string[], limit: number = 10): Promise<string[]> {
-    if (!supabase) {
-      return [];
-    }
-
     try {
-      const { data, error } = await supabase
-        .from('metadata_index')
-        .select('knowledge_id')
-        .contains('tags', tags)
-        .order('relevance', { ascending: false })
-        .limit(limit);
+      const results: string[] = [];
 
-      if (error) {
-        return [];
-      }
+      metadataCache.forEach((index, knowledgeId) => {
+        const hasMatchingTags = tags.some(tag => index.tags.includes(tag));
+        if (hasMatchingTags) {
+          results.push(knowledgeId);
+        }
+      });
 
-      return (data || []).map((row: any) => row.knowledge_id);
+      return results.slice(0, limit);
     } catch (error) {
       console.error('MetadataIndex: Error searching by tags', error);
       return [];
@@ -123,26 +94,22 @@ export class MetadataIndex {
    * Search by category
    */
   static async searchByCategory(category: string, limit: number = 10): Promise<string[]> {
-    if (!supabase) {
-      return [];
-    }
-
     try {
-      const { data, error } = await supabase
-        .from('metadata_index')
-        .select('knowledge_id')
-        .contains('categories', [category])
-        .order('quality_score', { ascending: false })
-        .limit(limit);
+      const results: string[] = [];
 
-      if (error) {
-        return [];
-      }
+      metadataCache.forEach((index, knowledgeId) => {
+        if (index.categories.includes(category)) {
+          results.push(knowledgeId);
+        }
+      });
 
-      return (data || []).map((row: any) => row.knowledge_id);
+      return results.slice(0, limit);
     } catch (error) {
       console.error('MetadataIndex: Error searching by category', error);
       return [];
     }
   }
 }
+
+// Export for backward compatibility
+export { MetadataIndexService as MetadataIndex };

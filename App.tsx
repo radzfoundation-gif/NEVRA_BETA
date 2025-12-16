@@ -9,12 +9,14 @@ import EnterprisePage from './components/pages/EnterprisePage';
 import PricingPage from './components/pages/PricingPage';
 import SignInPage from './components/auth/SignInPage';
 import SignUpPage from './components/auth/SignUpPage';
+import ForgotPasswordPage from './components/auth/ForgotPasswordPage';
 import ProtectedRoute from './components/auth/ProtectedRoute';
-import { useUserSync } from './hooks/useSupabase';
+// Firebase is used instead of Supabase - no sync hook needed
 import ErrorBoundary from './components/ErrorBoundary';
 
 // Get Clerk publishable key from environment
 const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+
 
 // Better error handling - don't throw immediately, show helpful message
 if (!CLERK_PUBLISHABLE_KEY) {
@@ -24,9 +26,9 @@ if (!CLERK_PUBLISHABLE_KEY) {
   console.error('🔗 Get your key from: https://dashboard.clerk.com');
 }
 
-// Component to sync Clerk user with Supabase
+// UserSyncProvider removed - Firebase handles user data directly with Clerk userId
 const UserSyncProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  useUserSync(); // Automatically sync user on mount
+  // No sync needed - Firebase uses Clerk userId directly
   return <>{children}</>;
 };
 
@@ -76,6 +78,7 @@ const App: React.FC = () => {
                 <Route path="/" element={<Home />} />
                 <Route path="/sign-in" element={<SignInPage />} />
                 <Route path="/sign-up" element={<SignUpPage />} />
+                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
                 <Route
                   path="/chat"
                   element={

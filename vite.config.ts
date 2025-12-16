@@ -31,6 +31,11 @@ export default defineConfig(({ mode }) => {
     },
     build: {
       rollupOptions: {
+        external: [
+          // Exclude MCP SDK (Node.js only, not for browser)
+          '@modelcontextprotocol/sdk/client/index.js',
+          '@modelcontextprotocol/sdk/client/stdio.js',
+        ],
         output: {
           manualChunks: {
             'react-vendor': ['react', 'react-dom', 'react-router-dom'],

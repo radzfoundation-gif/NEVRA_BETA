@@ -1,0 +1,18 @@
+{
+    "name": "@nevra/mcp-server",
+    "version": "1.0.0",
+    "description": "MCP Server for Nevra AI - Provides standardized access to Firebase, File System, and other resources",
+    "type": "module",
+    "main": "index.js",
+    "scripts": {
+        "dev": "node --watch index.js",
+        "start": "node index.js"
+    },
+    "dependencies": {
+        "@modelcontextprotocol/sdk": "^1.0.4",
+        "firebase-admin": "^12.0.0"
+    },
+    "engines": {
+        "node": ">=18.0.0"
+    }
+}

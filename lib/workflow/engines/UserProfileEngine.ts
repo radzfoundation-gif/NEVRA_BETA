@@ -1,6 +1,23 @@
-import { getUserPreferences, UserPreferences, getUser } from '../../database';
+// Database removed - using stub functions
 import { IntentAnalysis } from '../analyzers/IntentAnalyzer';
 import { Message } from '../types';
+
+// Stub types (Supabase removed)
+interface UserPreferences {
+  default_provider?: string;
+  theme?: string;
+  preferences?: Record<string, any>;
+}
+
+interface StubUser {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+}
+
+// Stub functions
+import { getUser, getUserPreferences } from '../../firebaseDatabase';
+
 
 /**
  * User Profile Engine
@@ -8,7 +25,7 @@ import { Message } from '../types';
  */
 export interface UserProfile {
   userId: string;
-  userName: string | null; // User's name for personalization
+  userName: string | null;
   userEmail: string | null;
   preferences: UserPreferences | null;
   history: {
@@ -19,7 +36,7 @@ export interface UserProfile {
     averageComplexity: 'simple' | 'medium' | 'complex';
   };
   behavior: {
-    responseTime: number; // Average response time preference
+    responseTime: number;
     detailLevel: 'brief' | 'normal' | 'detailed';
     prefersCode: boolean;
     prefersExplanations: boolean;
@@ -28,7 +45,7 @@ export interface UserProfile {
 
 export class UserProfileEngine {
   /**
-   * Load user profile with name
+   * Load user profile
    */
   static async loadProfile(
     userId: string | undefined,
@@ -39,21 +56,14 @@ export class UserProfileEngine {
     }
 
     try {
-      // Load user information (including name)
       const user = await getUser(userId);
-      
-      // Load preferences from database
       const preferences = await getUserPreferences(userId);
-
-      // Analyze history
       const historyAnalysis = this.analyzeHistory(history);
-
-      // Infer behavior from history
       const behavior = this.inferBehavior(history, preferences);
 
       return {
         userId,
-        userName: user?.full_name || null,
+        userName: user?.fullName || null,
         userEmail: user?.email || null,
         preferences,
         history: historyAnalysis,
@@ -75,10 +85,8 @@ export class UserProfileEngine {
     const styles: Record<string, number> = {};
     const complexities: Array<'simple' | 'medium' | 'complex'> = [];
 
-    // Analyze messages
     history.forEach(msg => {
       if (msg.role === 'user') {
-        // Count intents (simplified - would need full intent analysis)
         const text = msg.content.toLowerCase();
         if (/(buat|create|generate|build)/i.test(text)) {
           commonIntents['code_generation'] = (commonIntents['code_generation'] || 0) + 1;
@@ -90,17 +98,14 @@ export class UserProfileEngine {
           commonIntents['edit'] = (commonIntents['edit'] || 0) + 1;
         }
 
-        // Detect framework preferences
         if (/react/i.test(text)) frameworks['react'] = (frameworks['react'] || 0) + 1;
         if (/next/i.test(text)) frameworks['nextjs'] = (frameworks['nextjs'] || 0) + 1;
         if (/vite/i.test(text)) frameworks['vite'] = (frameworks['vite'] || 0) + 1;
 
-        // Detect style preferences
         if (/(minimal|simple|clean)/i.test(text)) styles['minimal'] = (styles['minimal'] || 0) + 1;
         if (/(modern|contemporary)/i.test(text)) styles['modern'] = (styles['modern'] || 0) + 1;
         if (/(dark|hitam)/i.test(text)) styles['dark'] = (styles['dark'] || 0) + 1;
 
-        // Estimate complexity
         const wordCount = text.split(/\s+/).length;
         if (wordCount < 20) complexities.push('simple');
         else if (wordCount < 100) complexities.push('medium');
@@ -108,24 +113,21 @@ export class UserProfileEngine {
       }
     });
 
-    // Determine preferred framework
     const preferredFramework = Object.entries(frameworks)
       .sort(([, a], [, b]) => b - a)[0]?.[0];
 
-    // Determine preferred style
     const preferredStyle = Object.entries(styles)
       .sort(([, a], [, b]) => b - a)[0]?.[0];
 
-    // Calculate average complexity
     const avgComplexity = complexities.length > 0
       ? complexities.reduce((acc, c) => {
-          if (c === 'simple') return acc + 1;
-          if (c === 'medium') return acc + 2;
-          return acc + 3;
-        }, 0) / complexities.length
+        if (c === 'simple') return acc + 1;
+        if (c === 'medium') return acc + 2;
+        return acc + 3;
+      }, 0) / complexities.length
       : 2;
-    
-    const averageComplexity: 'simple' | 'medium' | 'complex' = 
+
+    const averageComplexity: 'simple' | 'medium' | 'complex' =
       avgComplexity < 1.5 ? 'simple' : avgComplexity < 2.5 ? 'medium' : 'complex';
 
     return {
@@ -146,12 +148,11 @@ export class UserProfileEngine {
   ): UserProfile['behavior'] {
     const aiMessages = history.filter(msg => msg.role === 'ai');
     const hasCode = aiMessages.some(msg => msg.code && msg.code.length > 0);
-    const hasExplanations = aiMessages.some(msg => 
+    const hasExplanations = aiMessages.some(msg =>
       msg.content && msg.content.length > 100 && !msg.code
     );
 
-    // Infer detail level from message lengths
-    const avgLength = aiMessages.reduce((sum, msg) => 
+    const avgLength = aiMessages.reduce((sum, msg) =>
       sum + (msg.content?.length || 0), 0
     ) / (aiMessages.length || 1);
 
@@ -160,7 +161,7 @@ export class UserProfileEngine {
     else if (avgLength > 1000) detailLevel = 'detailed';
 
     return {
-      responseTime: 0, // Would need to track actual response times
+      responseTime: 0,
       detailLevel,
       prefersCode: hasCode && aiMessages.filter(msg => msg.code).length > aiMessages.length / 2,
       prefersExplanations: hasExplanations && !hasCode,
@@ -180,24 +181,20 @@ export class UserProfileEngine {
 
     const context: Record<string, any> = {};
 
-    // Use preferred framework if not specified
     if (!intentAnalysis.requirements.framework && profile.history.preferredFramework) {
       context.framework = profile.history.preferredFramework;
     }
 
-    // Use preferred style if not specified
     if (!intentAnalysis.requirements.style && profile.history.preferredStyle) {
       context.style = profile.history.preferredStyle;
     }
 
-    // Adjust detail level based on behavior
     if (profile.behavior.detailLevel === 'brief') {
       context.briefMode = true;
     } else if (profile.behavior.detailLevel === 'detailed') {
       context.detailedMode = true;
     }
 
-    // Use user preferences
     if (profile.preferences) {
       context.defaultProvider = profile.preferences.default_provider;
       context.theme = profile.preferences.theme;

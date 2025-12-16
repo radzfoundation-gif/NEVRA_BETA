@@ -11,7 +11,7 @@ export interface Message {
 }
 
 // Explicit workflow states for better debugging
-export type WorkflowState = 
+export type WorkflowState =
   | 'IDLE'
   | 'PLANNING'
   | 'EXECUTING'
@@ -21,7 +21,7 @@ export type WorkflowState =
   | 'ERROR';
 
 // Status for UI updates (backward compatible)
-export type WorkflowStatus = 
+export type WorkflowStatus =
   | 'idle'
   | 'preprocessing'
   | 'routing'
@@ -35,6 +35,8 @@ export type WorkflowStatus =
 
 export interface WorkflowContext {
   userId?: string;
+  userName?: string; // User's display name from Clerk for personalization
+  userEmail?: string; // User's email from Clerk
   sessionId?: string;
   prompt: string;
   mode: 'builder' | 'tutor';
@@ -49,7 +51,7 @@ export interface WorkflowContext {
 
 export interface PreprocessedInput {
   cleanedPrompt: string;
-  intent: 'code_generation' | 'question' | 'edit' | 'explanation';
+  intent: 'code_generation' | 'question' | 'edit' | 'explanation' | 'debug' | 'refactor' | 'test';
   context: {
     hasCode: boolean;
     hasImages: boolean;
@@ -60,9 +62,9 @@ export interface PreprocessedInput {
 }
 
 export interface RoutingDecision {
-  plannerModel: 'anthropic' | 'gemini'; // GPT-OSS-20B
-  executorModel: 'deepseek'; // DEVSTRAL
-  reviewerModel: 'anthropic' | 'gemini'; // GPT-OSS-20B
+  plannerModel: AIProvider; // Flexible provider (e.g., groq, anthropic, gemini)
+  executorModel: AIProvider; // Flexible provider (e.g., deepseek, groq)
+  reviewerModel: AIProvider; // Flexible provider (e.g., groq, anthropic, gemini)
   skipStages?: ('planner' | 'reviewer')[]; // For simple requests
 }
 
@@ -121,6 +123,7 @@ export interface WorkflowResult {
     executionAttempts?: number; // Number of execution attempts
     revisionAttempts?: number; // Number of revision attempts
     finalState?: WorkflowState; // Final state of workflow
+    errorMessage?: string; // Error message if workflow failed
   };
 }
 

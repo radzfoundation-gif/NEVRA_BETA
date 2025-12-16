@@ -404,3 +404,51 @@ export async function updateUserPreferences(
         return false;
     }
 }
+
+// =====================================================
+// USER MEMORY FUNCTIONS
+// =====================================================
+
+/**
+ * Save user memory entry
+ */
+export async function saveUserMemory(
+    userId: string,
+    memoryEntry: any
+): Promise<boolean> {
+    try {
+        await addDoc(collection(db, 'users', userId, 'memories'), {
+            ...memoryEntry,
+            timestamp: new Date()
+        });
+        return true;
+    } catch (error) {
+        console.error('Error saving user memory:', error);
+        return false;
+    }
+}
+
+/**
+ * Get user memories
+ */
+export async function getUserMemories(
+    userId: string,
+    limitCount: number = 50
+): Promise<any[]> {
+    try {
+        const q = query(
+            collection(db, 'users', userId, 'memories'),
+            orderBy('timestamp', 'desc'),
+            limit(limitCount)
+        );
+
+        const querySnapshot = await getDocs(q);
+        return querySnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
+    } catch (error) {
+        console.error('Error getting user memories:', error);
+        return [];
+    }
+}

@@ -5,27 +5,29 @@ interface LogoProps {
   size?: number;
   showText?: boolean;
   textClassName?: string;
+  color?: string;
 }
 
-const Logo: React.FC<LogoProps> = ({ 
-  className = '', 
+const Logo: React.FC<LogoProps> = ({
+  className = '',
   size = 32,
   showText = false,
-  textClassName = ''
+  textClassName = '',
+  color
 }) => {
   return (
     <div className={`flex items-center gap-3 ${className}`}>
-      <div className="relative flex-shrink-0">
-        <svg 
-          width={size} 
-          height={size} 
-          viewBox="0 0 120 120" 
-          fill="none" 
+      <div className="relative flex-shrink-0" style={{ color: color }}>
+        <svg
+          width={size}
+          height={size}
+          viewBox="0 0 120 120"
+          fill="none"
           xmlns="http://www.w3.org/2000/svg"
           className="text-white"
         >
           {/* Left vertical bar with organic concave inner edge */}
-          <path 
+          <path
             d="M 20 20 
                C 20 25, 22 30, 24 35
                C 26 40, 28 45, 30 50
@@ -39,16 +41,16 @@ const Logo: React.FC<LogoProps> = ({
                C 38 50, 40 45, 42 40
                C 44 35, 46 30, 48 25
                C 50 20, 50 20, 50 20
-               Z" 
-            stroke="currentColor" 
-            strokeWidth="3.5" 
-            fill="none" 
-            strokeLinecap="round" 
+               Z"
+            stroke="currentColor"
+            strokeWidth="3.5"
+            fill="none"
+            strokeLinecap="round"
             strokeLinejoin="round"
           />
-          
+
           {/* Right vertical bar with organic concave inner edge */}
-          <path 
+          <path
             d="M 100 20 
                C 100 25, 98 30, 96 35
                C 94 40, 92 45, 90 50
@@ -62,40 +64,40 @@ const Logo: React.FC<LogoProps> = ({
                C 82 50, 80 45, 78 40
                C 76 35, 74 30, 72 25
                C 70 20, 70 20, 70 20
-               Z" 
-            stroke="currentColor" 
-            strokeWidth="3.5" 
-            fill="none" 
-            strokeLinecap="round" 
+               Z"
+            stroke="currentColor"
+            strokeWidth="3.5"
+            fill="none"
+            strokeLinecap="round"
             strokeLinejoin="round"
           />
-          
+
           {/* Flowing diagonal stroke with organic S-curves (main) */}
-          <path 
+          <path
             d="M 20 20 
                C 30 25, 40 35, 45 45
                C 50 55, 48 65, 50 70
                C 52 75, 60 85, 70 90
-               C 80 95, 90 98, 100 100" 
-            stroke="currentColor" 
-            strokeWidth="3.5" 
-            fill="none" 
-            strokeLinecap="round" 
+               C 80 95, 90 98, 100 100"
+            stroke="currentColor"
+            strokeWidth="3.5"
+            fill="none"
+            strokeLinecap="round"
             strokeLinejoin="round"
           />
-          
+
           {/* Secondary flowing curve for depth and movement */}
-          <path 
+          <path
             d="M 25 25 
                C 32 28, 38 35, 42 42
                C 46 49, 45 56, 47 63
                C 49 70, 55 76, 62 78
-               C 69 80, 78 82, 95 95" 
-            stroke="currentColor" 
-            strokeWidth="2.5" 
-            fill="none" 
-            strokeLinecap="round" 
-            strokeLinejoin="round" 
+               C 69 80, 78 82, 95 95"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            fill="none"
+            strokeLinecap="round"
+            strokeLinejoin="round"
             opacity="0.7"
           />
         </svg>

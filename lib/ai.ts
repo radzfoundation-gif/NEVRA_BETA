@@ -1,4 +1,4 @@
-export type AIProvider = 'anthropic' | 'deepseek' | 'openai' | 'gemini';
+export type AIProvider = 'anthropic' | 'deepseek' | 'openai' | 'gemini' | 'groq';
 export type Framework = 'html' | 'react' | 'nextjs' | 'vite';
 
 // --- ENHANCED SYSTEM PROMPTS (Bolt.new / v0.app Level) ---
@@ -331,8 +331,18 @@ Valid icon names (use exact strings): Zap, Heart, Star, ArrowRight, CheckCircle,
 export const TUTOR_PROMPT = `
 You are NEVRA TUTOR, a world-class AI Educator and Mentor. You can reason over text AND images (when provided).
 
+📅 CURRENT DATE CONTEXT:
+- Today's date: ${new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+- Year: ${new Date().getFullYear()}
+
+🌍 CURRENT WORLD KNOWLEDGE (December 2024):
+- President of Indonesia: Prabowo Subianto (inaugurated October 20, 2024)
+- Vice President of Indonesia: Gibran Rakabuming Raka
+- Previous President: Joko Widodo (Jokowi) served 2014-2024
+
 MISSION:
 - Help users learn any subject: explain, solve, and guide step-by-step.
+- ALWAYS use the current date context above when answering about current events or leaders.
 
 CORE IDENTITY:
 - Tone: patient, encouraging, clear.
@@ -344,6 +354,7 @@ CAPABILITIES:
 2) Math/Science: show full working; verify final answer.
 3) Code Tutor: explain line-by-line; propose fixes.
 4) Images: if images are provided, describe key elements, extract text if possible, and use them to answer the question.
+5) Current Events: use the date context above to answer questions about current leaders, events, etc.
 
 FORMATTING:
 - Bold for key concepts, code blocks for code, numbered steps for procedures, and blockquotes for takeaways.
@@ -453,10 +464,10 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
 const formatErrorHtml = (provider: AIProvider, message: string) => {
   const isCreditError = message.toLowerCase().includes('credit') || message.toLowerCase().includes('afford') || message.toLowerCase().includes('insufficient');
   const isTokenLimitError = message.toLowerCase().includes('prompt tokens') || message.toLowerCase().includes('token limit exceeded');
-  
+
   // All OpenRouter providers (anthropic, gemini, openai) can have credit errors
   const isOpenRouterProvider = provider === 'openai' || provider === 'anthropic' || provider === 'gemini';
-  
+
   if (isOpenRouterProvider && (isCreditError || isTokenLimitError)) {
     const providerName = provider === 'openai' ? 'GPT-5-Nano' : provider === 'anthropic' ? 'GPT OSS 20B' : provider === 'deepseek' ? 'Mistral Devstral' : 'GPT OSS 20B';
     return `<!-- Error Generating Code --> 
@@ -479,13 +490,13 @@ const formatErrorHtml = (provider: AIProvider, message: string) => {
 
   // Special handling for GPT OSS 20B (anthropic) errors
   if (provider === 'anthropic' || provider === 'gemini') {
-    const isHtmlError = message.toLowerCase().includes('html') || message.toLowerCase().includes('doctype') || 
-                       message.toLowerCase().includes('server returned html instead of json');
+    const isHtmlError = message.toLowerCase().includes('html') || message.toLowerCase().includes('doctype') ||
+      message.toLowerCase().includes('server returned html instead of json');
     const isModelError = message.toLowerCase().includes('model') && message.toLowerCase().includes('not found');
     const isKeyError = message.toLowerCase().includes('invalid') && message.toLowerCase().includes('key') ||
-                      message.toLowerCase().includes('authentication failed');
+      message.toLowerCase().includes('authentication failed');
     const is500Error = message.toLowerCase().includes('api error (500)') || message.toLowerCase().includes('500');
-    
+
     if (isHtmlError || isModelError || isKeyError || is500Error) {
       return `<!-- Error Generating Code --> 
         <div class="text-red-500 bg-red-900/20 p-4 rounded-lg border border-red-500/50">
@@ -511,7 +522,7 @@ const formatErrorHtml = (provider: AIProvider, message: string) => {
   if (provider === 'deepseek') {
     // Check if error is about image support (should not happen anymore, but handle it)
     const isImageSupportError = message.toLowerCase().includes('does not support image input') || message.toLowerCase().includes('image input');
-    
+
     if (isImageSupportError) {
       return `<!-- Error Generating Code --> 
         <div class="text-yellow-500 bg-yellow-900/20 p-4 rounded-lg border border-yellow-500/50">
@@ -521,14 +532,14 @@ const formatErrorHtml = (provider: AIProvider, message: string) => {
           <p class="text-sm mb-3"><strong>Note:</strong> Mistral Devstral uses OpenRouter API which supports vision models.</p>
         </div>`;
     }
-    
+
     const isUnauthorized = message.toLowerCase().includes('401') || message.toLowerCase().includes('unauthorized');
     const isKeyError = message.toLowerCase().includes('invalid') && message.toLowerCase().includes('key');
     const isApiKeyError = message.toLowerCase().includes('api key');
-    const isHtmlError = message.toLowerCase().includes('html') || message.toLowerCase().includes('server returned html') || 
-                       message.toLowerCase().includes('api error (500)');
+    const isHtmlError = message.toLowerCase().includes('html') || message.toLowerCase().includes('server returned html') ||
+      message.toLowerCase().includes('api error (500)');
     const is500Error = message.toLowerCase().includes('500') || message.toLowerCase().includes('server returned');
-    
+
     if (isUnauthorized || isKeyError || isApiKeyError || isHtmlError || is500Error) {
       return `<!-- Error Generating Code --> 
         <div class="text-red-500 bg-red-900/20 p-4 rounded-lg border border-red-500/50">
@@ -606,17 +617,19 @@ export const generateCode = async (
   framework: Framework = 'html',
   useWorkflow: boolean | { onStatusUpdate?: (status: string, message?: string) => void } = false, // Feature flag or config object
   sessionId?: string,
-  userId?: string
+  userId?: string,
+  userName?: string, // User's display name from Clerk
+  userEmail?: string // User's email from Clerk
 ): Promise<CodeResponse> => {
   // Use workflow if enabled
   const workflowEnabled = typeof useWorkflow === 'object' ? true : useWorkflow;
   const statusCallback = typeof useWorkflow === 'object' ? useWorkflow.onStatusUpdate : undefined;
-  
+
   if (workflowEnabled) {
     try {
       const { executeWorkflow } = await import('./workflow/orchestrator');
       const { WORKFLOW_CONFIG } = await import('./workflow/config');
-      
+
       // Check if workflow is enabled in config
       if (WORKFLOW_CONFIG.enableWorkflow) {
         const context = {
@@ -633,6 +646,8 @@ export const generateCode = async (
           framework,
           sessionId,
           userId,
+          userName, // Pass user's name for personalization
+          userEmail, // Pass user's email
           onStatusUpdate: statusCallback,
         };
 
@@ -668,7 +683,7 @@ export const generateCode = async (
 
   // Enhance system prompt based on framework
   let systemPrompt = mode === 'builder' ? BUILDER_PROMPT : TUTOR_PROMPT;
-  
+
   if (mode === 'builder') {
     switch (framework) {
       case 'nextjs':
@@ -683,7 +698,7 @@ export const generateCode = async (
         systemPrompt = BUILDER_PROMPT;
         break;
     }
-    
+
     // Force multi-file for framework-based projects
     if (framework !== 'html') {
       const frameworkInstruction = `
@@ -697,7 +712,7 @@ You MUST generate code in **multi-file JSON format** for ${framework === 'nextjs
       systemPrompt = systemPrompt + frameworkInstruction;
     }
   }
-  
+
   if (images && images.length > 0) {
     const visionInstructions = `
     
@@ -719,7 +734,7 @@ The user may ask you to:
 - Translate or explain text in the image
 
 Always be thorough and helpful in your analysis.`;
-    
+
     systemPrompt = systemPrompt + visionInstructions;
   }
 
@@ -729,7 +744,7 @@ Always be thorough and helpful in your analysis.`;
       headers: {
         'Content-Type': 'application/json',
       },
-        body: JSON.stringify({
+      body: JSON.stringify({
         prompt: framework !== 'html' ? `${prompt}\n\nIMPORTANT: Generate as ${framework === 'nextjs' ? 'Next.js' : framework === 'vite' ? 'Vite/React' : 'React'} project with multi-file structure. Return JSON format with type "multi-file".` : prompt,
         history,
         mode,
@@ -743,7 +758,7 @@ Always be thorough and helpful in your analysis.`;
       // Try to parse as JSON first, fallback to text if HTML response
       let errorData: any = {};
       const contentType = resp.headers.get('content-type') || '';
-      
+
       if (contentType.includes('application/json')) {
         try {
           errorData = await resp.json();
@@ -757,11 +772,11 @@ Always be thorough and helpful in your analysis.`;
         // Response is HTML or other non-JSON format
         const text = await resp.text();
         console.error(`[${provider}] HTML error response:`, text.slice(0, 500));
-        errorData = { 
-          error: `API Error (${resp.status}): Server returned HTML instead of JSON. This usually means the API endpoint is incorrect, API key is invalid, or the service is unavailable.` 
+        errorData = {
+          error: `API Error (${resp.status}): Server returned HTML instead of JSON. This usually means the API endpoint is incorrect, API key is invalid, or the service is unavailable.`
         };
       }
-      
+
       const msg = errorData?.error || resp.statusText || 'Unknown error';
       throw new Error(msg);
     }
@@ -795,7 +810,7 @@ Always be thorough and helpful in your analysis.`;
                   content: String(f.content || '').trim(),
                   type: (f.type || 'other') as 'component' | 'page' | 'style' | 'config' | 'other',
                 }));
-              
+
               if (validFiles.length > 0) {
                 return {
                   type: 'multi-file',
@@ -810,13 +825,13 @@ Always be thorough and helpful in your analysis.`;
           }
         }
       }
-      
+
       // Check if content is direct JSON (starts with {)
       const trimmedContent = content.trim();
       if (trimmedContent.startsWith('{')) {
         try {
           const parsed = JSON.parse(trimmedContent);
-          
+
           // Check if it's a multi-file response
           if (parsed.type === 'multi-file' && Array.isArray(parsed.files)) {
             // Validate and clean files
@@ -827,7 +842,7 @@ Always be thorough and helpful in your analysis.`;
                 content: String(f.content || '').trim(),
                 type: (f.type || 'other') as 'component' | 'page' | 'style' | 'config' | 'other',
               }));
-            
+
             if (validFiles.length > 0) {
               return {
                 type: 'multi-file',
@@ -855,25 +870,25 @@ Always be thorough and helpful in your analysis.`;
         content: formatErrorHtml(provider, 'Received empty response from API. Please try again or check your API configuration.'),
       } as SingleFileResponse;
     }
-    
+
     return {
       type: 'single-file',
       content: content,
     } as SingleFileResponse;
   } catch (error) {
     console.error(`${provider} Error:`, error);
-    const errorMessage = error instanceof Error 
-      ? error.message 
-      : typeof error === 'string' 
-        ? error 
+    const errorMessage = error instanceof Error
+      ? error.message
+      : typeof error === 'string'
+        ? error
         : 'Unknown error occurred';
-    
+
     // Check if it's a prompt token limit error for OpenRouter providers
-    const isPromptTokenError = (provider === 'openai' || provider === 'gemini' || provider === 'anthropic') && 
-      (errorMessage.toLowerCase().includes('prompt tokens') || 
-       errorMessage.toLowerCase().includes('prompt token limit') ||
-       errorMessage.toLowerCase().includes('token limit exceeded'));
-    
+    const isPromptTokenError = (provider === 'openai' || provider === 'gemini' || provider === 'anthropic') &&
+      (errorMessage.toLowerCase().includes('prompt tokens') ||
+        errorMessage.toLowerCase().includes('prompt token limit') ||
+        errorMessage.toLowerCase().includes('token limit exceeded'));
+
     if (isPromptTokenError) {
       // Return error with suggestion to use shorter prompt or switch provider
       const providerName = provider === 'openai' ? 'GPT-5-Nano' : provider === 'anthropic' ? 'GPT OSS 20B' : provider === 'deepseek' ? 'Mistral Devstral' : 'GPT OSS 20B';
@@ -882,22 +897,22 @@ Always be thorough and helpful in your analysis.`;
         content: formatErrorHtml(provider, errorMessage + ` - Try using a shorter prompt or switch to a different provider.`),
       } as SingleFileResponse;
     }
-    
+
     // Check if it's a timeout/abort error
     const isTimeoutError = errorMessage.toLowerCase().includes('timeout') ||
-                          errorMessage.toLowerCase().includes('aborted') ||
-                          errorMessage.toLowerCase().includes('took too long');
-    
+      errorMessage.toLowerCase().includes('aborted') ||
+      errorMessage.toLowerCase().includes('took too long');
+
     if (isTimeoutError && provider === 'deepseek') {
       return {
         type: 'single-file',
         content: formatErrorHtml(provider, `${errorMessage} - Mistral Devstral can be slower for complex prompts. Please try again with a shorter prompt or switch to a different provider like GPT OSS 20B.`),
       } as SingleFileResponse;
     }
-    
+
     // Always return a valid response, even on error
     const errorContent = formatErrorHtml(provider, errorMessage);
-    
+
     // Ensure error content is not empty
     if (!errorContent || errorContent.trim().length === 0) {
       return {
@@ -905,7 +920,7 @@ Always be thorough and helpful in your analysis.`;
         content: formatErrorHtml(provider, 'Unknown error occurred. Please try again or check your API configuration.'),
       } as SingleFileResponse;
     }
-    
+
     return {
       type: 'single-file',
       content: errorContent,

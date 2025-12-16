@@ -32,3 +32,5 @@ dist.zip
 *.njsproj
 *.sln
 *.sw?
+.vercel
+.env*.local

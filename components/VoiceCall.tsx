@@ -8,14 +8,18 @@ interface VoiceCallProps {
   provider: AIProvider;
   sessionId?: string;
   onMessage?: (text: string, isAI?: boolean) => void; // Added isAI flag
+  mainChatHistory?: Array<{ role: 'user' | 'ai'; content: string }>; // For conversation continuity
+  onSaveToMainChat?: (messages: Array<{ role: 'user' | 'ai'; content: string }>) => void; // Save voice chat to main
 }
 
-const VoiceCall: React.FC<VoiceCallProps> = ({ 
-  isOpen, 
-  onClose, 
+const VoiceCall: React.FC<VoiceCallProps> = ({
+  isOpen,
+  onClose,
   provider,
   sessionId,
-  onMessage 
+  onMessage,
+  mainChatHistory = [],
+  onSaveToMainChat
 }) => {
   const [isCalling, setIsCalling] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
@@ -27,6 +31,18 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
   const [conversationHistory, setConversationHistory] = useState<Array<{ role: 'user' | 'ai'; content: string }>>([]);
   const [error, setError] = useState<string | null>(null);
   const [isRequestingPermission, setIsRequestingPermission] = useState(false);
+  const [selectedLang, setSelectedLang] = useState('en-US');
+
+  // Language options
+  const languages = [
+    { code: 'en-US', name: 'English (US)', flag: '🇺🇸' },
+    { code: 'id-ID', name: 'Bahasa Indonesia', flag: '🇮🇩' },
+    { code: 'es-ES', name: 'Español', flag: '🇪🇸' },
+    { code: 'fr-FR', name: 'Français', flag: '🇫🇷' },
+    { code: 'de-DE', name: 'Deutsch', flag: '🇩🇪' },
+    { code: 'ja-JP', name: '日本語', flag: '🇯🇵' },
+    { code: 'zh-CN', name: '中文', flag: '🇨🇳' },
+  ];
 
   const recognitionRef = useRef<any>(null);
   const synthesisRef = useRef<SpeechSynthesisUtterance | null>(null);
@@ -55,13 +71,13 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
     const recognition = new SpeechRecognition();
     recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.lang = 'en-US';
+    recognition.lang = selectedLang;
 
     recognition.onstart = () => {
       setIsListening(true);
     };
 
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
+    recognition.onresult = (event: any) => {
       let interimTranscript = '';
       let finalTranscript = '';
 
@@ -82,7 +98,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
       }
     };
 
-    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+    recognition.onerror = (event: any) => {
       console.error('Speech recognition error:', event.error);
       if (event.error === 'no-speech') {
         // Restart recognition if no speech detected
@@ -123,7 +139,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
         }
       }
     };
-  }, [isOpen, isCalling, isMuted]);
+  }, [isOpen, isCalling, isMuted, selectedLang]);
 
   // Handle user speech
   const handleUserSpeech = async (text: string) => {
@@ -133,24 +149,42 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
     const newHistory = [...conversationHistoryRef.current, { role: 'user' as const, content: text }];
     conversationHistoryRef.current = newHistory;
     setConversationHistory(newHistory);
-    
+
     // Call onMessage callback if provided (user message)
     if (onMessage) {
       onMessage(text, false);
     }
 
     try {
-      // Generate AI response
-      const history = newHistory.map(msg => ({
-        role: msg.role === 'user' ? 'user' : 'model',
-        parts: [{ text: msg.content }]
-      }));
+      // Generate AI response - include main chat history for context
+      const combinedHistory = [
+        ...mainChatHistory.map(msg => ({
+          role: msg.role === 'user' ? 'user' : 'model',
+          parts: [{ text: msg.content }]
+        })),
+        ...newHistory.map(msg => ({
+          role: msg.role === 'user' ? 'user' : 'model',
+          parts: [{ text: msg.content }]
+        }))
+      ];
 
-      const response = await generateCode(text, history, 'tutor', provider, []);
-      
-      // Extract text from response (remove HTML tags and clean up)
-      let responseText = response;
-      
+      const response = await generateCode(text, combinedHistory, 'tutor', provider, []);
+
+      // Extract text from response (handle both string and MultiFileResponse)
+      let responseText: string;
+
+      if (typeof response === 'string') {
+        responseText = response;
+      } else if (response && typeof response === 'object' && 'files' in response) {
+        // MultiFileResponse - extract explanation or concatenate file contents
+        responseText = response.files
+          .map(f => f.content)
+          .join('\n')
+          .substring(0, 1000); // Limit for voice
+      } else {
+        responseText = String(response);
+      }
+
       // Remove HTML tags and comments
       responseText = responseText
         .replace(/<!--[\s\S]*?-->/g, '') // Remove HTML comments
@@ -158,21 +192,21 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
         .replace(/```[\s\S]*?```/g, '') // Remove code blocks
         .replace(/`[^`]*`/g, '') // Remove inline code
         .trim();
-      
+
       // Clean up extra whitespace and newlines
       responseText = responseText.replace(/\n\s*\n/g, ' ').replace(/\s+/g, ' ');
-      
+
       // Limit length for voice (max 300 words for better UX in voice)
       const words = responseText.split(' ');
       if (words.length > 300) {
         responseText = words.slice(0, 300).join(' ') + '...';
       }
-      
+
       // If response is empty or too short, use fallback
       if (!responseText || responseText.length < 10) {
         responseText = "I understand. Could you tell me more about that?";
       }
-      
+
       // Add to conversation history
       const updatedHistory = [...conversationHistoryRef.current, { role: 'ai' as const, content: responseText }];
       conversationHistoryRef.current = updatedHistory;
@@ -208,7 +242,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
     utterance.rate = 0.9;
     utterance.pitch = 1;
     utterance.volume = 1;
-    utterance.lang = 'en-US';
+    utterance.lang = selectedLang;
 
     utterance.onstart = () => {
       setIsSpeaking(true);
@@ -250,10 +284,10 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
 
       // Request microphone permission
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      
+
       // Stop the stream immediately after getting permission (we only need permission, not the stream)
       stream.getTracks().forEach(track => track.stop());
-      
+
       setIsCalling(true);
       setIsMuted(false);
       setTranscript('');
@@ -276,10 +310,10 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
     } catch (error) {
       console.error('Error starting call:', error);
       setIsRequestingPermission(false);
-      
+
       let errorMessage = 'Failed to access microphone. ';
       const errorName = error instanceof DOMException ? error.name : (error instanceof Error && 'name' in error ? (error as { name?: string }).name : '');
-      
+
       if (errorName === 'NotAllowedError' || errorName === 'PermissionDeniedError') {
         errorMessage += 'Please allow microphone access in your browser settings.';
       } else if (errorName === 'NotFoundError' || errorName === 'DevicesNotFoundError') {
@@ -293,7 +327,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
       } else {
         errorMessage += 'Please check your browser permissions and try again.';
       }
-      
+
       setError(errorMessage);
     }
   };
@@ -316,6 +350,11 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
     // Stop speech synthesis
     window.speechSynthesis.cancel();
 
+    // Save conversation to main chat if callback provided
+    if (onSaveToMainChat && conversationHistory.length > 0) {
+      onSaveToMainChat(conversationHistory);
+    }
+
     // Reset state
     setTranscript('');
     setAiResponse('');
@@ -326,7 +365,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
   // Toggle mute
   const toggleMute = () => {
     setIsMuted(!isMuted);
-    
+
     if (!isMuted) {
       // Muting - stop recognition
       if (recognitionRef.current) {
@@ -374,18 +413,34 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
             <div>
               <h3 className="text-lg font-semibold text-white">Voice Call with Nevra Tutor</h3>
               <p className="text-xs text-gray-400">
-                {isCalling 
+                {isCalling
                   ? (isListening ? 'Listening...' : isSpeaking ? 'Speaking...' : 'Connected')
                   : 'Ready to start'}
               </p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
-          >
-            <X size={20} />
-          </button>
+          <div className="flex items-center gap-3">
+            {/* Language Selector */}
+            <select
+              value={selectedLang}
+              onChange={(e) => setSelectedLang(e.target.value)}
+              disabled={isCalling}
+              className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white text-sm hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+              title="Select language"
+            >
+              {languages.map(lang => (
+                <option key={lang.code} value={lang.code} className="bg-[#0a0a0a] text-white">
+                  {lang.flag} {lang.name}
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={onClose}
+              className="p-2 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+            >
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         {/* Call Status */}
@@ -426,20 +481,19 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
             <div className="space-y-3">
               {conversationHistory.length === 0 && (
                 <p className="text-sm text-gray-500 text-center py-8">
-                  {isCalling 
-                    ? 'Start speaking... I\'m listening!' 
+                  {isCalling
+                    ? 'Start speaking... I\'m listening!'
                     : 'Click the call button to start a voice conversation'}
                 </p>
               )}
-              
+
               {conversationHistory.map((msg, idx) => (
                 <div
                   key={idx}
-                  className={`p-3 rounded-lg ${
-                    msg.role === 'user'
-                      ? 'bg-purple-500/10 border border-purple-500/20 text-right'
-                      : 'bg-blue-500/10 border border-blue-500/20'
-                  }`}
+                  className={`p-3 rounded-lg ${msg.role === 'user'
+                    ? 'bg-purple-500/10 border border-purple-500/20 text-right'
+                    : 'bg-blue-500/10 border border-blue-500/20'
+                    }`}
                 >
                   <p className="text-sm text-white">{msg.content}</p>
                 </div>
@@ -484,11 +538,10 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
             <button
               onClick={toggleMute}
               disabled={!isCalling}
-              className={`p-4 rounded-full transition-all ${
-                isMuted
-                  ? 'bg-red-500/20 text-red-400 border border-red-500/30'
-                  : 'bg-white/10 text-white border border-white/20 hover:bg-white/20'
-              } disabled:opacity-50 disabled:cursor-not-allowed`}
+              className={`p-4 rounded-full transition-all ${isMuted
+                ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                : 'bg-white/10 text-white border border-white/20 hover:bg-white/20'
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
               title={isMuted ? 'Unmute' : 'Mute'}
             >
               {isMuted ? <MicOff size={24} /> : <Mic size={24} />}
@@ -522,11 +575,10 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
             <button
               onClick={toggleSpeaker}
               disabled={!isCalling}
-              className={`p-4 rounded-full transition-all ${
-                isSpeakerOn
-                  ? 'bg-white/10 text-white border border-white/20 hover:bg-white/20'
-                  : 'bg-white/5 text-gray-500 border border-white/10'
-              } disabled:opacity-50 disabled:cursor-not-allowed`}
+              className={`p-4 rounded-full transition-all ${isSpeakerOn
+                ? 'bg-white/10 text-white border border-white/20 hover:bg-white/20'
+                : 'bg-white/5 text-gray-500 border border-white/10'
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
               title={isSpeakerOn ? 'Turn off speaker' : 'Turn on speaker'}
             >
               {isSpeakerOn ? <Volume2 size={24} /> : <VolumeX size={24} />}

@@ -9,6 +9,7 @@ import {
   WorkflowStatus,
   WorkflowState,
 } from './types';
+import { Framework } from '../ai';
 import { InputNormalizer } from './normalizers/InputNormalizer';
 import { IntentAnalyzer } from './analyzers/IntentAnalyzer';
 import { UserProfileEngine } from './engines/UserProfileEngine';
@@ -32,7 +33,7 @@ function updateState(
   details?: Record<string, any>
 ): void {
   context.onStateChange?.(state, details);
-  
+
   if (WORKFLOW_CONFIG.logStages) {
     console.log(`🔄 State: ${state}`, details || {});
   }
@@ -70,7 +71,7 @@ export async function executeWorkflow(
   try {
     // Initialize
     stateMachine.transition('IDLE');
-    
+
     if (WORKFLOW_CONFIG.logStages) {
       console.log('🚀 Workflow: Starting execution', {
         mode: context.mode,
@@ -131,7 +132,10 @@ export async function executeWorkflow(
       context.sessionId,
       'IDLE',
       context.history,
-      intentAnalysis
+      intentAnalysis,
+      undefined, // currentTask
+      context.userName, // Pass user name from Clerk
+      context.userEmail // Pass user email from Clerk
     );
     stagesExecuted.push('context_awareness');
 
@@ -164,28 +168,38 @@ export async function executeWorkflow(
       });
     }
 
-    // Validate agent routing
-    if (routingDecision.executorModel !== 'deepseek') {
-      console.warn('⚠️ WARNING: Executor should use DEVSTRAL (deepseek), got:', routingDecision.executorModel);
+    // Validate agent routing against config
+    if (routingDecision.executorModel !== WORKFLOW_CONFIG.defaultExecutorModel) {
+      console.warn('⚠️ WARNING: Executor using non-default model:', {
+        expected: WORKFLOW_CONFIG.defaultExecutorModel,
+        actual: routingDecision.executorModel
+      });
     }
-    if (!['anthropic', 'gemini'].includes(routingDecision.plannerModel)) {
-      console.warn('⚠️ WARNING: Planner should use GPT-OSS-20B (anthropic/gemini), got:', routingDecision.plannerModel);
+    if (routingDecision.plannerModel !== WORKFLOW_CONFIG.defaultPlannerModel) {
+      console.warn('⚠️ WARNING: Planner using non-default model:', {
+        expected: WORKFLOW_CONFIG.defaultPlannerModel,
+        actual: routingDecision.plannerModel
+      });
     }
-    if (!['anthropic', 'gemini'].includes(routingDecision.reviewerModel)) {
-      console.warn('⚠️ WARNING: Reviewer should use GPT-OSS-20B (anthropic/gemini), got:', routingDecision.reviewerModel);
+    if (routingDecision.reviewerModel !== WORKFLOW_CONFIG.defaultReviewerModel) {
+      console.warn('⚠️ WARNING: Reviewer using non-default model:', {
+        expected: WORKFLOW_CONFIG.defaultReviewerModel,
+        actual: routingDecision.reviewerModel
+      });
     }
 
     // Stage 5: MEMORY RETRIEVAL
     const relevantMemory = await MemoryEngine.retrieveRelevantMemory(
       normalizedInput.cleaned,
       context.sessionId || '',
+      context.userId,
       intentAnalysis
     );
     const memoryContext = MemoryEngine.getMemoryContext(relevantMemory);
 
     // Stage 6: AGENT FACTORY (with memory injection and context awareness)
     context.onStatusUpdate?.('routing', 'Creating agents...');
-    
+
     // Enhance context with context awareness and user info
     const enhancedContext = {
       ...personalizedContext,
@@ -194,7 +208,9 @@ export async function executeWorkflow(
       contextAwarenessSummary: contextAwareness ? ContextAwarenessEngine.generateContextSummary(contextAwareness) : undefined,
       userProfile: userProfile ? JSON.stringify(userProfile) : undefined,
       intentAnalysis: JSON.stringify(intentAnalysis),
-      userName: userProfile?.userName || contextAwareness?.user.name,
+      // Priority: context.userName (from Clerk) > userProfile > contextAwareness
+      userName: context.userName || userProfile?.userName || contextAwareness?.user.name,
+      userEmail: context.userEmail,
     };
 
     const agents = AgentFactory.createAgentsFromRouting(routingDecision, {
@@ -240,13 +256,18 @@ export async function executeWorkflow(
 
         stateMachine.transition('PLANNING', { model: routingDecision.plannerModel });
         context.onStatusUpdate?.('planning', 'Creating execution plan...');
-        
+
         plan = await agents.planner.execute(context, {
           prompt: normalizedInput.cleaned,
           preprocessed: {
             cleanedPrompt: normalizedInput.cleaned,
             intent: intentAnalysis.primaryIntent,
-            context: intentAnalysis.context,
+            context: {
+              hasCode: intentAnalysis.context.hasCode,
+              hasImages: intentAnalysis.context.hasImages,
+              framework: intentAnalysis.requirements.framework as Framework | undefined,
+              complexity: normalizedInput.wordCount < 50 ? 'simple' : normalizedInput.wordCount > 200 ? 'complex' : 'medium',
+            },
             metadata: {
               ...intentAnalysis.requirements,
               ...personalizedContext,
@@ -254,7 +275,7 @@ export async function executeWorkflow(
           },
         });
         stagesExecuted.push('plan');
-        
+
         if (WORKFLOW_CONFIG.logStages) {
           console.log('✅ PlannerAgent: Plan created using GPT-OSS-20B', {
             tasks: plan.tasks.length,
@@ -271,10 +292,42 @@ export async function executeWorkflow(
     let executionResult: ExecutionResult | null = null;
     let review: ReviewResult | null = null;
     let shouldRetry = false;
+    const MAX_TOTAL_ATTEMPTS = 10; // Circuit breaker to prevent infinite loops
+    let totalAttempts = 0;
 
     do {
       shouldRetry = false;
       executionAttempts++;
+      totalAttempts++;
+
+      // Circuit breaker - prevent infinite loop (highest priority check)
+      if (totalAttempts > MAX_TOTAL_ATTEMPTS) {
+        console.error('⚠️ Circuit breaker: Max total attempts exceeded', {
+          totalAttempts,
+          executionAttempts,
+          revisionAttempts,
+          maxTotal: MAX_TOTAL_ATTEMPTS
+        });
+        break;
+      }
+
+      // Safety check: execution attempts
+      if (executionAttempts > workflowDecision.maxRetries + 1) {
+        console.error('⚠️ Max execution attempts exceeded, stopping loop', {
+          executionAttempts,
+          maxRetries: workflowDecision.maxRetries
+        });
+        break;
+      }
+
+      // Safety check: revision attempts
+      if (revisionAttempts > workflowDecision.maxRevisions) {
+        console.error('⚠️ Max revision attempts exceeded, stopping loop', {
+          revisionAttempts,
+          maxRevisions: workflowDecision.maxRevisions
+        });
+        break;
+      }
 
       // Stage 8: EXECUTION - ALWAYS DEVSTRAL via ExecutorAgent
       // Update context awareness
@@ -291,13 +344,14 @@ export async function executeWorkflow(
         };
       }
 
-      stateMachine.transition('EXECUTING', { 
+      stateMachine.transition('EXECUTING', {
         attempt: executionAttempts,
         maxAttempts: workflowDecision.maxRetries + 1,
         revisionAttempts,
+        totalAttempts,
       });
       context.onStatusUpdate?.('executing', context.mode === 'builder' ? 'Building application...' : 'Writing response...');
-      
+
       executionResult = await agents.executor.execute(context, {
         plan,
       });
@@ -336,12 +390,12 @@ export async function executeWorkflow(
             };
           }
 
-          stateMachine.transition('REVIEWING', { 
+          stateMachine.transition('REVIEWING', {
             model: routingDecision.reviewerModel,
-            qualityScore: executionResult.metadata.qualityScore 
+            qualityScore: executionResult.metadata.qualityScore
           });
           context.onStatusUpdate?.('reviewing', 'Reviewing and improving quality...');
-          
+
           review = await agents.reviewer.execute(context, {
             executionResult,
             plan,
@@ -380,7 +434,7 @@ export async function executeWorkflow(
           // Check if needs revision
           if (reviewDecision.needsRevision || reviewDecision.rejected) {
             revisionAttempts++;
-            
+
             if (revisionAttempts <= workflowDecision.maxRevisions) {
               stateMachine.transition('REVISING', {
                 attempt: revisionAttempts,
@@ -388,7 +442,7 @@ export async function executeWorkflow(
                 reason: reviewDecision.revisionReason,
               });
               context.onStatusUpdate?.('revising', `Revision ${revisionAttempts}/${workflowDecision.maxRevisions}: ${reviewDecision.revisionReason || 'Quality too low'}`);
-              
+
               if (WORKFLOW_CONFIG.logStages) {
                 console.log('🔄 Review Decision: REVISION NEEDED', {
                   attempt: revisionAttempts,
@@ -400,13 +454,13 @@ export async function executeWorkflow(
 
               // Wait before retry
               await new Promise(resolve => setTimeout(resolve, WORKFLOW_CONFIG.revisionDelay));
-              
+
               // Retry execution with feedback
               shouldRetry = true;
-              
+
               // Enhance context with rejection feedback
               if (reviewDecision.revisionReason) {
-                context.prompt = `${normalizedInput.original}\n\n[REVISION FEEDBACK - Attempt ${revisionAttempts}]\n${reviewDecision.revisionReason}\n\nRecommendations:\n${reviewDecision.recommendations.join('\n')}\n\nPlease address these issues.`;
+                context.prompt = `${normalizedInput.original}\\n\\n[REVISION FEEDBACK - Attempt ${revisionAttempts}]\\n${reviewDecision.revisionReason}\\n\\nRecommendations:\\n${reviewDecision.recommendations.join('\\n')}\\n\\nPlease address these issues.`;
               }
 
               // Update context awareness for revision
@@ -422,7 +476,7 @@ export async function executeWorkflow(
                   contextAwarenessSummary: ContextAwarenessEngine.generateContextSummary(contextAwareness),
                 };
               }
-              
+
               // Use improved version if available
               if (ReviewDecisionEngine.shouldUseImprovedVersion(review, reviewDecision.qualityScore, workflowDecision.qualityThreshold)) {
                 const improved = ReviewDecisionEngine.getImprovedVersion(review);
@@ -434,7 +488,7 @@ export async function executeWorkflow(
                   }
                 }
               }
-              
+
               // Reset execution attempts for revision
               executionAttempts = 0;
             } else {
@@ -477,11 +531,11 @@ export async function executeWorkflow(
       if (!shouldRetry && executionAttempts < workflowDecision.maxRetries + 1) {
         const hasNoOutput = !executionResult.code && !executionResult.explanation;
         const isBuilderMode = context.mode === 'builder';
-        
+
         if (hasNoOutput && isBuilderMode) {
           shouldRetry = true;
           await new Promise(resolve => setTimeout(resolve, WORKFLOW_CONFIG.retryDelay));
-          
+
           if (WORKFLOW_CONFIG.logStages) {
             console.log('🔄 Executor failed - Retrying', {
               attempt: executionAttempts,
@@ -491,17 +545,12 @@ export async function executeWorkflow(
         }
       }
 
-      // Safety check: Prevent infinite loop
-      if (executionAttempts > workflowDecision.maxRetries + 1) {
-        console.error('⚠️ Max execution attempts exceeded, stopping loop');
-        shouldRetry = false;
-      }
-      if (revisionAttempts > workflowDecision.maxRevisions) {
-        console.error('⚠️ Max revision attempts exceeded, stopping loop');
-        shouldRetry = false;
-      }
-
-    } while (shouldRetry && executionAttempts <= workflowDecision.maxRetries + 1 && revisionAttempts <= workflowDecision.maxRevisions);
+    } while (
+      shouldRetry &&
+      executionAttempts <= workflowDecision.maxRetries + 1 &&
+      revisionAttempts <= workflowDecision.maxRevisions &&
+      totalAttempts <= MAX_TOTAL_ATTEMPTS
+    );
 
     // Stage 10: Prepare Result
     stateMachine.transition('DONE', {
@@ -544,7 +593,7 @@ export async function executeWorkflow(
     if (agents.reflection && executionResult) {
       try {
         context.onStatusUpdate?.('saving', 'Reflecting on execution...');
-        
+
         reflection = await agents.reflection.execute(context, {
           executionResult,
           reviewResult: review,
@@ -565,16 +614,16 @@ export async function executeWorkflow(
       } catch (error: any) {
         // Self-reflection is non-critical - log and continue
         const errorMessage = error?.message || String(error);
-        const isRateLimit = errorMessage.includes('Too Many Requests') || 
-                           errorMessage.includes('429') ||
-                           errorMessage.includes('rate limit');
-        
+        const isRateLimit = errorMessage.includes('Too Many Requests') ||
+          errorMessage.includes('429') ||
+          errorMessage.includes('rate limit');
+
         if (isRateLimit) {
           console.warn('⚠️ SelfReflectionAgent: Rate limited, skipping reflection (non-critical)');
         } else {
           console.error('⚠️ SelfReflectionAgent: Reflection failed (non-critical):', errorMessage);
         }
-        
+
         // Continue without reflection - workflow should not fail
         reflection = null;
       }
@@ -608,7 +657,7 @@ export async function executeWorkflow(
     }
 
     context.onStatusUpdate?.('completed', 'Completed!');
-    
+
     if (WORKFLOW_CONFIG.logStages) {
       console.log('✅ Workflow: Completed', {
         executionTime: result.metadata.executionTime,
@@ -628,16 +677,34 @@ export async function executeWorkflow(
     return result;
   } catch (error) {
     const executionTime = Date.now() - startTime;
-    console.error('Workflow error:', error);
-    
-    stateMachine.transition('ERROR', { error: error instanceof Error ? error.message : String(error) });
-    context.onStatusUpdate?.('error', 'Error occurred. Retrying...');
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
 
-    // Return error result
+    console.error('Workflow error:', {
+      message: errorMessage,
+      stack: errorStack,
+      stagesExecuted,
+      executionAttempts,
+      revisionAttempts,
+      mode: context.mode,
+      provider: context.provider,
+      framework: context.framework,
+      hadImages: (context.images?.length || 0) > 0,
+    });
+
+    stateMachine.transition('ERROR', {
+      error: errorMessage,
+      stagesExecuted,
+      executionAttempts,
+      revisionAttempts,
+    });
+    context.onStatusUpdate?.('error', `Error: ${errorMessage.substring(0, 100)}`);
+
+    // Return error result with detailed context
     return {
       response: context.mode === 'builder'
-        ? '// Error: Failed to process request. Please try again.'
-        : 'I apologize, but I encountered an error while processing your request. Please try again.',
+        ? `// Error: ${errorMessage}\n// Please try again or switch provider.\n// Stages completed: ${stagesExecuted.join(', ')}`
+        : `I apologize, but I encountered an error while processing your request.\n\nError: ${errorMessage}\n\nStages completed: ${stagesExecuted.join(', ')}\n\nPlease try again.`,
       metadata: {
         tokensUsed: totalTokensUsed,
         executionTime,
@@ -645,7 +712,8 @@ export async function executeWorkflow(
         stagesExecuted,
         executionAttempts,
         revisionAttempts,
-        finalState: 'ERROR',
+        finalState: 'ERROR' as WorkflowState,
+        errorMessage,
       },
     };
   }

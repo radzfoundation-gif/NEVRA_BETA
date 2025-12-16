@@ -7,46 +7,47 @@ export const WORKFLOW_CONFIG = {
   // Enable/disable workflow stages
   enablePlanner: true,
   enableReviewer: true,
-  
+
   // Skip stages for simple requests to save time and tokens
   skipPlannerForSimple: true,
   skipReviewerForSimple: true,
-  
+
   // Retry configuration
-  maxRetries: 2, // Max retries for executor
-  maxRevisions: 2, // Max revisions when reviewer rejects
-  retryDelay: 1000, // milliseconds
-  revisionDelay: 1500, // milliseconds between revisions
-  
-  // Timeout configuration (milliseconds)
-  timeout: 60000, // 60 seconds total
-  plannerTimeout: 15000, // 15 seconds for planning
-  executorTimeout: 30000, // 30 seconds for execution
-  reviewerTimeout: 15000, // 15 seconds for review
-  
+  maxRetries: 1, // Reduced from 2 for faster response
+  maxRevisions: 1, // Reduced from 2 for faster response
+  retryDelay: 500, // Reduced from 1000ms
+  revisionDelay: 500, // Reduced from 1500ms
+
+  // Timeout configuration (milliseconds) - OPTIMIZED FOR SPEED
+  timeout: 30000, // 30 seconds total (reduced from 60s)
+  plannerTimeout: 8000, // 8 seconds for planning (reduced from 15s)
+  executorTimeout: 15000, // 15 seconds for execution (reduced from 30s)
+  reviewerTimeout: 7000, // 7 seconds for review (reduced from 15s)
+
   // Quality thresholds
   qualityThreshold: 0.7, // Minimum quality score (0-1)
   requireReviewForLowQuality: true, // Force review if quality < threshold
-  
+
   // Complexity thresholds
   simpleRequestMaxLength: 100, // Characters
   simpleRequestKeywords: ['hello', 'hi', 'thanks', 'ok', 'yes', 'no'],
-  
-  // Model selection
-  defaultPlannerModel: 'anthropic' as const, // GPT-OSS-20B
-  defaultExecutorModel: 'deepseek' as const, // DEVSTRAL
-  defaultReviewerModel: 'anthropic' as const, // GPT-OSS-20B
-  
+
+  // Model selection - Use Groq for all stages (fast!)
+  defaultPlannerModel: 'groq' as const, // Groq Llama 3.3 70B
+  defaultExecutorModel: 'groq' as const, // Groq Llama 3.3 70B
+  defaultReviewerModel: 'groq' as const, // Groq Llama 3.3 70B
+
   // Memory configuration
   enableMemory: true,
+  enableMCP: process.env.NODE_ENV !== 'production', // Disable MCP in production (browser incompatible)
   maxMemoryEntries: 100, // Per session
   memoryRetrievalLimit: 5, // Number of past entries to retrieve
-  
+
   // Feature flags
   enableStreaming: false, // Stream responses (future feature)
   enableParallelExecution: false, // Execute some stages in parallel (future feature)
-  enableWorkflow: true, // Enable multi-stage workflow (set to false to use direct generation)
-  
+  enableWorkflow: true, // ENABLED with Groq (fast, no rate limit issues)
+
   // Debug mode
   debug: false,
   logStages: true,

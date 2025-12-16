@@ -53,7 +53,7 @@ export abstract class BaseAgent implements IAgent {
 
     let lastError: Error | null = null;
 
-    // Default maxRetries 5 for better resilience
+    // Default maxRetries 5 for faster response
     const effectiveMaxRetries = maxRetries === 3 ? 5 : maxRetries;
 
     for (let attempt = 0; attempt < effectiveMaxRetries; attempt++) {
@@ -76,9 +76,9 @@ export abstract class BaseAgent implements IAgent {
         // Handle rate limiting (429) and server errors (5xx) with retry
         if (response.status === 429 || (response.status >= 500 && response.status < 600)) {
           const retryAfter = response.headers.get('Retry-After');
-          // Exponential backoff with jitter: 2^attempt * 1000 + random(0-1000)
-          const baseWait = Math.min(1000 * Math.pow(2, attempt), 30000); // Max 30s
-          const jitter = Math.random() * 1000;
+          // Exponential backoff with jitter: start at 3s, max 60s
+          const baseWait = Math.min(3000 * Math.pow(2, attempt), 60000); // Start 3s, max 60s
+          const jitter = Math.random() * 2000;
           const waitTime = retryAfter
             ? parseInt(retryAfter, 10) * 1000
             : baseWait + jitter;

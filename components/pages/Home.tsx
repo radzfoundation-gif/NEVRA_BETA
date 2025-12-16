@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import Navbar from '../Navbar';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, ArrowRight, ChevronDown, Paperclip, X, AlertTriangle, Image as ImageIcon, Camera, ImagePlus, Layout } from 'lucide-react';
+import { Sparkles, ArrowRight, ChevronDown, Paperclip, X, AlertTriangle, Image as ImageIcon, Camera, ImagePlus, Layout, Phone } from 'lucide-react';
 import BentoGrid from '../BentoGrid';
 import Integrations from '../Integrations';
 import CTA from '../CTA';
@@ -21,6 +21,7 @@ import Sidebar from '../Sidebar';
 import SettingsModal from '../settings/SettingsModal';
 import TemplateBrowser from '../TemplateBrowser';
 import { Template } from '@/lib/templates';
+import VoiceCall from '../VoiceCall';
 
 import { User, ChevronLeft, Menu } from 'lucide-react';
 
@@ -32,6 +33,7 @@ const Home: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false); // Added state for settings modal
   const [showTemplateBrowser, setShowTemplateBrowser] = useState(false);
+  const [showVoiceCall, setShowVoiceCall] = useState(false); // Voice call state
 
   // Add effect to trigger animations for BentoGrid
   useEffect(() => {
@@ -167,7 +169,7 @@ const Home: React.FC = () => {
   const handleCameraCapture = async () => {
     let stream: MediaStream | null = null;
     let modal: HTMLElement | null = null;
-    
+
     const cleanup = () => {
       if (stream) {
         stream.getTracks().forEach(track => track.stop());
@@ -188,11 +190,11 @@ const Home: React.FC = () => {
     };
 
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ 
+      stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'environment' } // Use back camera on mobile
       });
       cameraStreamRef.current = stream;
-      
+
       // Create modal for camera preview
       modal = document.createElement('div');
       modal.className = 'fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-4';
@@ -211,65 +213,65 @@ const Home: React.FC = () => {
       `;
       document.body.appendChild(modal);
       cameraModalRef.current = modal;
-      
+
       const preview = modal.querySelector('#camera-preview') as HTMLVideoElement;
       if (!preview) {
         cleanup();
         return;
       }
       preview.srcObject = stream;
-      
+
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
       if (!ctx) {
         cleanup();
         return;
       }
-      
+
       const captureBtn = modal.querySelector('#capture-btn');
       const cancelBtn = modal.querySelector('#cancel-btn');
-      
+
       if (!captureBtn || !cancelBtn) {
         cleanup();
         return;
       }
-      
+
       const handleCapture = () => {
         if (attachedImages.length >= MAX_IMAGES) {
           alert(`Maximum ${MAX_IMAGES} images per request.`);
           cleanup();
           return;
         }
-        
+
         if (preview && ctx) {
           canvas.width = preview.videoWidth;
           canvas.height = preview.videoHeight;
           ctx.drawImage(preview, 0, 0);
-          
+
           const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
           setAttachedImages(prev => [...prev, dataUrl]);
         }
-        
+
         cleanup();
       };
-      
+
       const handleCancel = () => {
         cleanup();
       };
-      
+
       captureBtn.addEventListener('click', handleCapture);
       cancelBtn.addEventListener('click', handleCancel);
-      
+
       // Store listeners for cleanup
       cameraEventListenersRef.current = [
         { element: captureBtn as HTMLElement, event: 'click', handler: handleCapture },
         { element: cancelBtn as HTMLElement, event: 'click', handler: handleCancel }
       ];
-      
+
     } catch (error: unknown) {
       console.error('Error accessing camera:', error);
       let errorMessage = 'Unable to access camera.';
-      
+
       if (error instanceof DOMException) {
         if (error.name === 'NotAllowedError') {
           errorMessage = 'Camera access denied. Please allow camera access in your browser settings.';
@@ -279,7 +281,7 @@ const Home: React.FC = () => {
           errorMessage = 'Camera is being used by another application.';
         }
       }
-      
+
       alert(errorMessage);
       cleanup();
     }
@@ -303,9 +305,9 @@ const Home: React.FC = () => {
   // Detect mode from user prompt (same logic as ChatInterface)
   const detectMode = (text: string): 'builder' | 'tutor' => {
     if (!text || text.trim().length === 0) return 'tutor';
-    
+
     const lowerText = text.toLowerCase().trim();
-    
+
     // Exclusion patterns - these should NOT trigger builder mode even if they contain builder keywords
     // HIGHEST PRIORITY: Clear question patterns that should always be tutor mode
     const clearQuestionPatterns = [
@@ -318,13 +320,13 @@ const Home: React.FC = () => {
       // Learning intent
       /^(saya ingin belajar|saya perlu belajar|saya ingin tahu|saya perlu tahu|i want to learn|i need to learn)/i,
     ];
-    
+
     // Check clear question patterns FIRST (highest priority)
     const isClearQuestion = clearQuestionPatterns.some(pattern => pattern.test(text));
     if (isClearQuestion) {
       return 'tutor';
     }
-    
+
     const tutorOnlyPatterns = [
       // Schedule/Planning related (should be tutor mode)
       /jadwal|schedule|routine|plan|rencana|agenda|kalender|calendar/i,
@@ -338,13 +340,13 @@ const Home: React.FC = () => {
       /^tolong\s+(bantu|help|jelaskan|explain|ajarkan)/i,
       /^bantu\s+(saya|aku|me|i)/i,
     ];
-    
+
     // Check if text matches tutor-only patterns (second priority)
     const matchesTutorOnly = tutorOnlyPatterns.some(pattern => pattern.test(text));
     if (matchesTutorOnly) {
       return 'tutor';
     }
-    
+
     // Builder keywords - English and Indonesian (only for web/app development)
     const builderKeywords = [
       // English - specific tech phrases only
@@ -369,7 +371,7 @@ const Home: React.FC = () => {
       'warna kuning', 'warna merah', 'warna biru', 'yellow', 'red', 'blue', 'green', 'warna hijau',
       'add', 'tambah', 'hapus', 'remove', 'delete', 'tambah button', 'add button', 'tambah gambar'
     ];
-    
+
     // Tutor keywords - Questions and learning intent
     const tutorKeywords = [
       // English question words
@@ -395,7 +397,7 @@ const Home: React.FC = () => {
       'buatkan jadwal', 'buat jadwal', 'jadwal harian', 'daily schedule', 'morning routine',
       'evening routine', 'rutinitas', 'rutinitas pagi', 'rutinitas sore'
     ];
-    
+
     // Check for builder intent (only count if NOT in exclusion patterns)
     const builderScore = builderKeywords.reduce((score, keyword) => {
       if (lowerText.includes(keyword)) {
@@ -405,7 +407,7 @@ const Home: React.FC = () => {
           return match && match[0].toLowerCase().includes(keyword);
         });
         if (isExcluded) return score;
-        
+
         // Give higher weight to more specific keywords
         if (['buat web', 'buat website', 'buat aplikasi', 'build web', 'create website', 'make app'].includes(keyword)) {
           return score + 3;
@@ -414,7 +416,7 @@ const Home: React.FC = () => {
       }
       return score;
     }, 0);
-    
+
     // Check for tutor intent (questions)
     const tutorScore = tutorKeywords.reduce((score, keyword) => {
       if (lowerText.includes(keyword)) {
@@ -434,13 +436,13 @@ const Home: React.FC = () => {
       }
       return score;
     }, 0);
-    
+
     // Check for question mark (strong indicator of tutor mode)
     const hasQuestionMark = text.includes('?');
     if (hasQuestionMark && tutorScore > 0) {
       return 'tutor';
     }
-    
+
     // Check for imperative builder commands
     const imperativeBuilderPatterns = [
       /^buat\s+(web|website|aplikasi|app|halaman|situs)/i,
@@ -449,21 +451,21 @@ const Home: React.FC = () => {
       /^make\s+(web|website|app|application|page|site)/i,
       /^generate\s+(web|website|app|application|page|site)/i
     ];
-    
+
     const hasImperativeBuilder = imperativeBuilderPatterns.some(pattern => pattern.test(text));
     if (hasImperativeBuilder) {
       return 'builder';
     }
-    
+
     // Decision logic
     if (builderScore > tutorScore && builderScore > 0) {
       return 'builder';
     }
-    
+
     if (tutorScore > builderScore && tutorScore > 0) {
       return 'tutor';
     }
-    
+
     // If scores are equal or both zero, check for specific patterns
     if (builderScore === tutorScore) {
       // If text contains both, prioritize based on context
@@ -475,7 +477,7 @@ const Home: React.FC = () => {
         return 'builder';
       }
     }
-    
+
     // Default to tutor mode for general queries
     return 'tutor';
   };
@@ -674,7 +676,7 @@ const Home: React.FC = () => {
         {/* Hero Section */}
         <section className="relative flex-1 flex flex-col justify-center items-center min-h-[85vh] px-4 sm:px-6 md:px-6 pt-24 md:pt-32 pb-safe">
           <div className="max-w-3xl w-full relative z-10 flex flex-col items-center">
-            
+
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -716,7 +718,7 @@ const Home: React.FC = () => {
             {/* Search Bar - Removed overflow-hidden to fix dropdown */}
             <div className="relative w-full mb-4 animate-fade-in-up delay-100 group">
               <div className="relative bg-[#0a0a0a] border border-white/10 rounded-xl shadow-2xl transition-all duration-300 group-hover:border-white/20">
-                
+
                 {/* Attached Images Preview */}
                 {attachedImages.length > 0 && (
                   <div className="p-3 border-b border-white/5 bg-white/[0.02] rounded-t-xl">
@@ -750,8 +752,16 @@ const Home: React.FC = () => {
                     className={`w-full bg-transparent text-white text-base md:text-lg p-4 min-h-[60px] md:min-h-[80px] focus:outline-none resize-none placeholder-gray-500 font-sans ${attachedImages.length === 0 ? 'rounded-t-xl' : ''}`}
                     style={{ minHeight: '100px' }}
                   />
-                  
-                  <div className="absolute bottom-3 right-3">
+
+                  <div className="absolute bottom-3 right-3 flex items-center gap-2">
+                    <button
+                      onClick={() => setShowVoiceCall(true)}
+                      className="bg-gradient-to-br from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white rounded-lg p-2.5 md:p-2 transition-all shadow-lg hover:shadow-purple-500/50 min-w-[44px] min-h-[44px] flex items-center justify-center"
+                      aria-label="Voice Call"
+                      title="Voice Call with Nevra"
+                    >
+                      <Phone size={18} />
+                    </button>
                     <button
                       type="submit"
                       onClick={handleSearch}
@@ -776,7 +786,7 @@ const Home: React.FC = () => {
                       capture="environment"
                       onChange={handleFileChange}
                     />
-                    
+
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
@@ -815,7 +825,7 @@ const Home: React.FC = () => {
                       Auto
                     </div>
                   </div>
-                  
+
                   {isSignedIn && (
                     <TokenBadge
                       tokensUsed={tokensUsed}
@@ -830,21 +840,21 @@ const Home: React.FC = () => {
 
             {/* Quick Actions Buttons */}
             <div className="flex flex-wrap justify-center gap-2 md:gap-3 mt-4 animate-fade-in-up delay-200 px-2">
-              <button 
+              <button
                 onClick={() => fileInputRef.current?.click()}
                 className="flex items-center gap-2 px-3 md:px-4 py-2.5 md:py-2 bg-[#1a1a1a] hover:bg-[#252525] border border-white/10 rounded-lg text-xs md:text-sm text-gray-400 hover:text-white transition-all min-h-[44px]"
               >
                 <ImageIcon size={14} />
                 <span className="whitespace-nowrap">Clone a Screenshot</span>
               </button>
-              <button 
+              <button
                 onClick={() => setPrompt("Create a landing page for ")}
                 className="flex items-center gap-2 px-3 md:px-4 py-2.5 md:py-2 bg-[#1a1a1a] hover:bg-[#252525] border border-white/10 rounded-lg text-xs md:text-sm text-gray-400 hover:text-white transition-all min-h-[44px]"
               >
                 <Layout size={14} />
                 <span className="whitespace-nowrap">Landing Page</span>
               </button>
-              <button 
+              <button
                 onClick={() => setShowTemplateBrowser(true)}
                 className="flex items-center gap-2 px-3 md:px-4 py-2.5 md:py-2 bg-[#1a1a1a] hover:bg-[#252525] border border-white/10 rounded-lg text-xs md:text-sm text-gray-400 hover:text-white transition-all min-h-[44px]"
               >
@@ -866,16 +876,16 @@ const Home: React.FC = () => {
 
         {/* Community Section */}
         <div className="px-6 md:px-12 pb-12 w-full max-w-[1400px] mx-auto">
-            <div className="flex justify-between items-end mb-8 border-b border-white/5 pb-4">
-                <div>
-                    <h2 className="text-xl font-semibold text-white mb-1">From the Community</h2>
-                    <p className="text-sm text-gray-500">Explore what the community is building with Nevra.</p>
-                </div>
-                <button className="text-sm text-gray-500 hover:text-white transition-colors flex items-center gap-1">
-                  Browse All <ArrowRight size={14} />
-                </button>
+          <div className="flex justify-between items-end mb-8 border-b border-white/5 pb-4">
+            <div>
+              <h2 className="text-xl font-semibold text-white mb-1">From the Community</h2>
+              <p className="text-sm text-gray-500">Explore what the community is building with Nevra.</p>
             </div>
-            <BentoGrid />
+            <button className="text-sm text-gray-500 hover:text-white transition-colors flex items-center gap-1">
+              Browse All <ArrowRight size={14} />
+            </button>
+          </div>
+          <BentoGrid />
         </div>
 
         {/* Footer Sections - Reduced opacity to keep focus on top */}
@@ -892,6 +902,16 @@ const Home: React.FC = () => {
         onClose={() => setShowTemplateBrowser(false)}
         onSelectTemplate={handleTemplateSelect}
       />
+
+      {/* Voice Call Modal */}
+      {isSignedIn && (
+        <VoiceCall
+          isOpen={showVoiceCall}
+          onClose={() => setShowVoiceCall(false)}
+          provider={provider}
+          sessionId={undefined}
+        />
+      )}
     </div>
   );
 };

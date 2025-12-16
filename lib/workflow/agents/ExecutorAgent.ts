@@ -55,11 +55,15 @@ export class ExecutorAgent extends BaseAgent {
         ? JSON.parse(context.metadata.intentAnalysis)
         : null;
 
+      // Check if this is the first message in the session (no AI responses in history yet)
+      const isFirstMessage = !context.history || context.history.filter(m => m.role === 'ai').length === 0;
+
       const enhancedSystemPrompt = PromptEnhancer.enhanceSystemPrompt(
         baseSystemPrompt,
         contextAwareness,
         userProfile,
-        intentAnalysis || { primaryIntent: 'code_generation', confidence: 0.5, requirements: {}, context: { hasCode: false, hasImages: false, hasErrors: false, isFollowUp: false }, secondaryIntents: [] }
+        intentAnalysis || { primaryIntent: 'code_generation', confidence: 0.5, requirements: {}, context: { hasCode: false, hasImages: false, hasErrors: false, isFollowUp: false }, secondaryIntents: [] },
+        isFirstMessage // Only greet on first message
       );
 
       // Call LLM with enhanced prompt

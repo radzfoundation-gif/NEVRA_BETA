@@ -2,10 +2,12 @@ import { MemoryEntry, WorkflowResult } from '../types';
 import { saveToMemory, retrieveRelevantMemory } from '../memoryManager';
 import { IntentAnalysis } from '../analyzers/IntentAnalyzer';
 import { WORKFLOW_CONFIG } from '../config';
+import { getMCPClient } from '../../mcp/client';
 
 /**
  * Memory Engine
  * Enhanced memory management with intelligent retrieval and updates
+ * Now uses MCP for standardized resource access
  */
 export class MemoryEngine {
   /**
@@ -44,6 +46,26 @@ export class MemoryEngine {
         },
       };
 
+      // Try MCP first, fallback to direct save
+      if (userId && WORKFLOW_CONFIG.enableMCP) {
+        try {
+          const mcpClient = getMCPClient();
+          await mcpClient.saveUserMemory(userId, memoryEntry);
+
+          if (WORKFLOW_CONFIG.logStages) {
+            console.log('💾 MemoryEngine: Workflow result saved via MCP', {
+              sessionId,
+              intent: intentAnalysis.primaryIntent,
+              qualityScore: result.metadata?.qualityScore,
+            });
+          }
+          return;
+        } catch (mcpError) {
+          console.warn('MCP save failed, falling back to direct save:', mcpError);
+        }
+      }
+
+      // Fallback to direct save
       await saveToMemory(memoryEntry);
 
       if (WORKFLOW_CONFIG.logStages) {
@@ -65,6 +87,7 @@ export class MemoryEngine {
   static async retrieveRelevantMemory(
     prompt: string,
     sessionId: string,
+    userId: string | undefined,
     intentAnalysis: IntentAnalysis,
     limit: number = WORKFLOW_CONFIG.memoryRetrievalLimit
   ): Promise<MemoryEntry[]> {
@@ -73,8 +96,29 @@ export class MemoryEngine {
     }
 
     try {
-      // Retrieve from memory manager
-      const memories = await retrieveRelevantMemory(prompt, sessionId, limit);
+      let memories: MemoryEntry[] = [];
+
+      // Try MCP first if enabled and userId available
+      if (userId && WORKFLOW_CONFIG.enableMCP) {
+        try {
+          const mcpClient = getMCPClient();
+          memories = await mcpClient.getUserMemories(userId, limit);
+
+          if (WORKFLOW_CONFIG.logStages) {
+            console.log('🔍 MemoryEngine: Retrieved memories via MCP', {
+              total: memories.length,
+              userId,
+            });
+          }
+        } catch (mcpError) {
+          console.warn('MCP retrieval failed, falling back to direct retrieval:', mcpError);
+        }
+      }
+
+      // Fallback to direct retrieval if MCP failed or not enabled
+      if (memories.length === 0) {
+        memories = await retrieveRelevantMemory(prompt, sessionId, userId, limit);
+      }
 
       // Filter and rank by relevance
       const relevantMemories = this.rankByRelevance(memories, intentAnalysis);

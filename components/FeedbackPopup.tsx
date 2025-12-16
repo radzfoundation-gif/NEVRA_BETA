@@ -1,12 +1,18 @@
 import React, { useState } from 'react';
 import { Star, X, MessageSquare, Send } from 'lucide-react';
-import { markFeedbackGiven } from '@/lib/database';
+// Firebase handles feedback tracking - using localStorage as fallback
 import { useUser } from '@clerk/clerk-react';
 
 interface FeedbackPopupProps {
     isOpen: boolean;
     onClose: () => void;
 }
+
+// Local helper to mark feedback as given
+const markFeedbackGiven = async (userId: string) => {
+    // Store in localStorage as simple tracking
+    localStorage.setItem(`feedback_given_${userId}`, 'true');
+};
 
 const FeedbackPopup: React.FC<FeedbackPopupProps> = ({ isOpen, onClose }) => {
     const { user } = useUser();
@@ -35,7 +41,7 @@ const FeedbackPopup: React.FC<FeedbackPopupProps> = ({ isOpen, onClose }) => {
             // 2. Open WhatsApp
             window.open(whatsappUrl, '_blank');
 
-            // 3. Mark feedback as given in DB
+            // 3. Mark feedback as given locally
             if (user) {
                 await markFeedbackGiven(user.id);
             }
@@ -82,8 +88,8 @@ const FeedbackPopup: React.FC<FeedbackPopupProps> = ({ isOpen, onClose }) => {
                                 <Star
                                     size={32}
                                     className={`transition-colors ${star <= (hoveredRating || rating)
-                                            ? 'fill-yellow-400 text-yellow-400'
-                                            : 'text-gray-600'
+                                        ? 'fill-yellow-400 text-yellow-400'
+                                        : 'text-gray-600'
                                         }`}
                                 />
                             </button>
