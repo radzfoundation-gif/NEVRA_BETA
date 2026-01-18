@@ -1,6 +1,6 @@
-// Token limit and subscription management hooks with Supabase Realtime
+// Token limit and subscription management hooks with Supabase direct fetch
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useUser } from '@/lib/authContext';
 import { supabase } from '@/lib/supabase';
 
@@ -28,40 +28,58 @@ export function useTokenLimit() {
     });
     const [isSubscribed, setIsSubscribed] = useState(false);
     const [loading, setLoading] = useState(false);
+    const lastFetchRef = useRef<number>(0);
 
     // Soft limit warning (when <= 5 credits remain)
     const softLimitReached = !isSubscribed && usage.credits <= 5 && usage.credits > 0;
 
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8788';
 
-    // Fetch subscription directly from Supabase for real-time accuracy
-    const fetchSubscriptionFromSupabase = useCallback(async () => {
+    // Fetch subscription directly from Supabase - PRIMARY source of truth
+    const fetchSubscriptionFromSupabase = useCallback(async (force = false) => {
         if (!user?.id) return;
 
+        // Debounce: Don't fetch more than once per 5 seconds unless forced
+        const now = Date.now();
+        if (!force && now - lastFetchRef.current < 5000) {
+            return;
+        }
+        lastFetchRef.current = now;
+
         try {
+            console.log('[TokenLimit] Fetching subscription from Supabase...');
+
             const { data, error } = await supabase
                 .from('subscriptions')
                 .select('*')
                 .eq('user_id', user.id)
                 .maybeSingle();
 
-            if (!error && data) {
-                const isPro = data.tier === 'pro';
+            if (error) {
+                console.error('[TokenLimit] Supabase error:', error);
+                return;
+            }
+
+            if (data) {
+                let isPro = data.tier === 'pro';
 
                 // Check if Pro has expired
                 if (isPro && data.expires_at) {
                     const expiryDate = new Date(data.expires_at);
                     if (expiryDate < new Date()) {
-                        setIsSubscribed(false);
-                        setUsage(prev => ({ ...prev, tier: 'free' }));
+                        isPro = false;
                         console.log('[TokenLimit] Pro subscription expired');
-                        return;
                     }
                 }
 
                 setIsSubscribed(isPro);
                 setUsage(prev => ({ ...prev, tier: isPro ? 'pro' : 'free' }));
-                console.log(`[TokenLimit] Subscription synced: ${isPro ? 'PRO' : 'FREE'}`);
+                console.log(`[TokenLimit] ✅ Subscription synced from Supabase: ${isPro ? 'PRO' : 'FREE'}`);
+            } else {
+                // No subscription record - create one
+                console.log('[TokenLimit] No subscription found, creating free tier...');
+                setIsSubscribed(false);
+                setUsage(prev => ({ ...prev, tier: 'free' }));
             }
         } catch (e) {
             console.error('[TokenLimit] Failed to fetch subscription from Supabase', e);
@@ -71,6 +89,10 @@ export function useTokenLimit() {
     const refreshLimit = useCallback(async () => {
         if (!user?.id) return;
         setLoading(true);
+
+        // First, always fetch from Supabase directly for subscription status
+        await fetchSubscriptionFromSupabase(true);
+
         try {
             const res = await fetch(`${apiUrl}/api/user/feature-usage?userId=${user.id}`);
             if (res.ok) {
@@ -79,90 +101,62 @@ export function useTokenLimit() {
                 const isPro = newTier === 'pro';
 
                 setUsage({
-                    used: data.used,
-                    limit: data.limit,
-                    credits: data.credits,
+                    used: data.used || 0,
+                    limit: data.limit || DAILY_CREDIT_LIMIT,
+                    credits: data.credits || 20,
                     tier: newTier
                 });
 
                 setIsSubscribed(isPro);
             }
         } catch (e) {
-            console.error('Failed to refresh limits', e);
-            // Fallback: fetch directly from Supabase
-            await fetchSubscriptionFromSupabase();
+            console.error('Failed to refresh limits from API, using Supabase data');
+            // Supabase fetch already done above
         } finally {
             setLoading(false);
         }
     }, [user?.id, apiUrl, fetchSubscriptionFromSupabase]);
 
-    // Initial fetch + polling
+    // Initial fetch + polling every 30 seconds for better sync
     useEffect(() => {
         if (!user?.id) return;
+
+        // Immediate fetch
+        fetchSubscriptionFromSupabase(true);
         refreshLimit();
-        const interval = setInterval(refreshLimit, 60000); // 1 minute polling
-        return () => clearInterval(interval);
-    }, [refreshLimit, user?.id]);
 
-    // REALTIME: Subscribe to subscription changes in Supabase
+        // Poll every 30 seconds for near-realtime sync
+        const interval = setInterval(() => {
+            fetchSubscriptionFromSupabase(true);
+        }, 30000);
+
+        return () => clearInterval(interval);
+    }, [fetchSubscriptionFromSupabase, refreshLimit, user?.id]);
+
+    // Also fetch when window gains focus (user comes back to tab)
     useEffect(() => {
         if (!user?.id) return;
 
-        console.log('[TokenLimit] Setting up realtime subscription for:', user.id);
+        const handleFocus = () => {
+            console.log('[TokenLimit] Window focused - syncing subscription...');
+            fetchSubscriptionFromSupabase(true);
+        };
 
-        const channel = supabase
-            .channel(`subscription-${user.id}`)
-            .on(
-                'postgres_changes',
-                {
-                    event: '*', // Listen to INSERT, UPDATE, DELETE
-                    schema: 'public',
-                    table: 'subscriptions',
-                    filter: `user_id=eq.${user.id}`
-                },
-                (payload) => {
-                    console.log('[TokenLimit] Realtime update received:', payload);
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                console.log('[TokenLimit] Tab visible - syncing subscription...');
+                fetchSubscriptionFromSupabase(true);
+            }
+        };
 
-                    if (payload.eventType === 'DELETE') {
-                        setIsSubscribed(false);
-                        setUsage(prev => ({ ...prev, tier: 'free' }));
-                    } else {
-                        const newData = payload.new as any;
-                        const isPro = newData?.tier === 'pro';
-
-                        // Check expiry
-                        if (isPro && newData?.expires_at) {
-                            const expiryDate = new Date(newData.expires_at);
-                            if (expiryDate < new Date()) {
-                                setIsSubscribed(false);
-                                setUsage(prev => ({ ...prev, tier: 'free' }));
-                                console.log('[TokenLimit] Realtime: Pro expired');
-                                return;
-                            }
-                        }
-
-                        setIsSubscribed(isPro);
-                        setUsage(prev => ({ ...prev, tier: isPro ? 'pro' : 'free' }));
-                        console.log(`[TokenLimit] Realtime: Updated to ${isPro ? 'PRO' : 'FREE'}`);
-                    }
-                }
-            )
-            .subscribe((status) => {
-                console.log('[TokenLimit] Realtime subscription status:', status);
-            });
+        window.addEventListener('focus', handleFocus);
+        document.addEventListener('visibilitychange', handleVisibilityChange);
 
         return () => {
-            console.log('[TokenLimit] Cleaning up realtime subscription');
-            supabase.removeChannel(channel);
+            window.removeEventListener('focus', handleFocus);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
-    }, [user?.id]);
-
-    // Also fetch from Supabase directly on mount for immediate sync
-    useEffect(() => {
-        if (user?.id) {
-            fetchSubscriptionFromSupabase();
-        }
-    }, [user?.id, fetchSubscriptionFromSupabase]);
+    }, [fetchSubscriptionFromSupabase, user?.id]);
 
     // Check if user has enough credits for a feature
     const checkFeatureLimit = useCallback((featureType: FeatureType) => {
