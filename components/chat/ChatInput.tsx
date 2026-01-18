@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { useTokenLimit } from '@/hooks/useTokenLimit';
 import { FREE_TOKEN_LIMIT } from '@/lib/tokenLimit';
 import { ParsedDocument } from '@/lib/documentParser';
 import { AppMode } from '@/lib/modeDetector';
@@ -69,6 +70,9 @@ const ChatInput: React.FC<ChatInputProps> = ({
     uploadedDocument,
     messagesLength
 }) => {
+    const { credits } = useTokenLimit();
+
+
     const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
     const [showToolsMenu, setShowToolsMenu] = useState(false);
     const [isFocused, setIsFocused] = useState(false);
@@ -244,8 +248,13 @@ const ChatInput: React.FC<ChatInputProps> = ({
                 </div>
 
                 {/* Footer Info */}
-                <div className="text-center mt-2">
-                    <span className="text-xs text-zinc-400">
+                <div className="text-center mt-2 flex flex-col items-center gap-1">
+                    {!isSubscribed && (
+                        <span className="text-[10px] font-medium text-zinc-600 dark:text-zinc-300 bg-white/50 dark:bg-black/40 px-2 py-0.5 rounded-full backdrop-blur-sm transition-colors border border-black/5 dark:border-white/10">
+                            {typeof credits === 'number' ? `${credits} prompts remaining today` : 'Unlimited prompts'}
+                        </span>
+                    )}
+                    <span className="text-[10px] text-zinc-400">
                         Nevra can make mistakes. Check important info.
                     </span>
                 </div>

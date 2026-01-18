@@ -23,16 +23,7 @@ import nodemailer from 'nodemailer';
 import { createClient } from '@supabase/supabase-js';
 
 
-// Feature Limits (for Free Tier) - Defined globally to prevent ReferenceErrors
-const FEATURE_LIMITS = {
-  chat: { limit: 100, period: 'day' },
-  convert: { limit: 5, period: 'month' }, // PDF/Docs
-  youtube: { limit: 10, period: 'day' },
-  audio: { limit: 10, period: 'day' },
-  redesign: { limit: 5, period: 'month' },
-  image: { limit: 10, period: 'day' },
-  knowledge: { limit: 20, period: 'month' }
-};
+// Feature Limits handled by new configuration below
 
 // Supabase Client for Backend
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -305,185 +296,122 @@ app.get('/api/cron/reset', (req, res) => {
     res.status(500).json({ error: 'Failed to reset usage', details: error.message });
   }
 });
-const DAILY_CREDIT_LIMIT = 20; // Free users get 20 credits/day
-const TOKENS_PER_REQUEST = 1;  // Legacy fallback, usage is now credit-based
-
-const tokenStorageFile = path.join(__dirname, 'usage_data.json');
-
-// Feature Costs (Weights)
-const FEATURE_COSTS = {
-  chat: 1,
-  convert: 3, // PDF/Docs
-  youtube: 2,
-  audio: 2,
-  redesign: 5,
-  image: 5,
-  knowledge: 2
+// NEW FEATURE LIMITS (Configurable)
+const FEATURE_LIMITS = {
+  free: {
+    chat: { limit: 10, period: 'day' },
+    convert: { limit: 3, period: 'month' },
+    redesign: { limit: 3, period: 'month' },
+    logo: { limit: 3, period: 'month' }
+  },
+  pro: {
+    chat: { limit: 999999, period: 'day' },
+    convert: { limit: 999999, period: 'month' },
+    redesign: { limit: 999999, period: 'month' },
+    logo: { limit: 999999, period: 'month' }
+  }
 };
 
-
-
-// Cron logic moved to /api/cron/reset for Vercel compatibility
-
-const getUserUsage = (userId) => {
-  try {
-    if (!fs.existsSync(tokenStorageFile)) return { used: 0, limit: DAILY_CREDIT_LIMIT };
-    const data = JSON.parse(fs.readFileSync(tokenStorageFile, 'utf8'));
-
-    // Check if we need a lazy reset (if server was down during cron)
-    const userUsage = data[userId] || { used: 0, limit: DAILY_CREDIT_LIMIT, lastReset: new Date().toISOString() };
-    const lastResetDate = userUsage.lastReset ? new Date(userUsage.lastReset).toDateString() : '';
-    const todayDate = new Date().toDateString();
-
-    if (lastResetDate !== todayDate) {
-      // Lazy reset
-      userUsage.used = 0;
-      userUsage.lastReset = new Date().toISOString();
-      // Update file
-      data[userId] = userUsage;
-      fs.writeFileSync(tokenStorageFile, JSON.stringify(data, null, 2));
-    }
-
-    return { ...userUsage, limit: DAILY_CREDIT_LIMIT };
-  } catch (e) { return { used: 0, limit: DAILY_CREDIT_LIMIT }; }
+const getPeriodString = (period) => {
+  const d = new Date();
+  const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  if (period === 'day') return `${month}-${String(d.getDate()).padStart(2, '0')}`;
+  return month;
 };
 
-const updateUserUsage = (userId, cost) => {
-  try {
-    let data = {};
-    if (fs.existsSync(tokenStorageFile)) {
-      data = JSON.parse(fs.readFileSync(tokenStorageFile, 'utf8'));
-    }
-    const current = data[userId] || { used: 0, limit: DAILY_CREDIT_LIMIT, lastReset: new Date().toISOString() };
+// Check Feature Usage (Supabase Only)
+const checkFeatureUsage = async (userId, feature) => {
+  if (!supabase) return { allowed: true, limit: 999, used: 0 };
 
-    // Simple addition
-    data[userId] = {
-      ...current,
-      used: current.used + cost,
-      lastReset: current.lastReset || new Date().toISOString()
+  const tier = await getUserTier(userId);
+  const userLimits = FEATURE_LIMITS[tier] || FEATURE_LIMITS.free;
+  const config = userLimits[feature] || userLimits.chat;
+
+  const periodKey = getPeriodString(config.period);
+  const storageKey = `${periodKey}_${feature}`; // stored in 'month' column
+
+  try {
+    const { data } = await supabase
+      .from('token_usage')
+      .select('tokens_used')
+      .eq('user_id', userId)
+      .eq('month', storageKey)
+      .maybeSingle();
+
+    const used = data?.tokens_used || 0;
+
+    if (tier === 'pro') return { allowed: true, limit: config.limit, used, tier };
+
+    return {
+      allowed: used < config.limit,
+      limit: config.limit,
+      used,
+      tier
     };
-
-    fs.writeFileSync(tokenStorageFile, JSON.stringify(data, null, 2));
-  } catch (e) { console.error('Error saving usage:', e); }
-};
-
-// --- Canvas Analyze Limit Management (Supabase with file fallback) ---
-
-const getCurrentPeriodKey = (period) => {
-  const now = new Date();
-  if (period === 'day') {
-    return `${now.getFullYear()} - ${String(now.getMonth() + 1).padStart(2, '0')
-      } -${String(now.getDate()).padStart(2, '0')} `;
-  } else {
-    return `${now.getFullYear()} -${String(now.getMonth() + 1).padStart(2, '0')} `;
-  }
-};
-
-const getFeatureUsage = async (userId, featureType) => {
-  console.log(`[Debug] getFeatureUsage call for ${userId} ${featureType}`);
-  // Debug scope
-  if (typeof FEATURE_LIMITS === 'undefined') {
-    console.error('❌ FEATURE_LIMITS is UNDEFINED in this scope!');
-  } else {
-    console.log('✅ FEATURE_LIMITS is available:', Object.keys(FEATURE_LIMITS));
-  }
-
-  const config = FEATURE_LIMITS[featureType];
-  if (!config) return { used: 0, limit: 0, exceeded: false };
-
-  const periodKey = getCurrentPeriodKey(config.period);
-  const storageKey = `${userId}_${featureType}_${periodKey} `;
-
-  // Try Supabase first
-  if (supabase) {
-    try {
-      const { data } = await supabase
-        .from('feature_usage')
-        .select('count')
-        .eq('user_id', userId)
-        .eq('feature_type', featureType)
-        .eq('period_key', periodKey)
-        .single();
-
-      const used = data?.count || 0;
-      return { used, limit: config.limit, exceeded: used >= config.limit, period: config.period };
-    } catch (e) {
-      // Record doesn't exist yet
-      return { used: 0, limit: config.limit, exceeded: false, period: config.period };
-    }
-  }
-
-  // File fallback
-  try {
-    if (!fs.existsSync(featureUsageStorageFile)) {
-      return { used: 0, limit: config.limit, exceeded: false, period: config.period };
-    }
-    const data = JSON.parse(fs.readFileSync(featureUsageStorageFile, 'utf8'));
-    const used = data[storageKey] || 0;
-    return { used, limit: config.limit, exceeded: used >= config.limit, period: config.period };
   } catch (e) {
-    return { used: 0, limit: config.limit, exceeded: false, period: config.period };
+    console.warn(`Usage check failed for ${userId}:`, e);
+    return { allowed: true, limit: config.limit, used: 0, tier: 'free' };
   }
 };
 
-const incrementFeatureUsage = async (userId, featureType) => {
-  const config = FEATURE_LIMITS[featureType];
-  if (!config) return false;
+// Increment Feature Usage
+const incrementFeatureUsage = async (userId, feature) => {
+  if (!supabase) return;
 
-  const periodKey = getCurrentPeriodKey(config.period);
+  const tier = await getUserTier(userId);
+  const userLimits = FEATURE_LIMITS[tier] || FEATURE_LIMITS.free;
+  const config = userLimits[feature] || userLimits.chat;
 
-  // Try Supabase
-  if (supabase) {
-    try {
-      const { data: existing } = await supabase
-        .from('feature_usage')
-        .select('count')
-        .eq('user_id', userId)
-        .eq('feature_type', featureType)
-        .eq('period_key', periodKey)
-        .single();
+  const periodKey = getPeriodString(config.period);
+  const storageKey = `${periodKey}_${feature}`;
 
-      if (existing) {
-        await supabase
-          .from('feature_usage')
-          .update({ count: existing.count + 1 })
-          .eq('user_id', userId)
-          .eq('feature_type', featureType)
-          .eq('period_key', periodKey);
-      } else {
-        await supabase
-          .from('feature_usage')
-          .insert({ user_id: userId, feature_type: featureType, period_key: periodKey, count: 1 });
-      }
-      console.log(`📊 Feature usage: ${userId} ${featureType} incremented`);
-      return true;
-    } catch (e) {
-      console.warn('Feature usage increment failed on Supabase:', e.message);
-    }
-  }
-
-  // File fallback
   try {
-    let data = {};
-    if (fs.existsSync(featureUsageStorageFile)) {
-      data = JSON.parse(fs.readFileSync(featureUsageStorageFile, 'utf8'));
-    }
-    const storageKey = `${userId}_${featureType}_${periodKey} `;
-    data[storageKey] = (data[storageKey] || 0) + 1;
-    fs.writeFileSync(featureUsageStorageFile, JSON.stringify(data, null, 2));
-    console.log(`📊 Feature usage(file): ${userId} ${featureType} = ${data[storageKey]} `);
-    return true;
+    const { data } = await supabase
+      .from('token_usage')
+      .select('tokens_used')
+      .eq('user_id', userId)
+      .eq('month', storageKey)
+      .maybeSingle();
+
+    const current = data?.tokens_used || 0;
+
+    await supabase.from('token_usage').upsert({
+      user_id: userId,
+      month: storageKey,
+      tokens_used: current + 1,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'user_id, month' });
+
   } catch (e) {
-    console.error('Error incrementing feature usage:', e);
-    return false;
+    console.error(`Usage increment failed for ${userId}:`, e);
   }
 };
+
+// Compatibility Wrappers (async)
+const getUserUsage = async (userId) => {
+  const check = await checkFeatureUsage(userId, 'chat');
+  return { used: check.used, limit: check.limit, allowed: check.allowed, tier: check.tier };
+};
+
+const updateUserUsage = async (userId, amount) => {
+  // Map legacy 'tokens' (prompts) to 'chat' increment
+  if (amount > 0) {
+    await incrementFeatureUsage(userId, 'chat');
+  }
+};
+
+// Legacy Feature Usage Logic Removed - Replaced by checkFeatureUsage above
 
 const getAllFeatureUsage = async (userId) => {
-  const chat = await getFeatureUsage(userId, 'chat');
-  const convert = await getFeatureUsage(userId, 'convert');
-  const redesign = await getFeatureUsage(userId, 'redesign');
-  return { chat, convert, redesign };
+  const chat = await checkFeatureUsage(userId, 'chat');
+  const convert = await checkFeatureUsage(userId, 'convert');
+  const youtube = await checkFeatureUsage(userId, 'youtube');
+  const audio = await checkFeatureUsage(userId, 'audio');
+  const redesign = await checkFeatureUsage(userId, 'redesign');
+  const image = await checkFeatureUsage(userId, 'image');
+  const knowledge = await checkFeatureUsage(userId, 'knowledge');
+
+  return { chat, convert, youtube, audio, redesign, image, knowledge };
 };
 
 // Usage Endpoint (includes feature usage)
@@ -1289,78 +1217,20 @@ const getCurrentMonth = () => {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 };
 
-// Get user subscription (Check BOTH Supabase and file, sync Pro from file to Supabase)
+// Load/Get Subscription (Supabase Only)
 const getUserSubscription = async (userId) => {
-  let supabaseData = null;
-  let fileData = null;
-
-  // Try Supabase
-  if (supabase) {
-    try {
-      const { data, error } = await supabase
-        .from('subscriptions')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
-
-      if (data && !error) {
-        // Check expiry
-        if (data.expires_at && new Date(data.expires_at) < new Date()) {
-          // Expired, update to free
-          await supabase.from('subscriptions').update({ tier: 'free', expires_at: null }).eq('user_id', userId);
-          supabaseData = { tier: 'free' };
-        } else {
-          supabaseData = data;
-        }
-      }
-    } catch (e) {
-      console.warn('Supabase subscription fetch failed:', e.message);
-    }
-  }
-
-  // Check file storage
+  if (!supabase) return null;
   try {
-    if (fs.existsSync(subscriptionStorageFile)) {
-      const data = JSON.parse(fs.readFileSync(subscriptionStorageFile, 'utf8'));
-      const subscription = data[userId];
-      if (subscription && (!subscription.expiresAt || new Date(subscription.expiresAt) >= new Date())) {
-        fileData = subscription;
-      }
-    }
-  } catch (e) {
-    console.error('Error reading subscription file:', e);
+    const { data } = await supabase.from('subscriptions').select('*').eq('user_id', userId).maybeSingle();
+    return data;
+  } catch (error) {
+    console.error('Error fetching subscription:', error);
+    return null;
   }
-
-  // Priority: If FILE has Pro but Supabase doesn't, sync to Supabase
-  if (fileData?.tier === 'pro' && supabaseData?.tier !== 'pro') {
-    console.log(`🔄 Syncing Pro subscription from file to Supabase for ${userId}`);
-    if (supabase) {
-      try {
-        await supabase.from('subscriptions').upsert({
-          user_id: userId,
-          tier: 'pro',
-          expires_at: fileData.expiresAt || null,
-          activated_at: fileData.activatedAt || new Date().toISOString(),
-          midtrans_order_id: fileData.orderId || null
-        }, { onConflict: 'user_id' });
-        console.log(`✅ Pro subscription synced to Supabase for ${userId}`);
-      } catch (e) {
-        console.error('Failed to sync to Supabase:', e.message);
-      }
-    }
-    return fileData; // Return Pro from file
-  }
-
-  // Return Supabase data if available
-  if (supabaseData) return supabaseData;
-
-  // Fallback to file data
-  return fileData;
 };
 
-// Save subscription (Supabase + file)
+// Save subscription (Supabase Only)
 const saveSubscription = async (userId, tier, expiresAt = null, orderId = null) => {
-  // Try Supabase
   if (supabase) {
     try {
       const { error } = await supabase.from('subscriptions').upsert({
@@ -1376,24 +1246,10 @@ const saveSubscription = async (userId, tier, expiresAt = null, orderId = null) 
         return true;
       }
     } catch (e) {
-      console.warn('Supabase subscription save failed, using file fallback:', e.message);
+      console.warn('Supabase subscription save failed:', e.message);
     }
   }
-
-  // File fallback
-  try {
-    let data = {};
-    if (fs.existsSync(subscriptionStorageFile)) {
-      data = JSON.parse(fs.readFileSync(subscriptionStorageFile, 'utf8'));
-    }
-    data[userId] = { tier, expiresAt, activatedAt: new Date().toISOString(), orderId };
-    fs.writeFileSync(subscriptionStorageFile, JSON.stringify(data, null, 2));
-    console.log(`✅ File: Subscription saved for ${userId}: ${tier}`);
-    return true;
-  } catch (e) {
-    console.error('Error saving subscription:', e);
-    return false;
-  }
+  return false;
 };
 
 // Get user tier (async)
@@ -1401,10 +1257,14 @@ async function getUserTier(userId) {
   if (!userId) return 'free';
   try {
     const subscription = await getUserSubscription(userId);
-    if (subscription && subscription.tier === 'pro') return 'pro';
+    if (subscription && subscription.tier === 'pro') {
+      if (subscription.expires_at && new Date(subscription.expires_at) < new Date()) {
+        return 'free'; // Expired
+      }
+      return 'pro';
+    }
     return 'free';
   } catch (error) {
-    console.error('Error getting user tier:', error);
     return 'free';
   }
 }
@@ -1622,34 +1482,19 @@ app.post('/api/generate', async (req, res) => {
 
   // --- TOKEN LIMIT CHECK ---
   if (userId) {
-    // Define Usage/Request Limits (distinct from Max Tokens context window)
-    const USAGE_LIMITS = {
-      free: 150,      // Limited requests for free users
-      normal: 300,    // Intermediate
-      pro: 1000000    // Effectively unlimited
-    };
+    // New Feature-Based Limit (Supabase)
+    const usageCheck = await checkFeatureUsage(userId, 'chat');
 
-    // ALWAYS fetch the actual tier from database/file storage
-    // Do NOT trust the frontend's userTier claim for limit enforcement
-    const actualTier = await getUserTier(userId);
-
-    // Get usage data
-    const usage = await getUserUsage(userId);
-
-    // Determine the limit based on the ACTUAL tier
-    const usageLimit = USAGE_LIMITS[actualTier] || USAGE_LIMITS.free;
-
-    // Check if limit is exceeded
-    if (usage.used >= usageLimit) {
-      console.warn(`[TokenLimit] User ${userId} exceeded ${actualTier} limit (${usage.used}/${usageLimit})`);
+    if (!usageCheck.allowed) {
+      console.warn(`[TokenLimit] User ${userId} exceeded ${usageCheck.tier} chat limit (${usageCheck.used}/${usageCheck.limit})`);
       return sendResponse(403, {
-        error: `${actualTier === 'free' ? 'Free' : actualTier} usage limit exceeded`,
+        error: `Daily chat limit exceeded (${usageCheck.limit} prompts/day). Please upgrade to Pro for unlimited access.`,
         code: 'TOKEN_LIMIT_EXCEEDED',
-        usage: { used: usage.used, limit: usageLimit, tier: actualTier }
+        usage: { used: usageCheck.used, limit: usageCheck.limit, tier: usageCheck.tier }
       });
     }
 
-    console.log(`[TokenLimit] User ${userId}: ${usage.used}/${usageLimit} (Tier: ${actualTier})`);
+    console.log(`[TokenLimit] User ${userId}: ${usageCheck.used}/${usageCheck.limit} prompts (Tier: ${usageCheck.tier})`);
   }
   // -------------------------
 
@@ -2373,6 +2218,17 @@ app.post('/api/search', async (req, res) => {
 // Document parsing endpoint
 app.post('/api/parse-document', upload.single('file'), async (req, res) => {
   try {
+    const userId = req.headers['x-user-id'] || req.body.userId;
+    // Check limit (3/month default for free)
+    if (userId) {
+      const usageResult = await checkFeatureUsage(userId, 'convert'); // 'convert' fits document parsing
+      if (!usageResult.allowed) {
+        // If file was uploaded, delete it
+        if (req.file) fs.unlinkSync(req.file.path);
+        return res.status(403).json({ error: 'Monthly document limit reached', upgrade: true });
+      }
+    }
+
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
@@ -2492,6 +2348,9 @@ app.post('/api/parse-document', upload.single('file'), async (req, res) => {
         }
       });
 
+      // Increment usage on success
+      if (userId) await incrementFeatureUsage(userId, 'convert');
+
       res.json({
         title: fileName,
         content: content,
@@ -2517,7 +2376,15 @@ app.post('/api/parse-document', upload.single('file'), async (req, res) => {
 
 // YouTube Transcript endpoint
 app.post('/api/transcript', async (req, res) => {
-  const { url } = req.body;
+  const { url, userId: bodyUserId } = req.body;
+  const userId = req.headers['x-user-id'] || bodyUserId;
+
+  if (userId) {
+    const usageResult = await checkFeatureUsage(userId, 'youtube');
+    if (!usageResult.allowed) {
+      return res.status(403).json({ error: 'Monthly YouTube limit reached', upgrade: true });
+    }
+  }
 
   if (!url) {
     return res.status(400).json({ error: 'YouTube URL is required' });
@@ -2528,6 +2395,9 @@ app.post('/api/transcript', async (req, res) => {
 
     // Combine transcript into a single text
     const fullText = transcript.map(item => item.text).join(' ');
+
+    // Increment usage
+    if (userId) await incrementFeatureUsage(userId, 'youtube');
 
     res.json({
       transcript: fullText,
@@ -3386,6 +3256,63 @@ app.post('/api/payment/portal', async (req, res) => {
   }
 });
 
+
+// Canvas AI Analyze endpoint (Redesign) - Vercel Consistent
+app.post('/api/canvas/analyze', async (req, res) => {
+  const { userId, imageData } = req.body;
+  if (!userId) return res.status(400).json({ error: 'User ID is required' });
+  if (!imageData) return res.status(400).json({ error: 'Image data is required' });
+
+  try {
+    // Check Limits (Redesign)
+    const usageCheck = await checkFeatureUsage(userId, 'redesign');
+
+    if (!usageCheck.allowed) {
+      return res.status(403).json({
+        error: 'Redesign limit exceeded',
+        code: 'CANVAS_ANALYZE_LIMIT',
+        message: `Free users are limited to ${usageCheck.limit} redesigns per month. Upgrade to Pro for unlimited access.`,
+        usage: { used: usageCheck.used, limit: usageCheck.limit, tier: usageCheck.tier },
+        upgradeUrl: '/pricing'
+      });
+    }
+
+    // Increment usage
+    await incrementFeatureUsage(userId, 'redesign');
+
+    res.json({
+      success: true,
+      tier: usageCheck.tier,
+      remaining: usageCheck.tier === 'pro' ? 'unlimited' : Math.max(0, usageCheck.limit - usageCheck.used - 1)
+    });
+
+  } catch (error) {
+    console.error('Canvas analyze error:', error);
+    res.status(500).json({ error: 'Failed to analyze canvas' });
+  }
+});
+
+// Get Canvas analyze usage
+app.get('/api/canvas/usage', async (req, res) => {
+  const { userId } = req.query;
+  if (!userId) return res.status(400).json({ error: 'User ID is required' });
+
+  try {
+    const usageCheck = await checkFeatureUsage(userId, 'redesign');
+    res.json({
+      tier: usageCheck.tier,
+      usage: {
+        used: usageCheck.used,
+        limit: usageCheck.tier === 'pro' ? 'unlimited' : usageCheck.limit,
+        remaining: usageCheck.tier === 'pro' ? 'unlimited' : Math.max(0, usageCheck.limit - usageCheck.used)
+      }
+    });
+  } catch (error) {
+    console.error('Error getting canvas usage:', error);
+    res.status(500).json({ error: 'Failed to get usage' });
+  }
+});
+
 // Export app for Vercel serverless functions
 
 
@@ -3446,81 +3373,6 @@ if (process.env.VERCEL !== '1' && !process.env.VERCEL_ENV) {
     });
   }
 
-  // Canvas AI Analyze endpoint with limit for free users
-  app.post('/api/canvas/analyze', async (req, res) => {
-    const { userId, imageData } = req.body;
-
-    console.log('🎨 Canvas analyze request:', { userId, hasImage: !!imageData });
-
-    if (!userId) {
-      return res.status(400).json({ error: 'User ID is required' });
-    }
-
-    if (!imageData) {
-      return res.status(400).json({ error: 'Image data is required' });
-    }
-
-    try {
-      // Check tier
-      const tier = await getUserTier(userId);
-      console.log(`📊 User tier: ${tier}`);
-
-      // For free users, check Canvas analyze limit
-      if (tier === 'free') {
-        const usage = getCanvasAnalyzeUsage(userId);
-
-        console.log(`📊 Canvas analyze usage:`, usage);
-
-        if (usage.used >= CANVAS_ANALYZE_LIMIT) {
-          return res.status(403).json({
-            error: 'Canvas AI Analyze limit exceeded',
-            code: 'CANVAS_ANALYZE_LIMIT',
-            message: `Free users can use AI Analyze ${CANVAS_ANALYZE_LIMIT} times per month`,
-            usage: usage,
-            upgradeUrl: '/pricing'
-          });
-        }
-
-        // Increment counter for free users
-        incrementCanvasAnalyzeUsage(userId);
-      }
-
-      // TODO: Process canvas analyze with AI (implement your canvas analysis logic here)
-      // For now, just return success
-      res.json({
-        success: true,
-        tier,
-        remaining: tier === 'pro' ? 'unlimited' : (CANVAS_ANALYZE_LIMIT - getCanvasAnalyzeUsage(userId).used)
-      });
-    } catch (error) {
-      console.error('Canvas analyze error:', error);
-      res.status(500).json({ error: 'Failed to analyze canvas' });
-    }
-  });
-
-  // Get Canvas analyze usage
-  app.get('/api/canvas/usage', async (req, res) => {
-    const { userId } = req.query;
-
-    if (!userId) {
-      return res.status(400).json({ error: 'User ID is required' });
-    }
-
-    try {
-      const tier = await getUserTier(userId);
-      const usage = tier === 'pro'
-        ? { used: 0, limit: 'unlimited', remaining: 'unlimited' }
-        : { ...getCanvasAnalyzeUsage(userId), remaining: CANVAS_ANALYZE_LIMIT - getCanvasAnalyzeUsage(userId).used };
-
-      res.json({
-        tier,
-        usage
-      });
-    } catch (error) {
-      console.error('Error getting canvas usage:', error);
-      res.status(500).json({ error: 'Failed to get usage' });
-    }
-  });
 
   // =====================================================
   // PAYMENT ENDPOINTS (Midtrans Integration)

@@ -2617,9 +2617,9 @@ const ChatInterface: React.FC = () => {
 
   // --- Render Content ---
   const chatContent = (
-    <div className="flex flex-col h-full bg-white relative overflow-hidden">
+    <div className="flex flex-col h-full bg-white/30 backdrop-blur-sm relative overflow-hidden transition-colors duration-500">
       {/* Header - Clean v0.app Style */}
-      <div className="relative h-12 md:h-14 border-b border-zinc-200 flex items-center px-4 md:px-6 justify-between shrink-0 bg-white/80 backdrop-blur-md">
+      <div className="relative h-12 md:h-14 border-b border-white/20 flex items-center px-4 md:px-6 justify-between shrink-0 bg-white/40 backdrop-blur-md">
         {/* Left: Menu button (Mobile: All modes, Desktop: Tutor only) + Logo */}
         <div className="flex items-center gap-3">
           {(isMobile || appMode === 'tutor') && (
@@ -2799,8 +2799,8 @@ const ChatInterface: React.FC = () => {
                   <div className={cn(
                     "relative leading-relaxed transition-all duration-200",
                     msg.role === 'user'
-                      ? "rounded-2xl px-3 md:px-4 py-2.5 md:py-3 bg-zinc-100 border border-zinc-200 text-zinc-900 max-w-[85%] sm:max-w-[80%] md:max-w-[85%]"
-                      : "rounded-2xl px-3 md:px-4 py-2.5 md:py-3 bg-transparent text-zinc-800 max-w-[90%] sm:max-w-[85%] md:max-w-[90%]"
+                      ? "rounded-2xl px-3 md:px-4 py-2.5 md:py-3 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 max-w-[85%] sm:max-w-[80%] md:max-w-[85%]"
+                      : "rounded-2xl px-3 md:px-4 py-2.5 md:py-3 bg-transparent text-zinc-800 dark:text-zinc-100 max-w-[90%] sm:max-w-[85%] md:max-w-[90%]"
                   )}>
                     {msg.images && msg.images.length > 0 && (
                       <div className="flex gap-3 mb-4 flex-wrap">
@@ -2818,7 +2818,7 @@ const ChatInterface: React.FC = () => {
                       </div>
                     )}
                     {msg.role === 'ai' ? (
-                      <div className="prose prose-sm max-w-none prose-p:text-zinc-700 prose-headings:text-zinc-900 prose-strong:text-zinc-900 prose-code:text-purple-600 prose-pre:bg-zinc-900 prose-pre:border prose-pre:border-zinc-200">
+                      <div className="prose prose-sm max-w-none prose-p:text-zinc-700 dark:prose-p:text-zinc-300 prose-headings:text-zinc-900 dark:prose-headings:text-zinc-100 prose-strong:text-zinc-900 dark:prose-strong:text-zinc-100 prose-code:text-purple-600 dark:prose-code:text-purple-400 prose-pre:bg-zinc-900 dark:prose-pre:bg-black/50 prose-pre:border prose-pre:border-zinc-200 dark:prose-pre:border-zinc-800 prose-li:text-zinc-700 dark:prose-li:text-zinc-300 prose-ul:text-zinc-700 dark:prose-ul:text-zinc-300">
                         {/* Parse and render sources if available (at top of message like ChatGPT) */}
                         {(() => {
                           const sourcesMatch = msg.content.match(/<!-- SOURCES_JSON:(.*?) -->/);
@@ -2886,7 +2886,7 @@ const ChatInterface: React.FC = () => {
                         </ReactMarkdown>
                       </div>
                     ) : (
-                      <div className="whitespace-pre-wrap text-zinc-900 leading-relaxed text-sm">
+                      <div className="whitespace-pre-wrap text-zinc-900 dark:text-zinc-100 leading-relaxed text-sm">
                         {msg.content.replace(/<!-- SOURCES_JSON:.*? -->/g, '')}
                       </div>
                     )}
@@ -3090,10 +3090,10 @@ const ChatInterface: React.FC = () => {
   );
 
   const workbenchContent = (
-    <div className="flex flex-col h-full bg-zinc-50 border-l border-zinc-200 font-sans relative overflow-hidden">
+    <div className="flex flex-col h-full bg-white/40 backdrop-blur-md border-l border-white/20 font-sans relative overflow-hidden">
       {/* Workbench Header - Clean Dark Style */}
       <div className={cn(
-        "relative z-[100] border-b border-zinc-200 flex items-center justify-between shrink-0 bg-white",
+        "relative z-[100] border-b border-white/20 flex items-center justify-between shrink-0 bg-white/40 backdrop-blur-md",
         isMobile ? "h-12 px-3" : "h-11 px-4"
       )}>
         {/* Left: Tabs & FileTree Toggle (Mobile/Tablet) */}

@@ -846,7 +846,7 @@ export function ResearchWelcome({
 
                 {/* Greeting & Title */}
                 <h1 className="text-center mb-10 space-y-1">
-                    <span className="block text-3xl md:text-4xl font-semibold text-zinc-900 tracking-tight">
+                    <span className="block text-3xl md:text-4xl font-semibold text-zinc-900 dark:text-white tracking-tight">
                         {getGreeting()}{userName ? `, ${userName}` : ''}
                     </span>
                     <span className="block text-3xl md:text-4xl font-semibold text-zinc-400 tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-purple-500 to-blue-500">
@@ -856,7 +856,7 @@ export function ResearchWelcome({
 
                 {/* Main Input Card */}
                 <div className={cn(
-                    "w-full max-w-3xl bg-white rounded-2xl border border-zinc-200/80 transition-all duration-300 relative",
+                    "w-full max-w-3xl bg-white dark:bg-black/40 dark:border-white/10 dark:backdrop-blur-md rounded-2xl border border-zinc-200/80 transition-all duration-300 relative",
                     isFocused ? "shadow-2xl shadow-purple-900/5 ring-1 ring-purple-500/10 border-purple-500/20" : "shadow-xl shadow-zinc-200/50"
                 )}>
                     {/* Deep Dive Indicator */}
@@ -910,7 +910,7 @@ export function ResearchWelcome({
                             onFocus={() => setIsFocused(true)}
                             onBlur={() => setIsFocused(false)}
                             placeholder={attachments.length > 0 ? "Ask about the attached content..." : "Ask AI a question or make a request..."}
-                            className="w-full bg-transparent border-none text-lg text-zinc-800 placeholder-zinc-400/80 focus:outline-none resize-none min-h-[40px] max-h-[200px] font-medium"
+                            className="w-full bg-transparent border-none text-lg text-zinc-800 dark:text-zinc-100 placeholder-zinc-400/80 focus:outline-none resize-none min-h-[40px] max-h-[200px] font-medium"
                             style={{ padding: '0 0 10px 0' }}
                         />
                     </div>

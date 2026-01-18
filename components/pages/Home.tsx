@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, ArrowRight, ChevronDown, Paperclip, X, AlertTriangle, Image as ImageIcon, Camera, ImagePlus, Layout, Phone, ChevronLeft, Menu, User, Bot, CheckCircle2, Youtube, FileText, Loader2, File, Paintbrush, MessageSquare } from 'lucide-react';
+import { Sparkles, ArrowRight, ChevronDown, Paperclip, X, AlertTriangle, Image as ImageIcon, Camera, ImagePlus, Layout, Phone, ChevronLeft, LayoutGrid, User, Bot, CheckCircle2, Youtube, FileText, Loader2, File, Paintbrush, MessageSquare } from 'lucide-react';
 import BentoGrid from '../BentoGrid';
 import Integrations from '../Integrations';
 import CTA from '../CTA';
@@ -288,7 +288,7 @@ const Home: React.FC = () => {
   };
 
   return (
-    <div className="flex h-dvh bg-[#FDFDFD] selection:bg-purple-100 overflow-hidden font-sans text-zinc-900">
+    <div className="flex h-dvh bg-transparent selection:bg-purple-100 overflow-hidden font-sans text-zinc-900 dark:text-white">
 
       {/* Mobile Sidebar Overlay */}
       {isSignedIn && isSidebarOpen && (
@@ -304,7 +304,7 @@ const Home: React.FC = () => {
           {/* Desktop Sidebar Panel */}
           <div
             className={cn(
-              "hidden md:block border-r border-zinc-200 bg-zinc-50 transition-all duration-300 ease-in-out shrink-0",
+              "hidden md:block border-r border-zinc-200 bg-white/60 backdrop-blur-md transition-all duration-300 ease-in-out shrink-0",
               isSidebarCollapsed ? "w-[60px]" : "w-[260px]" // Fixed width matching ChatInterface
             )}
           >
@@ -324,7 +324,7 @@ const Home: React.FC = () => {
           <div className={`
           fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out md:hidden
           ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-          w-[280px] h-full border-r border-zinc-200 bg-[#F9FAFB]
+          w-[280px] h-full border-r border-zinc-200 bg-white/90 backdrop-blur-md
         `}>
             <Sidebar
               onNewChat={() => {
@@ -347,11 +347,17 @@ const Home: React.FC = () => {
       <div className="flex-1 flex flex-col relative w-full h-full overflow-y-auto overflow-x-hidden">
 
         {/* Mobile Header */}
-        <div className="md:hidden flex items-center justify-between p-4 border-b border-zinc-100 bg-white/80 backdrop-blur-md z-30">
-          <button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-2 text-zinc-600">
-            <Menu size={20} />
+        {/* Mobile Header */}
+        <div className="md:hidden flex items-center justify-between p-4 z-30 bg-transparent">
+          <button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-2 text-zinc-800 dark:text-white hover:bg-white/10 rounded-lg transition-colors">
+            <LayoutGrid size={24} strokeWidth={1.5} />
           </button>
-          <span className="font-semibold text-zinc-900">Nevra</span>
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/20">
+              <span className="text-white text-[10px] font-bold leading-none">N</span>
+            </div>
+            <span className="font-bold text-lg text-zinc-900 dark:text-white tracking-tight">Nevra</span>
+          </div>
           <div className="w-8" /> {/* Spacer */}
         </div>
 
@@ -362,17 +368,8 @@ const Home: React.FC = () => {
 
         {/* Main Interface */}
         <main className="flex-1 relative w-full flex flex-col min-h-0">
-          {/* Background Elements */}
-          <div className="absolute inset-0 pointer-events-none overflow-hidden">
-            <div className={cn(
-              "absolute top-0 right-0 w-[500px] h-[500px] rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 transition-colors duration-500",
-              activeMode === 'redesign' ? "bg-pink-100/30" : "bg-purple-100/30"
-            )} />
-            <div className={cn(
-              "absolute bottom-0 left-0 w-[500px] h-[500px] rounded-full blur-3xl translate-y-1/2 -translate-x-1/3 transition-colors duration-500",
-              activeMode === 'redesign' ? "bg-violet-100/30" : "bg-blue-100/30"
-            )} />
-          </div>
+          {/* Background Elements removed to show DynamicBackground */}
+          {/* <div className="absolute inset-0 pointer-events-none overflow-hidden"> ... </div> */}
 
           {/* Mode Tabs */}
           <div className="relative z-20 flex justify-center pt-4 md:pt-8">

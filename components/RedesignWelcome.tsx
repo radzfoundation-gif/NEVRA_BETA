@@ -588,7 +588,7 @@ Return ONLY the HTML code, no explanations.
 
                     {/* Headline */}
                     <div className="text-center mb-6 space-y-2">
-                        <h1 className="text-3xl md:text-4xl font-bold text-zinc-900 tracking-tight">
+                        <h1 className="text-3xl md:text-4xl font-bold text-zinc-900 dark:text-white tracking-tight">
                             {mode === 'redesign' ? 'AI Frontend Redesigner' : 'AI Design Studio'}
                         </h1>
                         <p className="text-base text-zinc-500 max-w-lg mx-auto">
