@@ -34,7 +34,7 @@ function cn(...inputs: ClassValue[]) {
 const Home: React.FC = () => {
   const { isSignedIn } = useAuth();
   const { user } = useUser();
-  const { hasExceeded, tokensUsed, tokensRemaining, isSubscribed, refreshLimit } = useTokenLimit();
+  const { hasExceeded, tokensUsed, isSubscribed, refreshLimit } = useTokenLimit();
   const [showSubscriptionPopup, setShowSubscriptionPopup] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -100,7 +100,7 @@ const Home: React.FC = () => {
   }, []);
 
   const [prompt, setPrompt] = useState('');
-  const [provider, setProvider] = useState<AIProvider>('deepseek');
+  const [provider, setProvider] = useState<AIProvider>('groq');
   const [attachedImages, setAttachedImages] = useState<string[]>([]);
   const [attachedDoc, setAttachedDoc] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -454,7 +454,6 @@ const Home: React.FC = () => {
             <RedesignWelcome
               className="z-10"
               userName={user?.firstName || undefined}
-              userId={user?.id}
             />
           )}
         </main>

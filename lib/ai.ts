@@ -40,7 +40,7 @@ export const isProOnlyModel = (provider: AIProvider): boolean => {
 const smartRouteModel = (prompt: string, requestedProvider: AIProvider, tier: 'free' | 'normal' | 'pro'): AIProvider => {
   // 1. Force Free Tier Limits
   if (tier === 'free') {
-    if (!FREE_TIER_MODELS.includes(requestedProvider)) return 'deepseek'; // Default free
+    if (!FREE_TIER_MODELS.includes(requestedProvider)) return 'groq'; // Default free
     return requestedProvider;
   }
 
@@ -803,6 +803,21 @@ You MUST generate code in **multi-file JSON format** for ${framework === 'nextjs
 - Follow the framework structure exactly as specified in the requirements above`;
       systemPrompt = systemPrompt + frameworkInstruction;
     }
+  }
+
+  // Add personalized greeting for new chats
+  console.log(`🎯 Greeting check: history.length=${history.length}, userName="${userName}"`);
+  if (history.length === 0) {
+    const displayName = (userName && userName !== 'User') ? userName : 'there';
+    const greetingInstruction = `
+
+🎯 GREETING INSTRUCTION (FIRST MESSAGE ONLY):
+This is the user's first message in this conversation.
+You MUST start your response with a warm, friendly greeting: "Halo ${displayName}! 👋" or "Hai ${displayName}!" followed by your answer.
+Keep the greeting short and natural, then immediately address their question.
+`;
+    systemPrompt = systemPrompt + greetingInstruction;
+    console.log(`✅ Greeting instruction added for: ${displayName}`);
   }
 
   if (images && images.length > 0) {
