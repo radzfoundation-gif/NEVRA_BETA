@@ -15,6 +15,7 @@ import { CodebaseExplorer as CodebaseExplorerClass, CodebaseAnalysis } from '@/l
 import CodebaseExplorer from '@/components/CodebaseExplorer';
 import BuildingAnimation from '@/components/BuildingAnimation';
 import AILoading from '@/components/ui/AILoading';
+import DynamicBackground from '@/components/ui/DynamicBackground';
 // ProviderSelector removed - orchestrator now manages models automatically
 import FrameworkSelector from '@/components/ui/FrameworkSelector';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
@@ -84,12 +85,22 @@ import CanvasBoard from '@/components/canvas/CanvasBoard';
 
 // --- Types ---
 
+// --- Types ---
+
+export type Attachment = {
+  type: 'file' | 'audio' | 'youtube' | 'url';
+  name: string;
+  content: string;
+  mimeType?: string;
+};
+
 type Message = {
   id: string;
   role: 'user' | 'ai';
   content: string;
   code?: string;
   images?: string[]; // Array of base64 strings
+  attachments?: Attachment[];
   timestamp: Date;
 };
 
@@ -162,6 +173,7 @@ const ChatInterface: React.FC = () => {
     const initialPrompt = location.state?.initialPrompt;
     const initialProvider = location.state?.initialProvider as AIProvider;
     const initialImages = location.state?.initialImages as string[];
+    const initialAttachments = location.state?.initialAttachments as Attachment[];
     const targetFile = location.state?.targetFile as string | undefined;
     const codebaseMode = location.state?.mode === 'codebase';
     // Check for explicit mode passed from Home (e.g. for silent canvas activation)
@@ -179,6 +191,8 @@ const ChatInterface: React.FC = () => {
       // Get optimal provider for detected mode (default to Mistral Devstral for free users)
       const optimalProvider = initialProvider || getOptimalProviderForMode(detectedMode, false);
 
+      const autoSend = location.state?.autoSend !== undefined ? location.state.autoSend : true;
+
       return {
         mode: detectedMode,
         messages: [{
@@ -186,9 +200,10 @@ const ChatInterface: React.FC = () => {
           role: 'user',
           content: content,
           images: initialImages,
+          attachments: initialAttachments,
           timestamp: new Date()
         }] as Message[],
-        shouldAutoSend: true,
+        shouldAutoSend: autoSend,
         initialProvider: optimalProvider,
         initialImages: initialImages || [],
         targetFile: targetFile,
@@ -1378,7 +1393,15 @@ const ChatInterface: React.FC = () => {
     let historyForAI: any[] = [];
     let activeSessionId = currentSessionId;
     let searchResults: any[] = [];
-    let promptToSend = text; // This will be modified with context if needed
+
+    // Construct prompt with attachments for AI (hidden from UI)
+    let promptToSend = text;
+    if (newMessage.attachments && newMessage.attachments.length > 0) {
+      const attachmentText = newMessage.attachments.map(att =>
+        `\n\n--- ${att.name} (${att.type}) ---\n${att.content}`
+      ).join('\n');
+      promptToSend = `${text}\n\n[Attached Content]:${attachmentText}`;
+    }
 
     try {
       // 1. Create session if it doesn't exist
@@ -2618,6 +2641,7 @@ const ChatInterface: React.FC = () => {
   // --- Render Content ---
   const chatContent = (
     <div className="flex flex-col h-full bg-white/30 backdrop-blur-sm relative overflow-hidden transition-colors duration-500">
+      <DynamicBackground />
       {/* Header - Clean v0.app Style */}
       <div className="relative h-12 md:h-14 border-b border-white/20 flex items-center px-4 md:px-6 justify-between shrink-0 bg-white/40 backdrop-blur-md">
         {/* Left: Menu button (Mobile: All modes, Desktop: Tutor only) + Logo */}
@@ -2817,8 +2841,38 @@ const ChatInterface: React.FC = () => {
                         ))}
                       </div>
                     )}
+                    {msg.attachments && msg.attachments.length > 0 && (
+                      <div className="flex flex-col gap-2 mb-4">
+                        {msg.attachments.map((att, idx) => (
+                          <div key={idx} className="flex items-center gap-3 p-3 bg-white/40 dark:bg-black/20 border border-white/20 dark:border-white/10 rounded-xl max-w-sm backdrop-blur-sm">
+                            <div className="p-2 bg-white/50 dark:bg-white/10 rounded-lg">
+                              {att.type === 'file' ? <FileText size={20} className="text-zinc-700 dark:text-zinc-300" /> :
+                                att.type === 'audio' ? <Play size={20} className="text-zinc-700 dark:text-zinc-300" /> :
+                                  att.type === 'youtube' ? <Youtube size={20} className="text-red-500" /> :
+                                    <Paperclip size={20} className="text-zinc-700 dark:text-zinc-300" />}
+                            </div>
+                            <div className="flex flex-col min-w-0">
+                              <span className="text-sm font-medium truncate text-zinc-900 dark:text-zinc-100">{att.name}</span>
+                              <span className="text-xs text-zinc-500 dark:text-zinc-400 capitalize">{att.type}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     {msg.role === 'ai' ? (
-                      <div className="prose prose-sm max-w-none prose-p:text-zinc-700 dark:prose-p:text-zinc-300 prose-headings:text-zinc-900 dark:prose-headings:text-zinc-100 prose-strong:text-zinc-900 dark:prose-strong:text-zinc-100 prose-code:text-purple-600 dark:prose-code:text-purple-400 prose-pre:bg-zinc-900 dark:prose-pre:bg-black/50 prose-pre:border prose-pre:border-zinc-200 dark:prose-pre:border-zinc-800 prose-li:text-zinc-700 dark:prose-li:text-zinc-300 prose-ul:text-zinc-700 dark:prose-ul:text-zinc-300">
+                      <div className="prose prose-sm md:prose-base max-w-none 
+                        prose-p:text-zinc-700 dark:prose-p:text-zinc-300 prose-p:leading-relaxed
+                        prose-headings:text-zinc-900 dark:prose-headings:text-zinc-100 prose-headings:font-bold prose-headings:tracking-tight
+                        prose-strong:text-zinc-900 dark:prose-strong:text-zinc-100 
+                        prose-code:text-purple-600 dark:prose-code:text-purple-400 prose-code:bg-purple-50 dark:prose-code:bg-purple-500/10 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:font-medium prose-code:before:content-none prose-code:after:content-none
+                        prose-pre:bg-zinc-950 dark:prose-pre:bg-black/50 prose-pre:border prose-pre:border-zinc-800 dark:prose-pre:border-zinc-800 prose-pre:rounded-xl
+                        prose-li:text-zinc-700 dark:prose-li:text-zinc-300 
+                        prose-ul:text-zinc-700 dark:prose-ul:text-zinc-300
+                        prose-blockquote:border-l-4 prose-blockquote:border-purple-500 prose-blockquote:bg-zinc-50 dark:prose-blockquote:bg-zinc-900/50 prose-blockquote:py-2 prose-blockquote:px-4 prose-blockquote:rounded-r-lg prose-blockquote:text-zinc-600 dark:prose-blockquote:text-zinc-400 prose-blockquote:not-italic prose-blockquote:shadow-sm
+                        prose-th:text-zinc-900 dark:prose-th:text-zinc-100 prose-td:text-zinc-700 dark:prose-td:text-zinc-300
+                        prose-a:text-blue-600 dark:prose-a:text-blue-400 prose-a:no-underline hover:prose-a:underline
+                        prose-img:rounded-xl prose-img:shadow-lg
+                      ">
                         {/* Parse and render sources if available (at top of message like ChatGPT) */}
                         {(() => {
                           const sourcesMatch = msg.content.match(/<!-- SOURCES_JSON:(.*?) -->/);

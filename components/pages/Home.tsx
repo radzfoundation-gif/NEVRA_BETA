@@ -42,6 +42,22 @@ const Home: React.FC = () => {
   const [showVoiceCall, setShowVoiceCall] = useState(false);
   const [activeMode, setActiveMode] = useState<'chat' | 'redesign'>('chat');
 
+  const [wibTime, setWibTime] = useState('');
+
+  useEffect(() => {
+    const updateTime = () => {
+      setWibTime(new Date().toLocaleTimeString('id-ID', {
+        timeZone: 'Asia/Jakarta',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      }) + ' WIB');
+    };
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   // Sidebar Persistence
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     return localStorage.getItem('sidebar_collapsed') === 'true';
@@ -352,11 +368,8 @@ const Home: React.FC = () => {
           <button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-2 text-zinc-800 dark:text-white hover:bg-white/10 rounded-lg transition-colors">
             <LayoutGrid size={24} strokeWidth={1.5} />
           </button>
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/20">
-              <span className="text-white text-[10px] font-bold leading-none">N</span>
-            </div>
-            <span className="font-bold text-lg text-zinc-900 dark:text-white tracking-tight">Nevra</span>
+          <div className="flex items-center justify-center">
+            <span className="font-mono text-lg font-medium text-zinc-800 dark:text-zinc-100 tracking-wide">{wibTime}</span>
           </div>
           <div className="w-8" /> {/* Spacer */}
         </div>
@@ -413,10 +426,19 @@ const Home: React.FC = () => {
                 const lowerQuery = query.toLowerCase().trim();
                 const isSilentCanvas = detectedMode === 'canvas' && canvasTriggers.some(t => lowerQuery === t || lowerQuery.includes(t));
 
-                // Build attachment content string if any
+                // Separate images from text attachments
+                const imageAttachments = attachments?.filter(att => att.mimeType?.startsWith('image/')) || [];
+                const textAttachments = attachments?.filter(att => !att.mimeType?.startsWith('image/')) || [];
+
+                // Extract image contents (base64)
+                const images = imageAttachments.map(att => att.content);
+                // Combine with Home-level images if any (though ResearchWelcome usually handles its own)
+                const allImages = [...attachedImages, ...images];
+
+                // Build attachment content string for TEXT attachments only
                 let attachmentContent = '';
-                if (attachments && attachments.length > 0) {
-                  attachmentContent = attachments.map(att => {
+                if (textAttachments.length > 0) {
+                  attachmentContent = textAttachments.map(att => {
                     return `\n\n--- ${att.name} (${att.type}) ---\n${att.content}`;
                   }).join('\n');
                 }
@@ -430,9 +452,10 @@ const Home: React.FC = () => {
                   state: {
                     initialPrompt: isSilentCanvas ? '' : fullPrompt,
                     initialProvider: provider,
-                    initialImages: attachedImages,
+                    initialImages: allImages,
                     enableWebSearch: isWebSearchEnabled,
                     mode: detectedMode,
+                    autoSend: true, // Auto-send when coming from ResearchWelcome
                     ...(detectedMode === 'builder' ? {
                       mode: 'codebase',
                       framework: 'react'
