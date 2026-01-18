@@ -831,7 +831,7 @@ Always be thorough and helpful in your analysis.`;
   }
 
   try {
-    const resp = await fetch(`${API_BASE}/generate`, {
+    const resp = await fetch('/api/generate', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -866,7 +866,7 @@ Always be thorough and helpful in your analysis.`;
         const text = await resp.text();
         console.error(`[${provider}] HTML error response:`, text.slice(0, 500));
         errorData = {
-          error: `API Error (${resp.status}): Server returned HTML instead of JSON. This usually means the API endpoint is incorrect, API key is invalid, or the service is unavailable.`
+          error: `API Error (${resp.status}): Server returned HTML instead of JSON. Status: ${resp.status} ${resp.statusText}. Response preview: ${text.slice(0, 100)}`
         };
       }
 
