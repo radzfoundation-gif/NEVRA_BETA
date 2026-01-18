@@ -503,27 +503,36 @@ app.get('/api/user/usage', async (req, res) => {
 
 // Feature Usage Endpoint
 app.get('/api/user/feature-usage', async (req, res) => {
-  const { userId } = req.query;
-  if (!userId) return res.status(400).json({ error: 'userId required' });
+  try {
+    const { userId } = req.query;
+    if (!userId) return res.status(400).json({ error: 'userId required' });
 
-  const userTier = await getUserTier(userId);
-  const isProUser = userTier === 'pro';
+    const userTier = await getUserTier(userId);
+    const isProUser = userTier === 'pro';
 
-  // Pro users have unlimited
-  if (isProUser) {
-    return res.json({
-      tier: 'pro',
-      chat: { used: 0, limit: 999999, exceeded: false, period: 'day' },
-      convert: { used: 0, limit: 999999, exceeded: false, period: 'month' },
-      redesign: { used: 0, limit: 999999, exceeded: false, period: 'month' }
+    // Pro users have unlimited
+    if (isProUser) {
+      return res.json({
+        tier: 'pro',
+        chat: { used: 0, limit: 999999, exceeded: false, period: 'day' },
+        convert: { used: 0, limit: 999999, exceeded: false, period: 'month' },
+        redesign: { used: 0, limit: 999999, exceeded: false, period: 'month' },
+        youtube: { used: 0, limit: 999999, exceeded: false, period: 'day' },
+        audio: { used: 0, limit: 999999, exceeded: false, period: 'day' },
+        image: { used: 0, limit: 999999, exceeded: false, period: 'day' },
+        knowledge: { used: 0, limit: 999999, exceeded: false, period: 'month' }
+      });
+    }
+
+    const featureUsage = await getAllFeatureUsage(userId);
+    res.json({
+      tier: userTier,
+      ...featureUsage
     });
+  } catch (error) {
+    console.error('❌ Error fetching feature usage:', error);
+    res.status(500).json({ error: 'Failed to fetch feature usage', details: error.message, stack: error.stack });
   }
-
-  const featureUsage = await getAllFeatureUsage(userId);
-  res.json({
-    tier: userTier,
-    ...featureUsage
-  });
 });
 
 // Increment feature usage endpoint (called after successful operation)
@@ -3463,8 +3472,13 @@ if (process.env.VERCEL !== '1' && !process.env.VERCEL_ENV) {
     }
   });
 
-  // Start server
-  app.listen(PORT, () => {
-    console.log(`API proxy listening on ${PORT}`);
-  });
+  // Start server locally (not on Vercel)
+  if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+    app.listen(PORT, () => {
+      console.log(`API proxy listening on ${PORT}`);
+    });
+  }
 }
+
+// Export the Express app for Vercel Serverless Functions
+export default app;
