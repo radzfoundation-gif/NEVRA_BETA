@@ -416,29 +416,34 @@ const getAllFeatureUsage = async (userId) => {
 
 // Usage Endpoint (includes feature usage)
 app.get('/api/user/usage', async (req, res) => {
-  const { userId } = req.query;
+  try {
+    const { userId } = req.query;
 
-  // Define limits (ensure consistency with /api/generate)
-  const USAGE_LIMITS = {
-    free: 150,
-    normal: 300,
-    pro: 1000000
-  };
+    // Define limits (ensure consistency with /api/generate)
+    const USAGE_LIMITS = {
+      free: 150,
+      normal: 300,
+      pro: 1000000
+    };
 
-  if (!userId) return res.json({ used: 0, limit: USAGE_LIMITS.free, tier: 'free', features: null });
+    if (!userId) return res.json({ used: 0, limit: USAGE_LIMITS.free, tier: 'free', features: null });
 
-  const usage = getUserUsage(userId);
-  const userTier = await getUserTier(userId);
-  const limit = USAGE_LIMITS[userTier] || USAGE_LIMITS.free;
-  const featureUsage = await getAllFeatureUsage(userId);
+    const usage = await getUserUsage(userId);
+    const userTier = await getUserTier(userId);
+    const limit = USAGE_LIMITS[userTier] || USAGE_LIMITS.free;
+    const featureUsage = await getAllFeatureUsage(userId);
 
-  res.json({
-    used: usage.used,
-    limit: limit,
-    tier: userTier,
-    remaining: Math.max(0, limit - usage.used),
-    features: featureUsage
-  });
+    res.json({
+      used: usage.used,
+      limit: limit,
+      tier: userTier,
+      remaining: Math.max(0, limit - usage.used),
+      features: featureUsage
+    });
+  } catch (error) {
+    console.error('Error in /api/user/usage:', error);
+    res.status(500).json({ error: 'Failed to fetch usage', details: error.message });
+  }
 });
 
 // Feature Usage Endpoint
