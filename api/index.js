@@ -3,6 +3,12 @@
 
 import app from '../server/index.js';
 
-// Export as Vercel serverless function
-// Vercel will automatically handle Express apps exported from /api routes
-export default app;
+// Export as Vercel serverless function handler
+// The app handles all routes mounted on it
+export default function handler(req, res) {
+    // Forward request to Express app
+    return app(req, res);
+}
+
+// Also export the app for local development
+export { app };
