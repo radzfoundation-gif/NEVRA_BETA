@@ -79,9 +79,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Listen for auth changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
             async (_event, session) => {
-                setSession(session);
-                setSupabaseUser(session?.user ?? null);
-                setIsLoaded(true);
+                if (session) {
+                    setSession(session);
+                    setSupabaseUser(session.user);
+                    setIsLoaded(true);
+
+                    // Clean up URL (remove # and auth params)
+                    const url = new URL(window.location.href);
+                    if (url.hash && url.hash === '#') {
+                        window.history.replaceState(null, '', ' ');
+                    }
+                } else {
+                    setSession(null);
+                    setSupabaseUser(null);
+                    setIsLoaded(true);
+                }
             }
         );
 

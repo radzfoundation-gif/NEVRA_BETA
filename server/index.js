@@ -308,6 +308,17 @@ const FEATURE_COSTS = {
   knowledge: 2
 };
 
+// Feature Limits (for Free Tier)
+const FEATURE_LIMITS = {
+  chat: { limit: 100, period: 'day' },
+  convert: { limit: 5, period: 'month' }, // PDF/Docs
+  youtube: { limit: 10, period: 'day' },
+  audio: { limit: 10, period: 'day' },
+  redesign: { limit: 5, period: 'month' },
+  image: { limit: 10, period: 'day' },
+  knowledge: { limit: 20, period: 'month' }
+};
+
 // Cron logic moved to /api/cron/reset for Vercel compatibility
 
 const getUserUsage = (userId) => {
