@@ -1,6 +1,6 @@
-import { initializeApp } from 'firebase/app';
-import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
-import { getAuth, connectAuthEmulator } from 'firebase/auth';
+import { initializeApp, FirebaseApp } from 'firebase/app';
+import { getFirestore, connectFirestoreEmulator, Firestore } from 'firebase/firestore';
+import { getAuth, connectAuthEmulator, Auth } from 'firebase/auth';
 
 // Firebase configuration from environment variables
 const firebaseConfig = {
@@ -16,29 +16,34 @@ const firebaseConfig = {
 const requiredKeys = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'messagingSenderId', 'appId'];
 const missingKeys = requiredKeys.filter(key => !firebaseConfig[key as keyof typeof firebaseConfig]);
 
+// Firebase is now OPTIONAL - Supabase is the primary database
+let app: FirebaseApp | null = null;
+let db: Firestore | null = null;
+let auth: Auth | null = null;
+
 if (missingKeys.length > 0) {
-    const isProduction = import.meta.env.PROD;
-    const errorMessage = isProduction
-        ? `Missing Firebase credentials: ${missingKeys.join(', ')}. Please add them to your Vercel environment variables.`
-        : `Missing Firebase credentials: ${missingKeys.join(', ')}. Please add them to your .env.local file`;
-    throw new Error(errorMessage);
+    console.warn('⚠️ Firebase not configured (using Supabase instead). Missing:', missingKeys.join(', '));
+    console.log('💡 This is OK - Supabase is the primary database now.');
+} else {
+    try {
+        // Initialize Firebase only if all credentials are present
+        app = initializeApp(firebaseConfig);
+        db = getFirestore(app);
+        auth = getAuth(app);
+
+        // Connect to emulators in development (optional)
+        if (import.meta.env.DEV && import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true') {
+            connectFirestoreEmulator(db, 'localhost', 8080);
+            connectAuthEmulator(auth, 'http://localhost:9099');
+            console.log('🔥 Connected to Firebase Emulators');
+        }
+    } catch (error) {
+        console.error('Firebase initialization failed:', error);
+    }
 }
 
-// Initialize Firebase
-export const app = initializeApp(firebaseConfig);
-
-// Initialize Firestore
-export const db = getFirestore(app);
-
-// Initialize Auth (for future use, currently using Clerk)
-export const auth = getAuth(app);
-
-// Connect to emulators in development (optional)
-if (import.meta.env.DEV && import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true') {
-    connectFirestoreEmulator(db, 'localhost', 8080);
-    connectAuthEmulator(auth, 'http://localhost:9099');
-    console.log('🔥 Connected to Firebase Emulators');
-}
+// Export (may be null if not configured)
+export { app, db, auth };
 
 // Firestore TypeScript interfaces
 export interface FirebaseUser {
@@ -85,6 +90,10 @@ export interface FirebaseUserPreferences {
     defaultProvider: 'groq' | 'gemini' | 'openai';
     theme: string;
     preferences: Record<string, any>;
+    tokenLimit?: number;
+    tokensUsed?: number;
+    tier?: 'free' | 'pro' | 'enterprise';
+    plan?: string;
     updatedAt: Date;
 }
 

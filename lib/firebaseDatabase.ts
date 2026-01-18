@@ -14,9 +14,12 @@ import {
     Timestamp,
     onSnapshot,
     Unsubscribe,
-    QueryConstraint
+    QueryConstraint,
+    getCountFromServer,
+    increment
 } from 'firebase/firestore';
 import { db } from './firebase';
+import { firebaseMock } from './firebaseFake';
 import type {
     FirebaseUser,
     FirebaseChatSession,
@@ -35,6 +38,32 @@ export type {
 };
 
 // =====================================================
+// FIREBASE MOCK FALLBACK
+// =====================================================
+
+// Check if Firebase is available (has valid credentials)
+let useFirebaseMock = false;
+
+try {
+    // If db initialization failed, use mock
+    if (!db) {
+        useFirebaseMock = true;
+        console.warn('🔥 Firebase not initialized, using localStorage mock');
+    }
+} catch (error) {
+    useFirebaseMock = true;
+    console.warn('🔥 Firebase initialization failed, using localStorage mock:', error);
+}
+
+// Helper to detect offline errors and switch to mock
+function isOfflineError(error: any): boolean {
+    const errorMessage = error?.message?.toLowerCase() || '';
+    return errorMessage.includes('offline') ||
+        errorMessage.includes('failed to get') ||
+        errorMessage.includes('network');
+}
+
+// =====================================================
 // USER FUNCTIONS
 // =====================================================
 
@@ -43,19 +72,75 @@ export type {
  */
 export async function syncUser(clerkUser: any): Promise<FirebaseUser | null> {
     try {
-        const userRef = doc(db, 'users', clerkUser.id);
-        const userData: FirebaseUser = {
-            id: clerkUser.id,
-            email: clerkUser.emailAddresses[0]?.emailAddress || '',
-            fullName: clerkUser.fullName,
-            avatarUrl: clerkUser.imageUrl,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-        };
+        if (useFirebaseMock) {
+            const userData: FirebaseUser = {
+                id: clerkUser.id,
+                email: clerkUser.emailAddresses[0]?.emailAddress || '',
+                fullName: clerkUser.fullName,
+                avatarUrl: clerkUser.imageUrl,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+            };
+            await firebaseMock.setDoc('users', clerkUser.id, userData, true);
+            return userData;
+        }
 
-        await setDoc(userRef, userData, { merge: true });
-        return userData;
+        const userRef = doc(db, 'users', clerkUser.id);
+        const userSnap = await getDoc(userRef);
+
+        if (!userSnap.exists()) {
+            // New User Registration
+
+            // Calculate Initial Tokens (First 10 users get 500, others 100)
+            let initialTokens = 100;
+            try {
+                const snapshot = await getCountFromServer(collection(db, 'users'));
+                const count = snapshot.data().count;
+                if (count < 10) {
+                    initialTokens = 500;
+                    console.log(`🎉 First 10 User Bonus! User #${count + 1} gets 500 tokens.`);
+                }
+            } catch (cntErr) {
+                console.warn('Failed to count users for bonus, defaulting to 100 tokens', cntErr);
+            }
+
+            const userData: FirebaseUser = {
+                id: clerkUser.id,
+                email: clerkUser.emailAddresses[0]?.emailAddress || '',
+                fullName: clerkUser.fullName,
+                avatarUrl: clerkUser.imageUrl,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+            };
+
+            await setDoc(userRef, userData);
+
+            // Initialize preferences with specific token limit
+            await updateUserPreferences(clerkUser.id, {
+                tokenLimit: initialTokens,
+                preferences: { has_given_feedback: false }
+            });
+
+            return userData;
+        } else {
+            // Existing User - Update Info
+            const userData = userSnap.data() as FirebaseUser;
+            const updates = {
+                email: clerkUser.emailAddresses[0]?.emailAddress || userData.email,
+                fullName: clerkUser.fullName || userData.fullName,
+                avatarUrl: clerkUser.imageUrl || userData.avatarUrl,
+                updatedAt: new Date(),
+            };
+
+            await updateDoc(userRef, updates);
+            return { ...userData, ...updates };
+        }
     } catch (error) {
+        if (isOfflineError(error)) {
+            console.warn('🔥 Firebase offline, switching to mock');
+            useFirebaseMock = true;
+            return syncUser(clerkUser); // Retry with mock
+        }
         console.error('Error syncing user:', error);
         return null;
     }
@@ -66,6 +151,10 @@ export async function syncUser(clerkUser: any): Promise<FirebaseUser | null> {
  */
 export async function getUser(userId: string): Promise<FirebaseUser | null> {
     try {
+        if (useFirebaseMock) {
+            return await firebaseMock.getDoc('users', userId);
+        }
+
         const userRef = doc(db, 'users', userId);
         const userSnap = await getDoc(userRef);
 
@@ -74,6 +163,11 @@ export async function getUser(userId: string): Promise<FirebaseUser | null> {
         }
         return null;
     } catch (error) {
+        if (isOfflineError(error)) {
+            console.warn('🔥 Firebase offline, switching to mock');
+            useFirebaseMock = true;
+            return getUser(userId); // Retry with mock
+        }
         console.error('Error getting user:', error);
         return null;
     }
@@ -332,6 +426,15 @@ export async function trackAIUsage(
         };
 
         await addDoc(collection(db, 'aiUsage'), usageData);
+
+        // Update total tokens used in preferences
+        const prefRef = doc(db, 'userPreferences', userId);
+        // Use setDoc with merge to ensure it works even if doc doesn't exist (though it should)
+        await setDoc(prefRef, {
+            tokensUsed: increment(tokensUsed),
+            updatedAt: new Date()
+        }, { merge: true });
+
         return true;
     } catch (error) {
         console.error('Error tracking AI usage:', error);
@@ -371,6 +474,11 @@ export async function getUserAIUsage(userId: string, limitCount: number = 100): 
  */
 export async function getUserPreferences(userId: string): Promise<FirebaseUserPreferences | null> {
     try {
+        if (useFirebaseMock) {
+            const prefs = await firebaseMock.getDoc('userPreferences', userId);
+            return prefs || null;
+        }
+
         const prefRef = doc(db, 'userPreferences', userId);
         const prefSnap = await getDoc(prefRef);
 
@@ -379,6 +487,11 @@ export async function getUserPreferences(userId: string): Promise<FirebaseUserPr
         }
         return null;
     } catch (error) {
+        if (isOfflineError(error)) {
+            console.warn('🔥 Firebase offline, switching to mock');
+            useFirebaseMock = true;
+            return getUserPreferences(userId); // Retry with mock
+        }
         console.error('Error getting user preferences:', error);
         return null;
     }
@@ -417,8 +530,11 @@ export async function saveUserMemory(
     memoryEntry: any
 ): Promise<boolean> {
     try {
+        // Sanitize memoryEntry to replace undefined with null (Firestore doesn't support undefined)
+        const sanitizedEntry = JSON.parse(JSON.stringify(memoryEntry, (k, v) => v === undefined ? null : v));
+
         await addDoc(collection(db, 'users', userId, 'memories'), {
-            ...memoryEntry,
+            ...sanitizedEntry,
             timestamp: new Date()
         });
         return true;

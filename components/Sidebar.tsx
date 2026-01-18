@@ -1,19 +1,21 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
     MessageSquare, Search, Settings,
-    CreditCard, LogOut, Plus,
+    CreditCard, LogOut, SquarePen,
     MoreHorizontal, Trash2, X,
-    Pencil, Folder, FolderOpen,
     ChevronDown, ChevronRight,
-    LayoutGrid, Library as LibraryIcon,
     Sparkles, User, Zap, History,
-    Calendar, Box, RefreshCw
+    Calendar, Box, RefreshCw,
+    Share2, Database, FolderOpen, Bot,
+    Home, HelpCircle, Clock, Check, PanelLeft
 } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useClerk, useUser } from '@clerk/clerk-react';
-import { useChatSessions } from '@/hooks/useFirebase';
+import { useNavigate } from 'react-router-dom';
+import { useUser, useAuth } from '@/lib/authContext';
+import { useChatSessions, useSubscription } from '@/hooks/useSupabase';
 import Logo from './Logo';
 import { groupSessionsByDate, DateGroup } from '@/lib/utils/dateGrouping';
+import SubscriptionPopup from './SubscriptionPopup';
+import ShareModal from './ShareModal';
 
 interface SidebarProps {
     activeSessionId?: string;
@@ -23,6 +25,7 @@ interface SidebarProps {
     onClose?: () => void;
     onCollapse?: () => void;
     isSubscribed?: boolean;
+    isCollapsed?: boolean;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -32,23 +35,62 @@ const Sidebar: React.FC<SidebarProps> = ({
     onOpenSettings,
     onClose,
     onCollapse,
-    isSubscribed = false
+    isSubscribed = false,
+    isCollapsed = false
 }) => {
     const { user } = useUser();
-    const { signOut } = useClerk();
+    const { signOut } = useAuth();
     const navigate = useNavigate();
     const { sessions, loading, error, deleteSession, refreshSessions } = useChatSessions();
+    const { isPro, tier } = useSubscription();
+
+    // Override isSubscribed prop with actual tier from backend
+    const actuallySubscribed = isPro || isSubscribed;
     const [searchTerm, setSearchTerm] = useState('');
     const [showUserMenu, setShowUserMenu] = useState(false);
+    const [showDropdown, setShowDropdown] = useState(false);
+    const dropdownRef = useRef<HTMLDivElement>(null);
 
-    // Collapsible sections state
-    const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({
-        'Older': false // Default expanded for visibility
-    });
+    // Modal States
+    const [showPricing, setShowPricing] = useState(false);
+    const [showShare, setShowShare] = useState(false);
 
-    // Auto-refresh sessions (REMOVED Polling to prevent flicker/race conditions)
-    // Initial load is handled by the hook itself.
-    // Manual refresh button added to UI.
+    // Close dropdown on outside click
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                setShowDropdown(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const menuItems = [
+        {
+            type: 'plan' as const,
+            icon: Sparkles,
+            label: 'Nevra Pro',
+            description: 'Our smartest model & more',
+            action: () => setShowPricing(true),
+            isPro: true,
+            showUpgrade: !actuallySubscribed
+        },
+        {
+            type: 'plan' as const,
+            icon: Zap,
+            label: 'Nevra Free',
+            description: 'Great for everyday tasks',
+            action: () => { },
+            isActive: !isSubscribed
+        },
+        { type: 'divider' as const },
+        { type: 'button' as const, icon: Home, label: 'Home', action: () => navigate('/') },
+        { type: 'button' as const, icon: Share2, label: 'Share with Friend', action: () => setShowShare(true) },
+        { type: 'button' as const, icon: CreditCard, label: 'Pricing', action: () => setShowPricing(true) },
+        { type: 'button' as const, icon: Settings, label: 'Settings', action: onOpenSettings },
+        { type: 'button' as const, icon: LogOut, label: 'Sign Out', action: () => signOut() },
+    ];
 
     // Group and Filter sessions
     const groupedSessions = useMemo(() => {
@@ -63,15 +105,8 @@ const Sidebar: React.FC<SidebarProps> = ({
             return dateB - dateA;
         });
 
-        return groupSessionsByDate(sorted);
+        return groupSessionsByDate(sorted as any);
     }, [sessions, searchTerm]);
-
-    const toggleSection = (section: string) => {
-        setCollapsedSections(prev => ({
-            ...prev,
-            [section]: !prev[section]
-        }));
-    };
 
     const handleSignOut = async () => {
         await signOut();
@@ -86,7 +121,6 @@ const Sidebar: React.FC<SidebarProps> = ({
         }
     };
 
-    // User initials
     const getUserInitials = () => {
         if (user?.fullName) {
             const names = user.fullName.split(' ');
@@ -97,230 +131,379 @@ const Sidebar: React.FC<SidebarProps> = ({
         return 'U';
     };
 
-    return (
-        <div className="flex flex-col h-full bg-[#050505] border-r border-[#1f1f1f] w-full">
-            {/* 1. Header Section */}
-            <div className="p-3 space-y-3">
-                {/* Brand / Logo Area */}
-                <div className="flex items-center justify-between px-2 pt-1 pb-2">
-                    <div className="flex items-center gap-2.5">
-                        <div className="relative group">
-                            <div className="absolute -inset-1 bg-gradient-to-r from-purple-600 to-blue-600 rounded-full blur opacity-25 group-hover:opacity-50 transition duration-200"></div>
-                            <div className="relative w-7 h-7 bg-[#111] rounded-lg flex items-center justify-center border border-white/10">
-                                <Logo size={18} />
-                            </div>
-                        </div>
-                        <span className="text-sm font-bold tracking-wide text-gray-100 font-display">
-                            NEVRA
-                        </span>
-                    </div>
-                    {/* Manual Refresh Button */}
+    // Render Mini Sidebar (Rail Mode)
+    if (isCollapsed) {
+        return (
+            <div className="flex flex-col h-full bg-[#FAFAFA] border-r border-zinc-200 w-[60px] items-center py-4 gap-6 shrink-0 z-20">
+                {/* Logo / Home */}
+                <div className="flex flex-col items-center gap-3">
+                    <button onClick={onNewChat} className="p-2 hover:bg-zinc-200 rounded-lg transition-colors group relative" title="New Chat">
+                        <Logo size={24} className="text-zinc-900" />
+                    </button>
                     <button
-                        onClick={() => refreshSessions()}
-                        className={`p-1.5 rounded-md hover:bg-[#121212] text-gray-500 hover:text-white transition-all ${loading ? 'animate-spin text-purple-500' : ''}`}
-                        title="Refresh History"
+                        onClick={onCollapse}
+                        className="p-2 text-zinc-400 hover:text-zinc-600 hover:bg-zinc-200 rounded-lg transition-colors"
+                        title="Expand Sidebar"
                     >
-                        <RefreshCw size={14} />
+                        <PanelLeft size={20} strokeWidth={1.5} />
                     </button>
                 </div>
 
-                {/* Primary Action - New Chat */}
-                <button
-                    onClick={onNewChat}
-                    className="group relative w-full flex items-center justify-between px-3 py-2.5 bg-white text-black hover:bg-gray-100 rounded-lg transition-all duration-200 shadow-[0_0_15px_rgba(255,255,255,0.1)] hover:shadow-[0_0_20px_rgba(255,255,255,0.2)]"
-                >
-                    <div className="flex items-center gap-2.5">
-                        <Plus size={16} className="text-black/70" />
-                        <span className="text-sm font-semibold">New Chat</span>
-                    </div>
-                    <div className="bg-black/10 p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Sparkles size={12} className="text-black/60" />
-                    </div>
-                </button>
+                {/* Main Navigation Icons */}
+                <div className="flex flex-col gap-4 w-full items-center">
+                    <button
+                        onClick={() => navigate('/')}
+                        className="p-2 hover:bg-zinc-200 rounded-lg text-zinc-500 hover:text-zinc-900 transition-colors"
+                        title="Home"
+                    >
+                        <Home size={20} strokeWidth={1.5} />
+                    </button>
 
-                {/* Search */}
+                    <button
+                        onClick={() => setShowShare(true)}
+                        className="p-2 hover:bg-zinc-200 rounded-lg text-zinc-500 hover:text-zinc-900 transition-colors"
+                        title="Share with Friend"
+                    >
+                        <Share2 size={20} strokeWidth={1.5} />
+                    </button>
+
+                    <button
+                        onClick={() => setShowPricing(true)}
+                        className="p-2 hover:bg-zinc-200 rounded-lg text-zinc-500 hover:text-zinc-900 transition-colors"
+                        title="Pricing"
+                    >
+                        <CreditCard size={20} strokeWidth={1.5} />
+                    </button>
+
+                    <button
+                        onClick={onClose} // Expand sidebar for History
+                        className="p-2 hover:bg-zinc-200 rounded-lg text-zinc-500 hover:text-zinc-900 transition-colors"
+                        title="History"
+                    >
+                        <History size={20} strokeWidth={1.5} />
+                    </button>
+                </div>
+
+                <div className="flex-1" />
+
+                {/* Footer Icons */}
+                <div className="flex flex-col gap-4 w-full items-center mb-2">
+                    <button className="p-2 hover:bg-zinc-200 rounded-lg text-zinc-500 hover:text-zinc-900 transition-colors" title="Help">
+                        <div className="w-5 h-5 rounded-full border border-zinc-400 flex items-center justify-center font-serif italic text-xs">?</div>
+                    </button>
+
+                    <button onClick={onOpenSettings} className="p-2 hover:bg-zinc-200 rounded-lg text-zinc-500 hover:text-zinc-900 transition-colors" title="Settings">
+                        <Settings size={20} strokeWidth={1.5} />
+                    </button>
+
+                    <div
+                        onClick={() => setShowUserMenu(!showUserMenu)}
+                        className="relative cursor-pointer"
+                    >
+                        <div className="w-8 h-8 rounded-full bg-zinc-800 text-white flex items-center justify-center text-xs">
+                            {getUserInitials()}
+                        </div>
+
+                        {/* Mini User Menu */}
+                        {showUserMenu && (
+                            <div className="absolute bottom-0 left-10 w-48 bg-white rounded-xl shadow-xl border border-zinc-200 p-1.5 z-50 animate-in slide-in-from-left-2 fade-in duration-200">
+                                <div className="px-2 py-1.5 border-b border-zinc-100 mb-1">
+                                    <p className="text-xs font-semibold text-zinc-900 truncate">{user?.primaryEmailAddress?.emailAddress}</p>
+                                </div>
+                                <button
+                                    onClick={onOpenSettings}
+                                    className="w-full flex items-center gap-2 px-2 py-2 text-sm text-zinc-600 hover:text-zinc-900 hover:bg-zinc-50 rounded-lg transition-colors"
+                                >
+                                    <Settings size={14} strokeWidth={1.5} />
+                                    Settings
+                                </button>
+                                <button
+                                    onClick={handleSignOut}
+                                    className="w-full flex items-center gap-2 px-2 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                >
+                                    <LogOut size={14} strokeWidth={1.5} />
+                                    Sign out
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Modals for Rail Mode */}
+                <SubscriptionPopup
+                    isOpen={showPricing}
+                    onClose={() => setShowPricing(false)}
+                    tokensUsed={0}
+                    tokensLimit={100}
+                    title="Pricing Plans"
+                    description="Choose the plan that's right for you."
+                />
+                <ShareModal
+                    isOpen={showShare}
+                    onClose={() => setShowShare(false)}
+                />
+            </div>
+        );
+    }
+
+    return (
+        <div className="flex flex-col h-full bg-[#FAFAFA] border-r border-zinc-200 w-full font-sans">
+            {/* 1. Header Section */}
+            <div className="px-4 py-3 space-y-4">
+                {/* Brand / Logo Area with Dropdown */}
+                <div className="flex items-center justify-between px-1 mb-2 relative" ref={dropdownRef}>
+                    <button
+                        onClick={() => setShowDropdown(!showDropdown)}
+                        className="flex items-center gap-2 hover:bg-zinc-100 -ml-2 p-2 rounded-lg transition-colors group"
+                    >
+                        <div className="w-8 h-8 flex items-center justify-center bg-black rounded-xl shadow-lg shadow-black/20 group-hover:scale-105 transition-transform">
+                            <Logo size={18} className="text-white" />
+                        </div>
+                        <span className="text-base font-bold tracking-tight text-zinc-900 font-display">
+                            Nevra {isSubscribed && <span className="text-purple-600">Pro</span>}
+                        </span>
+                        <ChevronDown size={14} className={`text-zinc-400 transition-transform duration-200 ${showDropdown ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    <div className="flex items-center gap-1">
+                        <button
+                            onClick={onCollapse}
+                            className="hidden md:flex p-2 hover:bg-zinc-100 rounded-lg text-zinc-500 hover:text-zinc-900 transition-colors"
+                            title="Collapse Sidebar"
+                        >
+                            <PanelLeft size={18} strokeWidth={1.5} />
+                        </button>
+                        <button
+                            onClick={onClose}
+                            className="md:hidden p-2 text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 rounded-lg transition-colors"
+                            title="Close Sidebar"
+                        >
+                            <X size={18} />
+                        </button>
+
+                        <button onClick={onNewChat} className="p-2 hover:bg-zinc-100 rounded-lg text-zinc-500 hover:text-zinc-900 transition-colors" title="New Chat">
+                            <SquarePen size={18} strokeWidth={1.5} />
+                        </button>
+                    </div>
+
+                    {/* Dropdown Menu - ChatGPT Style */}
+                    {showDropdown && (
+                        <div className="absolute top-full left-0 mt-2 w-80 bg-white border border-zinc-200 rounded-2xl shadow-2xl z-50 overflow-hidden transform origin-top-left transition-all duration-200 animation-fade-in">
+                            <div className="p-2 space-y-0.5">
+                                {menuItems.map((item, index) => {
+                                    if (item.type === 'divider') {
+                                        return <div key={index} className="h-px bg-zinc-100 my-1 mx-2" />;
+                                    }
+
+                                    if (item.type === 'plan') {
+                                        const Icon = item.icon;
+                                        return (
+                                            <button
+                                                key={index}
+                                                onClick={() => {
+                                                    if (item.action) item.action();
+                                                    setShowDropdown(false);
+                                                }}
+                                                className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all border ${item.isActive
+                                                    ? 'bg-white border-zinc-200 shadow-sm'
+                                                    : 'border-transparent hover:bg-zinc-50'
+                                                    }`}
+                                            >
+                                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${item.isPro
+                                                    ? 'bg-zinc-900 border-zinc-800 text-white'
+                                                    : 'bg-white border-zinc-200 text-zinc-900'
+                                                    }`}>
+                                                    <Icon size={16} strokeWidth={2} />
+                                                </div>
+                                                <div className="flex-1 text-left min-w-0">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <span className="text-sm font-semibold text-zinc-900">{item.label}</span>
+                                                        {item.showUpgrade && (
+                                                            <span className="text-xs px-2.5 py-1 bg-white border border-zinc-200 text-zinc-900 rounded-full font-medium shadow-sm hover:bg-zinc-50">
+                                                                Upgrade
+                                                            </span>
+                                                        )}
+                                                        {item.isActive && (
+                                                            <Check size={16} className="text-zinc-900" strokeWidth={2.5} />
+                                                        )}
+                                                    </div>
+                                                    <div className="text-xs text-zinc-500 truncate">{item.description}</div>
+                                                </div>
+                                            </button>
+                                        );
+                                    }
+
+                                    // Regular Menu Item
+                                    if (item.type === 'button') {
+                                        const Icon = item.icon;
+                                        return (
+                                            <button
+                                                key={index}
+                                                onClick={() => {
+                                                    if (item.action) item.action();
+                                                    setShowDropdown(false);
+                                                }}
+                                                className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-zinc-600 hover:text-zinc-900 hover:bg-zinc-50 rounded-lg transition-colors"
+                                            >
+                                                <Icon size={16} strokeWidth={1.5} />
+                                                {item.label}
+                                            </button>
+                                        );
+                                    }
+                                    return null;
+                                })}
+                            </div>
+                        </div>
+                    )}
+
+
+                </div>
+
+                {/* Mobile Navigation Toolbar */}
+                <div className="flex md:hidden items-center justify-between px-2 mb-3 pb-2 border-b border-zinc-50">
+                    <button onClick={() => navigate('/')} className="p-2 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-lg transition-colors" title="Home">
+                        <Home size={18} strokeWidth={1.5} />
+                    </button>
+                    <button onClick={() => setShowShare(true)} className="p-2 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-lg transition-colors" title="Share">
+                        <Share2 size={18} strokeWidth={1.5} />
+                    </button>
+                    <button onClick={() => setShowPricing(true)} className="p-2 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-lg transition-colors" title="Pro Plan">
+                        <Zap size={18} strokeWidth={1.5} />
+                    </button>
+                    <button onClick={onOpenSettings} className="p-2 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-lg transition-colors" title="Settings">
+                        <Settings size={18} strokeWidth={1.5} />
+                    </button>
+                </div>
+
+                {/* Search Input (Minimalist) */}
                 <div className="relative group">
-                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-purple-400 transition-colors" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-zinc-600 transition-colors" size={15} strokeWidth={1.5} />
                     <input
                         type="text"
-                        placeholder="Search chats..."
+                        placeholder="Search..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full bg-[#121212] border border-[#1f1f1f] group-focus-within:border-purple-500/50 rounded-lg pl-9 pr-3 py-2 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-purple-500/20 transition-all"
+                        className="w-full pl-9 pr-4 py-2 bg-transparent border border-transparent hover:border-zinc-200 focus:border-zinc-300 focus:bg-white rounded-lg text-sm text-zinc-700 placeholder-zinc-400 outline-none transition-all duration-200"
                     />
                 </div>
             </div>
 
-            {/* 2. Navigation Section (Optional Quick Links) */}
-            <div className="px-3 pb-2 flex flex-col gap-0.5">
-                {[
-                    { icon: LayoutGrid, label: 'Workflows', path: '/workflows' },
-                    { icon: Box, label: 'Agents', path: '/agents' }
-                ].map((item) => (
-                    <Link
-                        key={item.label}
-                        to={item.path}
-                        className="flex items-center gap-3 px-3 py-2 text-xs font-medium text-gray-400 hover:text-white hover:bg-[#121212] rounded-lg transition-colors group"
-                    >
-                        <item.icon size={15} className="group-hover:text-purple-400 transition-colors" />
-                        <span>{item.label}</span>
-                    </Link>
-                ))}
-            </div>
-
-            <div className="h-px bg-gradient-to-r from-transparent via-[#1f1f1f] to-transparent mx-4 my-1"></div>
-
-            {/* 3. Scrollable History Section */}
-            <div className="flex-1 overflow-y-auto px-2 py-2 min-h-0 custom-scrollbar">
-                {/* Error State */}
-                {error && (
-                    <div className="m-2 p-2 bg-red-500/10 border border-red-500/20 rounded-lg text-xs text-red-400">
-                        {error}
-                        <button onClick={() => refreshSessions()} className="ml-2 underline hover:text-red-300">Retry</button>
-                    </div>
-                )}
-
-                {loading && sessions.length === 0 && (
-                    <div className="flex flex-col items-center justify-center py-8 space-y-3 opacity-50">
-                        <div className="w-5 h-5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
-                        <span className="text-xs text-gray-500">Syncing history...</span>
-                    </div>
-                )}
-
-                {!loading && Object.entries(groupedSessions).map(([group, groupSessions]) => {
-                    const sessionsList = groupSessions as typeof sessions;
-                    if (sessionsList.length === 0) return null;
-
-                    const isCollapsed = collapsedSections[group];
-
-                    return (
-                        <div key={group} className="mb-4">
-                            <button
-                                onClick={() => toggleSection(group)}
-                                className="w-full flex items-center justify-between px-3 py-1.5 text-[11px] font-bold text-gray-500 uppercase tracking-wider hover:text-gray-300 transition-colors group mb-1"
-                            >
-                                <div className="flex items-center gap-2">
-                                    <span>{group}</span>
-                                    <span className="bg-[#1f1f1f] text-gray-400 py-0.5 px-1.5 rounded text-[9px]">{sessionsList.length}</span>
-                                </div>
-                                {isCollapsed ? <ChevronRight size={10} /> : <ChevronDown size={10} />}
-                            </button>
-
-                            {!isCollapsed && (
-                                <div className="space-y-0.5 animate-in fade-in slide-in-from-top-1 duration-200">
-                                    {sessionsList.map((session) => (
-                                        <div
-                                            key={session.id}
-                                            onClick={() => onSelectSession(session.id)}
-                                            className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-200 border border-transparent ${activeSessionId === session.id
-                                                ? 'bg-[#121212] text-white border-[#1f1f1f] shadow-sm'
-                                                : 'text-gray-400 hover:bg-[#121212] hover:text-gray-200'
-                                                }`}
-                                        >
-                                            <div className={`shrink-0 transition-colors ${activeSessionId === session.id ? 'text-purple-400' : 'text-gray-600 group-hover:text-gray-500'}`}>
-                                                {session.mode === 'builder' ? <Zap size={14} /> : <MessageSquare size={14} />}
+            {/* 2. Scrollable Sessions List */}
+            <div className="flex-1 overflow-y-auto px-3 pb-4 space-y-6">
+                {/* ... (Previous session list code remains the same) ... */}
+                {Object.entries(groupedSessions).map(([groupName, groupMessages]) => (
+                    groupMessages.length > 0 && (
+                        <div key={groupName} className="space-y-1">
+                            <h3 className="px-3 text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2">
+                                {groupName}
+                            </h3>
+                            <div className="space-y-[2px]">
+                                {groupMessages.map(session => (
+                                    <div
+                                        key={session.id}
+                                        onClick={() => onSelectSession(session.id)}
+                                        className={`
+                                            group relative flex items-center gap-3 px-3 py-2 text-sm rounded-lg active:scale-[0.99] transition-all duration-150 cursor-pointer
+                                            ${activeSessionId === session.id
+                                                ? 'bg-zinc-100 text-zinc-900 font-medium'
+                                                : 'text-zinc-600 hover:bg-zinc-100/50 hover:text-zinc-900'
+                                            }
+                                        `}
+                                    >
+                                        <div className="relative flex-1 min-w-0">
+                                            <div className="truncate pr-6">
+                                                {session.title || 'Untitled Chat'}
                                             </div>
-
-                                            <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-                                                <span className="text-xs font-medium truncate leading-tight">
-                                                    {session.title || 'Untitled Chat'}
-                                                </span>
-                                            </div>
-
-                                            {/* Hover Actions */}
-                                            <div className="absolute right-2 opacity-0 group-hover:opacity-100 flex items-center bg-[#121212] pl-2 shadow-[-10px_0_10px_#121212]">
-                                                <button
-                                                    onClick={(e) => handleDeleteSession(e, session.id)}
-                                                    className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-md transition-colors"
-                                                    title="Delete"
-                                                >
-                                                    <Trash2 size={12} />
-                                                </button>
-                                            </div>
-
-                                            {/* Active Indicator */}
-                                            {activeSessionId === session.id && (
-                                                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-6 bg-purple-500 rounded-r-full shadow-[0_0_8px_rgba(168,85,247,0.4)]"></div>
-                                            )}
                                         </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    );
-                })}
 
-                {!loading && sessions.length === 0 && (
-                    <div className="text-center py-12 px-6">
-                        <div className="w-12 h-12 bg-[#121212] rounded-2xl flex items-center justify-center mx-auto mb-4 border border-[#1f1f1f]">
-                            <History size={20} className="text-gray-600" />
+                                        {/* Hover Actions */}
+                                        <div className={`absolute right-2 opacity-0 group-hover:opacity-100 flex items-center transition-opacity ${activeSessionId === session.id ? 'opacity-100' : ''}`}>
+                                            <button
+                                                onClick={(e) => handleDeleteSession(e, session.id)}
+                                                className="p-1 hover:bg-red-50 text-zinc-400 hover:text-red-500 rounded-md transition-colors"
+                                            >
+                                                <Trash2 size={13} strokeWidth={1.5} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
-                        <h3 className="text-sm font-medium text-gray-300 mb-1">No history yet</h3>
-                        <p className="text-xs text-gray-500">Start your first conversation to see it here.</p>
+                    )
+                ))}
+
+                {sessions.length === 0 && !loading && (
+                    <div className="flex flex-col items-center justify-center py-10 px-4 text-center">
+                        <p className="text-zinc-500 text-sm">No chat history yet.</p>
                     </div>
                 )}
             </div>
 
-            {/* 4. Footer / User Profile */}
-            <div className="p-3 bg-[#050505] border-t border-[#1f1f1f]">
-                <div className="relative">
-                    <button
-                        onClick={() => setShowUserMenu(!showUserMenu)}
-                        className={`w-full flex items-center gap-3 p-2 rounded-xl border transition-all duration-200 ${showUserMenu
-                            ? 'bg-[#121212] border-[#2f2f2f]'
-                            : 'bg-transparent border-transparent hover:bg-[#121212] hover:border-[#1f1f1f]'
-                            }`}
-                    >
-                        <div className="relative">
-                            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center text-white text-xs font-bold shadow-lg">
-                                {user?.imageUrl ? (
-                                    <img src={user.imageUrl} alt="User" className="w-full h-full rounded-lg object-cover" />
-                                ) : getUserInitials()}
-                            </div>
-                            {isSubscribed && (
-                                <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full border-2 border-[#050505] flex items-center justify-center">
-                                    <Zap size={6} className="text-black fill-current" />
-                                </div>
-                            )}
+            {/* 3. Footer / User Profile */}
+            <div className="p-3 border-t border-zinc-200 bg-[#FAFAFA]">
+                <div
+                    className="flex items-center gap-3 p-2 rounded-xl hover:bg-white hover:shadow-sm border border-transparent hover:border-zinc-200 cursor-pointer transition-all duration-200 group"
+                    onClick={() => setShowUserMenu(!showUserMenu)}
+                >
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-zinc-700 to-zinc-900 flex items-center justify-center text-white text-xs font-medium shadow-sm ring-2 ring-white">
+                        {getUserInitials()}
+                    </div>
+                    <div className="flex-1 min-w-0 text-left">
+                        <div className="font-medium text-sm text-zinc-900 truncate group-hover:text-black">
+                            {user?.fullName || 'User'}
                         </div>
-
-                        <div className="flex-1 min-w-0 text-left">
-                            <div className="text-xs font-semibold text-gray-200 truncate">
-                                {user?.fullName || 'Guest User'}
-                            </div>
-                            <div className="text-[10px] font-medium text-gray-500">
-                                {isSubscribed ? 'Pro Plan' : 'Free Plan'}
-                            </div>
+                        <div className="text-[11px] text-zinc-500 truncate group-hover:text-zinc-600">
+                            {actuallySubscribed ? 'Pro Plan' : 'Free Plan'}
                         </div>
-
-                        <Settings size={14} className="text-gray-500" />
-                    </button>
-
-                    {/* Popover Menu */}
-                    {showUserMenu && (
-                        <>
-                            <div className="fixed inset-0 z-30" onClick={() => setShowUserMenu(false)} />
-                            <div className="absolute bottom-full left-0 w-full mb-3 bg-[#121212] border border-[#2f2f2f] rounded-xl shadow-2xl overflow-hidden z-40 animate-in fade-in slide-in-from-bottom-2 duration-200">
-                                <div className="p-1">
-                                    <button onClick={onOpenSettings} className="w-full flex items-center gap-3 px-3 py-2.5 text-xs font-medium text-gray-300 hover:text-white hover:bg-[#1f1f1f] rounded-lg transition-colors text-left">
-                                        <Settings size={14} className="text-gray-500" />
-                                        Settings
-                                    </button>
-                                    <Link to="/pricing" className="w-full flex items-center gap-3 px-3 py-2.5 text-xs font-medium text-gray-300 hover:text-white hover:bg-[#1f1f1f] rounded-lg transition-colors text-left">
-                                        <CreditCard size={14} className="text-gray-500" />
-                                        Subscription
-                                    </Link>
-                                    <div className="h-px bg-[#1f1f1f] my-1"></div>
-                                    <button onClick={handleSignOut} className="w-full flex items-center gap-3 px-3 py-2.5 text-xs font-medium text-red-400 hover:bg-red-500/10 rounded-lg transition-colors text-left">
-                                        <LogOut size={14} />
-                                        Sign Out
-                                    </button>
-                                </div>
-                            </div>
-                        </>
-                    )}
+                    </div>
+                    <Settings
+                        size={16}
+                        strokeWidth={1.5}
+                        className="text-zinc-400 group-hover:text-zinc-600 transition-colors"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenSettings();
+                        }}
+                    />
                 </div>
+
+                {/* Popover Menu for Sign Out */}
+                {showUserMenu && (
+                    <div className="absolute bottom-16 left-3 w-[260px] bg-white rounded-xl shadow-xl border border-zinc-200 p-1.5 z-50 animate-in slide-in-from-bottom-2 fade-in duration-200">
+                        <div className="px-2 py-1.5 border-b border-zinc-100 mb-1">
+                            <p className="text-xs font-semibold text-zinc-900">{user?.primaryEmailAddress?.emailAddress}</p>
+                        </div>
+                        <button
+                            onClick={onOpenSettings}
+                            className="w-full flex items-center gap-2 px-2 py-2 text-sm text-zinc-600 hover:text-zinc-900 hover:bg-zinc-50 rounded-lg transition-colors"
+                        >
+                            <Settings size={14} strokeWidth={1.5} />
+                            Settings
+                        </button>
+                        <button
+                            onClick={handleSignOut}
+                            className="w-full flex items-center gap-2 px-2 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        >
+                            <LogOut size={14} strokeWidth={1.5} />
+                            Sign out
+                        </button>
+                    </div>
+                )}
             </div>
+
+            {/* Modals */}
+            <SubscriptionPopup
+                isOpen={showPricing}
+                onClose={() => setShowPricing(false)}
+                tokensUsed={0}
+                tokensLimit={100}
+                title="Pricing Plans"
+                description="Choose the plan that's right for you."
+            />
+            <ShareModal
+                isOpen={showShare}
+                onClose={() => setShowShare(false)}
+            />
         </div>
     );
 };

@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import Navbar from '../Navbar';
 import Footer from '../Footer';
 import Background from '../ui/Background';
 import { Check } from 'lucide-react';
 import { detectCurrency, getPremiumPricing, formatCurrency } from '@/lib/currency';
-import { useUser } from '@clerk/clerk-react';
+import { useUser } from '@/lib/authContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
 const PricingPage: React.FC = () => {
@@ -21,7 +20,7 @@ const PricingPage: React.FC = () => {
   useEffect(() => {
     const success = searchParams.get('success');
     const canceled = searchParams.get('canceled');
-    
+
     if (success === 'true') {
       setError(null);
       // Refresh subscription status
@@ -39,7 +38,7 @@ const PricingPage: React.FC = () => {
   // Check subscription status
   const checkSubscriptionStatus = async () => {
     if (!user?.id) return;
-    
+
     try {
       const resp = await fetch(`/api/payment/subscription?userId=${user.id}`);
       if (resp.ok) {
@@ -54,6 +53,20 @@ const PricingPage: React.FC = () => {
   useEffect(() => {
     if (user?.id) {
       checkSubscriptionStatus();
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    // Handle payment success callback
+    const params = new URLSearchParams(window.location.search);
+    const success = params.get('success');
+
+    if (success === 'true' && user?.id) {
+      // Wait a bit then refresh subscription
+      setTimeout(() => {
+        checkSubscriptionStatus();
+        window.history.replaceState({}, '', '/pricing');
+      }, 1000);
     }
   }, [user?.id]);
 
@@ -89,7 +102,7 @@ const PricingPage: React.FC = () => {
       const resp = await fetch('/api/payment/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           plan: 'premium',
           currency,
           amount: premiumPricing.amount,
@@ -104,6 +117,66 @@ const PricingPage: React.FC = () => {
       if (data?.checkout_url) {
         // Redirect to Stripe Checkout
         window.location.href = data.checkout_url;
+      } else if (data?.token) {
+        // Use Midtrans Snap
+        // @ts-ignore - Midtrans Snap is loaded from CDN
+        if (window.snap) {
+          // @ts-ignore
+          window.snap.pay(data.token, {
+            onSuccess: async function (result: any) {
+              console.log('✅ Payment success:', result);
+
+              // Auto-activate subscription
+              try {
+                const activateResp = await fetch('/api/payment/activate', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    userId: user.id,
+                    orderId: result.order_id || data.order_id,
+                  }),
+                });
+
+                if (activateResp.ok) {
+                  const activateData = await activateResp.json();
+                  console.log('✅ Auto-activation successful:', activateData);
+
+                  // Update local state immediately
+                  setIsSubscribed(true);
+                  setLoadingPlan(null);
+
+                  // Show success message
+                  alert('🎉 Selamat! Subscription Premium Anda berhasil diaktifkan!');
+                } else {
+                  const errorData = await activateResp.json();
+                  console.error('❌ Auto-activation failed:', errorData);
+                  alert('Payment berhasil, tapi aktivasi gagal. Silakan hubungi support.');
+                }
+              } catch (error) {
+                console.error('❌ Activation error:', error);
+                alert('Payment berhasil, tapi aktivasi gagal. Silakan hubungi support.');
+              }
+
+              // Redirect to success page
+              window.location.href = '/pricing?success=true';
+            },
+            onPending: function (result: any) {
+              console.log('⏳ Payment pending:', result);
+              window.location.href = '/pricing?pending=true';
+            },
+            onError: function (result: any) {
+              console.error('❌ Payment error:', result);
+              window.location.href = '/pricing?error=true';
+            },
+            onClose: function () {
+              console.log('🚪 Payment popup closed');
+              setLoadingPlan(null);
+            }
+          });
+        } else {
+          // Fallback to redirect
+          window.location.href = data.checkout_url;
+        }
       } else {
         throw new Error('Invalid checkout response');
       }
@@ -128,18 +201,27 @@ const PricingPage: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: user.id }),
       });
+
       if (!resp.ok) {
-        const errorData = await resp.json().catch(() => ({ error: 'Failed to create portal session' }));
-        throw new Error(errorData.error || 'Failed to create portal session');
+        throw new Error('Failed to fetch subscription info');
       }
+
       const data = await resp.json();
-      if (data?.url) {
-        window.location.href = data.url;
-      } else {
-        throw new Error('Invalid portal response');
+
+      // Show subscription info in alert
+      if (data.subscription) {
+        const expiryDate = new Date(data.subscription.expiresAt).toLocaleDateString('id-ID', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        });
+
+        alert(`🎉 Subscription Aktif!\n\nTier: Nevra Pro\nAktif sejak: ${new Date(data.subscription.activatedAt).toLocaleDateString('id-ID')}\nBerlaku hingga: ${expiryDate}\n\nNikmati unlimited tokens dan semua fitur premium!`);
       }
+
+      setLoadingPlan(null);
     } catch (e: unknown) {
-      const errorMessage = e instanceof Error ? e.message : 'Unable to open subscription portal. Please try again.';
+      const errorMessage = e instanceof Error ? e.message : 'Unable to fetch subscription info';
       setError(errorMessage);
       setLoadingPlan(null);
     }
@@ -148,7 +230,6 @@ const PricingPage: React.FC = () => {
   return (
     <div className="relative min-h-screen flex flex-col overflow-x-hidden text-aura-primary bg-[#020202] page-transition">
       <Background />
-      <Navbar />
       <main className="flex-grow pt-24 relative z-10">
         <section className="relative py-20 px-6">
           <div className="max-w-7xl mx-auto text-center mb-12 md:mb-16 px-4">
@@ -189,7 +270,7 @@ const PricingPage: React.FC = () => {
                   </li>
                 ))}
               </ul>
-              <button 
+              <button
                 className="w-full py-3.5 md:py-3 rounded-lg border border-white/20 text-white hover:bg-white hover:text-black transition-colors font-medium min-h-[44px] flex items-center justify-center"
                 onClick={() => handleCheckout('free')}
                 disabled={loadingPlan === 'free'}>

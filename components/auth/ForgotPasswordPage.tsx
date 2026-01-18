@@ -1,22 +1,19 @@
 import React, { useState } from 'react';
-import { useSignIn, useAuth } from '@clerk/clerk-react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useAuth, useUser } from '@/lib/authContext';
 import Logo from '../Logo';
 import { Loader2, ArrowLeft, Mail, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const ForgotPasswordPage: React.FC = () => {
-    const { isLoaded, signIn, setActive } = useSignIn();
-    const { isSignedIn } = useAuth();
+    const { resetPassword } = useAuth();
+    const { isSignedIn, isLoaded } = useUser();
     const navigate = useNavigate();
 
     const [email, setEmail] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isSent, setIsSent] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [code, setCode] = useState('');
-    const [password, setPassword] = useState('');
-    const [step, setStep] = useState<'request' | 'reset'>('request');
 
     // Redirect if already signed in
     React.useEffect(() => {
@@ -27,54 +24,20 @@ const ForgotPasswordPage: React.FC = () => {
 
     const handleRequestReset = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!isLoaded) return;
 
         setIsLoading(true);
         setError(null);
 
         try {
-            await signIn.create({
-                strategy: "reset_password_email_code",
-                identifier: email,
-            });
-            setIsSent(true);
-            setStep('reset');
-        } catch (err: any) {
-            console.error(err);
-            if (err.errors && err.errors[0]?.code === 'form_identifier_not_found') {
-                setError("Email tidak ditemukan.");
+            const { error } = await resetPassword(email);
+            if (error) {
+                setError(error.message);
             } else {
-                setError(err.errors?.[0]?.message || "Gagal mengirim email reset.");
-            }
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const handleResetPassword = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!isLoaded) return;
-
-        setIsLoading(true);
-        setError(null);
-
-        try {
-            const result = await signIn.attemptFirstFactor({
-                strategy: "reset_password_email_code",
-                code,
-                password,
-            });
-
-            if (result.status === "complete") {
-                await setActive({ session: result.createdSessionId });
-                navigate('/');
-            } else {
-                console.error(result);
-                setError("Gagal mereset kata sandi.");
+                setIsSent(true);
             }
         } catch (err: any) {
             console.error(err);
-            setError(err.errors?.[0]?.message || "Kode salah atau kadaluarsa.");
+            setError("Gagal mengirim email reset.");
         } finally {
             setIsLoading(false);
         }
@@ -84,6 +47,31 @@ const ForgotPasswordPage: React.FC = () => {
         return (
             <div className="flex items-center justify-center min-h-screen bg-[#05100a] text-white">
                 <Loader2 className="animate-spin text-[#4ADE80]" size={32} />
+            </div>
+        );
+    }
+
+    if (isSent) {
+        return (
+            <div className="min-h-screen bg-zinc-50 flex items-center justify-center p-4">
+                <div className="bg-white rounded-2xl shadow-xl border border-zinc-100 p-8 max-w-md w-full text-center">
+                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <CheckCircle2 className="w-8 h-8 text-green-600" />
+                    </div>
+                    <h2 className="text-2xl font-bold text-zinc-900 mb-2">Cek Email Kamu!</h2>
+                    <p className="text-zinc-500 mb-6">
+                        Kami telah mengirim link reset password ke <span className="font-medium text-zinc-900">{email}</span>
+                    </p>
+                    <p className="text-sm text-zinc-400 mb-6">
+                        Klik link di email untuk mengatur ulang password kamu. Jika tidak ada, cek folder spam.
+                    </p>
+                    <Link
+                        to="/sign-in"
+                        className="inline-block px-6 py-3 bg-black text-white rounded-xl font-medium hover:bg-zinc-800 transition-colors"
+                    >
+                        Ke Halaman Login
+                    </Link>
+                </div>
             </div>
         );
     }
@@ -118,12 +106,10 @@ const ForgotPasswordPage: React.FC = () => {
 
                         <div className="text-center mb-8">
                             <h1 className="text-3xl font-bold mb-3 text-white">
-                                {step === 'request' ? "Lupa Kata Sandi?" : "Atur Ulang Sandi"}
+                                Lupa Kata Sandi?
                             </h1>
                             <p className="text-gray-400 text-sm leading-relaxed">
-                                {step === 'request'
-                                    ? "Jangan khawatir. Masukkan email yang tertaut dengan akun Anda dan kami akan mengirimkan kode reset."
-                                    : "Masukkan kode verifikasi yang dikirim ke email Anda dan kata sandi baru."}
+                                Jangan khawatir. Masukkan email yang tertaut dengan akun Anda dan kami akan mengirimkan link reset.
                             </p>
                         </div>
 
@@ -138,77 +124,36 @@ const ForgotPasswordPage: React.FC = () => {
                             </motion.div>
                         )}
 
-                        {step === 'request' ? (
-                            <form onSubmit={handleRequestReset} className="space-y-6">
-                                <div className="space-y-2">
-                                    <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider ml-1">Email</label>
-                                    <div className="relative group/input">
-                                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within/input:text-[#4ADE80] transition-colors">
-                                            <Mail size={18} />
-                                        </div>
-                                        <input
-                                            type="email"
-                                            value={email}
-                                            onChange={(e) => setEmail(e.target.value)}
-                                            className="w-full bg-white border-none rounded-xl py-3.5 pl-11 pr-4 text-black placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#4ADE80] transition-all"
-                                            placeholder="nama@email.com"
-                                            required
-                                        />
+                        <form onSubmit={handleRequestReset} className="space-y-6">
+                            <div className="space-y-2">
+                                <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider ml-1">Email</label>
+                                <div className="relative group/input">
+                                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within/input:text-[#4ADE80] transition-colors">
+                                        <Mail size={18} />
                                     </div>
-                                </div>
-
-                                <button
-                                    type="submit"
-                                    disabled={isLoading}
-                                    className="w-full bg-[#3B82F6] hover:bg-[#2563EB] text-white font-bold py-3.5 rounded-xl transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2 group/btn disabled:opacity-70 disabled:cursor-not-allowed"
-                                >
-                                    {isLoading ? (
-                                        <Loader2 className="animate-spin" size={20} />
-                                    ) : (
-                                        "Kirim Kode Reset"
-                                    )}
-                                </button>
-                            </form>
-                        ) : (
-                            <form onSubmit={handleResetPassword} className="space-y-6">
-                                <div className="space-y-2">
-                                    <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider ml-1">Kode Verifikasi</label>
                                     <input
-                                        type="text"
-                                        value={code}
-                                        onChange={(e) => setCode(e.target.value)}
-                                        className="w-full bg-white border-none rounded-xl py-3.5 px-4 text-black placeholder-gray-400 text-center tracking-widest font-mono text-lg focus:outline-none focus:ring-2 focus:ring-[#4ADE80] transition-all"
-                                        placeholder="######"
+                                        type="email"
+                                        value={email}
+                                        onChange={(e) => setEmail(e.target.value)}
+                                        className="w-full bg-white border-none rounded-xl py-3.5 pl-11 pr-4 text-black placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#4ADE80] transition-all"
+                                        placeholder="nama@email.com"
                                         required
                                     />
                                 </div>
+                            </div>
 
-                                <div className="space-y-2">
-                                    <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider ml-1">Kata Sandi Baru</label>
-                                    <input
-                                        type="password"
-                                        value={password}
-                                        onChange={(e) => setPassword(e.target.value)}
-                                        className="w-full bg-white border-none rounded-xl py-3.5 px-4 text-black placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#4ADE80] transition-all"
-                                        placeholder="Kata sandi baru"
-                                        required
-                                        minLength={8}
-                                    />
-                                </div>
-
-                                <button
-                                    type="submit"
-                                    disabled={isLoading}
-                                    className="w-full bg-[#4ADE80] hover:bg-[#22C55E] text-black font-bold py-3.5 rounded-xl transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-[#4ADE80]/20 flex items-center justify-center gap-2 group/btn disabled:opacity-70 disabled:cursor-not-allowed"
-                                >
-                                    {isLoading ? (
-                                        <Loader2 className="animate-spin" size={20} />
-                                    ) : (
-                                        "Ubah Kata Sandi"
-                                    )}
-                                </button>
-                            </form>
-                        )}
+                            <button
+                                type="submit"
+                                disabled={isLoading}
+                                className="w-full bg-[#3B82F6] hover:bg-[#2563EB] text-white font-bold py-3.5 rounded-xl transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2 group/btn disabled:opacity-70 disabled:cursor-not-allowed"
+                            >
+                                {isLoading ? (
+                                    <Loader2 className="animate-spin" size={20} />
+                                ) : (
+                                    "Kirim Link Reset"
+                                )}
+                            </button>
+                        </form>
 
                         <div className="mt-8 text-center">
                             <Link to="/sign-in" className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors">

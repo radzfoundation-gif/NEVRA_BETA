@@ -41,7 +41,7 @@ export default defineConfig(({ mode }) => {
             'react-vendor': ['react', 'react-dom', 'react-router-dom'],
             'ui-vendor': ['framer-motion', 'lucide-react'],
             'editor-vendor': ['@monaco-editor/react', 'react-syntax-highlighter'],
-            'ai-vendor': ['openai', 'groq-sdk'],
+            'ai-vendor': ['openai'],
           },
         },
       },

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Star, X, MessageSquare, Send } from 'lucide-react';
 // Firebase handles feedback tracking - using localStorage as fallback
-import { useUser } from '@clerk/clerk-react';
+import { useUser } from '@/lib/authContext';
 
 interface FeedbackPopupProps {
     isOpen: boolean;

@@ -1,17 +1,36 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
+import path from 'path';
+
+// Load .env and .env.local
+dotenv.config(); // Load .env
+dotenv.config({ path: path.resolve(process.cwd(), '.env.local'), override: true }); // Load .env.local requesting override
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import OpenAI from 'openai';
 import multer from 'multer';
 import mammoth from 'mammoth';
 import fs from 'fs';
-import path from 'path';
 import { fileURLToPath } from 'url';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { createRequire } from 'module';
-import Stripe from 'stripe';
-// Supabase removed - using Firebase now
+import midtransClient from 'midtrans-client';
+import { YoutubeTranscript } from 'youtube-transcript';
+import nodemailer from 'nodemailer';
+import { createClient } from '@supabase/supabase-js';
+
+// Supabase Client for Backend
+const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+const supabase = (SUPABASE_URL && SUPABASE_KEY) ? createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+
+if (supabase) {
+  console.log('✅ Supabase connected:', SUPABASE_URL);
+} else {
+  console.warn('⚠️ Supabase not configured. Using file-based fallback.');
+}
 
 const execAsync = promisify(exec);
 const require = createRequire(import.meta.url);
@@ -32,35 +51,96 @@ const debugLog = (data) => {
 
 // Note: pdf-parse will be imported dynamically when needed
 
-// Initialize Stripe (only if API key is provided)
-const stripeSecretKey = process.env.STRIPE_SECRET_KEY?.trim();
-const stripe = stripeSecretKey
-  ? new Stripe(stripeSecretKey, {
-    apiVersion: '2024-12-18.acacia',
-  })
-  : null;
+// Initialize Midtrans Snap
+const midtransServerKey = process.env.MIDTRANS_SERVER_KEY?.trim();
+const midtransClientKey = process.env.VITE_MIDTRANS_CLIENT_KEY?.trim();
+const midtransIsProduction = process.env.MIDTRANS_IS_PRODUCTION === 'true';
 
-if (!stripe) {
-  console.warn('⚠️ STRIPE_SECRET_KEY not set. Stripe integration will not work.');
+let snap = null;
+if (midtransServerKey) {
+  snap = new midtransClient.Snap({
+    isProduction: midtransIsProduction,
+    serverKey: midtransServerKey,
+    clientKey: midtransClientKey
+  });
+  console.log('✅ Midtrans Snap initialized:', midtransIsProduction ? 'PRODUCTION' : 'SANDBOX');
+} else {
+  console.warn('⚠️ MIDTRANS_SERVER_KEY not set. Payment integration will not work.');
+}
+
+// =====================================================
+// SUMOPOD AI CLIENT (Gemini 3 Pro for Redesign/Design)
+// =====================================================
+const sumopodApiKey = process.env.SUMOPOD_API_KEY?.trim();
+const sumopodBaseUrl = process.env.SUMOPOD_BASE_URL?.trim() || 'https://ai.sumopod.com';
+
+let sumopodClient = null;
+if (sumopodApiKey) {
+  sumopodClient = new OpenAI({
+    apiKey: sumopodApiKey,
+    baseURL: sumopodBaseUrl + '/v1',
+  });
+  console.log('✅ SumoPod AI client initialized:', sumopodBaseUrl);
+} else {
+  console.warn('⚠️ SUMOPOD_API_KEY not set. Redesign/Design features will not work.');
 }
 
 const app = express();
+
+// Security Headers
+app.use(helmet());
+
+// Rate Limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 2000, // Limit each IP to 2000 requests per windowMs
+  message: { error: 'Too many requests, please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Stricter Abuse Limiter (e.g. for heavy AI endpoints)
+const abuseLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 30, // Limit each IP to 30 requests per minute
+  message: { error: 'Too many requests (abuse protection). Please slow down.' }
+});
+app.use(limiter);
+
 const PORT = process.env.PORT || 8788;
 
-// CORS configuration: use CORS_ORIGIN if set, otherwise allow all origins
-const corsOrigin = process.env.CORS_ORIGIN
-  ? (process.env.CORS_ORIGIN === 'true' ? true : process.env.CORS_ORIGIN)
-  : true;
+// CORS configuration
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'http://localhost:8788',
+  process.env.CORS_ORIGIN
+].filter(Boolean);
+
+// Enable pre-flight for all routes
+// app.options('*', cors()); // Removed to fix PathError with * wildcard
 
 app.use(
   cors({
-    origin: corsOrigin,
+    origin: function (origin, callback) {
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV !== 'production') {
+        callback(null, true);
+      } else {
+        console.log('Blocked by CORS:', origin);
+        callback(null, false);
+      }
+    },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
   }),
 );
-app.use(express.json({ limit: '12mb' }));
-// Stripe webhook needs raw body for signature verification
-app.use('/api/payment/webhook', express.raw({ type: 'application/json' }));
+app.use(express.json({ limit: '50mb' }));
+// Midtrans webhook handler
+app.use('/api/payment/webhook', express.json());
 
 // Ensure uploads directory exists (skip in Vercel serverless)
 const uploadsDir = process.env.VERCEL
@@ -89,115 +169,1229 @@ const upload = multer({
   },
 });
 
-// #region agent log
-const OPENROUTER_KEY_RAW = process.env.OPENROUTER_API_KEY;
-const OPENROUTER_KEY_TRIMMED = OPENROUTER_KEY_RAW?.trim();
-// Puter.js API - No API key needed (User-Pays model)
-// Puter.js is serverless and doesn't require API keys
-debugLog({ location: 'server/index.js:52', message: 'OPENROUTER_API_KEY env check', data: { rawExists: !!OPENROUTER_KEY_RAW, rawLength: OPENROUTER_KEY_RAW?.length || 0, trimmedExists: !!OPENROUTER_KEY_TRIMMED, trimmedLength: OPENROUTER_KEY_TRIMMED?.length || 0, firstChars: OPENROUTER_KEY_TRIMMED?.substring(0, 10) || 'N/A' }, sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' });
-// #endregion
+// SumoPod only - no other API dependencies
 
-// Groq API Key (very fast, generous free tier!)
-const GROQ_API_KEY = process.env.GROQ_API_KEY?.trim();
+// --- Canvas Analyze Limit Management (Supabase with file fallback) ---
+const CANVAS_ANALYZE_LIMIT = 2; // Free users: 2 analyzes per month
 
-const PROVIDER_KEYS = {
-  groq: GROQ_API_KEY || null, // Groq - VERY FAST, primary provider
-  anthropic: GROQ_API_KEY || OPENROUTER_KEY_TRIMMED || null, // Use Groq first, fallback to OpenRouter
-  deepseek: GROQ_API_KEY || OPENROUTER_KEY_TRIMMED || null, // Use Groq first, fallback to OpenRouter  
-  openai: true, // GPT-5-Nano via Puter.js (no API key needed - User-Pays model)
-  gemini: GROQ_API_KEY || OPENROUTER_KEY_TRIMMED || null, // Use Groq first, fallback to OpenRouter
+const getCanvasAnalyzeUsage = async (userId) => {
+  const month = getCurrentMonth ? getCurrentMonth() : `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+
+  // Try Supabase
+  if (supabase) {
+    try {
+      const { data } = await supabase
+        .from('canvas_usage')
+        .select('analyze_count')
+        .eq('user_id', userId)
+        .eq('month', month)
+        .single();
+
+      if (data) {
+        return { used: data.analyze_count, limit: CANVAS_ANALYZE_LIMIT, month };
+      }
+      return { used: 0, limit: CANVAS_ANALYZE_LIMIT, month };
+    } catch (e) {
+      // Supabase failed, use file fallback
+    }
+  }
+
+  // File fallback
+  try {
+    if (!fs.existsSync(canvasAnalyzeStorageFile)) return { used: 0, limit: CANVAS_ANALYZE_LIMIT, lastReset: new Date().toISOString() };
+    const data = JSON.parse(fs.readFileSync(canvasAnalyzeStorageFile, 'utf8'));
+    const usage = data[userId] || { used: 0, limit: CANVAS_ANALYZE_LIMIT, lastReset: new Date().toISOString() };
+    const lastReset = new Date(usage.lastReset);
+    const now = new Date();
+    if (now.getMonth() !== lastReset.getMonth() || now.getFullYear() !== lastReset.getFullYear()) {
+      return { used: 0, limit: CANVAS_ANALYZE_LIMIT, lastReset: now.toISOString() };
+    }
+    return usage;
+  } catch (e) {
+    console.error('Error reading canvas analyze usage:', e);
+    return { used: 0, limit: CANVAS_ANALYZE_LIMIT, lastReset: new Date().toISOString() };
+  }
 };
 
-// #region agent log
-debugLog({ location: 'server/index.js:58', message: 'PROVIDER_KEYS initialized', data: { groq: !!PROVIDER_KEYS.groq, anthropic: !!PROVIDER_KEYS.anthropic, deepseek: !!PROVIDER_KEYS.deepseek, openai: !!PROVIDER_KEYS.openai, gemini: !!PROVIDER_KEYS.gemini }, sessionId: 'debug-session', runId: 'run1', hypothesisId: 'C' });
-// #endregion
+const incrementCanvasAnalyzeUsage = async (userId) => {
+  const month = getCurrentMonth ? getCurrentMonth() : `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
 
-// Debug: Log API key status (without exposing actual keys)
-console.log('🔑 API Key Status:', {
-  GROQ_API_KEY: GROQ_API_KEY ? `Set (${GROQ_API_KEY.substring(0, 10)}...)` : 'NOT SET',
-  OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY ? `Set (${process.env.OPENROUTER_API_KEY.substring(0, 10)}...)` : 'NOT SET',
-  PUTER_JS: 'No API key needed (User-Pays model)',
-  Providers: {
-    groq: PROVIDER_KEYS.groq ? '✅ Configured (PRIMARY)' : 'Missing',
-    anthropic: PROVIDER_KEYS.anthropic ? 'Configured' : 'Missing',
-    openai: PROVIDER_KEYS.openai ? 'Configured (Puter.js)' : 'Missing',
-    gemini: PROVIDER_KEYS.gemini ? 'Configured' : 'Missing',
-    deepseek: PROVIDER_KEYS.deepseek ? 'Configured' : 'Missing',
+  // Try Supabase
+  if (supabase) {
+    try {
+      const { data: existing } = await supabase
+        .from('canvas_usage')
+        .select('analyze_count')
+        .eq('user_id', userId)
+        .eq('month', month)
+        .single();
+
+      if (existing) {
+        await supabase
+          .from('canvas_usage')
+          .update({ analyze_count: existing.analyze_count + 1 })
+          .eq('user_id', userId)
+          .eq('month', month);
+      } else {
+        await supabase
+          .from('canvas_usage')
+          .insert({ user_id: userId, month, analyze_count: 1 });
+      }
+      console.log(`📊 Supabase: Canvas usage updated for ${userId}`);
+      return true;
+    } catch (e) {
+      console.warn('Canvas usage increment failed on Supabase:', e.message);
+    }
+  }
+
+  // File fallback
+  try {
+    let data = {};
+    if (fs.existsSync(canvasAnalyzeStorageFile)) {
+      data = JSON.parse(fs.readFileSync(canvasAnalyzeStorageFile, 'utf8'));
+    }
+    const current = await getCanvasAnalyzeUsage(userId);
+    data[userId] = { used: current.used + 1, limit: CANVAS_ANALYZE_LIMIT, lastReset: current.lastReset || new Date().toISOString() };
+    fs.writeFileSync(canvasAnalyzeStorageFile, JSON.stringify(data, null, 2));
+    console.log(`📊 File: Canvas usage updated for ${userId}: ${data[userId].used}/${CANVAS_ANALYZE_LIMIT}`);
+    return true;
+  } catch (e) {
+    console.error('Error updating canvas analyze usage:', e);
+    return false;
+  }
+};
+
+// Daily Reset Endpoint for Vercel Cron
+app.get('/api/cron/reset', (req, res) => {
+  // Verify using a simple secret or just rely on Vercel's protection (optional)
+  // const authHeader = req.headers['authorization'];
+  // if (authHeader !== \`Bearer \${process.env.CRON_SECRET}\`) return res.status(401).json({ error: 'Unauthorized' });
+
+  console.log('🕒 Running Daily Usage Reset (Triggered via API)...');
+  try {
+    if (fs.existsSync(tokenStorageFile)) {
+      const data = JSON.parse(fs.readFileSync(tokenStorageFile, 'utf8'));
+      const today = new Date().toISOString().split('T')[0];
+
+      let resetCount = 0;
+      for (const userId in data) {
+        if (data[userId].used > 0) {
+          data[userId].used = 0;
+          data[userId].lastReset = today;
+          resetCount++;
+        }
+      }
+
+      fs.writeFileSync(tokenStorageFile, JSON.stringify(data, null, 2));
+      console.log(`✅ Daily Reset Complete: Reset credits for ${resetCount} users.`);
+    }
+
+    res.json({ success: true, message: 'Daily reset completed' });
+  } catch (error) {
+    console.error('❌ Error during Daily Reset:', error);
+    res.status(500).json({ error: 'Failed to reset usage', details: error.message });
+  }
+});
+const DAILY_CREDIT_LIMIT = 20; // Free users get 20 credits/day
+const TOKENS_PER_REQUEST = 1;  // Legacy fallback, usage is now credit-based
+
+const tokenStorageFile = path.join(__dirname, 'usage_data.json');
+
+// Feature Costs (Weights)
+const FEATURE_COSTS = {
+  chat: 1,
+  convert: 3, // PDF/Docs
+  youtube: 2,
+  audio: 2,
+  redesign: 5,
+  image: 5,
+  knowledge: 2
+};
+
+// Cron logic moved to /api/cron/reset for Vercel compatibility
+
+const getUserUsage = (userId) => {
+  try {
+    if (!fs.existsSync(tokenStorageFile)) return { used: 0, limit: DAILY_CREDIT_LIMIT };
+    const data = JSON.parse(fs.readFileSync(tokenStorageFile, 'utf8'));
+
+    // Check if we need a lazy reset (if server was down during cron)
+    const userUsage = data[userId] || { used: 0, limit: DAILY_CREDIT_LIMIT, lastReset: new Date().toISOString() };
+    const lastResetDate = userUsage.lastReset ? new Date(userUsage.lastReset).toDateString() : '';
+    const todayDate = new Date().toDateString();
+
+    if (lastResetDate !== todayDate) {
+      // Lazy reset
+      userUsage.used = 0;
+      userUsage.lastReset = new Date().toISOString();
+      // Update file
+      data[userId] = userUsage;
+      fs.writeFileSync(tokenStorageFile, JSON.stringify(data, null, 2));
+    }
+
+    return { ...userUsage, limit: DAILY_CREDIT_LIMIT };
+  } catch (e) { return { used: 0, limit: DAILY_CREDIT_LIMIT }; }
+};
+
+const updateUserUsage = (userId, cost) => {
+  try {
+    let data = {};
+    if (fs.existsSync(tokenStorageFile)) {
+      data = JSON.parse(fs.readFileSync(tokenStorageFile, 'utf8'));
+    }
+    const current = data[userId] || { used: 0, limit: DAILY_CREDIT_LIMIT, lastReset: new Date().toISOString() };
+
+    // Simple addition
+    data[userId] = {
+      ...current,
+      used: current.used + cost,
+      lastReset: current.lastReset || new Date().toISOString()
+    };
+
+    fs.writeFileSync(tokenStorageFile, JSON.stringify(data, null, 2));
+  } catch (e) { console.error('Error saving usage:', e); }
+};
+
+// --- Canvas Analyze Limit Management (Supabase with file fallback) ---
+
+const getCurrentPeriodKey = (period) => {
+  const now = new Date();
+  if (period === 'day') {
+    return `${now.getFullYear()} - ${String(now.getMonth() + 1).padStart(2, '0')
+      } -${String(now.getDate()).padStart(2, '0')} `;
+  } else {
+    return `${now.getFullYear()} -${String(now.getMonth() + 1).padStart(2, '0')} `;
+  }
+};
+
+const getFeatureUsage = async (userId, featureType) => {
+  const config = FEATURE_LIMITS[featureType];
+  if (!config) return { used: 0, limit: 0, exceeded: false };
+
+  const periodKey = getCurrentPeriodKey(config.period);
+  const storageKey = `${userId}_${featureType}_${periodKey} `;
+
+  // Try Supabase first
+  if (supabase) {
+    try {
+      const { data } = await supabase
+        .from('feature_usage')
+        .select('count')
+        .eq('user_id', userId)
+        .eq('feature_type', featureType)
+        .eq('period_key', periodKey)
+        .single();
+
+      const used = data?.count || 0;
+      return { used, limit: config.limit, exceeded: used >= config.limit, period: config.period };
+    } catch (e) {
+      // Record doesn't exist yet
+      return { used: 0, limit: config.limit, exceeded: false, period: config.period };
+    }
+  }
+
+  // File fallback
+  try {
+    if (!fs.existsSync(featureUsageStorageFile)) {
+      return { used: 0, limit: config.limit, exceeded: false, period: config.period };
+    }
+    const data = JSON.parse(fs.readFileSync(featureUsageStorageFile, 'utf8'));
+    const used = data[storageKey] || 0;
+    return { used, limit: config.limit, exceeded: used >= config.limit, period: config.period };
+  } catch (e) {
+    return { used: 0, limit: config.limit, exceeded: false, period: config.period };
+  }
+};
+
+const incrementFeatureUsage = async (userId, featureType) => {
+  const config = FEATURE_LIMITS[featureType];
+  if (!config) return false;
+
+  const periodKey = getCurrentPeriodKey(config.period);
+
+  // Try Supabase
+  if (supabase) {
+    try {
+      const { data: existing } = await supabase
+        .from('feature_usage')
+        .select('count')
+        .eq('user_id', userId)
+        .eq('feature_type', featureType)
+        .eq('period_key', periodKey)
+        .single();
+
+      if (existing) {
+        await supabase
+          .from('feature_usage')
+          .update({ count: existing.count + 1 })
+          .eq('user_id', userId)
+          .eq('feature_type', featureType)
+          .eq('period_key', periodKey);
+      } else {
+        await supabase
+          .from('feature_usage')
+          .insert({ user_id: userId, feature_type: featureType, period_key: periodKey, count: 1 });
+      }
+      console.log(`📊 Feature usage: ${userId} ${featureType} incremented`);
+      return true;
+    } catch (e) {
+      console.warn('Feature usage increment failed on Supabase:', e.message);
+    }
+  }
+
+  // File fallback
+  try {
+    let data = {};
+    if (fs.existsSync(featureUsageStorageFile)) {
+      data = JSON.parse(fs.readFileSync(featureUsageStorageFile, 'utf8'));
+    }
+    const storageKey = `${userId}_${featureType}_${periodKey} `;
+    data[storageKey] = (data[storageKey] || 0) + 1;
+    fs.writeFileSync(featureUsageStorageFile, JSON.stringify(data, null, 2));
+    console.log(`📊 Feature usage(file): ${userId} ${featureType} = ${data[storageKey]} `);
+    return true;
+  } catch (e) {
+    console.error('Error incrementing feature usage:', e);
+    return false;
+  }
+};
+
+const getAllFeatureUsage = async (userId) => {
+  const chat = await getFeatureUsage(userId, 'chat');
+  const convert = await getFeatureUsage(userId, 'convert');
+  const redesign = await getFeatureUsage(userId, 'redesign');
+  return { chat, convert, redesign };
+};
+
+// Usage Endpoint (includes feature usage)
+app.get('/api/user/usage', async (req, res) => {
+  const { userId } = req.query;
+
+  // Define limits (ensure consistency with /api/generate)
+  const USAGE_LIMITS = {
+    free: 150,
+    normal: 300,
+    pro: 1000000
+  };
+
+  if (!userId) return res.json({ used: 0, limit: USAGE_LIMITS.free, tier: 'free', features: null });
+
+  const usage = getUserUsage(userId);
+  const userTier = await getUserTier(userId);
+  const limit = USAGE_LIMITS[userTier] || USAGE_LIMITS.free;
+  const featureUsage = await getAllFeatureUsage(userId);
+
+  res.json({
+    used: usage.used,
+    limit: limit,
+    tier: userTier,
+    remaining: Math.max(0, limit - usage.used),
+    features: featureUsage
+  });
+});
+
+// Feature Usage Endpoint
+app.get('/api/user/feature-usage', async (req, res) => {
+  const { userId } = req.query;
+  if (!userId) return res.status(400).json({ error: 'userId required' });
+
+  const userTier = await getUserTier(userId);
+  const isProUser = userTier === 'pro';
+
+  // Pro users have unlimited
+  if (isProUser) {
+    return res.json({
+      tier: 'pro',
+      chat: { used: 0, limit: 999999, exceeded: false, period: 'day' },
+      convert: { used: 0, limit: 999999, exceeded: false, period: 'month' },
+      redesign: { used: 0, limit: 999999, exceeded: false, period: 'month' }
+    });
+  }
+
+  const featureUsage = await getAllFeatureUsage(userId);
+  res.json({
+    tier: userTier,
+    ...featureUsage
+  });
+});
+
+// Increment feature usage endpoint (called after successful operation)
+app.post('/api/user/feature-usage/increment', async (req, res) => {
+  const { userId, featureType } = req.body;
+  if (!userId || !featureType) return res.status(400).json({ error: 'userId and featureType required' });
+
+  const userTier = await getUserTier(userId);
+  if (userTier === 'pro') {
+    return res.json({ success: true, message: 'Pro user - unlimited' });
+  }
+
+  await incrementFeatureUsage(userId, featureType);
+  const updated = await getFeatureUsage(userId, featureType);
+  res.json({ success: true, ...updated });
+});
+
+// =====================================================
+// KNOWLEDGE BASE ENDPOINTS (text-embedding-3-small)
+// =====================================================
+
+// In-memory knowledge store (for demo - use vector DB in production)
+const knowledgeStore = new Map(); // userId -> [{id, text, embedding, metadata}]
+
+// Embed Document
+app.post('/api/embed-document', async (req, res) => {
+  try {
+    const { userId, text, title, chunkSize = 500 } = req.body;
+
+    if (!userId || !text) {
+      return res.status(400).json({ error: 'userId and text required' });
+    }
+
+    if (!sumopodClient) {
+      return res.status(500).json({ error: 'AI service not configured' });
+    }
+
+    // Split text into chunks
+    const chunks = [];
+    const sentences = text.split(/[.!?]+/).filter(s => s.trim());
+    let currentChunk = '';
+
+    for (const sentence of sentences) {
+      if ((currentChunk + sentence).length > chunkSize) {
+        if (currentChunk) chunks.push(currentChunk.trim());
+        currentChunk = sentence;
+      } else {
+        currentChunk += (currentChunk ? '. ' : '') + sentence;
+      }
+    }
+    if (currentChunk) chunks.push(currentChunk.trim());
+
+    console.log(`[Embed] Processing ${chunks.length} chunks for user ${userId}`);
+
+    // Embed each chunk
+    const embeddings = [];
+    for (const chunk of chunks) {
+      const response = await sumopodClient.embeddings.create({
+        model: 'text-embedding-3-small',
+        input: chunk,
+      });
+      embeddings.push({
+        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+        text: chunk,
+        embedding: response.data[0].embedding,
+        metadata: { title, createdAt: new Date().toISOString() }
+      });
+    }
+
+    // Store embeddings
+    const userKnowledge = knowledgeStore.get(userId) || [];
+    userKnowledge.push(...embeddings);
+    knowledgeStore.set(userId, userKnowledge);
+
+    console.log(`[Embed] Stored ${embeddings.length} embeddings for user ${userId}`);
+
+    res.json({
+      success: true,
+      chunksProcessed: chunks.length,
+      totalDocuments: userKnowledge.length
+    });
+
+  } catch (error) {
+    console.error('[Embed] Error:', error);
+    res.status(500).json({ error: 'Failed to embed document' });
   }
 });
 
-// Groq models (VERY FAST!)
-const GROQ_MODELS = {
-  default: 'llama-3.3-70b-versatile', // Best quality
-  fast: 'llama-3.1-8b-instant', // Fastest
-  tutor: 'llama-3.3-70b-versatile', // Good for explanations
+// Search Knowledge Base
+app.post('/api/search-knowledge', async (req, res) => {
+  try {
+    const { userId, query, topK = 3 } = req.body;
+
+    if (!userId || !query) {
+      return res.status(400).json({ error: 'userId and query required' });
+    }
+
+    if (!sumopodClient) {
+      return res.status(500).json({ error: 'AI service not configured' });
+    }
+
+    const userKnowledge = knowledgeStore.get(userId);
+    if (!userKnowledge || userKnowledge.length === 0) {
+      return res.json({ results: [], message: 'No documents in knowledge base' });
+    }
+
+    // Embed query
+    const queryResponse = await sumopodClient.embeddings.create({
+      model: 'text-embedding-3-small',
+      input: query,
+    });
+    const queryEmbedding = queryResponse.data[0].embedding;
+
+    // Calculate cosine similarity
+    const cosineSimilarity = (a, b) => {
+      let dotProduct = 0, normA = 0, normB = 0;
+      for (let i = 0; i < a.length; i++) {
+        dotProduct += a[i] * b[i];
+        normA += a[i] * a[i];
+        normB += b[i] * b[i];
+      }
+      return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+    };
+
+    // Find top K similar chunks
+    const scored = userKnowledge.map(doc => ({
+      ...doc,
+      score: cosineSimilarity(queryEmbedding, doc.embedding)
+    }));
+
+    scored.sort((a, b) => b.score - a.score);
+    const topResults = scored.slice(0, topK);
+
+    console.log(`[Search] Found ${topResults.length} results for query: "${query.substring(0, 50)}..."`);
+
+    res.json({
+      results: topResults.map(r => ({
+        text: r.text,
+        score: r.score,
+        metadata: r.metadata
+      }))
+    });
+
+  } catch (error) {
+    console.error('[Search] Error:', error);
+    res.status(500).json({ error: 'Failed to search knowledge base' });
+  }
+});
+
+// =====================================================
+// IMAGE GENERATION ENDPOINT (gpt-image-1 via SumoPod)
+// =====================================================
+app.post('/api/generate-image', async (req, res) => {
+  try {
+    const { prompt, size = '1024x1024', userId } = req.body;
+
+    if (!prompt) {
+      return res.status(400).json({ error: 'Prompt is required' });
+    }
+
+    if (!sumopodClient) {
+      return res.status(500).json({ error: 'AI service not configured' });
+    }
+
+    console.log(`[ImageGen] Generating image for: "${prompt.substring(0, 50)}..."`);
+
+    const response = await sumopodClient.images.generate({
+      model: 'gpt-image-1',
+      prompt: prompt,
+      n: 1,
+      size: size,
+    });
+
+    const imageData = response.data[0];
+
+    console.log(`[ImageGen] Image generated successfully`);
+
+    res.json({
+      success: true,
+      image: imageData.url || imageData.b64_json,
+      revised_prompt: imageData.revised_prompt
+    });
+
+  } catch (error) {
+    console.error('[ImageGen] Error:', error);
+    res.status(500).json({ error: 'Failed to generate image', details: error.message });
+  }
+});
+
+// =====================================================
+// PAYMENT ENDPOINTS (Midtrans)
+// =====================================================
+
+// =====================================================
+// REDESIGN ENDPOINT (Gemini 3 Pro Preview via SumoPod)
+// =====================================================
+app.post('/api/redesign', async (req, res) => {
+  try {
+    const { image, prompt, userId } = req.body;
+
+    // Check for URL in prompt if explicit 'url' field isn't passed
+    const urlMatch = prompt?.match(/https?:\/\/[^\s]+/);
+    const targetUrl = urlMatch ? urlMatch[0] : null;
+
+    // IMAGE IS NOW OPTIONAL for "Design" mode
+    if (!prompt) {
+      return res.status(400).json({ error: 'Please describe what you want to create' });
+    }
+
+    if (!sumopodClient) {
+      return res.status(500).json({
+        error: 'AI service not configured. Please set SUMOPOD_API_KEY, SUMOPOD_BASE_URL, and SUMOPOD_MODEL_ID.'
+      });
+    }
+
+    // URL Scraping Logic (Simple)
+    let scrapedContext = "";
+    if (targetUrl) {
+      try {
+        const urlRes = await fetch(targetUrl);
+        if (urlRes.ok) {
+          const text = await urlRes.text();
+          // Extract title and body content roughly
+          const title = text.match(/<title>(.*?)<\/title>/i)?.[1] || "";
+          // Remove scripts and styles for cleaner context
+          const cleanText = text.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gim, "")
+            .replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gim, "")
+            .replace(/<[^>]+>/g, " ")
+            .replace(/\s+/g, " ")
+            .substring(0, 15000); // Limit context
+          scrapedContext = `\n\nWEBSITE CONTEXT(from ${targetUrl}): \nTitle: ${title} \nContent: ${cleanText} `;
+          console.log(`[Redesign] Scraped ${targetUrl}: ${cleanText.length} chars`);
+        }
+      } catch (e) {
+        console.warn(`[Redesign] Failed to scrape ${targetUrl}: `, e.message);
+      }
+    }
+
+    // Use Gemini 3 Pro Preview for better vision capabilities, fallback to configured SUMOPOD_MODEL_ID
+    const redesignModelId = process.env.SUMOPOD_REDESIGN_MODEL_ID || process.env.SUMOPOD_MODEL_ID || 'gemini/gemini-3-pro-preview';
+
+    const systemPrompt = `You are an expert UI / UX designer, Frontend Developer, and Digital Artist.
+Your task is to create high - fidelity HTML / CSS designs based on the user's request.
+${scrapedContext ? `\nCONTEXT: The user wants to CLONE or reference the website content provided below. Use this content to populate the design.` : ''}
+
+    CAPABILITIES:
+    1. ** Redesign **: If an image is provided, redesign it based on instructions.
+2. ** Clone **: If user asks to "clone", replicate the image pixel - perfectly.
+3. ** Creation **: If NO image is provided(or if requested), create designs from scratch.
+4. ** Mockups **: You can create realistic 3D product mockups(t - shirts, phones, boxes) using advanced CSS (transform - style: preserve - 3d, gradients, box - shadows) or SVG.
+
+USER REQUEST: ${prompt}
+${scrapedContext}
+
+OUTPUT FORMAT:
+1. Return ONLY valid HTML code(complete document with < !DOCTYPE html >)
+2. Include all CSS inline or in a < style > tag
+3. Use Tailwind CSS via CDN: <script src="https://cdn.tailwindcss.com"></script>
+4. For 3D Mockups / Art: Use pure CSS / Tailwind or SVG.Do NOT use external images for the product itself if possible, build it with code.
+5. Make it responsive and interactive(hover states, animations).
+6. Use modern, premium aesthetics.
+
+  CRITICAL: Your response must be ONLY the HTML code, nothing else. No explanations, no markdown.`;
+
+    console.log(`[Design] Processing request: "${prompt.substring(0, 50)}..." via ${redesignModelId} (Image provided: ${!!image})`);
+
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      {
+        role: 'user',
+        content: image
+          ? [
+            { type: 'text', text: `Request: "${prompt}".Create the design as HTML code only.` },
+            { type: 'image_url', image_url: { url: image } }
+          ]
+          : [
+            { type: 'text', text: `Request: "${prompt}".Create this design / mockup from scratch using HTML/CSS. Make it high-quality and premium.` }
+          ]
+      }
+    ];
+
+    const completion = await sumopodClient.chat.completions.create({
+      model: redesignModelId,
+      messages,
+      temperature: 0.7,
+      max_tokens: 8000,
+    });
+
+    let htmlContent = completion.choices[0]?.message?.content || '';
+
+    // Clean up response - remove markdown code blocks if present
+    htmlContent = htmlContent.replace(/```html\n?/gi, '').replace(/```\n?/gi, '').trim();
+
+    // If response doesn't start with <!DOCTYPE or <html, it might be wrapped
+    if (!htmlContent.toLowerCase().startsWith('<!doctype') && !htmlContent.toLowerCase().startsWith('<html')) {
+      // Try to extract HTML from the response
+      const htmlMatch = htmlContent.match(/<!DOCTYPE[\s\S]*<\/html>/i) || htmlContent.match(/<html[\s\S]*<\/html>/i);
+      if (htmlMatch) {
+        htmlContent = htmlMatch[0];
+      }
+    }
+
+    // SAVE TO DATABASE (Supabase)
+    if (userId && supabase) {
+      try {
+        await supabase.from('redesigns').insert({
+          user_id: userId,
+          prompt: prompt,
+          content: htmlContent,
+          type: image ? 'redesign' : 'creation' // Differentiate slightly
+        });
+        console.log(`[Redesign] Saved to history for user ${userId}`);
+      } catch (dbErr) {
+        console.error('[Redesign] Failed to save to DB:', dbErr.message);
+        // Don't fail the request if save fails
+      }
+    }
+
+    // Generate design suggestions based on the prompt
+    const suggestions = [
+      `Created design based on your request: "${prompt.substring(0, 50)}${prompt.length > 50 ? '...' : ''}"`,
+      `Used modern design principles with responsive layout`,
+      `Added smooth animations and hover effects`,
+      `Optimized for both mobile and desktop views`
+    ];
+
+    console.log(`[Redesign] Successfully generated redesign (${htmlContent.length} chars)`);
+
+    res.json({
+      html: htmlContent,
+      suggestions,
+      prompt
+    });
+
+  } catch (error) {
+    console.error('[Redesign] Error:', error);
+    res.status(500).json({
+      error: 'Failed to generate redesign',
+      details: error.message
+    });
+  }
+});
+
+// =====================================================
+// TOOLS ENDPOINTS (YouTube, URL, PDF, Audio)
+// =====================================================
+
+// YouTube Transcript Extraction
+app.post('/api/youtube-transcript', async (req, res) => {
+  try {
+    const { url } = req.body;
+
+    if (!url) {
+      return res.status(400).json({ error: 'YouTube URL is required' });
+    }
+
+    // Extract video ID from URL
+    const videoIdMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/);
+    const videoId = videoIdMatch ? videoIdMatch[1] : null;
+
+    if (!videoId) {
+      return res.status(400).json({ error: 'Invalid YouTube URL' });
+    }
+
+    console.log(`[YouTube] Extracting transcript for video: ${videoId}`);
+
+    // Use youtube-transcript library (already imported at top)
+    const transcript = await YoutubeTranscript.fetchTranscript(videoId);
+
+    // Combine transcript segments
+    const fullTranscript = transcript.map(item => item.text).join(' ');
+
+    // Try to get video title from oEmbed API
+    let title = 'YouTube Video';
+    try {
+      const oembedRes = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`);
+      if (oembedRes.ok) {
+        const oembedData = await oembedRes.json();
+        title = oembedData.title || title;
+      }
+    } catch (e) {
+      console.warn('[YouTube] Could not fetch video title');
+    }
+
+    console.log(`[YouTube] Extracted ${fullTranscript.length} chars from "${title}"`);
+
+    res.json({
+      transcript: fullTranscript,
+      title,
+      videoId
+    });
+
+  } catch (error) {
+    console.error('[YouTube] Error:', error);
+    res.status(500).json({
+      error: 'Failed to extract YouTube transcript',
+      details: error.message
+    });
+  }
+});
+
+// URL Content Fetch
+app.post('/api/fetch-url', async (req, res) => {
+  try {
+    const { url } = req.body;
+
+    if (!url) {
+      return res.status(400).json({ error: 'URL is required' });
+    }
+
+    console.log(`[URL] Fetching content from: ${url}`);
+
+    const response = await fetch(url);
+    const html = await response.text();
+
+    // Extract title
+    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+    const title = titleMatch ? titleMatch[1].trim() : url;
+
+    // Clean HTML to text
+    const cleanText = html
+      .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gim, '')
+      .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gim, '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .substring(0, 30000); // Limit content
+
+    console.log(`[URL] Extracted ${cleanText.length} chars from "${title}"`);
+
+    res.json({
+      content: cleanText,
+      title,
+      url
+    });
+
+  } catch (error) {
+    console.error('[URL] Error:', error);
+    res.status(500).json({
+      error: 'Failed to fetch URL content',
+      details: error.message
+    });
+  }
+});
+
+// PDF Text Extraction
+app.post('/api/extract-pdf', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'PDF file is required' });
+    }
+
+    console.log(`[PDF] Extracting text from: ${req.file.originalname}`);
+
+    const pdfParse = (await import('pdf-parse')).default;
+    const dataBuffer = fs.readFileSync(req.file.path);
+    const pdfData = await pdfParse(dataBuffer);
+
+    // Clean up uploaded file
+    fs.unlinkSync(req.file.path);
+
+    console.log(`[PDF] Extracted ${pdfData.text.length} chars from "${req.file.originalname}"`);
+
+    res.json({
+      text: pdfData.text,
+      pages: pdfData.numpages,
+      filename: req.file.originalname
+    });
+
+  } catch (error) {
+    console.error('[PDF] Error:', error);
+    // Clean up file if exists
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+    res.status(500).json({
+      error: 'Failed to extract PDF text',
+      details: error.message
+    });
+  }
+});
+
+// Audio Transcription (using SumoPod Whisper)
+app.post('/api/transcribe-audio', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'Audio file is required' });
+    }
+
+    console.log(`[Audio] Processing: ${req.file.originalname}`);
+
+    // Use SumoPod (OpenAI compatible) Whisper
+    // Ensure sumopodClient is available
+    if (!sumopodClient) {
+      throw new Error('SumoPod client not initialized');
+    }
+
+    console.log(`[Audio] Sending to SumoPod Whisper...`);
+
+    // Read file as buffer and use toFile to include proper metadata
+    const fileBuffer = fs.readFileSync(req.file.path);
+    const { toFile } = await import('openai/uploads');
+
+    // Workaround: Some WhatsApp audio (Opus in OGG) may not be recognized
+    // Rename to .mp3 extension - Whisper can still decode the actual audio content
+    let filename = req.file.originalname;
+    if (filename.endsWith('.ogg') || filename.endsWith('.opus')) {
+      filename = filename.replace(/\.(ogg|opus)$/, '.mp3');
+      console.log(`[Audio] Renamed to: ${filename} for compatibility`);
+    }
+
+    const transcription = await sumopodClient.audio.transcriptions.create({
+      file: await toFile(fileBuffer, filename),
+      model: "whisper-1",
+      prompt: "Please add proper punctuation including periods, commas, question marks, and exclamation marks.",
+    });
+
+    console.log(`[Audio] Transcription complete (${transcription.text?.length || 0} chars)`);
+
+    // Clean up uploaded file (with small delay to ensure stream is closed)
+    setTimeout(() => {
+      try {
+        if (fs.existsSync(req.file.path)) {
+          fs.unlinkSync(req.file.path);
+        }
+      } catch (e) {
+        console.warn('[Audio] Cleanup warning:', e.message);
+      }
+    }, 500);
+
+    res.json({
+      transcript: transcription.text,
+      filename: req.file.originalname
+    });
+
+  } catch (error) {
+    console.error('[Audio] Error:', error);
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+    res.status(500).json({
+      error: 'Failed to transcribe audio',
+      details: error.message
+    });
+  }
+});
+
+// Create Midtrans transaction
+app.post('/api/payment/create-transaction', async (req, res) => {
+  try {
+    const { userId, userEmail, userName, plan, amount } = req.body;
+
+    if (!snap) {
+      return res.status(500).json({ error: 'Payment gateway not configured' });
+    }
+
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID required' });
+    }
+
+    const orderId = `NEVRA-PRO-${Date.now()}-${userId.slice(-6)}`;
+
+    const parameter = {
+      transaction_details: {
+        order_id: orderId,
+        gross_amount: amount || 50000, // IDR 50,000 default
+      },
+      customer_details: {
+        first_name: userName || 'User',
+        email: userEmail || 'user@example.com',
+      },
+      item_details: [{
+        id: 'nevra-pro-monthly',
+        price: amount || 50000,
+        quantity: 1,
+        name: 'Nevra Pro - Monthly Subscription',
+      }],
+      callbacks: {
+        finish: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/`,
+      },
+    };
+
+    const transaction = await snap.createTransaction(parameter);
+
+    console.log(`✅ Payment transaction created: ${orderId}`);
+    res.json({
+      token: transaction.token,
+      orderId: orderId,
+      redirectUrl: transaction.redirect_url,
+    });
+  } catch (error) {
+    console.error('Payment create error:', error);
+    res.status(500).json({ error: 'Failed to create transaction', details: error.message });
+  }
+});
+
+// Activate subscription after payment
+app.post('/api/payment/activate', async (req, res) => {
+  try {
+    const { userId, orderId } = req.body;
+
+    if (!userId || !orderId) {
+      return res.status(400).json({ error: 'User ID and Order ID required' });
+    }
+
+    // Calculate expiry (1 month from now)
+    const expiresAt = new Date();
+    expiresAt.setMonth(expiresAt.getMonth() + 1);
+
+    // Save subscription
+    const success = await saveSubscription(userId, 'pro', expiresAt.toISOString(), orderId);
+
+    if (success) {
+      console.log(`✅ Pro subscription activated for ${userId} until ${expiresAt.toISOString()}`);
+      res.json({ success: true, tier: 'pro', expiresAt: expiresAt.toISOString() });
+    } else {
+      throw new Error('Failed to save subscription');
+    }
+  } catch (error) {
+    console.error('Activation error:', error);
+    res.status(500).json({ error: 'Failed to activate subscription', details: error.message });
+  }
+});
+
+// Midtrans webhook (for server-side verification)
+app.post('/api/payment/webhook', async (req, res) => {
+  try {
+    const notification = req.body;
+    const orderId = notification.order_id;
+    const transactionStatus = notification.transaction_status;
+    const fraudStatus = notification.fraud_status;
+
+    console.log(`📬 Midtrans webhook: ${orderId} - ${transactionStatus}`);
+
+    // Extract userId from orderId (format: NEVRA-PRO-timestamp-userId)
+    const parts = orderId.split('-');
+    const userId = parts.length >= 4 ? parts[3] : null;
+
+    if (!userId) {
+      console.error('Invalid order ID format:', orderId);
+      return res.status(400).json({ error: 'Invalid order ID' });
+    }
+
+    // Check transaction status
+    if (transactionStatus === 'capture' && fraudStatus === 'accept') {
+      // Credit card payment success
+      const expiresAt = new Date();
+      expiresAt.setMonth(expiresAt.getMonth() + 1);
+      await saveSubscription(userId, 'pro', expiresAt.toISOString(), orderId);
+      console.log(`✅ Webhook: Pro activated for ${userId}`);
+    } else if (transactionStatus === 'settlement') {
+      // Bank transfer, e-wallet success
+      const expiresAt = new Date();
+      expiresAt.setMonth(expiresAt.getMonth() + 1);
+      await saveSubscription(userId, 'pro', expiresAt.toISOString(), orderId);
+      console.log(`✅ Webhook: Pro activated for ${userId}`);
+    } else if (['deny', 'cancel', 'expire'].includes(transactionStatus)) {
+      console.log(`❌ Payment failed for ${userId}: ${transactionStatus}`);
+    }
+
+    res.status(200).json({ received: true });
+  } catch (error) {
+    console.error('Webhook error:', error);
+    res.status(500).json({ error: 'Webhook processing failed' });
+  }
+});
+
+
+// SumoPod API Key (OpenAI-compatible API)
+const SUMOPOD_API_KEY = process.env.SUMOPOD_API_KEY?.trim();
+const SUMOPOD_BASE_URL = process.env.SUMOPOD_BASE_URL?.trim(); // REQUIRED: Get from SumoPod dashboard
+const SUMOPOD_MODEL_ID = process.env.SUMOPOD_MODEL_ID?.trim(); // REQUIRED: Get from SumoPod dashboard
+
+if (SUMOPOD_API_KEY && !SUMOPOD_BASE_URL) {
+  console.warn('⚠️ SUMOPOD_BASE_URL not set! Please add it to .env file. Get the correct base URL from https://sumopod.com/dashboard/ai/quickstart');
+}
+if (SUMOPOD_API_KEY && !SUMOPOD_MODEL_ID) {
+  console.warn('⚠️ SUMOPOD_MODEL_ID not set! Please add it to .env file. Get the model ID from SumoPod dashboard');
+}
+
+const PROVIDER_KEYS = {
+  groq: SUMOPOD_API_KEY || null, // SumoPod - Only provider
+};
+
+
+// Debug: Log API key status (without exposing actual keys)
+console.log('🔑 API Key Status:', {
+  SUMOPOD_API_KEY: SUMOPOD_API_KEY ? `Set (${SUMOPOD_API_KEY.substring(0, 10)}...)` : 'NOT SET',
+  SUMOPOD_BASE_URL: SUMOPOD_BASE_URL,
+  SUMOPOD_MODEL_ID: SUMOPOD_MODEL_ID,
+  Provider: {
+    groq: PROVIDER_KEYS.groq ? '✅ Configured (SumoPod)' : 'Missing',
+  }
+});
+
+// SumoPod models (OpenAI-compatible)
+const SUMOPOD_MODELS = {
+  default: SUMOPOD_MODEL_ID, // SumoPod model ID from environment
+  fast: SUMOPOD_MODEL_ID, // Use same model for fast mode
+  tutor: SUMOPOD_MODEL_ID, // Use same model for tutor mode
 };
 
 const MODELS = {
-  groq: GROQ_MODELS.default, // Primary: Groq Llama 3.3 70B
-  anthropic: GROQ_MODELS.default, // Use Groq instead of OpenRouter
-  deepseek: GROQ_MODELS.fast, // Use fast Groq model
-  openai: 'gpt-5-nano', // GPT-5-Nano via Puter.js
-  gemini: GROQ_MODELS.default, // Use Groq instead of OpenRouter
+  groq: SUMOPOD_MODEL_ID || 'gemini/gemini-2.5-flash-lite', // Use SUMOPOD_MODEL_ID from .env or default to gemini/gemini-2.5-flash-lite
 };
 
-// Max tokens configuration (can be overridden via env)
+// Validate model ID
+if (!SUMOPOD_MODEL_ID) {
+  console.warn('⚠️ SUMOPOD_MODEL_ID not set! Using default: gemini/gemini-2.5-flash-lite');
+  console.warn('   To use a different model, set SUMOPOD_MODEL_ID in .env file.');
+}
+
+// Max tokens configuration based on subscription tier
+// Free: 150, Normal: 300, Pro: 500
+function getMaxTokensForTier(tier = 'free', mode) {
+  const tierLimits = {
+    free: 2000,   // Increased from 150
+    normal: 4000, // Increased from 300
+    pro: 8000,    // Increased from 500
+  };
+  return tierLimits[tier.toLowerCase()] || tierLimits.free;
+}
+
+// --- Subscription Management (Supabase with file fallback) ---
+const subscriptionStorageFile = path.join(__dirname, 'subscription_data.json');
+const canvasAnalyzeStorageFile = path.join(__dirname, 'canvas_analyze_data.json');
+
+// Ensure storage files exist (fallback)
+if (!fs.existsSync(tokenStorageFile)) {
+  fs.writeFileSync(tokenStorageFile, '{}', 'utf8');
+}
+if (!fs.existsSync(subscriptionStorageFile)) {
+  fs.writeFileSync(subscriptionStorageFile, '{}', 'utf8');
+}
+if (!fs.existsSync(canvasAnalyzeStorageFile)) {
+  fs.writeFileSync(canvasAnalyzeStorageFile, '{}', 'utf8');
+}
+
+// Helper: Get current month in YYYY-MM format
+const getCurrentMonth = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+};
+
+// Get user subscription (Check BOTH Supabase and file, sync Pro from file to Supabase)
+const getUserSubscription = async (userId) => {
+  let supabaseData = null;
+  let fileData = null;
+
+  // Try Supabase
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('subscriptions')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+
+      if (data && !error) {
+        // Check expiry
+        if (data.expires_at && new Date(data.expires_at) < new Date()) {
+          // Expired, update to free
+          await supabase.from('subscriptions').update({ tier: 'free', expires_at: null }).eq('user_id', userId);
+          supabaseData = { tier: 'free' };
+        } else {
+          supabaseData = data;
+        }
+      }
+    } catch (e) {
+      console.warn('Supabase subscription fetch failed:', e.message);
+    }
+  }
+
+  // Check file storage
+  try {
+    if (fs.existsSync(subscriptionStorageFile)) {
+      const data = JSON.parse(fs.readFileSync(subscriptionStorageFile, 'utf8'));
+      const subscription = data[userId];
+      if (subscription && (!subscription.expiresAt || new Date(subscription.expiresAt) >= new Date())) {
+        fileData = subscription;
+      }
+    }
+  } catch (e) {
+    console.error('Error reading subscription file:', e);
+  }
+
+  // Priority: If FILE has Pro but Supabase doesn't, sync to Supabase
+  if (fileData?.tier === 'pro' && supabaseData?.tier !== 'pro') {
+    console.log(`🔄 Syncing Pro subscription from file to Supabase for ${userId}`);
+    if (supabase) {
+      try {
+        await supabase.from('subscriptions').upsert({
+          user_id: userId,
+          tier: 'pro',
+          expires_at: fileData.expiresAt || null,
+          activated_at: fileData.activatedAt || new Date().toISOString(),
+          midtrans_order_id: fileData.orderId || null
+        }, { onConflict: 'user_id' });
+        console.log(`✅ Pro subscription synced to Supabase for ${userId}`);
+      } catch (e) {
+        console.error('Failed to sync to Supabase:', e.message);
+      }
+    }
+    return fileData; // Return Pro from file
+  }
+
+  // Return Supabase data if available
+  if (supabaseData) return supabaseData;
+
+  // Fallback to file data
+  return fileData;
+};
+
+// Save subscription (Supabase + file)
+const saveSubscription = async (userId, tier, expiresAt = null, orderId = null) => {
+  // Try Supabase
+  if (supabase) {
+    try {
+      const { error } = await supabase.from('subscriptions').upsert({
+        user_id: userId,
+        tier,
+        expires_at: expiresAt,
+        activated_at: new Date().toISOString(),
+        midtrans_order_id: orderId
+      }, { onConflict: 'user_id' });
+
+      if (!error) {
+        console.log(`✅ Supabase: Subscription saved for ${userId}: ${tier}`);
+        return true;
+      }
+    } catch (e) {
+      console.warn('Supabase subscription save failed, using file fallback:', e.message);
+    }
+  }
+
+  // File fallback
+  try {
+    let data = {};
+    if (fs.existsSync(subscriptionStorageFile)) {
+      data = JSON.parse(fs.readFileSync(subscriptionStorageFile, 'utf8'));
+    }
+    data[userId] = { tier, expiresAt, activatedAt: new Date().toISOString(), orderId };
+    fs.writeFileSync(subscriptionStorageFile, JSON.stringify(data, null, 2));
+    console.log(`✅ File: Subscription saved for ${userId}: ${tier}`);
+    return true;
+  } catch (e) {
+    console.error('Error saving subscription:', e);
+    return false;
+  }
+};
+
+// Get user tier (async)
+async function getUserTier(userId) {
+  if (!userId) return 'free';
+  try {
+    const subscription = await getUserSubscription(userId);
+    if (subscription && subscription.tier === 'pro') return 'pro';
+    return 'free';
+  } catch (error) {
+    console.error('Error getting user tier:', error);
+    return 'free';
+  }
+}
+
 const MAX_TOKENS = {
   groq: {
-    builder: 8192,
-    tutor: 4096,
-  },
-  anthropic: {
-    builder: parseInt(process.env.ANTHROPIC_MAX_TOKENS_BUILDER) || 8192,
-    tutor: parseInt(process.env.ANTHROPIC_MAX_TOKENS_TUTOR) || 4096,
-  },
-  deepseek: {
-    builder: parseInt(process.env.DEEPSEEK_MAX_TOKENS_BUILDER) || 8192,
-    tutor: parseInt(process.env.DEEPSEEK_MAX_TOKENS_TUTOR) || 4096,
-  },
-  openai: parseInt(process.env.OPENROUTER_MAX_TOKENS) || 2000, // Default safe value
-  gemini: {
-    builder: parseInt(process.env.GEMINI_MAX_TOKENS_BUILDER) || 4096,
-    tutor: parseInt(process.env.GEMINI_MAX_TOKENS_TUTOR) || 4096,
+    builder: parseInt(process.env.SUMOPOD_MAX_TOKENS_BUILDER) || 2000, // Default to free tier
+    tutor: parseInt(process.env.SUMOPOD_MAX_TOKENS_TUTOR) || 2000, // Default to free tier
   },
 };
 
-// Initialize SDK clients
-// Most providers use OpenRouter via OpenAI SDK, but OpenAI provider now uses Puter.js
-// #region agent log
-const hasOpenaiKey = !!PROVIDER_KEYS.openai;
-// Puter.js doesn't use API key (User-Pays model), so openaiKeyLength is 0
-const openaiKeyLength = typeof PROVIDER_KEYS.openai === 'string' ? PROVIDER_KEYS.openai.length : 0;
-const openaiKeyFirstChars = typeof PROVIDER_KEYS.openai === 'string' ? PROVIDER_KEYS.openai.substring(0, 10) : 'Puter.js (no key)';
-debugLog({ location: 'server/index.js:97', message: 'Before openaiClient init', data: { hasKey: hasOpenaiKey, keyLength: openaiKeyLength, firstChars: openaiKeyFirstChars }, sessionId: 'debug-session', runId: 'run1', hypothesisId: 'C' });
-// #endregion
+// Initialize SumoPod client only
 
-// Groq client (PRIMARY - VERY FAST!)
-const groqClient = GROQ_API_KEY ? new OpenAI({
-  baseURL: 'https://api.groq.com/openai/v1',
-  apiKey: GROQ_API_KEY,
-}) : null;
-
-console.log('🚀 Groq Client:', groqClient ? '✅ Initialized (PRIMARY)' : '❌ Not configured');
-
-// OpenRouter client for fallback
-const openaiClient = OPENROUTER_KEY_TRIMMED ? new OpenAI({
-  baseURL: 'https://openrouter.ai/api/v1',
-  apiKey: OPENROUTER_KEY_TRIMMED,
-  defaultHeaders: {
-    'HTTP-Referer': process.env.OPENROUTER_SITE_URL || 'https://rlabs-studio.cloud',
-    'X-Title': process.env.OPENROUTER_SITE_NAME || 'Nevra',
-  },
-}) : null;
-
-// Puter.js API configuration for GPT-5-Nano
-// Puter.js uses User-Pays model - no API key needed
-// API endpoint: https://api.puter.com/v1/ai/chat (or similar)
-const PUTER_API_BASE = process.env.PUTER_API_BASE || 'https://api.puter.com/v1';
-
-// #region agent log
-debugLog({ location: 'server/index.js:104', message: 'After clients init', data: { groqExists: !!groqClient, openrouterExists: !!openaiClient }, sessionId: 'debug-session', runId: 'run1', hypothesisId: 'C' });
-// #endregion
+// SumoPod client already initialized at the top of the file
+// Using Gemini 3 Pro for redesign and Flash Lite for chat
+if (SUMOPOD_API_KEY && (!SUMOPOD_BASE_URL || !SUMOPOD_MODEL_ID)) {
+  console.error('❌ SumoPod Client: Missing configuration! Please set SUMOPOD_BASE_URL and SUMOPOD_MODEL_ID in .env file.');
+  console.error('   Get these values from: https://sumopod.com/dashboard/ai/quickstart');
+}
 
 // Helper: Truncate history to fit within token limit (reduced for speed)
 const truncateHistory = (history = [], maxMessages = 2) => {
@@ -343,9 +1537,10 @@ app.post('/api/generate', async (req, res) => {
   prompt = body.prompt || '';
   const history = body.history || [];
   const systemPrompt = body.systemPrompt;
-  provider = body.provider || 'deepseek'; // Default to Mistral Devstral (free)
+  provider = body.provider || 'groq'; // Default to groq (SumoPod)
   mode = body.mode || 'builder';
   const images = body.images || [];
+  const userId = body.userId; // Get userId from request
 
   console.log(`[${provider}] /api/generate called`, {
     hasPrompt: !!prompt,
@@ -355,47 +1550,60 @@ app.post('/api/generate', async (req, res) => {
     imagesCount: images?.length || 0
   });
 
+  // --- TOKEN LIMIT CHECK ---
+  if (userId) {
+    // Define Usage/Request Limits (distinct from Max Tokens context window)
+    const USAGE_LIMITS = {
+      free: 150,      // Limited requests for free users
+      normal: 300,    // Intermediate
+      pro: 1000000    // Effectively unlimited
+    };
+
+    // ALWAYS fetch the actual tier from database/file storage
+    // Do NOT trust the frontend's userTier claim for limit enforcement
+    const actualTier = await getUserTier(userId);
+
+    // Get usage data
+    const usage = await getUserUsage(userId);
+
+    // Determine the limit based on the ACTUAL tier
+    const usageLimit = USAGE_LIMITS[actualTier] || USAGE_LIMITS.free;
+
+    // Check if limit is exceeded
+    if (usage.used >= usageLimit) {
+      console.warn(`[TokenLimit] User ${userId} exceeded ${actualTier} limit (${usage.used}/${usageLimit})`);
+      return sendResponse(403, {
+        error: `${actualTier === 'free' ? 'Free' : actualTier} usage limit exceeded`,
+        code: 'TOKEN_LIMIT_EXCEEDED',
+        usage: { used: usage.used, limit: usageLimit, tier: actualTier }
+      });
+    }
+
+    console.log(`[TokenLimit] User ${userId}: ${usage.used}/${usageLimit} (Tier: ${actualTier})`);
+  }
+  // -------------------------
+
   if (!prompt || !systemPrompt) {
     console.error(`[${provider}] Missing required fields:`, { hasPrompt: !!prompt, hasSystemPrompt: !!systemPrompt });
     return sendResponse(400, { error: 'Missing prompt or systemPrompt' });
   }
 
-  if (!PROVIDER_KEYS[provider]) {
-    // Provide more helpful error messages
-    if (provider === 'openai') {
-      // GPT-5-Nano uses Puter.js (User-Pays model, no API key needed)
-      // Puter.js doesn't require API keys, so we just check if provider is enabled
-      if (!PROVIDER_KEYS.openai) {
-        return sendResponse(500, {
-          error: `Puter.js provider not configured. Provider "${provider}" uses Puter.js for GPT-5-Nano. No API key needed (User-Pays model).`,
-        });
-      }
-    } else if (provider === 'anthropic' || provider === 'gemini') {
-      // OpenRouter providers
-      const envValue = process.env.OPENROUTER_API_KEY;
-      const hasEnvButEmpty = envValue !== undefined && (!envValue || envValue.trim() === '');
+  // Normalize ALL providers to groq (SumoPod) - only provider configured
+  const effectiveProvider = 'groq';
+  console.log(`[SumoPod] Normalized from '${provider}' -> '${effectiveProvider}'`);
 
-      return sendResponse(500, {
-        error: `OpenRouter API key not configured. Provider "${provider}" uses OpenRouter. ${hasEnvButEmpty ? 'OPENROUTER_API_KEY exists but is empty. Please check your .env file.' : 'Please set OPENROUTER_API_KEY in your environment variables and restart the server.'}`,
-        debug: process.env.NODE_ENV === 'development' ? {
-          hasEnvVar: envValue !== undefined,
-          isEmpty: hasEnvButEmpty,
-          keyLength: envValue?.length || 0
-        } : undefined
-      });
-    }
-    return sendResponse(500, { error: `${provider} API key not configured` });
+  if (!PROVIDER_KEYS[effectiveProvider]) {
+    return sendResponse(500, { error: `SumoPod API key not configured. Please set SUMOPOD_API_KEY, SUMOPOD_BASE_URL, and SUMOPOD_MODEL_ID in your environment variables.` });
   }
 
-  // Providers that support image input via OpenRouter
-  const imageSupportedProviders = ['openai', 'gemini', 'anthropic', 'deepseek'];
-  if (!imageSupportedProviders.includes(provider) && images.length) {
-    return sendResponse(400, { error: `${provider} does not support image input. Use ${imageSupportedProviders.join(', ')} provider.` });
+  // SumoPod supports image input
+  if (images.length > 0) {
+    // SumoPod supports images via OpenAI-compatible format
   }
 
   const controller = new AbortController();
-  // Reduced timeouts for better UX - fast models should respond quickly
-  const timeoutDuration = provider === 'deepseek' ? 30_000 : 20_000;
+  // Timeout for SumoPod
+  const timeoutDuration = 180_000; // Increased to 180s (3 mins) for slow vision models
   const timeout = setTimeout(() => controller.abort(), timeoutDuration);
 
   try {
@@ -426,14 +1634,12 @@ Always provide information based on your training data AND the current date cont
       }
     }
 
-    // Enhance system prompt for free models to ensure they follow NEVRA guidelines
+    // Enhance system prompt for SumoPod
     let enhancedSystemPrompt = currentDateContext + webSearchContext + systemPrompt;
-    if (provider === 'deepseek') {
-      if (mode === 'tutor') {
-        // For tutor mode, ensure Mistral Devstral follows NEVRA Tutor guidelines
-        enhancedSystemPrompt = systemPrompt + `
+    if (mode === 'tutor') {
+      enhancedSystemPrompt = systemPrompt + `
 
-⚠️ IMPORTANT FOR MISTRAL DEVSTRAL IN TUTOR MODE:
+⚠️ IMPORTANT FOR SUMOPOD IN TUTOR MODE:
 - You are NEVRA TUTOR, a world-class AI Educator and Mentor
 - Be patient, encouraging, and clear in your explanations
 - Use Socratic questions, analogies, and step-by-step reasoning
@@ -442,68 +1648,16 @@ Always provide information based on your training data AND the current date cont
 - Do NOT generate full applications in tutor mode; keep to snippets and explanations
 - If images are provided, describe key elements and use them to answer questions
 - Always be thorough and helpful in your analysis`;
-      } else {
-        // For builder mode, use existing guidelines
-        enhancedSystemPrompt = systemPrompt + `
+    } else {
+      enhancedSystemPrompt = systemPrompt + `
 
-⚠️ IMPORTANT FOR MISTRAL DEVSTRAL:
+⚠️ IMPORTANT FOR SUMOPOD:
 - You MUST follow all NEVRA guidelines exactly as specified above
 - Generate code that matches the exact format and structure required
-- Use the same component patterns, styling approach, and architecture as other NEVRA providers
+- Use the same component patterns, styling approach, and architecture
 - Ensure your output is production-ready and follows all design system requirements
 - Pay special attention to the code structure template and component patterns
 - Always include proper error handling and React best practices`;
-      }
-    } else if (provider === 'anthropic' || provider === 'gemini') {
-      // GPT OSS 20B (replaced Claude Sonnet) - same enhancements as Mistral Devstral
-      if (mode === 'tutor') {
-        enhancedSystemPrompt = systemPrompt + `
-
-⚠️ IMPORTANT FOR GPT OSS 20B IN TUTOR MODE:
-- You are NEVRA TUTOR, a world-class AI Educator and Mentor
-- Be patient, encouraging, and clear in your explanations
-- Use Socratic questions, analogies, and step-by-step reasoning
-- Help users achieve deep understanding, not just rote answers
-- Format responses with bold for key concepts, code blocks for code, numbered steps for procedures
-- Do NOT generate full applications in tutor mode; keep to snippets and explanations
-- If images are provided, describe key elements and use them to answer questions
-- Always be thorough and helpful in your analysis`;
-      } else {
-        enhancedSystemPrompt = systemPrompt + `
-
-⚠️ IMPORTANT FOR GPT OSS 20B:
-- You MUST follow all NEVRA guidelines exactly as specified above
-- Generate code that matches the exact format and structure required
-- Use the same component patterns, styling approach, and architecture as other NEVRA providers
-- Ensure your output is production-ready and follows all design system requirements
-- Pay special attention to the code structure template and component patterns
-- Always include proper error handling and React best practices`;
-      }
-    } else if (provider === 'openai') {
-      // GPT-5-Nano via Puter.js - same enhancements
-      if (mode === 'tutor') {
-        enhancedSystemPrompt = systemPrompt + `
-
-⚠️ IMPORTANT FOR GPT-5-NANO IN TUTOR MODE:
-- You are NEVRA TUTOR, a world-class AI Educator and Mentor
-- Be patient, encouraging, and clear in your explanations
-- Use Socratic questions, analogies, and step-by-step reasoning
-- Help users achieve deep understanding, not just rote answers
-- Format responses with bold for key concepts, code blocks for code, numbered steps for procedures
-- Do NOT generate full applications in tutor mode; keep to snippets and explanations
-- If images are provided, describe key elements and use them to answer questions
-- Always be thorough and helpful in your analysis`;
-      } else {
-        enhancedSystemPrompt = systemPrompt + `
-
-⚠️ IMPORTANT FOR GPT-5-NANO:
-- You MUST follow all NEVRA guidelines exactly as specified above
-- Generate code that matches the exact format and structure required
-- Use the same component patterns, styling approach, and architecture as other NEVRA providers
-- Ensure your output is production-ready and follows all design system requirements
-- Pay special attention to the code structure template and component patterns
-- Always include proper error handling and React best practices`;
-      }
     }
 
     const messagesBase = [
@@ -513,202 +1667,54 @@ Always provide information based on your training data AND the current date cont
 
     let content;
 
-    switch (provider) {
-      case 'openai': {
-        // GPT-5-Nano via Puter.js API
-        // Build messages for Puter.js API (OpenAI-compatible format)
-        // messagesBase already has system and history, we just need to add user message
-        const puterMessages = [...messagesBase];
-
-        // Add user message with images if any
-        if (images && images.length > 0) {
-          // GPT-5-Nano supports images via OpenAI-compatible format
-          const imageContents = images.map(img => ({
-            type: 'image_url',
-            image_url: { url: img }
-          }));
-          puterMessages.push({
-            role: 'user',
-            content: [
-              { type: 'text', text: prompt },
-              ...imageContents
-            ]
-          });
-        } else {
-          puterMessages.push({
-            role: 'user',
-            content: prompt
-          });
-        }
-
-        // Use configurable max_tokens
-        const baseMaxTokens = MAX_TOKENS.openai;
-        // Adjust temperature based on mode
-        const temperature = mode === 'tutor' ? 0.7 : 0.5;
-
-        try {
-          // Puter.js API endpoint (OpenAI-compatible format)
-          // Note: Puter.js uses User-Pays model, no API key needed
-          const puterResponse = await fetch(`${PUTER_API_BASE}/ai/chat`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              // No Authorization header needed for Puter.js (User-Pays model)
-            },
-            body: JSON.stringify({
-              model: MODELS.openai,
-              messages: puterMessages,
-              temperature: temperature,
-              max_tokens: baseMaxTokens,
-              stream: false,
-            }),
-            signal: controller.signal,
-          });
-
-          if (!puterResponse.ok) {
-            const errorText = await puterResponse.text();
-            let errorData;
-            try {
-              errorData = JSON.parse(errorText);
-            } catch {
-              errorData = { error: errorText || puterResponse.statusText };
-            }
-
-            const errorMsg = errorData?.error?.message || errorData?.error || errorText || puterResponse.statusText;
-            console.error(`[${provider}] Puter.js API error:`, errorMsg);
-
-            return sendResponse(puterResponse.status || 500, {
-              error: `Puter.js API Error (GPT-5-Nano): ${errorMsg}`,
-              detail: errorData?.error || errorMsg,
-            });
-          }
-
-          const puterData = await puterResponse.json();
-          // Puter.js response format may vary, try multiple possible formats
-          content = puterData.choices?.[0]?.message?.content ||
-            puterData.message?.content?.[0]?.text ||
-            puterData.message?.content ||
-            puterData.output_text ||
-            puterData.response ||
-            '';
-
-          if (!content) {
-            console.error(`[${provider}] No content in Puter.js response:`, puterData);
-            return sendResponse(500, {
-              error: 'Puter.js API response missing content',
-              detail: JSON.stringify(puterData)
-            });
-          }
-
-          console.log(`[${provider}] Puter.js API success, content length: ${content.length}`);
-        } catch (fetchErr) {
-          const errorMsg = fetchErr?.message || String(fetchErr);
-          console.error(`[${provider}] Puter.js API fetch error:`, errorMsg);
-
-          // Check for timeout/abort
-          if (fetchErr?.name === 'AbortError' || errorMsg.toLowerCase().includes('aborted') || errorMsg.toLowerCase().includes('timeout')) {
-            return sendResponse(504, {
-              error: `Puter.js API Error (GPT-5-Nano): Request timeout - The request took too long to complete. Please try again with a shorter prompt.`,
-              detail: 'Request timeout'
-            });
-          }
-
-          return sendResponse(500, {
-            error: `Puter.js API Error (GPT-5-Nano): ${errorMsg}`,
-            detail: errorMsg,
-          });
-        }
-
-        break;
-      }
-      case 'anthropic':
-      case 'groq':
-      case 'gemini':
-      default: {
-        // Use Groq as PRIMARY provider (VERY FAST!)
-        // Auto-fallback to OpenRouter if Groq rate limited
-        let client = groqClient || openaiClient;
-        let modelToUse = groqClient ? MODELS.groq : MODELS.anthropic;
-        let usingFallback = false;
-
-        if (!client) {
-          return sendResponse(500, { error: 'No AI client available. Please configure GROQ_API_KEY or OPENROUTER_API_KEY.' });
-        }
-
-        console.log(`[${provider}] Using ${groqClient && !usingFallback ? 'Groq ⚡' : 'OpenRouter'} with model: ${modelToUse}`);
-
-        const messages = [
-          ...messagesBase,
-          { role: 'user', content: buildOpenAIUserContent(prompt, images) },
-        ];
-
-        // Use configurable max_tokens
-        const maxTokensConfig = groqClient && !usingFallback ? MAX_TOKENS.groq : MAX_TOKENS.anthropic;
-        const baseMaxTokens = mode === 'builder' ? maxTokensConfig.builder : maxTokensConfig.tutor;
-
-        try {
-          const completion = await client.chat.completions.create({
-            model: modelToUse,
-            messages,
-            temperature: mode === 'tutor' ? 0.7 : 0.5,
-            max_tokens: baseMaxTokens,
-          }, {
-            signal: controller.signal,
-          });
-
-          const anthropicContent = completion.choices[0]?.message?.content;
-          content = anthropicContent;
-        } catch (sdkErr) {
-          const errorStatus = sdkErr?.status || sdkErr?.response?.status || 500;
-          const errorMsg = sdkErr?.error?.message || sdkErr?.message || String(sdkErr);
-
-          console.error(`[${provider}] ${groqClient && !usingFallback ? 'Groq' : 'OpenRouter'} SDK error:`, sdkErr);
-
-          // Auto-fallback to OpenRouter if Groq rate limited (429)
-          if (errorStatus === 429 && groqClient && openaiClient && !usingFallback) {
-            console.log(`[${provider}] 🔄 Groq rate limited, falling back to OpenRouter...`);
-            usingFallback = true;
-            client = openaiClient;
-            modelToUse = MODELS.anthropic;
-
-            try {
-              const fallbackCompletion = await client.chat.completions.create({
-                model: modelToUse,
-                messages,
-                temperature: mode === 'tutor' ? 0.7 : 0.5,
-                max_tokens: MAX_TOKENS.anthropic[mode === 'builder' ? 'builder' : 'tutor'],
-              }, {
-                signal: controller.signal,
-              });
-
-              content = fallbackCompletion.choices[0]?.message?.content;
-              console.log(`[${provider}] ✅ Fallback to OpenRouter successful`);
-            } catch (fallbackErr) {
-              console.error(`[${provider}] OpenRouter fallback also failed:`, fallbackErr);
-              return sendResponse(500, {
-                error: `Both Groq and OpenRouter failed. Groq: ${errorMsg}. OpenRouter: ${fallbackErr?.message || String(fallbackErr)}`,
-              });
-            }
-          } else {
-            return sendResponse(errorStatus, {
-              error: `${groqClient && !usingFallback ? 'Groq' : 'OpenRouter'} API Error: ${errorMsg}`,
-              detail: sdkErr?.error || errorMsg,
-            });
-          }
-        }
-        break;
-      }
-      // deepseek case is now handled by default case above (uses Groq)
+    // Only SumoPod provider
+    if (!sumopodClient) {
+      return sendResponse(500, { error: 'SumoPod client not available. Please configure SUMOPOD_API_KEY, SUMOPOD_BASE_URL, and SUMOPOD_MODEL_ID.' });
     }
-    // Mistral AI Devstral 2512 (free) via OpenRouter
-    // NOTE: All providers now use Groq as primary (handled by default case)
-    // This orphan code block has been removed
+
+    // Get user tier and calculate max tokens
+    const userTier = await getUserTier(userId);
+    const baseMaxTokens = getMaxTokensForTier(userTier, mode);
+
+    console.log(`[${provider}] Using SumoPod ⚡ with model: ${MODELS.groq}, tier: ${userTier}, max_tokens: ${baseMaxTokens}`);
+
+    const messages = [
+      ...messagesBase,
+      { role: 'user', content: buildOpenAIUserContent(prompt, images) },
+    ];
+
+    try {
+      const completion = await sumopodClient.chat.completions.create({
+        model: process.env.SUMOPOD_MODEL_ID, // Use model from env as requested
+        messages,
+        temperature: mode === 'tutor' ? 0.7 : 0.5,
+        max_tokens: baseMaxTokens,
+      }, {
+        signal: controller.signal,
+      });
+
+      content = completion.choices[0]?.message?.content;
+    } catch (sdkErr) {
+      const errorStatus = sdkErr?.status || sdkErr?.response?.status || 500;
+      const errorMsg = sdkErr?.error?.message || sdkErr?.message || String(sdkErr);
+
+      console.error(`[${provider}] SumoPod SDK error:`, sdkErr);
+      return sendResponse(errorStatus, {
+        error: `SumoPod API Error: ${errorMsg}`,
+        detail: sdkErr?.error || errorMsg,
+      });
+    }
 
     if (!content) {
       console.error(`[${provider}] No content in response`);
       return sendResponse(500, {
         error: `${provider.toUpperCase()} response missing content`
       });
+    }
+
+    if (userId) {
+      updateUserUsage(userId, TOKENS_PER_REQUEST);
+      console.log(`[TokenLimit] Deducted ${TOKENS_PER_REQUEST} tokens for User ${userId}`);
     }
 
     return sendResponse(200, { content });
@@ -733,8 +1739,8 @@ Always provide information based on your training data AND the current date cont
     }
 
     return sendResponse(500, {
-      error: 'An unexpected error occurred',
-      detail: err?.message || String(err)
+      error: 'An unexpected error occurred. Please check server logs.',
+      // detail: err?.message || String(err)
     });
   }
 });
@@ -1284,7 +2290,8 @@ app.post('/api/search', async (req, res) => {
   } catch (error) {
     console.error('Web search error:', error);
     res.status(500).json({
-      error: error?.message || 'Web search failed',
+      error: 'Web search failed. Please check server logs.',
+
       query,
       results: [],
       totalResults: 0,
@@ -1436,6 +2443,126 @@ app.post('/api/parse-document', upload.single('file'), async (req, res) => {
       message: error.message || 'An error occurred while parsing the document'
     });
   }
+});
+
+// YouTube Transcript endpoint
+app.post('/api/transcript', async (req, res) => {
+  const { url } = req.body;
+
+  if (!url) {
+    return res.status(400).json({ error: 'YouTube URL is required' });
+  }
+
+  try {
+    const transcript = await YoutubeTranscript.fetchTranscript(url);
+
+    // Combine transcript into a single text
+    const fullText = transcript.map(item => item.text).join(' ');
+
+    res.json({
+      transcript: fullText,
+      duration: transcript[transcript.length - 1].offset + transcript[transcript.length - 1].duration
+    });
+
+  } catch (error) {
+    console.error('YouTube Transcript Error:', error);
+    res.status(500).json({
+      error: 'Failed to fetch transcript',
+      details: error.message
+    });
+  }
+});
+
+// Waitlist API
+// Verification codes store (in-memory for MVP)
+const verificationCodes = new Map();
+
+// Configure Nodemailer (ensure env vars are set)
+const transporter = nodemailer.createTransport({
+  service: 'gmail', // Or use SMTP settings
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  }
+});
+
+// Waitlist API - Step 1: Request Code
+app.post('/api/waitlist', async (req, res) => {
+  const { email, name } = req.body;
+
+  if (!email || !email.includes('@')) {
+    return res.status(400).json({ error: 'Valid email is required' });
+  }
+
+  // Generate 6-digit code
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  verificationCodes.set(email, { code, timestamp: Date.now() });
+
+  // Log to console for dev/testing (in case email fails or isn't set up)
+  console.log(`[Waitlist] 🔐 Verification Code for ${email}: ${code}`);
+
+  // Log to file
+  const logEntry = `${new Date().toISOString()} - ${email} - Code: ${code}\n`;
+  const waitlistFile = path.join(__dirname, 'waitlist.txt');
+  try {
+    fs.appendFileSync(waitlistFile, logEntry);
+  } catch (e) { console.error('File log error', e); }
+
+
+  // Attempt to send email
+  if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+    try {
+      await transporter.sendMail({
+        from: '"Nevra AI" <noreply@nevra.ai>',
+        to: email,
+        subject: 'Your Nevra Verification Code',
+        text: `Hello ${name || 'User'},\n\nYour verification code for Nevra is: ${code}\n\nThis code will expire in 10 minutes.\n\nWelcome to the future of neural automation.`,
+        html: `<div style="font-family: sans-serif; padding: 20px;">
+                      <h1>Welcome to Nevra</h1>
+                      <p>Hello ${name || 'User'},</p>
+                      <p>Your verification code is:</p>
+                      <h2 style="background: #eee; padding: 10px; display: inline-block; letter-spacing: 5px;">${code}</h2>
+                      <p>This code will expire in 10 minutes.</p>
+                     </div>`
+      });
+      console.log(`[Waitlist] Email sent to ${email}`);
+    } catch (err) {
+      console.error('[Waitlist] Email send failed:', err);
+      // Return success anyway so user can manually get code from logs if testing local
+    }
+  } else {
+    console.warn('[Waitlist] Email credentials not set. Code logged to console.');
+  }
+
+  res.json({ success: true, message: 'Verification code sent' });
+});
+
+// Waitlist API - Step 2: Verify Code
+app.post('/api/verify-waitlist', async (req, res) => {
+  const { email, code } = req.body;
+
+  if (!email || !code) return res.status(400).json({ error: 'Email and code required' });
+
+  const record = verificationCodes.get(email);
+
+  if (!record) {
+    return res.status(400).json({ error: 'No verification request found' });
+  }
+
+  if (record.code !== code) {
+    return res.status(400).json({ error: 'Invalid verification code' });
+  }
+
+  // Check expiration (10 mins)
+  if (Date.now() - record.timestamp > 10 * 60 * 1000) {
+    return res.status(400).json({ error: 'Code expired' });
+  }
+
+  // Success
+  verificationCodes.delete(email); // Consume code
+  console.log(`[Waitlist] Verified: ${email}`);
+
+  res.json({ success: true, verified: true });
 });
 
 // Code execution endpoint (Python)
@@ -1617,70 +2744,19 @@ IMPORTANT:
       setTimeout(() => reject(new Error('Planning request timeout')), 10000);
     });
 
-    // Support all OpenRouter providers for planning with timeout
+    // Use SumoPod for planning
     let completion;
     try {
-      if (provider === 'openai' && PROVIDER_KEYS.openai) {
-        // GPT-5-Nano via Puter.js API for planning
-        const planningPromise = fetch(`${PUTER_API_BASE}/ai/chat`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            // No Authorization header needed for Puter.js
-          },
-          body: JSON.stringify({
-            model: MODELS.openai,
-            messages,
-            temperature: 0.7,
-            max_tokens: 2000,
-            stream: false,
-          }),
-        }).then(res => {
-          if (!res.ok) throw new Error(`Puter.js API error: ${res.statusText}`);
-          return res.json();
-        }).then(data => ({
-          choices: [{ message: { content: data.choices?.[0]?.message?.content || data.message?.content?.[0]?.text || data.message?.content || data.output_text || '' } }]
-        }));
-        completion = await Promise.race([planningPromise, timeoutPromise]);
-      } else if (provider === 'gemini' && openaiClient) {
-        // GPT OSS 20B (Free) via OpenRouter
-        const planningPromise = openaiClient.chat.completions.create({
-          model: MODELS.gemini,
-          messages,
-          temperature: 0.7,
-          max_tokens: 2000, // Reduced from 3000 for faster response
-        });
-        completion = await Promise.race([planningPromise, timeoutPromise]);
-      } else if (provider === 'anthropic' && openaiClient) {
-        // GPT OSS 20B (Free) via OpenRouter
-        const planningPromise = openaiClient.chat.completions.create({
-          model: MODELS.anthropic,
-          messages,
-          temperature: 0.7,
-          max_tokens: 2000, // Reduced from 3000 for faster response
-        });
-        completion = await Promise.race([planningPromise, timeoutPromise]);
-      } else if (provider === 'deepseek' && openaiClient) {
-        // Mistral AI Devstral 2512 (free) via OpenRouter - DEFAULT
-        const planningPromise = openaiClient.chat.completions.create({
-          model: MODELS.deepseek,
-          messages,
-          temperature: 0.7,
-          max_tokens: 2000, // Reduced from 3000 for faster response
-        });
-        completion = await Promise.race([planningPromise, timeoutPromise]);
-      } else if (openaiClient) {
-        // Default to Mistral Devstral (free)
-        const planningPromise = openaiClient.chat.completions.create({
-          model: MODELS.deepseek,
-          messages,
-          temperature: 0.7,
-          max_tokens: 2000, // Reduced from 3000 for faster response
-        });
-        completion = await Promise.race([planningPromise, timeoutPromise]);
-      } else {
-        throw new Error('No AI client available');
+      if (!sumopodClient) {
+        throw new Error('SumoPod client not available');
       }
+      const planningPromise = sumopodClient.chat.completions.create({
+        model: MODELS.groq,
+        messages,
+        temperature: 0.7,
+        max_tokens: 2000,
+      });
+      completion = await Promise.race([planningPromise, timeoutPromise]);
       content = completion.choices[0]?.message?.content || '';
     } catch (error) {
       if (error.message === 'Planning request timeout' || error.message?.includes('timeout')) {
@@ -1778,9 +2854,73 @@ app.get('/api/currency/detect', async (req, res) => {
   }
 });
 
-// Payment checkout endpoint with Stripe
+// --- Feature Usage / Credit System Endpoints ---
+
+// Get current usage and credit status
+app.get('/api/user/feature-usage', async (req, res) => {
+  const { userId } = req.query;
+  if (!userId) return res.status(400).json({ error: 'User ID required' });
+
+  try {
+    const usageData = getUserUsage(userId);
+    const tier = await getUserTier(userId);
+
+    // Calculate remaining credits
+    let remaining = usageData.limit - usageData.used;
+    if (remaining < 0) remaining = 0;
+    if (tier === 'pro') remaining = 999999; // effectively unlimited
+
+    res.json({
+      used: usageData.used,
+      limit: usageData.limit,
+      remaining,
+      tier,
+      credits: remaining // explicit credit count
+    });
+  } catch (error) {
+    console.error('Error fetching feature usage:', error);
+    res.status(500).json({ error: 'Failed to fetch usage' });
+  }
+});
+
+// Increment usage (deduct credits)
+app.post('/api/user/feature-usage/increment', abuseLimiter, async (req, res) => {
+  const { userId, featureType } = req.body;
+  if (!userId || !featureType) return res.status(400).json({ error: 'Missing parameters' });
+
+  try {
+    const cost = FEATURE_COSTS[featureType] || 1; // Default to 1 if unknown (chat)
+
+    // Check if user has enough credits
+    const tier = await getUserTier(userId);
+    const usageData = getUserUsage(userId);
+
+    if (tier !== 'pro' && (usageData.used + cost > usageData.limit)) {
+      return res.status(403).json({
+        error: 'Daily credit limit exceeded',
+        code: 'CREDIT_LIMIT_EXCEEDED',
+        upgradeUrl: '/pricing'
+      });
+    }
+
+    updateUserUsage(userId, cost);
+
+    res.json({
+      success: true,
+      cost,
+      newUsage: usageData.used + cost,
+      remaining: tier === 'pro' ? 999999 : Math.max(0, usageData.limit - (usageData.used + cost))
+    });
+  } catch (error) {
+    console.error('Error incrementing usage:', error);
+    res.status(500).json({ error: 'Failed to update usage' });
+  }
+});
+
 app.post('/api/payment/checkout', async (req, res) => {
   const { plan, currency, amount, userId } = req.body || {};
+
+  console.log('💳 Payment checkout request:', { plan, currency, amount, userId });
 
   if (!plan || plan !== 'premium') {
     return res.status(400).json({ error: 'Invalid plan' });
@@ -1790,123 +2930,254 @@ app.post('/api/payment/checkout', async (req, res) => {
     return res.status(401).json({ error: 'User ID is required. Please sign in.' });
   }
 
-  if (!stripe || !process.env.STRIPE_SECRET_KEY) {
-    return res.status(500).json({ error: 'Stripe is not configured. Please contact support.' });
+  if (!snap || !process.env.MIDTRANS_SERVER_KEY) {
+    console.error('❌ Midtrans not configured! MIDTRANS_SERVER_KEY:', process.env.MIDTRANS_SERVER_KEY ? 'SET' : 'NOT SET');
+    return res.status(500).json({ error: 'Payment system is not configured. Please contact support.' });
   }
 
   try {
-    // Convert amount to cents (Stripe uses smallest currency unit)
-    const amountInCents = Math.round(amount * 100);
+    // Generate unique order ID
+    const orderId = `NEVRA-${userId.substring(0, 8)}-${Date.now()}`;
 
-    // Get base URL for success/cancel URLs
-    const baseUrl = process.env.FRONTEND_URL || req.headers.origin || 'http://localhost:5173';
-
-    // Create Stripe Checkout Session
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      line_items: [
-        {
-          price_data: {
-            currency: currency.toLowerCase(),
-            product_data: {
-              name: 'NEVRA Premium Subscription',
-              description: 'Unlimited AI tokens, all AI models, priority support, and more',
-            },
-            recurring: {
-              interval: 'month',
-            },
-            unit_amount: amountInCents,
-          },
-          quantity: 1,
-        },
-      ],
-      mode: 'subscription',
-      success_url: `${baseUrl}/pricing?success=true&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${baseUrl}/pricing?canceled=true`,
-      client_reference_id: userId, // Store user ID for webhook
-      metadata: {
-        userId,
-        plan: 'premium',
+    // Midtrans Snap parameter
+    const parameter = {
+      transaction_details: {
+        order_id: orderId,
+        gross_amount: Math.round(amount) // Midtrans expects integer (no decimals)
       },
-    });
+      credit_card: {
+        secure: true
+      },
+      customer_details: {
+        // Add customer details if available from userId
+      },
+      item_details: [{
+        id: 'nevra-premium',
+        price: Math.round(amount),
+        quantity: 1,
+        name: 'Nevra Premium Subscription - Monthly'
+      }],
+      callbacks: {
+        finish: `${process.env.FRONTEND_URL || req.headers.origin || 'http://localhost:5173'}/pricing?success=true`,
+        error: `${process.env.FRONTEND_URL || req.headers.origin || 'http://localhost:5173'}/pricing?canceled=true`,
+        pending: `${process.env.FRONTEND_URL || req.headers.origin || 'http://localhost:5173'}/pricing?pending=true`
+      }
+    };
+
+    // Create Snap transaction
+    const transaction = await snap.createTransaction(parameter);
+
+    console.log('✅ Midtrans Snap transaction created:', orderId);
 
     res.json({
-      checkout_url: session.url,
-      session_id: session.id,
+      checkout_url: transaction.redirect_url,
+      token: transaction.token,
+      order_id: orderId
     });
   } catch (error) {
-    console.error('Payment checkout error:', error);
+    console.error('❌ Payment checkout error:', {
+      message: error?.message,
+      stack: error?.stack,
+      response: error?.response?.data
+    });
     res.status(500).json({
       error: error?.message || 'Payment checkout failed',
+      details: error?.response?.data || 'Unknown error'
     });
   }
 });
 
-// Stripe webhook endpoint for handling subscription events
+// Midtrans notification webhook endpoint 
 app.post('/api/payment/webhook', async (req, res) => {
-  const sig = req.headers['stripe-signature'];
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-
-  if (!webhookSecret) {
-    console.error('⚠️ STRIPE_WEBHOOK_SECRET not set. Webhook verification disabled.');
-    return res.status(400).send('Webhook secret not configured');
-  }
-
-  if (!stripe) {
-    return res.status(500).send('Stripe not initialized');
-  }
-
-  let event;
-
   try {
-    event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
-  } catch (err) {
-    console.error('Webhook signature verification failed:', err.message);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
-  }
+    const notification = req.body;
 
-  // Handle the event
-  try {
-    switch (event.type) {
-      case 'checkout.session.completed': {
-        const session = event.data.object;
-        const userId = session.client_reference_id || session.metadata?.userId;
+    console.log('📬 Midtrans notification received:', {
+      order_id: notification.order_id,
+      transaction_status: notification.transaction_status,
+      fraud_status: notification.fraud_status
+    });
 
-        if (!userId) {
-          console.error('No user ID found in checkout session');
-          return res.status(400).json({ error: 'Missing user ID' });
-        }
+    // Verify notification (optional but recommended)
+    // const statusResponse = await snap.transaction.notification(notification);
 
-        // TODO: Implement Firebase subscription update
-        // For now, just log the subscription activation
+    const orderId = notification.order_id;
+    const transactionStatus = notification.transaction_status;
+    const fraudStatus = notification.fraud_status;
+
+    // Handle payment status
+    let isSuccess = false;
+    if (transactionStatus === 'capture') {
+      if (fraudStatus === 'accept') {
+        // Payment successful
+        isSuccess = true;
+      }
+    } else if (transactionStatus === 'settlement') {
+      // Payment settled
+      isSuccess = true;
+    } else if (transactionStatus === 'pending') {
+      // Payment pending
+      console.log('⏳ Payment pending for order:', orderId);
+    } else if (transactionStatus === 'deny' || transactionStatus === 'cancel' || transactionStatus === 'expire') {
+      // Payment failed
+      console.log('❌ Payment failed for order:', orderId);
+    }
+
+    if (isSuccess) {
+      // Extract userId from orderId (format: NEVRA-{userId}-{timestamp})
+      const userId = orderId.split('-')[1];
+
+      // Calculate expiry (30 days from now for monthly subscription)
+      const expiryDate = new Date();
+      expiryDate.setDate(expiryDate.getDate() + 30);
+
+      // Activate subscription immediately
+      const activated = saveSubscription(userId, 'pro', expiryDate.toISOString());
+
+      if (activated) {
         console.log(`✅ Subscription activated for user ${userId}`);
-        console.log(`   Stripe Customer ID: ${session.customer}`);
-        console.log(`   Stripe Subscription ID: ${session.subscription}`);
-        break;
+        console.log(`   Order ID: ${orderId}`);
+        console.log(`   Transaction ID: ${notification.transaction_id}`);
+        console.log(`   Expires: ${expiryDate.toISOString()}`);
+      } else {
+        console.error(`❌ Failed to activate subscription for user ${userId}`);
       }
-
-      case 'customer.subscription.updated':
-      case 'customer.subscription.deleted': {
-        const subscription = event.data.object;
-        const customerId = subscription.customer;
-        const isActive = subscription.status === 'active' || subscription.status === 'trialing';
-
-        // TODO: Implement Firebase subscription status update
-        console.log(`📋 Subscription ${event.type}:`);
-        console.log(`   Customer ID: ${customerId}`);
-        console.log(`   Status: ${subscription.status}`);
-        console.log(`   Is Active: ${isActive}`);
-        break;
-      }
-
-      default:
-        console.log(`Unhandled event type: ${event.type}`);
     }
 
     res.json({ received: true });
   } catch (error) {
-    console.error('Error processing webhook:', error);
+    console.error('Error processing Midtrans notification:', error);
     res.status(500).json({ error: 'Webhook processing failed' });
+  }
+});
+
+// Secure activation endpoint - Verifies payment with Midtrans before activating
+// IMPORTANT: This endpoint is called by PricingPage after successful Midtrans payment
+app.post('/api/payment/activate', async (req, res) => {
+  const { userId, orderId } = req.body;
+
+  console.log('📥 Activation request received:', { userId, orderId });
+
+  if (!userId) {
+    return res.status(400).json({ error: 'User ID is required' });
+  }
+
+  if (!orderId) {
+    return res.status(400).json({ error: 'Order ID is required for verification' });
+  }
+
+  try {
+    // Step 1: Verify payment status with Midtrans
+    console.log('🔍 Verifying payment with Midtrans for order:', orderId);
+
+    if (!snap) {
+      console.error('❌ Midtrans not configured!');
+      return res.status(500).json({ error: 'Payment system not configured' });
+    }
+
+    let paymentVerified = false;
+    let transactionStatus = 'unknown';
+
+    try {
+      // Verify transaction with Midtrans API
+      const midtransServerKey = process.env.MIDTRANS_SERVER_KEY?.trim();
+      const isProduction = process.env.MIDTRANS_IS_PRODUCTION === 'true';
+      const baseUrl = isProduction
+        ? 'https://api.midtrans.com'
+        : 'https://api.sandbox.midtrans.com';
+
+      const authHeader = Buffer.from(midtransServerKey + ':').toString('base64');
+
+      const statusResponse = await fetch(`${baseUrl}/v2/${orderId}/status`, {
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': `Basic ${authHeader}`
+        }
+      });
+
+      if (!statusResponse.ok) {
+        throw new Error(`Midtrans API error: ${statusResponse.status}`);
+      }
+
+      const statusData = await statusResponse.json();
+      transactionStatus = statusData.transaction_status;
+      const fraudStatus = statusData.fraud_status;
+
+      console.log('📊 Midtrans verification result:', {
+        order_id: orderId,
+        transaction_status: transactionStatus,
+        fraud_status: fraudStatus
+      });
+
+      // Verify payment is successful
+      if (transactionStatus === 'settlement' ||
+        (transactionStatus === 'capture' && fraudStatus === 'accept')) {
+        paymentVerified = true;
+        console.log('✅ Payment verified successfully');
+      } else if (transactionStatus === 'pending') {
+        return res.status(402).json({
+          error: 'Payment is still pending',
+          status: 'pending',
+          message: 'Please wait for payment confirmation'
+        });
+      } else {
+        console.warn('⚠️ Payment not successful:', transactionStatus);
+        return res.status(403).json({
+          error: 'Payment verification failed',
+          status: transactionStatus,
+          message: 'Payment was not successful or is still being processed'
+        });
+      }
+    } catch (verifyError) {
+      console.error('❌ Midtrans verification error:', verifyError);
+
+      // In development/testing, allow activation without strict verification
+      // Remove this in production!
+      if (process.env.NODE_ENV === 'development' && orderId.startsWith('TEST-')) {
+        console.warn('⚠️ Development mode: Allowing test order without verification');
+        paymentVerified = true;
+      } else {
+        return res.status(500).json({
+          error: 'Failed to verify payment',
+          message: 'Could not verify payment status with Midtrans. Please contact support.'
+        });
+      }
+    }
+
+    // Step 2: Activate subscription only if payment verified
+    if (!paymentVerified) {
+      return res.status(403).json({
+        error: 'Payment not verified',
+        message: 'Unable to verify successful payment'
+      });
+    }
+
+    // Calculate expiry (30 days from now for monthly subscription)
+    const expiryDate = new Date();
+    expiryDate.setDate(expiryDate.getDate() + 30);
+
+    // Activate subscription
+    const activated = saveSubscription(userId, 'pro', expiryDate.toISOString());
+
+    if (activated) {
+      console.log(`✅ [Verified] Subscription activated for user ${userId}`);
+      console.log(`   Order ID: ${orderId}`);
+      console.log(`   Transaction Status: ${transactionStatus}`);
+      console.log(`   Expires: ${expiryDate.toISOString()}`);
+
+      res.json({
+        success: true,
+        subscription: 'pro',
+        expiresAt: expiryDate.toISOString(),
+        verified: true
+      });
+    } else {
+      throw new Error('Failed to save subscription');
+    }
+  } catch (error) {
+    console.error('Activation error:', error);
+    res.status(500).json({ error: 'Failed to activate subscription' });
   }
 });
 
@@ -1919,15 +3190,23 @@ app.get('/api/payment/subscription', async (req, res) => {
   }
 
   try {
-    // TODO: Implement Firebase subscription check
-    // For now, return free tier for all users
-    console.log('[Subscription] Checking subscription for user:', userId);
+    const subscription = await getUserSubscription(userId);
 
-    res.json({
-      subscription: 'free',
-      isActive: false,
-      subscribedAt: null,
-    });
+    if (subscription && subscription.tier === 'pro') {
+      res.json({
+        subscription: 'pro',
+        isActive: true,
+        subscribedAt: subscription.activatedAt,
+        expiresAt: subscription.expiresAt,
+      });
+    } else {
+      res.json({
+        subscription: 'free',
+        isActive: false,
+        subscribedAt: null,
+        expiresAt: null,
+      });
+    }
   } catch (error) {
     console.error('Error fetching subscription:', error);
     res.status(500).json({ error: 'Failed to fetch subscription status' });
@@ -2006,36 +3285,34 @@ app.post('/api/workflow', async (req, res) => {
   }
 });
 
+// Subscription management endpoint (replaced Stripe portal)
 app.post('/api/payment/portal', async (req, res) => {
-  const { userId, customerId } = req.body;
+  const { userId } = req.body;
 
   if (!userId) {
     return res.status(400).json({ error: 'User ID is required' });
   }
 
-  if (!stripe) {
-    return res.status(500).json({ error: 'Stripe not configured' });
-  }
-
   try {
-    // TODO: Get customer ID from Firebase
-    // For now, require customerId to be passed from frontend
-    if (!customerId) {
-      return res.status(404).json({ error: 'No active subscription found. Customer ID required.' });
+    // For Midtrans, we don't have a customer portal like Stripe
+    // Instead, return subscription info
+    const subscription = getUserSubscription(userId);
+
+    if (subscription && subscription.tier === 'pro') {
+      res.json({
+        message: 'Subscription is active',
+        subscription: {
+          tier: 'pro',
+          expiresAt: subscription.expiresAt,
+          activatedAt: subscription.activatedAt
+        }
+      });
+    } else {
+      res.status(404).json({ error: 'No active subscription found' });
     }
-
-    const baseUrl = process.env.FRONTEND_URL || req.headers.origin || 'http://localhost:5173';
-
-    // Create portal session
-    const session = await stripe.billingPortal.sessions.create({
-      customer: customerId,
-      return_url: `${baseUrl}/pricing`,
-    });
-
-    res.json({ url: session.url });
   } catch (error) {
-    console.error('Error creating portal session:', error);
-    res.status(500).json({ error: 'Failed to create portal session' });
+    console.error('Error fetching subscription info:', error);
+    res.status(500).json({ error: 'Failed to fetch subscription info' });
   }
 });
 
@@ -2099,6 +3376,83 @@ if (process.env.VERCEL !== '1' && !process.env.VERCEL_ENV) {
     });
   }
 
+  // Canvas AI Analyze endpoint with limit for free users
+  app.post('/api/canvas/analyze', async (req, res) => {
+    const { userId, imageData } = req.body;
+
+    console.log('🎨 Canvas analyze request:', { userId, hasImage: !!imageData });
+
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID is required' });
+    }
+
+    if (!imageData) {
+      return res.status(400).json({ error: 'Image data is required' });
+    }
+
+    try {
+      // Check tier
+      const tier = await getUserTier(userId);
+      console.log(`📊 User tier: ${tier}`);
+
+      // For free users, check Canvas analyze limit
+      if (tier === 'free') {
+        const usage = getCanvasAnalyzeUsage(userId);
+
+        console.log(`📊 Canvas analyze usage:`, usage);
+
+        if (usage.used >= CANVAS_ANALYZE_LIMIT) {
+          return res.status(403).json({
+            error: 'Canvas AI Analyze limit exceeded',
+            code: 'CANVAS_ANALYZE_LIMIT',
+            message: `Free users can use AI Analyze ${CANVAS_ANALYZE_LIMIT} times per month`,
+            usage: usage,
+            upgradeUrl: '/pricing'
+          });
+        }
+
+        // Increment counter for free users
+        incrementCanvasAnalyzeUsage(userId);
+      }
+
+      // TODO: Process canvas analyze with AI (implement your canvas analysis logic here)
+      // For now, just return success
+      res.json({
+        success: true,
+        tier,
+        remaining: tier === 'pro' ? 'unlimited' : (CANVAS_ANALYZE_LIMIT - getCanvasAnalyzeUsage(userId).used)
+      });
+    } catch (error) {
+      console.error('Canvas analyze error:', error);
+      res.status(500).json({ error: 'Failed to analyze canvas' });
+    }
+  });
+
+  // Get Canvas analyze usage
+  app.get('/api/canvas/usage', async (req, res) => {
+    const { userId } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID is required' });
+    }
+
+    try {
+      const tier = await getUserTier(userId);
+      const usage = tier === 'pro'
+        ? { used: 0, limit: 'unlimited', remaining: 'unlimited' }
+        : { ...getCanvasAnalyzeUsage(userId), remaining: CANVAS_ANALYZE_LIMIT - getCanvasAnalyzeUsage(userId).used };
+
+      res.json({
+        tier,
+        usage
+      });
+    } catch (error) {
+      console.error('Error getting canvas usage:', error);
+      res.status(500).json({ error: 'Failed to get usage' });
+    }
+  });
+
+  // Start server
   app.listen(PORT, () => {
     console.log(`API proxy listening on ${PORT}`);
   });

@@ -1,5 +1,9 @@
-// Token limit utilities - Firebase version
-// Note: Token tracking disabled for now, returning unlimited tokens
+import {
+    getUserTier,
+    getTokenUsage,
+    logAIUsage as dbLogAIUsage
+} from './supabaseDatabase';
+import { TIER_LIMITS } from './supabase';
 
 // Token costs per provider (estimated)
 const TOKEN_COSTS = {
@@ -9,68 +13,123 @@ const TOKEN_COSTS = {
     gemini: 10,         // 10 tokens per request
 };
 
-// Free tier limit (tokens). Set to very high value for now
-export const FREE_TOKEN_LIMIT = 999999999;
+// Default Free tier limit from TIER_LIMITS
+export const FREE_TOKEN_LIMIT = TIER_LIMITS.free.monthlyTokens;
 
 /**
  * Check if user has exceeded token limit
- * Currently returns unlimited tokens (token tracking disabled)
  */
-export async function checkTokenLimit(_userId: string, _token?: string | null): Promise<{
+export async function checkTokenLimit(userId: string, _token?: string | null): Promise<{
     hasExceeded: boolean;
     tokensUsed: number;
     tokensRemaining: number;
     isSubscribed: boolean;
 }> {
-    // Token tracking disabled - return unlimited
-    return {
-        hasExceeded: false,
-        tokensUsed: 0,
-        tokensRemaining: FREE_TOKEN_LIMIT,
-        isSubscribed: false,
-    };
+    try {
+        // 1. Get User Tier and Usage from Supabase
+        const tier = await getUserTier(userId);
+        const usageData = await getTokenUsage(userId);
+
+        const isSubscribed = tier === 'pro';
+        const used = usageData?.tokens_used || 0;
+
+        // 2. Determine Limit
+        const limit = TIER_LIMITS[tier].monthlyTokens;
+
+        // 3. Check for Unlimited (-1)
+        if (limit < 0 || isSubscribed) {
+            return {
+                hasExceeded: false,
+                tokensUsed: used,
+                tokensRemaining: 999999, // Display as Unlimited
+                isSubscribed: true,
+            };
+        }
+
+        // 4. Check Limit
+        const hasExceeded = used >= limit;
+
+        return {
+            hasExceeded,
+            tokensUsed: used,
+            tokensRemaining: Math.max(0, limit - used),
+            isSubscribed: false,
+        };
+    } catch (error) {
+        console.error('Error checking token limit (Supabase):', error);
+        // Fail open
+        return {
+            hasExceeded: false,
+            tokensUsed: 0,
+            tokensRemaining: FREE_TOKEN_LIMIT,
+            isSubscribed: false,
+        };
+    }
 }
 
 /**
  * Track AI usage
- * Currently no-op (token tracking disabled)
  */
 export async function trackAIUsage(
-    _userId: string,
-    _sessionId: string,
+    userId: string,
+    sessionId: string,
     provider: 'anthropic' | 'deepseek' | 'openai' | 'gemini',
-    _model?: string,
+    model?: string,
     _token?: string | null
 ): Promise<boolean> {
-    // Token tracking disabled - just log
-    console.log(`[TokenLimit] AI usage: provider=${provider}`);
-    return true;
+    try {
+        const tokensToCharge = TOKEN_COSTS[provider] || 10;
+
+        // Log usage to Supabase (this handles monthly increment)
+        await dbLogAIUsage(
+            userId,
+            sessionId,
+            provider,
+            model || 'default',
+            tokensToCharge,
+            0
+        );
+
+        console.log(`[TokenLimit] Charged ${tokensToCharge} tokens for ${provider} (Supabase)`);
+        return true;
+    } catch (error) {
+        console.error('Error tracking usage:', error);
+        return false;
+    }
 }
 
 /**
  * Get user's token usage summary
- * Currently returns empty data (token tracking disabled)
  */
-export async function getTokenUsageSummary(_userId: string): Promise<{
+export async function getTokenUsageSummary(userId: string): Promise<{
     totalTokens: number;
     usageByProvider: Record<string, number>;
     recentUsage: Array<{ date: string; tokens: number }>;
 }> {
-    return {
-        totalTokens: 0,
-        usageByProvider: {},
-        recentUsage: [],
-    };
+    try {
+        const usageData = await getTokenUsage(userId);
+        return {
+            totalTokens: usageData?.tokens_used || 0,
+            usageByProvider: {},
+            recentUsage: [],
+        };
+    } catch (error) {
+        return {
+            totalTokens: 0,
+            usageByProvider: {},
+            recentUsage: [],
+        };
+    }
 }
 
 /**
- * Upgrade user to subscription
- * Currently no-op (subscriptions handled by Stripe webhook)
+ * Upgrade user to subscription (Legacy/Placeholder)
+ * Actual upgrade happens via Midtrans/Stripe callback -> API -> supabase activateProSubscription
  */
 export async function upgradeSubscription(
     _userId: string,
     _plan: 'premium' | 'pro' | 'enterprise'
 ): Promise<boolean> {
-    console.log(`[TokenLimit] Upgrade subscription - handled by Stripe webhook`);
+    console.log(`[TokenLimit] Upgrade subscription logic moved to API endpoints`);
     return true;
 }

@@ -5,8 +5,9 @@
 
 export const WORKFLOW_CONFIG = {
   // Enable/disable workflow stages
-  enablePlanner: true,
-  enableReviewer: true,
+  // DISABLED: Planner and Reviewer to save tokens (3 API calls -> 1)
+  enablePlanner: false,
+  enableReviewer: false,
 
   // Skip stages for simple requests to save time and tokens
   skipPlannerForSimple: true,
@@ -46,7 +47,7 @@ export const WORKFLOW_CONFIG = {
   // Feature flags
   enableStreaming: false, // Stream responses (future feature)
   enableParallelExecution: false, // Execute some stages in parallel (future feature)
-  enableWorkflow: true, // ENABLED with Groq (fast, no rate limit issues)
+  enableWorkflow: false, // DISABLED - Gemini/SumoPod handles everything directly
 
   // Debug mode
   debug: false,

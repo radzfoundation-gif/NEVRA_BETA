@@ -24,7 +24,7 @@ const Logo: React.FC<LogoProps> = ({
           viewBox="0 0 120 120"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
-          className="text-white"
+          className="text-current"
         >
           {/* Left vertical bar with organic concave inner edge */}
           <path

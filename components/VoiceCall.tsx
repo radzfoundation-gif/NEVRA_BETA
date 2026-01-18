@@ -175,14 +175,36 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
 
       if (typeof response === 'string') {
         responseText = response;
-      } else if (response && typeof response === 'object' && 'files' in response) {
-        // MultiFileResponse - extract explanation or concatenate file contents
-        responseText = response.files
-          .map(f => f.content)
-          .join('\n')
-          .substring(0, 1000); // Limit for voice
+      } else if (response && typeof response === 'object') {
+        // Handle any object response - try to extract meaningful text
+        if ('content' in response && typeof response.content === 'string') {
+          responseText = response.content;
+        } else if ('type' in response && response.type === 'single-file' && 'content' in response) {
+          responseText = String(response.content);
+        } else if ('files' in response) {
+          // MultiFileResponse - extract explanation or concatenate file contents
+          responseText = response.files
+            .map((f: any) => f.content)
+            .join('\\n')
+            .substring(0, 1000); // Limit for voice
+        } else {
+          // Last resort: try to JSON stringify and extract text
+          try {
+            const jsonStr = JSON.stringify(response, null, 2);
+            // Try to find a content field in the JSON
+            const contentMatch = jsonStr.match(/"content":\s*"([^"]+)"/);
+            if (contentMatch) {
+              responseText = contentMatch[1];
+            } else {
+              // Just use a generic response instead of showing [object Object]
+              responseText = "I understand. Could you elaborate more on that?";
+            }
+          } catch {
+            responseText = "I understand. Could you tell me more?";
+          }
+        }
       } else {
-        responseText = String(response);
+        responseText = "I understand. Could you tell me more?";
       }
 
       // Remove HTML tags and comments

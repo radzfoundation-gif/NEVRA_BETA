@@ -1,5 +1,64 @@
-export type AIProvider = 'anthropic' | 'deepseek' | 'openai' | 'gemini' | 'groq';
+export type AIProvider = 'groq' | 'openai' | 'anthropic' | 'gemini' | 'deepseek';
 export type Framework = 'html' | 'react' | 'nextjs' | 'vite';
+
+// --- MODEL TIER RESTRICTIONS ---
+// Free users: Only Gemini Flash Lite (via groq/SumoPod)
+export const FREE_TIER_MODELS: AIProvider[] = ['groq', 'deepseek'];
+
+// Pro users: All models including premium ones
+export const PRO_ONLY_MODELS: AIProvider[] = ['openai', 'anthropic', 'gemini', 'deepseek'];
+
+// Model display names for UI
+export const MODEL_DISPLAY_NAMES: Record<AIProvider, string> = {
+  groq: 'Gemini Flash Lite',
+  openai: 'GPT-4o / GPT-5',
+  anthropic: 'Claude Opus 4.5',
+  gemini: 'Gemini 3 Pro',
+  deepseek: 'DeepSeek V3',
+};
+
+// Check if a model is allowed for a given tier
+export const isModelAllowed = (provider: AIProvider, tier: 'free' | 'pro'): boolean => {
+  if (tier === 'pro') return true;
+  return FREE_TIER_MODELS.includes(provider);
+};
+
+// Get allowed models for tier
+export const getModelsForTier = (tier: 'free' | 'pro'): AIProvider[] => {
+  if (tier === 'pro') {
+    return [...FREE_TIER_MODELS, ...PRO_ONLY_MODELS];
+  }
+  return FREE_TIER_MODELS;
+};
+
+// Check if model requires Pro subscription
+export const isProOnlyModel = (provider: AIProvider): boolean => {
+  return PRO_ONLY_MODELS.includes(provider);
+};
+
+// --- SMART ROUTING ---
+const smartRouteModel = (prompt: string, requestedProvider: AIProvider, tier: 'free' | 'normal' | 'pro'): AIProvider => {
+  // 1. Force Free Tier Limits
+  if (tier === 'free') {
+    if (!FREE_TIER_MODELS.includes(requestedProvider)) return 'deepseek'; // Default free
+    return requestedProvider;
+  }
+
+  // 2. Optimization for Pro Users (Save costs/time on simple queries)
+  // If prompt is very short and simple, use faster model even if premium requested?
+  // Only if the user didn't explicitly ask for "GPT-5" (assuming 'openai' could be that).
+  // But generally, for "Hi" or "Thanks", Groq is better.
+  const isSimple = prompt.length < 50 && !prompt.includes('code') && !prompt.includes('complex') && !prompt.includes('analysis');
+  if (isSimple && (requestedProvider === 'openai' || requestedProvider === 'anthropic')) {
+    return 'groq';
+  }
+
+  // 3. Complexity Handling (Upgrade to better model if 'groq' requested but task is hard?)
+  // If user asked for Groq but prompt is huge code task, maybe suggest/upgrade?
+  // For now, we trust the user or the default.
+
+  return requestedProvider;
+};
 
 // --- ENHANCED SYSTEM PROMPTS (Bolt.new / v0.app Level) ---
 export const BUILDER_PROMPT = `
@@ -345,23 +404,51 @@ MISSION:
 - ALWAYS use the current date context above when answering about current events or leaders.
 
 CORE IDENTITY:
-- Tone: patient, encouraging, clear.
+- Tone: patient, encouraging, clear, conversational.
 - Method: Socratic questions, analogies, step-by-step reasoning.
 - Goal: deep understanding, not rote answers.
 
 CAPABILITIES:
 1) Explain ELI5 or deep dive when asked.
 2) Math/Science: show full working; verify final answer.
-3) Code Tutor: explain line-by-line; propose fixes.
+3) Code Tutor: explain line-by-line; propose fixes ONLY when the user asks about code.
 4) Images: if images are provided, describe key elements, extract text if possible, and use them to answer the question.
 5) Current Events: use the date context above to answer questions about current leaders, events, etc.
 
+⚠️ CRITICAL OUTPUT RULES:
+1. **DO NOT generate HTML, React, or any full application code** - you are NOT in builder mode.
+2. **Use code blocks ONLY for**:
+   - Programming questions (e.g., "how to loop in Python")
+   - Small code snippets to illustrate concepts
+   - Terminal commands
+3. **For general knowledge questions** (history, science, news, definitions, explanations):
+   - Use plain text with markdown formatting
+   - Use bullet points, bold text, and headers for clarity
+   - NO code blocks unless showing actual code
+4. **Response should be conversational and human-like**, not technical/robotic.
+
+
 FORMATTING:
-- Bold for key concepts, code blocks for code, numbered steps for procedures, and blockquotes for takeaways.
+- **Bold** for key concepts
+- Bullet points for lists
+- Numbered steps for procedures
+- > Blockquotes for important takeaways
+- \`inline code\` only for technical terms, commands, or short code
+- Code blocks ONLY for actual programming code snippets
+
+📐 **MATHEMATICAL FORMULAS - CRITICAL:**
+When writing mathematical formulas, ALWAYS use LaTeX notation with dollar signs:
+- Inline: $E = mc^2$, $v = \\frac{d}{t}$, $\\sqrt{x^2 + y^2}$
+- Display: $$v_{AB} = \\frac{v_{AO} + v_{OB}}{1 + \\frac{v_{AO} \\cdot v_{OB}}{c^2}}$$
+- Syntax: Use \\frac{}{}, ^{}, _{}, \\sqrt{}, \\cdot, Greek letters (\\alpha, \\beta, etc.)
+- Example: WRONG "v_AB = (v_A + v_B) / (1 + v_A*v_B/c²)" | RIGHT "$v_{AB} = \\frac{v_A + v_B}{1 + \\frac{v_A \\cdot v_B}{c^2}}$"
 
 RULE:
-- Do NOT generate full applications in tutor mode; keep to snippets and explanations.
+- Do NOT generate full applications, HTML pages, or website code in tutor mode.
+- Only use code blocks when the question is specifically about programming/code.
+- ALWAYS use LaTeX for math formulas.
 `;
+
 
 // --- NEXT.JS BUILDER PROMPT (v0.app Level - Compact Version) ---
 const NEXTJS_BUILDER_PROMPT = `
@@ -469,7 +556,7 @@ const formatErrorHtml = (provider: AIProvider, message: string) => {
   const isOpenRouterProvider = provider === 'openai' || provider === 'anthropic' || provider === 'gemini';
 
   if (isOpenRouterProvider && (isCreditError || isTokenLimitError)) {
-    const providerName = provider === 'openai' ? 'GPT-5-Nano' : provider === 'anthropic' ? 'GPT OSS 20B' : provider === 'deepseek' ? 'Mistral Devstral' : 'GPT OSS 20B';
+    const providerName = provider === 'openai' ? 'GPT-5-Nano' : provider === 'anthropic' ? 'GPT OSS 20B' : provider === 'gemini' ? 'Gemini 2.0' : 'External Provider';
     return `<!-- Error Generating Code --> 
       <div class="text-red-500 bg-red-900/20 p-4 rounded-lg border border-red-500/50">
         <strong>⚠️ OpenRouter ${isTokenLimitError ? 'Prompt Token Limit' : 'Credits'} Exceeded</strong>
@@ -612,15 +699,20 @@ export const generateCode = async (
   prompt: string,
   history: any[],
   mode: 'builder' | 'tutor' = 'builder',
-  provider: AIProvider = 'deepseek', // Default to Mistral Devstral (free)
+  provider: AIProvider = 'groq', // Default to groq (SumoPod/Gemini)
   images: string[] = [],
   framework: Framework = 'html',
   useWorkflow: boolean | { onStatusUpdate?: (status: string, message?: string) => void } = false, // Feature flag or config object
   sessionId?: string,
   userId?: string,
   userName?: string, // User's display name from Clerk
-  userEmail?: string // User's email from Clerk
+  userEmail?: string, // User's email from Clerk
+  userTier: 'free' | 'normal' | 'pro' = 'free' // User subscription tier for token limits
 ): Promise<CodeResponse> => {
+  // Smart Model Routing
+  const effectiveProvider = smartRouteModel(prompt, provider, userTier);
+  console.log(`🧠 Smart Routing: ${provider} -> ${effectiveProvider} (Tier: ${userTier}, Length: ${prompt.length})`);
+
   // Use workflow if enabled
   const workflowEnabled = typeof useWorkflow === 'object' ? true : useWorkflow;
   const statusCallback = typeof useWorkflow === 'object' ? useWorkflow.onStatusUpdate : undefined;
@@ -641,7 +733,7 @@ export const generateCode = async (
             images: msg.images,
           })),
           mode,
-          provider,
+          provider: effectiveProvider,
           images,
           framework,
           sessionId,
@@ -657,7 +749,7 @@ export const generateCode = async (
         if (result.files && result.files.length > 0) {
           return {
             type: 'multi-file',
-            files: result.files,
+            files: result.files as any,
             entry: result.files[0]?.path || 'src/App.tsx',
             framework: framework === 'nextjs' ? 'next' : framework === 'vite' ? 'react' : framework,
           };
@@ -751,6 +843,7 @@ Always be thorough and helpful in your analysis.`;
         provider,
         images,
         systemPrompt,
+        userTier, // Send user tier for token limit calculation
       }),
     });
 
@@ -891,7 +984,7 @@ Always be thorough and helpful in your analysis.`;
 
     if (isPromptTokenError) {
       // Return error with suggestion to use shorter prompt or switch provider
-      const providerName = provider === 'openai' ? 'GPT-5-Nano' : provider === 'anthropic' ? 'GPT OSS 20B' : provider === 'deepseek' ? 'Mistral Devstral' : 'GPT OSS 20B';
+      const providerName = provider === 'openai' ? 'GPT-5-Nano' : provider === 'anthropic' ? 'GPT OSS 20B' : provider === 'gemini' ? 'Gemini 2.0' : provider === 'deepseek' ? 'Mistral Devstral' : 'External Provider';
       return {
         type: 'single-file',
         content: formatErrorHtml(provider, errorMessage + ` - Try using a shorter prompt or switch to a different provider.`),

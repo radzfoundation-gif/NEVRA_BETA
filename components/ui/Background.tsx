@@ -1,51 +1,20 @@
-import React, { Suspense } from 'react';
-import Silk from './Silk';
+import React from 'react';
 
 const Background: React.FC = () => {
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      width: '100vw',
-      height: '100vh',
-      zIndex: 0,
-      overflow: 'hidden',
-      backgroundColor: '#020202' // Deep dark background
-    }}>
-      {/* Silk Background - Lightweight and performant */}
-      <div className="absolute inset-0 z-0">
-        <Suspense fallback={<div className="w-full h-full bg-[#020202]" />}>
-          <Silk
-            speed={5}
-            scale={1.5}
-            color="#4a1a6e"
-            noiseIntensity={2.0}
-            rotation={0}
-          />
-        </Suspense>
-      </div>
-
-      {/* iOS-style Mesh Gradients / Liquid Orbs */}
-      <div className="absolute inset-0 z-10 overflow-hidden pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[70vw] h-[70vw] bg-purple-900/20 rounded-full blur-[128px] animate-blob mix-blend-screen"></div>
-        <div className="absolute top-[20%] right-[-10%] w-[60vw] h-[60vw] bg-blue-900/15 rounded-full blur-[128px] animate-blob animation-delay-2000 mix-blend-screen"></div>
-        <div className="absolute bottom-[-20%] left-[20%] w-[60vw] h-[60vw] bg-indigo-900/15 rounded-full blur-[128px] animate-blob animation-delay-4000 mix-blend-screen"></div>
-        {/* Noise Texture for Glass Effect */}
-        <div className="absolute inset-0 opacity-[0.08] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]"></div>
-      </div>
-
-      {/* Overlay to ensure text readability - reduced opacity */}
-      <div style={{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        width: '100%',
-        height: '100%',
-        background: 'rgba(2, 2, 2, 0.05)', // Very light overlay - let Silk shine through
-        pointerEvents: 'none',
-        zIndex: 20
-      }} />
+    <div className="fixed inset-0 min-h-screen w-full bg-white dark:bg-zinc-950 z-[-1] overflow-hidden pointer-events-none transition-colors duration-300">
+      {/* Woven Fabric Pattern Background */}
+      <div
+        className="absolute inset-0 z-0 opacity-100 dark:opacity-[0.03] dark:bg-zinc-950 transition-colors duration-300"
+        style={{
+          backgroundImage: `
+            repeating-linear-gradient(0deg, var(--pattern-color, rgba(75, 85, 99, 0.08)), var(--pattern-color, rgba(75, 85, 99, 0.08)) 2px, transparent 2px, transparent 6px),
+            repeating-linear-gradient(90deg, var(--pattern-color, rgba(107, 114, 128, 0.06)), var(--pattern-color, rgba(107, 114, 128, 0.06)) 2px, transparent 2px, transparent 6px),
+            repeating-linear-gradient(0deg, var(--pattern-color, rgba(55, 65, 81, 0.04)), var(--pattern-color, rgba(55, 65, 81, 0.04)) 1px, transparent 1px, transparent 12px),
+            repeating-linear-gradient(90deg, var(--pattern-color, rgba(55, 65, 81, 0.04)), var(--pattern-color, rgba(55, 65, 81, 0.04)) 1px, transparent 1px, transparent 12px)
+          `,
+        }}
+      />
     </div>
   );
 };

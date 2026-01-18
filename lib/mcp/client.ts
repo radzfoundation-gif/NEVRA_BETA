@@ -25,12 +25,32 @@ class MCPClient {
             return;
         }
 
+        // Skip MCP connection in browser environment
+        if (typeof window !== 'undefined') {
+            console.warn('⚠️ MCP Client: Skipping connection in browser environment');
+            return;
+        }
+
         try {
+            // Get working directory - use import.meta.url for ES modules or fallback
+            let cwd: string;
+            try {
+                if (typeof process !== 'undefined' && process.cwd) {
+                    cwd = process.cwd();
+                } else {
+                    // Fallback: use current directory from import.meta.url
+                    const url = new URL(import.meta.url);
+                    cwd = url.pathname.split('/').slice(0, -3).join('/') || '.';
+                }
+            } catch {
+                cwd = '.';
+            }
+
             // Create transport using correct SDK API
             this.transport = new StdioClientTransport({
                 command: 'node',
                 args: ['mcp-server/index.js'],
-                cwd: process.cwd(),
+                cwd: cwd,
             });
 
             // Create client
@@ -63,7 +83,15 @@ class MCPClient {
             await this.connect();
         }
 
+        if (!this.client) {
+            throw new Error('MCP client not connected');
+        }
+
         try {
+            if (!this.client) {
+                throw new Error('MCP client not initialized');
+            }
+            // @ts-ignore - MCP SDK type issue
             const response = await this.client.request(
                 { method: 'resources/read', params: { uri } }
             );
@@ -92,7 +120,15 @@ class MCPClient {
             await this.connect();
         }
 
+        if (!this.client) {
+            throw new Error('MCP client not connected');
+        }
+
         try {
+            if (!this.client) {
+                throw new Error('MCP client not initialized');
+            }
+            // @ts-ignore - MCP SDK type issue
             const response = await this.client.request(
                 {
                     method: 'tools/call',

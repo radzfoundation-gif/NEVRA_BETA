@@ -28,16 +28,16 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   const lineCount = safeValue.split('\n').length;
 
   return (
-    <div className={clsx("flex flex-col h-full bg-[#0a0a0a] border-r border-white/5", className)}>
+    <div className={clsx("flex flex-col h-full bg-white border-r border-zinc-200", className)}>
       {/* Header */}
       {filePath && (
-        <div className="flex items-center justify-between px-4 py-2 border-b border-white/5 bg-[#0e0e0e]">
-          <span className="text-sm text-gray-400 font-mono truncate">{filePath}</span>
+        <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-200 bg-zinc-50">
+          <span className="text-sm text-zinc-500 font-mono truncate">{filePath}</span>
           <div className="flex items-center gap-2">
             {onSave && (
               <button
                 onClick={onSave}
-                className="p-1.5 hover:bg-white/10 rounded transition-colors text-gray-400 hover:text-white"
+                className="p-1.5 hover:bg-zinc-200 rounded transition-colors text-zinc-500 hover:text-zinc-900"
                 title="Save (Ctrl+S)"
               >
                 <Save size={14} />
@@ -45,7 +45,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
             )}
             <button
               onClick={() => setIsFullscreen(!isFullscreen)}
-              className="p-1.5 hover:bg-white/10 rounded transition-colors text-gray-400 hover:text-white"
+              className="p-1.5 hover:bg-zinc-200 rounded transition-colors text-zinc-500 hover:text-zinc-900"
               title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
             >
               {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
@@ -60,15 +60,15 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
           height="100%"
           language={
             language === 'tsx' ? 'typescript' :
-            language === 'jsx' ? 'javascript' :
-            language === 'html' ? 'html' :
-            language === 'css' ? 'css' :
-            language === 'json' ? 'json' :
-            'typescript'
+              language === 'jsx' ? 'javascript' :
+                language === 'html' ? 'html' :
+                  language === 'css' ? 'css' :
+                    language === 'json' ? 'json' :
+                      'typescript'
           }
           value={safeValue}
           onChange={(newValue) => onChange(newValue || '')}
-          theme="vs-dark"
+          theme="light"
           options={{
             fontSize: 14,
             minimap: { enabled: true },
@@ -98,7 +98,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between px-4 py-2 border-t border-white/5 bg-[#0e0e0e] text-xs text-gray-500">
+      <div className="flex items-center justify-between px-4 py-2 border-t border-zinc-200 bg-zinc-50 text-xs text-zinc-500">
         <span className="font-mono">{language.toUpperCase()}</span>
         <span className="font-mono">
           {safeValue.length} chars • {lineCount} lines

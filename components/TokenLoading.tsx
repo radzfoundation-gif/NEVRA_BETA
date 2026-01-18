@@ -19,37 +19,37 @@ const TokenLoading: React.FC<TokenLoadingProps> = ({
     const percentage = Math.min((tokensUsed / tokensLimit) * 100, 100);
 
     return (
-        <div className="flex flex-col gap-3 p-4 bg-[#0A0A0A] border border-white/10 rounded-xl">
+        <div className="flex flex-col gap-3 p-4 bg-white border border-zinc-200 rounded-xl shadow-sm">
             {/* Loading Animation */}
             <div className="flex items-center gap-3">
-                <Loader2 className="w-5 h-5 text-purple-400 animate-spin" />
-                <span className="text-sm text-gray-300">{message}</span>
+                <Loader2 className="w-5 h-5 text-purple-600 animate-spin" />
+                <span className="text-sm text-zinc-600">{message}</span>
             </div>
 
             {/* Token Usage Display */}
             {!isSubscribed && (
                 <div className="space-y-2">
                     <div className="flex items-center justify-between text-xs">
-                        <div className="flex items-center gap-1.5 text-gray-400">
+                        <div className="flex items-center gap-1.5 text-zinc-500">
                             <Zap className="w-3.5 h-3.5" />
                             <span>Token Usage</span>
                         </div>
-                        <span className="font-mono font-bold text-white">
+                        <span className="font-mono font-bold text-zinc-900">
                             {tokensRemaining} / {tokensLimit} remaining
                         </span>
                     </div>
 
                     {/* Progress Bar */}
-                    <div className="h-1.5 bg-[#151515] rounded-full overflow-hidden">
+                    <div className="h-1.5 bg-zinc-100 rounded-full overflow-hidden">
                         <motion.div
                             initial={{ width: 0 }}
                             animate={{ width: `${percentage}%` }}
                             transition={{ duration: 0.5, ease: 'easeOut' }}
                             className={`h-full ${percentage >= 90
-                                    ? 'bg-gradient-to-r from-red-600 to-pink-600'
-                                    : percentage >= 70
-                                        ? 'bg-gradient-to-r from-orange-600 to-yellow-600'
-                                        : 'bg-gradient-to-r from-purple-600 to-blue-600'
+                                ? 'bg-gradient-to-r from-red-600 to-pink-600'
+                                : percentage >= 70
+                                    ? 'bg-gradient-to-r from-orange-600 to-yellow-600'
+                                    : 'bg-gradient-to-r from-purple-600 to-blue-600'
                                 }`}
                         />
                     </div>
@@ -59,7 +59,7 @@ const TokenLoading: React.FC<TokenLoadingProps> = ({
                         <motion.div
                             initial={{ opacity: 0, y: -5 }}
                             animate={{ opacity: 1, y: 0 }}
-                            className="text-xs text-orange-400 flex items-center gap-1"
+                            className="text-xs text-orange-600 flex items-center gap-1"
                         >
                             <Zap className="w-3 h-3" />
                             <span>
@@ -74,7 +74,7 @@ const TokenLoading: React.FC<TokenLoadingProps> = ({
 
             {/* Subscribed Badge */}
             {isSubscribed && (
-                <div className="flex items-center gap-1.5 text-xs text-purple-400">
+                <div className="flex items-center gap-1.5 text-xs text-purple-600">
                     <Zap className="w-3.5 h-3.5" />
                     <span>Unlimited tokens (Pro)</span>
                 </div>

@@ -58,42 +58,58 @@ export async function performWebSearch(
 }
 
 /**
- * Format search results as markdown with citations
+ * Format search results as clean markdown with citations
  */
 export function formatSearchResults(results: SearchResult[]): string {
   if (results.length === 0) {
-    return 'No search results found.';
+    return '';
   }
 
-  let formatted = '## 🔍 Search Results\n\n';
-  
+  // Simple inline citations format - cleaner than raw URLs
+  let formatted = '\n\n---\n\n**📚 Sources:**\n';
+
   results.forEach((result, index) => {
-    formatted += `### ${index + 1}. [${result.title}](${result.url})\n`;
-    formatted += `${result.snippet}\n`;
-    formatted += `*Source: ${result.source}*\n\n`;
+    const domain = getDomainFromUrl(result.url);
+    formatted += `\n[${index + 1}] **${result.title}** - *${domain}*`;
   });
 
   return formatted;
 }
 
 /**
- * Extract citations from search results for AI context
+ * Get clean domain from URL
+ */
+function getDomainFromUrl(url: string): string {
+  try {
+    return new URL(url).hostname.replace('www.', '');
+  } catch {
+    return url;
+  }
+}
+
+/**
+ * Extract citations for AI context (not shown to user directly)
  */
 export function extractCitations(results: SearchResult[]): string {
   return results
-    .map((result, index) => `[${index + 1}] ${result.title} - ${result.url}`)
+    .map((result, index) => `[${index + 1}] ${result.title} (${getDomainFromUrl(result.url)}): ${result.snippet}`)
     .join('\n');
 }
 
 /**
- * Combine search results with AI response
+ * Combine search results with AI response - cleaner output
  */
 export function combineSearchAndResponse(
   searchResults: SearchResult[],
   aiResponse: string
 ): string {
-  const citations = extractCitations(searchResults);
-  const formattedResults = formatSearchResults(searchResults);
-  
-  return `${aiResponse}\n\n---\n\n${formattedResults}\n\n### 📚 Sources\n\n${citations}`;
+  if (searchResults.length === 0) {
+    return aiResponse;
+  }
+
+  const formattedSources = formatSearchResults(searchResults);
+
+  // Return AI response with clean source list at the end
+  return `${aiResponse}${formattedSources}`;
 }
+

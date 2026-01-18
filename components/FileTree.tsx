@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  File, 
-  Folder, 
-  FolderOpen, 
-  ChevronRight, 
+import {
+  File,
+  Folder,
+  FolderOpen,
+  ChevronRight,
   ChevronDown,
   Plus,
   Trash2,
@@ -60,7 +60,7 @@ const FileTree: React.FC<FileTreeProps> = ({
       // Ensure path is always a string
       const filePath = typeof file?.path === 'string' ? file.path : String(file?.path || '');
       if (!filePath) return; // Skip invalid files
-      
+
       const parts = filePath.split('/').filter(p => p);
       let current = tree;
 
@@ -132,10 +132,10 @@ const FileTree: React.FC<FileTreeProps> = ({
 
   const filteredTree = searchQuery
     ? Object.fromEntries(
-        Object.entries(tree)
-          .map(([key, node]) => [key, filterTree(node, searchQuery)])
-          .filter(([_, node]) => node !== null)
-      )
+      Object.entries(tree)
+        .map(([key, node]) => [key, filterTree(node, searchQuery)])
+        .filter(([_, node]) => node !== null)
+    )
     : tree;
 
   const toggleDirectory = (path: string) => {
@@ -153,15 +153,15 @@ const FileTree: React.FC<FileTreeProps> = ({
   const getFileIcon = (fileType?: ProjectFile['type']) => {
     switch (fileType) {
       case 'component':
-        return <FileCode size={14} className="text-blue-400" />;
+        return <FileCode size={14} className="text-blue-600" />;
       case 'page':
-        return <FileText size={14} className="text-green-400" />;
+        return <FileText size={14} className="text-green-600" />;
       case 'style':
-        return <ImageIcon size={14} className="text-purple-400" />;
+        return <ImageIcon size={14} className="text-purple-600" />;
       case 'config':
-        return <Settings size={14} className="text-yellow-400" />;
+        return <Settings size={14} className="text-yellow-600" />;
       default:
-        return <File size={14} className="text-gray-400" />;
+        return <File size={14} className="text-zinc-400" />;
     }
   };
 
@@ -206,34 +206,34 @@ const FileTree: React.FC<FileTreeProps> = ({
         <div key={node.path}>
           <div
             className={clsx(
-              "flex items-center gap-1.5 px-2 py-1.5 rounded-md cursor-pointer hover:bg-white/5 transition-colors group",
-              isSelected && "bg-purple-500/20"
+              "flex items-center gap-1.5 px-2 py-1.5 rounded-md cursor-pointer hover:bg-zinc-100 transition-colors group",
+              isSelected && "bg-purple-50"
             )}
             style={{ paddingLeft: `${level * 16 + 8}px` }}
             onClick={() => toggleDirectory(node.path)}
             onContextMenu={(e) => handleContextMenu(e, node.path)}
           >
             {isExpanded ? (
-              <ChevronDown size={14} className="text-gray-400" />
+              <ChevronDown size={14} className="text-zinc-400" />
             ) : (
-              <ChevronRight size={14} className="text-gray-400" />
+              <ChevronRight size={14} className="text-zinc-400" />
             )}
             {isExpanded ? (
-              <FolderOpen size={16} className="text-yellow-400" />
+              <FolderOpen size={16} className="text-yellow-500" />
             ) : (
-              <Folder size={16} className="text-yellow-400" />
+              <Folder size={16} className="text-yellow-500" />
             )}
-            <span className="text-sm text-gray-300 flex-1 truncate">{node.name}</span>
+            <span className="text-sm text-zinc-600 flex-1 truncate">{node.name}</span>
             {onNewFile && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   onNewFile(node.path);
                 }}
-                className="opacity-0 group-hover:opacity-100 p-1 hover:bg-white/10 rounded transition-opacity"
+                className="opacity-0 group-hover:opacity-100 p-1 hover:bg-zinc-200 rounded transition-opacity"
                 title="New file"
               >
-                <Plus size={12} />
+                <Plus size={12} className="text-zinc-500" />
               </button>
             )}
           </div>
@@ -256,8 +256,8 @@ const FileTree: React.FC<FileTreeProps> = ({
       <div
         key={node.path}
         className={clsx(
-          "flex items-center gap-1.5 px-2 py-1.5 rounded-md cursor-pointer hover:bg-white/5 transition-colors group",
-          isSelected && "bg-purple-500/20 border-l-2 border-purple-500",
+          "flex items-center gap-1.5 px-2 py-1.5 rounded-md cursor-pointer hover:bg-zinc-100 transition-colors group",
+          isSelected && "bg-purple-50 border-l-2 border-purple-500",
           isEntry && "border-l-2 border-green-500"
         )}
         style={{ paddingLeft: `${level * 16 + 8}px` }}
@@ -276,16 +276,16 @@ const FileTree: React.FC<FileTreeProps> = ({
                 if (e.key === 'Escape') cancelRename();
               }}
               autoFocus
-              className="flex-1 bg-white/10 border border-purple-500/50 rounded px-2 py-1 text-sm text-white"
+              className="flex-1 bg-white border border-purple-200 rounded px-2 py-1 text-sm text-zinc-900 focus:outline-none focus:ring-1 focus:ring-purple-500"
               onClick={(e) => e.stopPropagation()}
             />
           </>
         ) : (
           <>
             {getFileIcon(node.fileType)}
-            <span className="text-sm text-gray-300 flex-1 truncate">{node.name}</span>
+            <span className="text-sm text-zinc-600 flex-1 truncate">{node.name}</span>
             {isEntry && (
-              <span className="text-xs text-green-400 font-medium">entry</span>
+              <span className="text-xs text-green-600 font-medium">entry</span>
             )}
             {(onDeleteFile || onRenameFile) && (
               <div className="opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity">
@@ -295,7 +295,7 @@ const FileTree: React.FC<FileTreeProps> = ({
                       e.stopPropagation();
                       handleRename(node.path);
                     }}
-                    className="p-1 hover:bg-white/10 rounded"
+                    className="p-1 hover:bg-zinc-200 rounded text-zinc-500"
                     title="Rename"
                   >
                     <Edit2 size={12} />
@@ -309,7 +309,7 @@ const FileTree: React.FC<FileTreeProps> = ({
                         onDeleteFile(node.path);
                       }
                     }}
-                    className="p-1 hover:bg-red-500/20 rounded text-red-400"
+                    className="p-1 hover:bg-red-50 rounded text-red-500"
                     title="Delete"
                   >
                     <Trash2 size={12} />
@@ -338,31 +338,31 @@ const FileTree: React.FC<FileTreeProps> = ({
   }, [contextMenu]);
 
   return (
-    <div className="h-full flex flex-col bg-[#0a0a0a] border-r border-white/5">
+    <div className="h-full flex flex-col bg-zinc-50 border-r border-zinc-200">
       {/* Header */}
-      <div className="p-3 border-b border-white/5">
+      <div className="p-3 border-b border-zinc-200">
         <div className="flex items-center gap-2 mb-2">
-          <FileCode size={16} className="text-purple-400" />
-          <span className="text-sm font-semibold text-white">Files</span>
+          <FileCode size={16} className="text-purple-600" />
+          <span className="text-sm font-semibold text-zinc-900">Files</span>
           {onNewFile && (
             <button
               onClick={() => onNewFile()}
-              className="ml-auto p-1.5 hover:bg-white/10 rounded transition-colors"
+              className="ml-auto p-1.5 hover:bg-zinc-200 rounded transition-colors"
               title="New file"
             >
-              <Plus size={14} className="text-gray-400" />
+              <Plus size={14} className="text-zinc-500" />
             </button>
           )}
         </div>
         {/* Search */}
         <div className="relative">
-          <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500" />
+          <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-zinc-400" />
           <input
             type="text"
             placeholder="Search files..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-8 pr-2 py-1.5 bg-white/5 border border-white/10 rounded text-sm text-white placeholder-gray-500 focus:outline-none focus:border-purple-500/50"
+            className="w-full pl-8 pr-2 py-1.5 bg-white border border-zinc-200 rounded text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-purple-300"
           />
         </div>
       </div>
@@ -370,7 +370,7 @@ const FileTree: React.FC<FileTreeProps> = ({
       {/* Tree */}
       <div className="flex-1 overflow-y-auto p-2">
         {Object.keys(filteredTree).length === 0 ? (
-          <div className="text-center py-8 text-gray-500 text-sm">
+          <div className="text-center py-8 text-zinc-400 text-sm">
             {searchQuery ? 'No files found' : 'No files yet'}
           </div>
         ) : (
@@ -386,7 +386,7 @@ const FileTree: React.FC<FileTreeProps> = ({
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="fixed bg-[#1a1a1a] border border-white/10 rounded-lg shadow-xl z-50 min-w-[160px]"
+            className="fixed bg-white border border-zinc-200 rounded-lg shadow-xl z-50 min-w-[160px]"
             style={{ left: contextMenu.x, top: contextMenu.y }}
           >
             {onNewFile && (
@@ -395,7 +395,7 @@ const FileTree: React.FC<FileTreeProps> = ({
                   onNewFile(contextMenu.path);
                   setContextMenu(null);
                 }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-gray-300 hover:bg-white/10 transition-colors"
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-zinc-600 hover:bg-zinc-50 transition-colors"
               >
                 <Plus size={14} />
                 New File
@@ -406,7 +406,7 @@ const FileTree: React.FC<FileTreeProps> = ({
                 onClick={() => {
                   handleRename(contextMenu.path);
                 }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-gray-300 hover:bg-white/10 transition-colors border-t border-white/5"
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-zinc-600 hover:bg-zinc-50 transition-colors border-t border-zinc-100"
               >
                 <Edit2 size={14} />
                 Rename
@@ -420,7 +420,7 @@ const FileTree: React.FC<FileTreeProps> = ({
                   }
                   setContextMenu(null);
                 }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-red-400 hover:bg-red-500/10 transition-colors border-t border-white/5"
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-red-600 hover:bg-red-50 transition-colors border-t border-zinc-100"
               >
                 <Trash2 size={14} />
                 Delete

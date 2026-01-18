@@ -51,8 +51,8 @@ const CodeSandbox: React.FC<CodeSandboxProps> = ({
 
   const handleCopy = () => {
     if (result) {
-      const text = result.error 
-        ? `Error: ${result.error}` 
+      const text = result.error
+        ? `Error: ${result.error}`
         : result.output;
       navigator.clipboard.writeText(text);
       setCopied(true);
@@ -123,14 +123,14 @@ const CodeSandbox: React.FC<CodeSandboxProps> = ({
               </div>
             ))}
           </div>
-          
+
           {/* Code editor */}
           <div className="flex-1 relative overflow-auto bg-[#1e1e1e]">
             <textarea
               ref={textareaRef}
               value={code}
               onChange={(e) => handleCodeChange(e.target.value)}
-              placeholder={language === 'python' 
+              placeholder={language === 'python'
                 ? '# NEVRA Python Compiler\n# Write Python 3 code in this online editor and run it.\n\nprint("Hello, NEVRA!")'
                 : `// Enter ${language} code here...\n\nconsole.log("Hello, World!");`}
               className="w-full h-full bg-transparent text-sm font-mono text-white p-4 resize-none focus:outline-none placeholder-gray-600"

@@ -1,142 +1,218 @@
 import React, { useState, useEffect } from 'react';
-import { Menu, X, User, LogOut } from 'lucide-react';
+import { Menu, X, ArrowRight, Sparkles, LogOut, User } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { SignedIn, SignedOut, UserButton, useUser } from '@clerk/clerk-react';
+import { useUser, useAuth } from '@/lib/authContext';
+import { cn } from '@/lib/utils';
+import Logo from './Logo';
+import { ProStatusIndicator } from './ui/ProFeatureGate';
 
 const Navbar: React.FC = () => {
+  const { user, isLoaded, isSignedIn } = useUser();
+  const { signOut } = useAuth();
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
-      setScrolled(window.scrollY > 20);
+      setScrolled(window.scrollY > 10);
     };
-    window.addEventListener('scroll', handleScroll);
+    window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  const navLinks = [
+    { name: 'Features', path: '/features' },
+    { name: 'Agents', path: '/agents' },
+    { name: 'Enterprise', path: '/enterprise' },
+    { name: 'Pricing', path: '/pricing' },
+  ];
+
+  const getUserInitials = () => {
+    if (user?.fullName) {
+      const names = user.fullName.split(' ');
+      return names.length >= 2
+        ? (names[0][0] + names[names.length - 1][0]).toUpperCase()
+        : user.fullName.substring(0, 2).toUpperCase();
+    }
+    return 'U';
+  };
+
+  const handleSignOut = async () => {
+    await signOut();
+    setShowUserMenu(false);
+  };
+
   return (
-    <nav
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 border-b ${scrolled
-        ? 'bg-aura-black/80 backdrop-blur-md border-aura-border py-4'
-        : 'bg-transparent border-transparent py-6'
-        }`}
-    >
-      <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
-        <div className="flex items-center gap-3 group cursor-pointer">
-          {/* Elegant Text Logo */}
-          <Link to="/" className="font-display font-bold text-2xl tracking-[0.2em] text-white hover:text-white/80 transition-colors">
-            NEVRA
-          </Link>
+    <>
+      <nav
+        className={cn(
+          "fixed top-0 left-0 right-0 z-50 transition-all duration-300",
+          scrolled
+            ? "bg-white/90 dark:bg-zinc-950/90 backdrop-blur-md border-b border-zinc-200 dark:border-zinc-800 py-3"
+            : "bg-transparent py-5"
+        )}
+      >
+        <div className="max-w-7xl mx-auto px-6 h-10 flex items-center justify-between">
+          {/* 1. Brand / Logo */}
+          <div className="flex items-center gap-10">
+            <Link
+              to="/"
+              className="flex items-center gap-2 group"
+              aria-label="Nevra Home"
+            >
+              <Logo size={28} className="text-zinc-900 dark:text-white" />
+            </Link>
+          </div>
+
+          {/* 2. Centered Navigation (Desktop) */}
+          <div className="hidden md:flex items-center gap-8 absolute left-1/2 -translate-x-1/2">
+            {navLinks.map((item) => (
+              <Link
+                key={item.name}
+                to={item.path}
+                className="text-xs font-semibold tracking-wider text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors uppercase"
+              >
+                {item.name}
+              </Link>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-4">
+            {/* Signed Out State */}
+            {isLoaded && !isSignedIn && (
+              <>
+                <Link
+                  to="/sign-in"
+                  className="text-sm font-medium text-zinc-900 dark:text-white hover:opacity-80 transition-opacity"
+                >
+                  Log in
+                </Link>
+                <Link
+                  to="/sign-up"
+                  className="hidden md:flex items-center gap-2 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 px-4 py-2 rounded-full text-sm font-medium hover:opacity-90 transition-opacity"
+                >
+                  Start Building
+                  <ArrowRight size={16} />
+                </Link>
+              </>
+            )}
+
+            {/* Signed In State */}
+            {isLoaded && isSignedIn && (
+              <>
+                {/* Pro Status Indicator */}
+                <ProStatusIndicator />
+
+                <Link
+                  to="/chat"
+                  className="hidden md:flex items-center gap-2 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 px-4 py-2 rounded-full text-sm font-medium hover:opacity-90 transition-opacity"
+                >
+                  Workspace
+                  <Sparkles size={16} />
+                </Link>
+
+                {/* Custom User Button */}
+                <div className="relative">
+                  <button
+                    onClick={() => setShowUserMenu(!showUserMenu)}
+                    className="w-9 h-9 rounded-full bg-gradient-to-br from-zinc-700 to-zinc-900 text-white flex items-center justify-center text-sm font-medium border border-zinc-200 dark:border-zinc-800 hover:opacity-90 transition-opacity"
+                  >
+                    {user?.imageUrl ? (
+                      <img src={user.imageUrl} alt="User" className="w-full h-full rounded-full object-cover" />
+                    ) : (
+                      getUserInitials()
+                    )}
+                  </button>
+
+                  {showUserMenu && (
+                    <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-zinc-900 rounded-xl shadow-xl border border-zinc-200 dark:border-zinc-800 p-2 z-50">
+                      <div className="px-3 py-2 border-b border-zinc-100 dark:border-zinc-800 mb-1">
+                        <p className="text-xs font-medium text-zinc-900 dark:text-white truncate">
+                          {user?.emailAddresses?.[0]?.emailAddress}
+                        </p>
+                      </div>
+                      <button
+                        onClick={handleSignOut}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-950 rounded-lg transition-colors"
+                      >
+                        <LogOut size={14} />
+                        Sign out
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
         </div>
 
-        {/* Desktop Links */}
-        <div className="hidden md:flex items-center gap-8">
-          {['Agents', 'Workflows', 'Enterprise', 'Pricing'].map((item) => (
-            <Link
-              key={item}
-              to={`/${item.toLowerCase()}`}
-              className="text-sm font-medium text-aura-secondary hover:text-white transition-colors tracking-wide"
-            >
-              {item}
-            </Link>
-          ))}
-        </div>
-
-        {/* CTA & Auth */}
-        <div className="hidden md:flex items-center gap-4">
-          {/* Signed Out - Show Sign In Button */}
-          <SignedOut>
-            <Link
-              to="/sign-in"
-              className="bg-white/5 border border-white/10 text-white px-6 py-2 rounded-full text-xs font-medium uppercase tracking-widest hover:bg-white/10 transition-colors"
-            >
-              Sign In
-            </Link>
-          </SignedOut>
-
-          {/* Signed In - Show Deploy Agent & User Button */}
-          <SignedIn>
-            <Link
-              to="/chat"
-              className="bg-white/5 border border-white/10 text-white px-6 py-2 rounded-full text-xs font-medium uppercase tracking-widest hover:bg-white/10 transition-colors flex items-center gap-2 group"
-            >
-              Deploy Agent
-              <span className="group-hover:translate-x-0.5 transition-transform">→</span>
-            </Link>
-
-            {/* Clerk User Button with custom styling */}
-            <UserButton
-              appearance={{
-                elements: {
-                  avatarBox: 'w-9 h-9 border-2 border-white/20 hover:border-purple-500/50 transition-colors',
-                  userButtonPopoverCard: 'bg-[#0a0a0a] border border-white/10',
-                  userButtonPopoverActionButton: 'text-white hover:bg-white/5',
-                  userButtonPopoverActionButtonText: 'text-gray-300',
-                  userButtonPopoverActionButtonIcon: 'text-gray-400',
-                  userButtonPopoverFooter: 'hidden',
-                }
-              }}
-            />
-          </SignedIn>
-        </div>
-
-        {/* Mobile Menu Toggle */}
+        {/* Mobile Menu Button */}
         <button
-          className="md:hidden text-white p-2 -mr-2 min-w-[44px] min-h-[44px] flex items-center justify-center"
+          className="md:hidden p-2 -mr-2 text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 rounded-lg transition-colors"
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+          aria-label="Toggle menu"
         >
-          {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
-      </div>
+      </nav >
 
-      {/* Mobile Menu */}
-      {mobileMenuOpen && (
-        <>
-          {/* Backdrop Overlay */}
-          <div 
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 md:hidden"
-            onClick={() => setMobileMenuOpen(false)}
-          />
-          {/* Mobile Menu */}
-          <div className="fixed top-[73px] left-0 right-0 w-full bg-aura-black/95 backdrop-blur-md border-b border-aura-border p-6 flex flex-col gap-3 md:hidden z-50 max-h-[calc(100vh-73px)] overflow-y-auto">
-          {['Agents', 'Workflows', 'Enterprise', 'Pricing'].map((item) => (
-            <Link
-              key={item}
-              to={`/${item.toLowerCase()}`}
-                className="text-base font-medium text-aura-secondary hover:text-white py-3 px-2 rounded-lg hover:bg-white/5 transition-colors min-h-[44px] flex items-center"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              {item}
-            </Link>
-          ))}
-          <div className="h-px bg-aura-border my-2" />
+      {/* Mobile Menu Overlay */}
+      {
+        mobileMenuOpen && (
+          <div className="fixed inset-0 z-40 bg-white md:hidden animate-in slide-in-from-top-10 duration-200">
+            <div className="flex flex-col h-full pt-20 px-6 pb-6">
+              <div className="flex flex-col gap-1">
+                {navLinks.map((item) => (
+                  <Link
+                    key={item.name}
+                    to={item.path}
+                    className="text-2xl font-semibold text-zinc-900 py-4 border-b border-zinc-100 flex items-center justify-between group"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    {item.name}
+                    <ArrowRight size={20} className="text-zinc-300 group-hover:text-zinc-900 -translate-x-4 group-hover:translate-x-0 transition-all opacity-0 group-hover:opacity-100" />
+                  </Link>
+                ))}
+              </div>
 
-          {/* Mobile Auth */}
-          <SignedOut>
-            <Link
-              to="/sign-in"
-                className="w-full bg-white text-black px-4 py-3.5 rounded-lg text-sm font-semibold text-center block min-h-[44px] flex items-center justify-center"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              Sign In
-            </Link>
-          </SignedOut>
+              <div className="mt-auto flex flex-col gap-4">
+                {isLoaded && !isSignedIn && (
+                  <>
+                    <Link
+                      to="/sign-in"
+                      className="w-full flex items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-3 text-base font-semibold text-zinc-900 transition-colors hover:bg-zinc-50"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      Log in
+                    </Link>
+                    <Link
+                      to="/sign-up"
+                      className="w-full flex items-center justify-center gap-2 rounded-xl bg-zinc-900 px-4 py-3 text-base font-semibold text-white transition-colors hover:bg-zinc-800"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      Start Building
+                      <ArrowRight size={18} />
+                    </Link>
+                  </>
+                )}
 
-          <SignedIn>
-            <Link
-              to="/chat"
-                className="w-full bg-white text-black px-4 py-3.5 rounded-lg text-sm font-semibold text-center block min-h-[44px] flex items-center justify-center"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              Deploy Agent
-            </Link>
-          </SignedIn>
-        </div>
-        </>
-      )}
-    </nav>
+                {isLoaded && isSignedIn && (
+                  <Link
+                    to="/chat"
+                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-zinc-900 px-4 py-3 text-base font-semibold text-white transition-colors hover:bg-zinc-800"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Go to Workspace
+                    <Sparkles size={18} />
+                  </Link>
+                )}
+              </div>
+            </div>
+          </div>
+        )
+      }
+    </>
   );
 };
 

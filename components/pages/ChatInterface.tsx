@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Send, Menu, Plus, MessageSquare, User,
   Code, Play, Layout, Smartphone, Monitor, Download,
   X, Settings, ChevronRight, ChevronDown, FileCode,
   Folder, Terminal as TerminalIcon, RefreshCw, Globe,
-  CheckCircle2, Loader2, GraduationCap, Brain, Bot, Paperclip, Image as ImageIcon, Trash2, AlertTriangle, Phone, Lock, Camera, ImagePlus, Clock, Undo2, Redo2, Github, Search, FileText, Terminal, MoreVertical, Copy, Eye, ZoomIn, ZoomOut, Type, Palette, Save, Sparkles, Zap, ThumbsUp, ThumbsDown, Check
+  CheckCircle2, Loader2, GraduationCap, Brain, Bot, Paperclip, Image as ImageIcon, Trash2, AlertTriangle, Phone, Lock, Camera, ImagePlus, Clock, Undo2, Redo2, Github, Search, FileText, Terminal, MoreVertical, Copy, Eye, ZoomIn, ZoomOut, Type, Palette, Save, Sparkles, Zap, ThumbsUp, ThumbsDown, Check, BarChart3, Share, RefreshCcw, MoreHorizontal
 } from 'lucide-react';
 import { Link, useLocation, useParams, useNavigate } from 'react-router-dom';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -22,15 +22,19 @@ import clsx from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
 import rehypeRaw from 'rehype-raw';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css'; // Build error fix: Import CSS here
+
 import SubscriptionPopup from '../SubscriptionPopup';
 import TokenBadge from '../TokenBadge';
 import { useTokenLimit, useTrackAIUsage } from '@/hooks/useTokenLimit';
 import { FREE_TOKEN_LIMIT } from '@/lib/tokenLimit';
-import { createChatSession, saveMessage, getSessionMessages, updateChatSession, getUserSessions } from '@/lib/firebaseDatabase';
-import { useUser, useAuth } from '@clerk/clerk-react';
+import { createChatSession, saveMessage, getSessionMessages, updateChatSession, getUserSessions } from '@/lib/supabaseDatabase';
+import { useUser, useAuth } from '@/lib/authContext';
 import FeedbackPopup from '../FeedbackPopup';
-import { useUserPreferences, useChatSessions } from '@/hooks/useFirebase';
+import { useUserPreferences, useChatSessions } from '@/hooks/useSupabase';
 import Logo from '../Logo';
 import VoiceCall from '../VoiceCall';
 import Sidebar from '../Sidebar';
@@ -48,6 +52,7 @@ import { CodeResponse } from '@/lib/ai';
 import { checkTypeScript, TypeError } from '@/lib/typescript';
 import { lintCode, autoFix, LintError } from '@/lib/eslint';
 import { formatCode } from '@/lib/prettier';
+import { ResearchWelcome } from '../ResearchWelcome';
 import { getVersionManager } from '@/lib/versionManager';
 import { getUndoRedoManager } from '@/lib/undoRedo';
 import { performWebSearch, combineSearchAndResponse, SearchResult } from '@/lib/webSearch';
@@ -62,9 +67,22 @@ import { designSystemManager, DesignSystem } from '@/lib/designSystem';
 // DatabasePanel removed - using Firebase instead of Supabase
 import APIIntegrationWizard from '../APIIntegrationWizard';
 import MobileGenerator from '../MobileGenerator';
+// Learning Features
+import { QuizPanel, NoteEditor, LearningDashboard, FlashcardReview } from '@/components/learning';
+import { useLearningProgress } from '@/hooks/useLearningProgress';
+import { generateQuiz, generateLearningPath, generatePracticeProblem } from '@/lib/learning';
+import { createNote } from '@/lib/learning/notesManager';
+import { createFlashcard } from '@/lib/learning/flashcardManager';
+
+import { detectMode, AppMode } from '@/lib/modeDetector';
+import { getIframeSrc, extractTextFromErrorHtml, extractCode } from '@/lib/previewUtils';
+import ChatInput from '@/components/chat/ChatInput';
+import ChatTerminal from '@/components/chat/ChatTerminal';
+import PreviewContainer from '@/components/chat/PreviewContainer';
+import { SourcesIndicator } from '@/components/chat/SourcesIndicator';
+import CanvasBoard from '@/components/canvas/CanvasBoard';
 
 // --- Types ---
-type AppMode = 'builder' | 'tutor' | null;
 
 type Message = {
   id: string;
@@ -84,653 +102,6 @@ type FileNode = {
 
 // --- Utility ---
 const cn = (...inputs: Parameters<typeof clsx>) => twMerge(clsx(inputs));
-
-const detectMode = (text: string): AppMode => {
-  if (!text || text.trim().length === 0) return 'tutor';
-
-  const lowerText = text.toLowerCase().trim();
-
-  // Exclusion patterns - these should NOT trigger builder mode even if they contain builder keywords
-  // HIGHEST PRIORITY: Clear question patterns that should always be tutor mode
-  const clearQuestionPatterns = [
-    // Question words at the start (highest priority)
-    /^(apa|what|why|how|when|where|who|which|mengapa|kenapa|bagaimana|kapan|dimana|siapa)\s+/i,
-    // Specific question patterns
-    /^(apa itu|apa ini|apa artinya|apa maksudnya|what is|what are|what does|what do)/i,
-    /^(bagaimana cara|bagaimana untuk|how to|how do|how does|how can)/i,
-    /^(jelaskan|terangkan|explain|describe|tell me|teach me)/i,
-    // Learning intent
-    /^(saya ingin belajar|saya perlu belajar|saya ingin tahu|saya perlu tahu|i want to learn|i need to learn)/i,
-  ];
-
-  // Check clear question patterns FIRST (highest priority)
-  const isClearQuestion = clearQuestionPatterns.some(pattern => pattern.test(text));
-  if (isClearQuestion) {
-    return 'tutor';
-  }
-
-  const tutorOnlyPatterns = [
-    // Schedule/Planning related (should be tutor mode)
-    /jadwal|schedule|routine|plan|rencana|agenda|kalender|calendar/i,
-    // Learning/Education related
-    /belajar|learn|study|tutorial|panduan|guide|explain|jelaskan/i,
-    // Question patterns
-    /^buatkan\s+(jadwal|schedule|routine|plan|rencana|agenda)/i,
-    /^buat\s+(jadwal|schedule|routine|plan|rencana|agenda)/i,
-    /^tolong\s+(buatkan|buat)\s+(jadwal|schedule|routine|plan)/i,
-    // General help requests (but not edit commands)
-    /^tolong\s+(bantu|help|jelaskan|explain|ajarkan)/i,
-    /^bantu\s+(saya|aku|me|i)/i,
-  ];
-
-  // Check if text matches tutor-only patterns (second priority)
-  const matchesTutorOnly = tutorOnlyPatterns.some(pattern => pattern.test(text));
-  if (matchesTutorOnly) {
-    return 'tutor';
-  }
-
-  // Builder keywords - English and Indonesian (only for web/app development)
-  // Note: Removed generic words like 'buat', 'buatkan', 'create', 'make' to avoid false positives
-  // Only include specific tech-related phrases
-  const builderKeywords = [
-    // English - specific tech phrases only
-    'build web', 'build website', 'build app', 'build application', 'build page', 'build site',
-    'create web', 'create website', 'create app', 'create application', 'create page', 'create site',
-    'make web', 'make website', 'make app', 'make application',
-    'generate code', 'generate app', 'generate website',
-    'code', 'app', 'website', 'web app', 'webapp',
-    'landing page', 'landing', 'dashboard', 'component', 'react', 'html', 'css', 'javascript', 'js',
-    'style', 'design', 'ui', 'ux', 'page', 'site', 'application', 'program', 'project',
-    'frontend', 'front-end', 'ui component', 'template', 'layout', 'interface',
-    // Indonesian - specific tech phrases only
-    'buat web', 'buat website', 'buat aplikasi', 'buat app',
-    'buat landing page', 'buat dashboard', 'buat halaman web', 'buat situs', 'buat program',
-    'generate kode', 'kode', 'coding', 'program aplikasi', 'aplikasi web', 'web', 'website', 'situs',
-    'halaman web', 'komponen', 'template web', 'desain web', 'ui', 'frontend',
-    // Edit/Modification commands - these should stay in builder mode
-    'ubah', 'edit', 'ganti', 'modify', 'change', 'update', 'ubah warna', 'ganti warna', 'buat warna',
-    'ubah warna', 'ubah style', 'ubah desain', 'ubah layout', 'ubah background', 'ubah font',
-    'change color', 'change style', 'change design', 'change background', 'change font',
-    'make it', 'make the', 'buat jadi', 'buat menjadi', 'jadikan', 'jadikan warna',
-    'warna kuning', 'warna merah', 'warna biru', 'yellow', 'red', 'blue', 'green', 'warna hijau',
-    'add', 'tambah', 'hapus', 'remove', 'delete', 'tambah button', 'add button', 'tambah gambar'
-  ];
-
-  // Tutor keywords - Questions and learning intent
-  // NOTE: 'tolong' is removed from tutor keywords to prevent false positives in builder mode
-  const tutorKeywords = [
-    // English question words
-    'what', 'why', 'how', 'when', 'where', 'who', 'which', 'explain', 'describe', 'tell me',
-    'teach', 'learn', 'understand', 'help', 'help me', 'can you', 'could you', 'please explain',
-    'what is', 'what are', 'what does', 'what do', 'how to', 'how do', 'how does', 'how can',
-    'why is', 'why are', 'why does', 'why do', 'when is', 'when are', 'when does', 'when do',
-    'where is', 'where are', 'where does', 'where do', 'who is', 'who are', 'who does', 'who do',
-    'which is', 'which are', 'which does', 'which do',
-    // Learning phrases
-    'i want to learn', 'i need to learn', 'i want to know', 'i need to know',
-    'teach me', 'show me', 'guide me', 'tutorial', 'example', 'examples',
-    // Indonesian question words (removed 'tolong' to avoid conflict with edit commands)
-    'apa', 'mengapa', 'kenapa', 'bagaimana', 'kapan', 'dimana', 'dimana', 'siapa', 'yang mana',
-    'jelaskan', 'terangkan', 'bantu', 'tolong jelaskan', 'tolong bantu', 'tolong ajarkan',
-    'apa itu', 'apa ini', 'apa artinya', 'apa maksudnya', 'bagaimana cara', 'bagaimana untuk',
-    'kenapa', 'mengapa', 'kapan', 'dimana', 'siapa', 'yang mana',
-    // Indonesian learning phrases
-    'saya ingin belajar', 'saya perlu belajar', 'saya ingin tahu', 'saya perlu tahu',
-    'ajarkan', 'tunjukkan', 'panduan', 'tutorial', 'contoh', 'contohnya',
-    // Schedule/Planning related (should be tutor)
-    'jadwal', 'schedule', 'routine', 'plan', 'rencana', 'agenda', 'kalender', 'calendar',
-    'buatkan jadwal', 'buat jadwal', 'jadwal harian', 'daily schedule', 'morning routine',
-    'evening routine', 'rutinitas', 'rutinitas pagi', 'rutinitas sore'
-  ];
-
-  // Check for builder intent (only count if NOT in exclusion patterns)
-  const builderScore = builderKeywords.reduce((score, keyword) => {
-    if (lowerText.includes(keyword)) {
-      // Skip if this keyword is part of a tutor-only pattern
-      const isExcluded = tutorOnlyPatterns.some(pattern => {
-        const match = text.match(pattern);
-        return match && match[0].toLowerCase().includes(keyword);
-      });
-      if (isExcluded) return score;
-
-      // Give higher weight to more specific keywords
-      if (['buat web', 'buat website', 'buat aplikasi', 'build web', 'create website', 'make app'].includes(keyword)) {
-        return score + 3;
-      }
-      return score + 1;
-    }
-    return score;
-  }, 0);
-
-  // Check for tutor intent (questions)
-  const tutorScore = tutorKeywords.reduce((score, keyword) => {
-    if (lowerText.includes(keyword)) {
-      // Give higher weight to question words at the start
-      if (lowerText.startsWith(keyword) || lowerText.startsWith(keyword + ' ')) {
-        return score + 3;
-      }
-      // Give higher weight to specific question patterns
-      if (['what is', 'what are', 'how to', 'bagaimana cara', 'apa itu'].includes(keyword)) {
-        return score + 2;
-      }
-      // Give higher weight to schedule/routine related keywords
-      if (['jadwal', 'schedule', 'routine', 'plan', 'rencana', 'agenda', 'morning routine', 'evening routine'].includes(keyword)) {
-        return score + 3;
-      }
-      return score + 1;
-    }
-    return score;
-  }, 0);
-
-  // Check for question mark (strong indicator of tutor mode)
-  const hasQuestionMark = text.includes('?');
-  if (hasQuestionMark && tutorScore > 0) {
-    return 'tutor';
-  }
-
-  // Check for imperative builder commands
-  const imperativeBuilderPatterns = [
-    /^buat\s+(web|website|aplikasi|app|halaman|situs)/i,
-    /^build\s+(web|website|app|application|page|site)/i,
-    /^create\s+(web|website|app|application|page|site)/i,
-    /^make\s+(web|website|app|application|page|site)/i,
-    /^generate\s+(web|website|app|application|page|site)/i
-  ];
-
-  const hasImperativeBuilder = imperativeBuilderPatterns.some(pattern => pattern.test(text));
-  if (hasImperativeBuilder) {
-    return 'builder';
-  }
-
-  // Decision logic
-  if (builderScore > tutorScore && builderScore > 0) {
-    return 'builder';
-  }
-
-  if (tutorScore > builderScore && tutorScore > 0) {
-    return 'tutor';
-  }
-
-  // If scores are equal or both zero, check for specific patterns
-  if (builderScore === tutorScore) {
-    // If text contains both, prioritize based on context
-    if (hasQuestionMark) {
-      return 'tutor';
-    }
-    // If starts with builder command, it's builder
-    if (hasImperativeBuilder) {
-      return 'builder';
-    }
-  }
-
-  // Default to tutor mode for general queries
-  return 'tutor';
-};
-
-// Helper function to extract readable text from error HTML
-const extractTextFromErrorHtml = (html: string): string => {
-  try {
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = html;
-
-    // Try to get text content
-    let text = tempDiv.textContent || tempDiv.innerText || '';
-
-    // If we got text, clean it up but preserve structure
-    if (text.trim().length > 0) {
-      // Preserve line breaks for better readability
-      text = text
-        .replace(/\n{3,}/g, '\n\n') // Max 2 consecutive newlines
-        .replace(/[ \t]+/g, ' ') // Multiple spaces to single space
-        .trim();
-
-      // If text is meaningful (more than just whitespace), return it
-      if (text.length > 20) {
-        return text;
-      }
-    }
-
-    // Enhanced extraction: get all important elements
-    const parts: string[] = [];
-
-    // Extract strong/heading elements (error titles)
-    const strongMatches = html.match(/<strong[^>]*>([^<]+)<\/strong>/gi);
-    if (strongMatches) {
-      strongMatches.forEach(m => {
-        const content = m.replace(/<[^>]+>/g, '').trim();
-        if (content && !parts.includes(content)) {
-          parts.push(content);
-        }
-      });
-    }
-
-    // Extract paragraph elements
-    const pMatches = html.match(/<p[^>]*class="[^"]*text-sm[^"]*"[^>]*>([^<]+)<\/p>/gi);
-    if (pMatches) {
-      pMatches.forEach(m => {
-        const content = m.replace(/<[^>]+>/g, '').trim();
-        if (content && content.length > 10) {
-          parts.push(content);
-        }
-      });
-    }
-
-    // Extract list items (suggestions)
-    const liMatches = html.match(/<li[^>]*>([^<]+)<\/li>/gi);
-    if (liMatches) {
-      liMatches.forEach(m => {
-        const content = m.replace(/<[^>]+>/g, '').trim();
-        if (content && content.length > 5) {
-          parts.push(`• ${content}`);
-        }
-      });
-    }
-
-    // Extract span elements (notes)
-    const spanMatches = html.match(/<span[^>]*class="[^"]*text-xs[^"]*"[^>]*>([^<]+)<\/span>/gi);
-    if (spanMatches) {
-      spanMatches.forEach(m => {
-        const content = m.replace(/<[^>]+>/g, '').trim();
-        if (content && content.length > 10) {
-          parts.push(`Note: ${content}`);
-        }
-      });
-    }
-
-    // If we extracted meaningful parts, join them
-    if (parts.length > 0) {
-      const result = parts.join('\n\n');
-      if (result.trim().length > 20) {
-        return result;
-      }
-    }
-
-    // Last resort: try to extract any text from HTML
-    const allText = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-    if (allText.length > 20) {
-      return allText;
-    }
-
-    // Final fallback: return original HTML (will be displayed as-is)
-    return html;
-  } catch (error) {
-    console.error('Error extracting text from HTML:', error);
-    // Try simple regex extraction as fallback
-    const simpleText = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-    return simpleText.length > 0 ? simpleText : html;
-  }
-};
-
-const extractCode = (response: string): { text: string; code: string | null } => {
-  if (!response || typeof response !== 'string') {
-    return { text: 'No response received.', code: null };
-  }
-
-  // Try to match markdown code blocks with various languages or no language
-  // Support both ```html and ``` with newline or without
-  const codeBlockMatch = response.match(/```(?:html|xml|jsx|tsx|react)?\s*\n?([\s\S]*?)\n?```/);
-
-  if (codeBlockMatch && codeBlockMatch[1]) {
-    const code = codeBlockMatch[1].trim();
-    // Validate: code should not be empty or only whitespace/newlines
-    if (!code || code.length === 0 || /^[\s\n\r\t]+$/.test(code)) {
-      // Invalid code, return null
-      const text = response.replace(codeBlockMatch[0], '').trim() || response || 'No valid code found.';
-      return { text, code: null };
-    }
-
-    const text = response.replace(codeBlockMatch[0], '').trim();
-    // If code looks like HTML, return it
-    if (code.includes('<html') || code.includes('<!DOCTYPE') || code.includes('<div') || code.includes('<body')) {
-      // CRITICAL: If text is empty after removing code block, use original response
-      // This prevents losing content when code block extraction removes everything
-      return {
-        text: text || response || 'Generated app successfully.',
-        code
-      };
-    }
-  }
-
-  // Check for raw HTML structure (with or without DOCTYPE)
-  if (response.includes('<!DOCTYPE html>') || response.includes('<html') || response.includes('<body')) {
-    // Extract HTML from response (might have text before/after)
-    const htmlMatch = response.match(/(<!DOCTYPE[\s\S]*?<\/html>)/i) ||
-      response.match(/(<html[\s\S]*?<\/html>)/i) ||
-      response.match(/(<body[\s\S]*?<\/body>)/i);
-
-    if (htmlMatch && htmlMatch[1]) {
-      const code = htmlMatch[1].trim();
-      // Validate: code should not be empty or only whitespace/newlines
-      if (!code || code.length === 0 || /^[\s\n\r\t]+$/.test(code)) {
-        const text = response.replace(htmlMatch[0], '').trim() || response || 'No valid code found.';
-        return { text, code: null };
-      }
-      const text = response.replace(htmlMatch[0], '').trim();
-      return { text: text || 'Generated app successfully.', code };
-    }
-
-    // If entire response looks like HTML, use it directly
-    if (response.trim().startsWith('<')) {
-      const trimmedResponse = response.trim();
-      // Validate: response should not be empty or only whitespace/newlines
-      if (trimmedResponse.length > 0 && !/^[\s\n\r\t]+$/.test(trimmedResponse)) {
-        return { text: 'Generated app successfully.', code: trimmedResponse };
-      }
-    }
-  }
-
-  // Last resort: if response contains HTML tags, try to extract
-  if (response.includes('<') && response.includes('>')) {
-    // Try to find complete HTML document
-    const htmlStart = response.indexOf('<html');
-    const htmlEnd = response.lastIndexOf('</html>');
-    if (htmlStart !== -1 && htmlEnd !== -1) {
-      const code = response.substring(htmlStart, htmlEnd + 7).trim();
-      // Validate: code should not be empty or only whitespace/newlines
-      if (code && code.length > 0 && !/^[\s\n\r\t]+$/.test(code)) {
-        return { text: 'Generated app successfully.', code };
-      }
-    }
-
-    // Try to find body content
-    const bodyStart = response.indexOf('<body');
-    const bodyEnd = response.lastIndexOf('</body>');
-    if (bodyStart !== -1 && bodyEnd !== -1) {
-      const bodyContent = response.substring(bodyStart, bodyEnd + 7);
-      // Wrap in minimal HTML structure
-      const code = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Generated App</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-</head>
-${bodyContent}
-</html>`;
-      return { text: 'Generated app successfully.', code };
-    }
-  }
-
-  return { text: response, code: null };
-};
-
-// Helper to create React preview HTML (direct React execution, no conversion)
-const createReactPreviewHTML = (componentCode: string, framework?: string): string => {
-  // CRITICAL: Validate that code is not an error HTML message
-  const isErrorCode = componentCode.includes('<!-- Error Generating Code -->') ||
-    componentCode.includes('text-red-500') ||
-    componentCode.includes('bg-red-900') ||
-    componentCode.includes('ANTHROPIC Error') ||
-    componentCode.includes('OpenRouter API Error') ||
-    componentCode.includes('This operation was aborted');
-
-  if (isErrorCode) {
-    // Return error HTML instead of trying to compile error message as React
-    return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Error</title>
-  <style>
-    body { margin: 0; padding: 20px; font-family: system-ui, sans-serif; background: #050505; color: #fff; }
-    .error { background: #7f1d1d; border: 1px solid #ef4444; padding: 16px; border-radius: 8px; }
-    h1 { color: #ef4444; margin: 0 0 12px 0; }
-    p { margin: 8px 0; }
-  </style>
-</head>
-<body>
-  <div class="error">
-    <h1>Error Rendering Component</h1>
-    <p>Code generation failed. Please try again with a different prompt or provider.</p>
-  </div>
-</body>
-</html>`;
-  }
-
-  // Extract component name - try multiple patterns
-  let componentName = 'App';
-  const patterns = [
-    /export\s+default\s+function\s+(\w+)/,
-    /export\s+default\s+const\s+(\w+)/,
-    /export\s+function\s+(\w+)/,
-    /export\s+const\s+(\w+)\s*=/,
-    /function\s+(\w+)\s*\(/,
-    /const\s+(\w+)\s*=\s*(?:\(|function)/,
-  ];
-
-  for (const pattern of patterns) {
-    const match = componentCode.match(pattern);
-    if (match && match[1]) {
-      componentName = match[1];
-      break;
-    }
-  }
-
-  // Helper function to strip TypeScript type annotations
-  const stripTypeScript = (code: string): string => {
-    let stripped = code;
-
-    // Remove generic type parameters from hooks and functions: useState<Type[]>() => useState()
-    // Be careful with JSX tags, so we match specific patterns
-    stripped = stripped.replace(/(useState|useEffect|useRef|useMemo|useCallback|useReducer|useContext)\s*<[^>]+>/g, '$1');
-
-    // Remove generic type parameters from other function calls: func<Type>() => func()
-    // But avoid JSX tags by checking if it's followed by ( or whitespace
-    stripped = stripped.replace(/(\w+)\s*<[^>]+>\s*(?=[(\s])/g, '$1 ');
-
-    // Remove type annotations from variable declarations: const x: Type[] = value => const x = value
-    stripped = stripped.replace(/(const|let|var)\s+(\w+)\s*:\s*[^=]+=/g, '$1 $2 =');
-
-    // Remove type annotations from destructured assignments: const [x, y]: [Type, Type] = value => const [x, y] = value
-    stripped = stripped.replace(/(const|let|var)\s+(\[[^\]]+\])\s*:\s*[^=]+=/g, '$1 $2 =');
-
-    // Remove type annotations from object destructuring: const { x, y }: { x: Type, y: Type } = value => const { x, y } = value
-    stripped = stripped.replace(/(const|let|var)\s+(\{[^}]+\})\s*:\s*[^=]+=/g, '$1 $2 =');
-
-    // Remove type annotations from function parameters: (param: Type) => (param)
-    // Handle complex cases with nested parentheses
-    stripped = stripped.replace(/\(([^)]*)\)/g, (match, params) => {
-      if (!params.includes(':')) return match; // No type annotations
-
-      return '(' + params
-        .split(',')
-        .map((p: string) => {
-          const trimmed = p.trim();
-          if (!trimmed.includes(':')) return trimmed;
-
-          // Handle default values: param: Type = value => param = value
-          if (trimmed.includes('=')) {
-            const [namePart, ...defaultParts] = trimmed.split('=');
-            const name = namePart.trim().split(':')[0].trim();
-            return `${name} = ${defaultParts.join('=').trim()} `;
-          }
-
-          // Remove type annotation: param: Type => param
-          return trimmed.split(':')[0].trim();
-        })
-        .join(', ') + ')';
-    });
-
-    // Remove type assertions: value as Type => value
-    stripped = stripped.replace(/\s+as\s+[A-Z][a-zA-Z0-9<>[\],\s|&]*/g, '');
-
-    // Remove return type annotations: function name(): Type { => function name() {
-    stripped = stripped.replace(/\)\s*:\s*[A-Z][a-zA-Z0-9<>[\],\s|&]*\s*{/g, ') {');
-    stripped = stripped.replace(/\)\s*:\s*[A-Z][a-zA-Z0-9<>[\],\s|&]*\s*=>/g, ') =>');
-
-    // Remove interface definitions (multi-line)
-    stripped = stripped.replace(/interface\s+\w+\s*[^{]*\{[^}]*\}/gs, '');
-
-    // Remove type aliases
-    stripped = stripped.replace(/type\s+\w+\s*=\s*[^;]+;/g, '');
-
-    return stripped;
-  };
-
-  // Keep component code as-is, only remove external imports
-  let cleanedCode = componentCode
-    .replace(/^import\s+.*?from\s+['"](?!react|react-dom)[^'"]*['"];?$/gm, '') // Remove non-react imports
-    .replace(/export\s+(default\s+)?/g, '') // Remove export keywords
-    .trim();
-
-  // Strip TypeScript type annotations for Babel compatibility
-  cleanedCode = stripTypeScript(cleanedCode);
-
-  // Escape code for safe embedding in HTML/JS (escape backticks, ${}, and </script>)
-  const escapedCode = cleanedCode
-    .replace(/\\/g, '\\\\')  // Escape backslashes first
-    .replace(/`/g, '\\`')    // Escape backticks
-    .replace(/\${/g, '\\${') // Escape template literal expressions
-    .replace(/<\/script>/gi, '<\\/script>'); // Escape script closing tags
-
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>React Preview</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    * { box-sizing: border-box; }
-    body { margin: 0; padding: 0; background-color: #050505; color: #fff; font-family: 'Inter', sans-serif; }
-    #root { min-height: 100vh; }
-  </style>
-</head>
-<body>
-  <div id="root"></div>
-  
-  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
-  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  
-  <script>
-    (function() {
-      // Get component code directly from template literal (no JSON.parse needed)
-      const componentCode = \`${escapedCode}\`;
-      const componentName = ${JSON.stringify(componentName)};
-      
-      // Transform with Babel
-      try {
-        // Try with TypeScript preset first, fallback to react/env if not available
-        let transformed;
-        try {
-          transformed = Babel.transform(componentCode, {
-            presets: ['react', 'typescript', 'env'],
-            filename: 'component.tsx'
-          }).code;
-        } catch (tsError) {
-          // If TypeScript preset not available, use react/env (code should already be stripped)
-          transformed = Babel.transform(componentCode, {
-          presets: ['react', 'env'],
-          filename: 'component.tsx'
-        }).code;
-        }
-        
-        // Execute transformed code with React hooks available
-        const executeCode = new Function(
-          'React', 'ReactDOM', 
-          'useState', 'useEffect', 'useRef', 'useMemo', 'useCallback', 
-          'forwardRef', 'Fragment', 'createElement',
-          transformed + '\\n' +
-          'const root = ReactDOM.createRoot(document.getElementById("root"));\\n' +
-          'const AppComponent = typeof ' + componentName + ' !== "undefined" ? ' + componentName + ' : ' +
-          '(typeof App !== "undefined" ? App : ' +
-          '(() => React.createElement("div", {className: "p-8 text-red-400"}, "Component: ' + componentName + ' not found")));\\n' +
-          'root.render(React.createElement(AppComponent));'
-        );
-        
-        executeCode(
-          React, ReactDOM,
-          React.useState, React.useEffect, React.useRef,
-          React.useMemo, React.useCallback, React.forwardRef,
-          React.Fragment, React.createElement
-        );
-      } catch (error) {
-        console.error('Error:', error);
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(React.createElement('div', { 
-          className: 'p-8 text-red-400'
-        }, 
-          React.createElement('h1', null, 'Error rendering component'),
-          React.createElement('pre', { style: { whiteSpace: 'pre-wrap', fontSize: '12px' } }, error.toString())
-        ));
-      }
-    })();
-  </script>
-</body>
-</html>`;
-};
-
-const getIframeSrc = (code: string, entryPath?: string, framework?: string) => {
-  // Clean and validate code
-  const cleanedCode = code ? code.trim() : '';
-
-  // Check if code is empty or only contains whitespace/newlines
-  if (!cleanedCode || cleanedCode.length === 0 || /^[\s\n\r\t]+$/.test(cleanedCode)) {
-    console.warn('⚠️ getIframeSrc called with empty or whitespace-only code');
-    return 'data:text/html;charset=utf-8,<!DOCTYPE html><html><body><p>No code to display</p></body></html>';
-  }
-
-  try {
-    // Check if entry is React/TSX/JSX file or framework project
-    const isReactFile = entryPath && /\.(tsx|jsx|ts|js)$/.test(entryPath);
-    const isFrameworkProject = framework && framework !== 'html';
-
-    // If already HTML, return as is
-    if (cleanedCode.includes('<!DOCTYPE') || cleanedCode.includes('<html')) {
-      const encoded = encodeURIComponent(cleanedCode);
-      return `data:text/html;charset=utf-8,${encoded}`;
-    }
-
-    // For React/Next.js/Vite: Use direct React execution (no HTML conversion)
-    let htmlCode = cleanedCode;
-    if (isReactFile || isFrameworkProject) {
-      htmlCode = createReactPreviewHTML(cleanedCode, framework);
-      console.log('⚛️ Using direct React execution for preview');
-    } else {
-      // Wrap plain content in HTML
-      // Ensure code doesn't start/end with only newlines
-      const contentCode = cleanedCode.replace(/^\s+|\s+$/g, '');
-      htmlCode = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Generated App</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body>
-${contentCode}
-</body>
-</html>`;
-    }
-
-    // Final validation: ensure htmlCode is not empty
-    if (!htmlCode || htmlCode.trim().length === 0) {
-      console.warn('⚠️ Generated HTML code is empty');
-      return 'data:text/html;charset=utf-8,<!DOCTYPE html><html><body><p>No code to display</p></body></html>';
-    }
-
-    const encoded = encodeURIComponent(htmlCode);
-    const dataUrl = `data:text/html;charset=utf-8,${encoded}`;
-    console.log('🔗 Iframe src generated:', {
-      codeLength: cleanedCode.length,
-      htmlCodeLength: htmlCode.length,
-      entryPath,
-      framework,
-      isReactFile,
-      preview: htmlCode.substring(0, 100)
-    });
-    return dataUrl;
-  } catch (error) {
-    console.error('❌ Error encoding iframe src:', error);
-    return 'data:text/html;charset=utf-8,<!DOCTYPE html><html><body><p>Error loading preview</p></body></html>';
-  }
-};
 
 // --- Splash Screen Component ---
 const SplashScreen: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
@@ -764,6 +135,12 @@ const ChatInterface: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
+  // Use dynamic viewport height (dvh) for better mobile support
+  // The main container will be controlled by parent layout, but we ensure content fills it
+  // We'll add a class to the outer container in the return statement if needed, 
+  // but looking at Home.tsx, this component is likely rendered inside a layout.
+  // We will assume the parent provides the height, but we'll ensure this component fills it.
+
   // Helper: Get optimal provider for mode (moved outside component to be accessible)
   const getOptimalProviderForMode = (mode: AppMode | null, isSubscribed: boolean = false): AIProvider => {
     if (!mode) return 'deepseek'; // Default to Mistral Devstral (free)
@@ -771,6 +148,9 @@ const ChatInterface: React.FC = () => {
     if (mode === 'builder') {
       // Builder mode: Mistral Devstral (free, good for code generation)
       return 'deepseek'; // Mistral Devstral for code generation
+    } else if (mode === 'canvas') {
+      // Canvas mode requires vision capabilities
+      return 'deepseek'; // Or 'gemini' if available/preferred for vision
     } else {
       // Tutor mode: Mistral Devstral (optimized for NEVRA Tutor)
       return 'deepseek'; // Mistral Devstral for Tutor mode (default)
@@ -784,10 +164,15 @@ const ChatInterface: React.FC = () => {
     const initialImages = location.state?.initialImages as string[];
     const targetFile = location.state?.targetFile as string | undefined;
     const codebaseMode = location.state?.mode === 'codebase';
+    // Check for explicit mode passed from Home (e.g. for silent canvas activation)
+    const explicitMode = location.state?.mode as AppMode;
+    const enableWebSearch = location.state?.enableWebSearch as boolean | undefined;
 
     if (initialPrompt || (initialImages && initialImages.length > 0)) {
-      // If codebase mode (from Home.tsx), force builder mode and focus on code
-      const detectedMode = codebaseMode ? 'builder' : (initialPrompt ? detectMode(initialPrompt) : 'tutor');
+      // Use explicit mode if provided (and not just 'codebase' flag), otherwise detect
+      const detectedMode = (explicitMode && explicitMode !== 'codebase')
+        ? explicitMode
+        : (codebaseMode ? 'builder' : (initialPrompt ? detectMode(initialPrompt) : 'tutor'));
       const userMsgId = Date.now().toString();
       const content = initialPrompt || "Analyzing image...";
 
@@ -807,18 +192,87 @@ const ChatInterface: React.FC = () => {
         initialProvider: optimalProvider,
         initialImages: initialImages || [],
         targetFile: targetFile,
-        codebaseMode: codebaseMode || false
+        codebaseMode: codebaseMode || false,
+        enableWebSearch: enableWebSearch || true
+      };
+    }
+
+    // If no prompt/images but explicit mode is provided (e.g. silent canvas open)
+    if (explicitMode && explicitMode !== 'codebase') {
+      return {
+        mode: explicitMode,
+        messages: [],
+        shouldAutoSend: false,
+        initialProvider: 'deepseek' as AIProvider,
+        initialImages: [],
+        targetFile: undefined,
+        codebaseMode: false,
+        enableWebSearch: enableWebSearch || true
       };
     }
     // Default to tutor mode if no prompt (auto-detect from Home.tsx)
-    return { mode: 'tutor' as AppMode, messages: [], shouldAutoSend: false, initialProvider: 'deepseek' as AIProvider, initialImages: [], targetFile: undefined, codebaseMode: false };
+    return { mode: 'tutor' as AppMode, messages: [], shouldAutoSend: false, initialProvider: 'deepseek' as AIProvider, initialImages: [], targetFile: undefined, codebaseMode: false, enableWebSearch: enableWebSearch || true };
   };
 
   const initialState = getInitialState();
   const [templateName, setTemplateName] = useState<string | undefined>((initialState as any).templateName);
 
+  // Hydrate state from navigation (Fix for Image Generation output)
+  useEffect(() => {
+    if (location.state?.generatedImage && location.state?.initialPrompt) {
+      const { generatedImage, initialPrompt } = location.state;
+
+      setMessages(current => {
+        // Prevent duplicates
+        if (current.some(m => m.images?.includes(generatedImage))) return current;
+
+        // Reset to just these messages to ensure clean state for new generation result
+        return [
+          {
+            id: Date.now().toString(),
+            role: 'user',
+            content: initialPrompt,
+            images: [],
+            timestamp: new Date()
+          },
+          {
+            id: (Date.now() + 1).toString(),
+            role: 'ai',
+            content: `Here is your generated image based on: "${initialPrompt}"\n\n![Generated Image](${generatedImage})`,
+            images: [generatedImage],
+            timestamp: new Date(Date.now() + 100)
+          }
+        ];
+      });
+
+      // Update provider to generate image model if needed
+      setProvider('gpt-image-1' as AIProvider); // Or compatible model
+    }
+  }, [location.state]);
+
   // Token Limit Hooks
-  const { hasExceeded, isSubscribed, refreshLimit, tokensUsed, incrementTokenUsage, loading: tokenLoading } = useTokenLimit();
+  const { hasExceeded, isSubscribed, refreshLimit, tokensUsed, incrementTokenUsage, loading: tokenLoading, checkFeatureLimit, incrementFeatureUsage, featureUsage, credits, softLimitReached } = useTokenLimit();
+
+  // Check chat limit before sending message
+  const checkChatLimit = (): boolean => {
+    const chatStatus = checkFeatureLimit('chat');
+    if (chatStatus.exceeded) {
+      setShowSubscriptionPopup(true);
+      return false;
+    }
+    return true;
+  };
+
+  // Sidebar Collapse State - Default to open (false)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
+  const toggleSidebarCollapse = () => {
+    setIsSidebarCollapsed(prev => {
+      const newState = !prev;
+      localStorage.setItem('sidebar_collapsed', String(newState));
+      return newState;
+    });
+  };
 
   // Global State
   const [appMode, setAppMode] = useState<AppMode>(initialState.mode);
@@ -832,7 +286,7 @@ const ChatInterface: React.FC = () => {
 
   // Get optimal default provider based on mode
   const getDefaultProvider = (mode: AppMode | null): AIProvider => {
-    if (!mode) return 'deepseek'; // Default to Mistral Devstral
+    if (!mode) return 'groq'; // Default to Groq (SumoPod/Gemini)
     return getOptimalProviderForMode(mode, isSubscribed);
   };
 
@@ -873,6 +327,7 @@ const ChatInterface: React.FC = () => {
   // AI Memory State - History yang akan dikirim ke AI
   const [aiMemoryHistory, setAiMemoryHistory] = useState<Message[]>([]);
   const [lastResetTime, setLastResetTime] = useState<Date | null>(null);
+
 
   // Helper: Get current WIB time
   const getWIBTime = (): Date => {
@@ -998,6 +453,7 @@ const ChatInterface: React.FC = () => {
   const [mobileTab, setMobileTab] = useState<'chat' | 'workbench'>('chat');
   const [previewDevice, setPreviewDevice] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
   const [deviceScale, setDeviceScale] = useState(1);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [fileTreeOpen, setFileTreeOpen] = useState(false); // For mobile/tablet collapsible file tree
   const previewContainerRef = useRef<HTMLDivElement>(null);
   const previewIframeRef = useRef<HTMLIFrameElement>(null);
@@ -1017,7 +473,7 @@ const ChatInterface: React.FC = () => {
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const cameraModalRef = useRef<HTMLElement | null>(null);
   const cameraEventListenersRef = useRef<Array<{ element: HTMLElement; event: string; handler: EventListener }>>([]);
-  const { getToken } = useAuth();
+  // Supabase Auth handles tokens internally - no need for getToken
   // SUPABASE_TEMPLATE removed - using Firebase
   const { trackUsage } = useTrackAIUsage();
   const [showSubscriptionPopup, setShowSubscriptionPopup] = useState(false);
@@ -1030,12 +486,35 @@ const ChatInterface: React.FC = () => {
   // Voice Call State (only for tutor mode)
   const [showVoiceCall, setShowVoiceCall] = useState(false);
 
+  // Learning Features State
+  const [showQuiz, setShowQuiz] = useState(false);
+  const [showNotes, setShowNotes] = useState(false);
+  const [showDashboard, setShowDashboard] = useState(false);
+  const [showFlashcards, setShowFlashcards] = useState(false);
+  const [currentTopic, setCurrentTopic] = useState<string>('');
+  const { progress, updateProgress, recordSession } = useLearningProgress();
+
+  // Extract topic from conversation for learning features
+  const extractTopicFromMessages = useCallback((): string => {
+    if (messages.length === 0) return 'General';
+
+    // Get last few messages to extract topic
+    const recentMessages = messages.slice(-5);
+    const combinedText = recentMessages.map(m => m.content).join(' ').toLowerCase();
+
+    // Common topics
+    const topics = ['react', 'javascript', 'typescript', 'python', 'node.js', 'css', 'html', 'next.js', 'vue', 'angular'];
+    const foundTopic = topics.find(topic => combinedText.includes(topic));
+
+    return foundTopic || 'General';
+  }, [messages]);
+
   // Sidebar State (only for tutor mode)
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [messageFeedback, setMessageFeedback] = useState<Record<string, 'like' | 'dislike'>>({});
+  const [showSettingsMenu, setShowSettingsMenu] = useState(false);
 
   // Chat Sessions (for sidebar)
   const { sessions, deleteSession, refreshSessions } = useChatSessions();
@@ -1103,12 +582,23 @@ const ChatInterface: React.FC = () => {
   };
 
   // New Features for Tutor Mode
-  const [enableWebSearch, setEnableWebSearch] = useState(false);
+  const [enableWebSearch, setEnableWebSearch] = useState((initialState as any).enableWebSearch || false);
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [uploadedDocument, setUploadedDocument] = useState<ParsedDocument | null>(null);
   const [showCodeSandbox, setShowCodeSandbox] = useState(false);
   const [showDocumentViewer, setShowDocumentViewer] = useState(false);
   const documentInputRef = useRef<HTMLInputElement>(null);
+
+  // Canvas Analysis Handler
+  const handleCanvasAnalysis = useCallback((blob: Blob) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64 = reader.result as string;
+      setAttachedImages(prev => [...prev, base64]);
+      setInput(prev => prev || "Tolong analisa orak-orek saya ini...");
+    };
+    reader.readAsDataURL(blob);
+  }, []);
 
   // Agentic Planning for Builder Mode
   const [currentPlan, setCurrentPlan] = useState<Plan | null>(null);
@@ -1181,7 +671,7 @@ const ChatInterface: React.FC = () => {
     };
 
     loadSessionMessages();
-  }, [sessionId, user, getToken]);
+  }, [sessionId, user]);
 
   // Calculate device scale to fit canvas
   useEffect(() => {
@@ -1271,7 +761,7 @@ const ChatInterface: React.FC = () => {
     };
 
     loadSessionMessages();
-  }, [sessionId, user, hasExceeded, isSubscribed, getToken]);
+  }, [sessionId, user, hasExceeded, isSubscribed]);
 
   // Auto-resume latest session when no session is selected
   useEffect(() => {
@@ -1312,7 +802,7 @@ const ChatInterface: React.FC = () => {
     };
 
     resumeLatestSession();
-  }, [sessionId, user, hasExceeded, isSubscribed, getToken, navigate]);
+  }, [sessionId, user, hasExceeded, isSubscribed, navigate]);
 
   // Auto-Start Logic - moved after handleSend definition
 
@@ -1347,6 +837,32 @@ const ChatInterface: React.FC = () => {
     // Open settings modal - you can implement this
     console.log('Open settings');
   };
+
+  // Handle Canvas Analyze
+  const handleCanvasAnalyze = useCallback(async (canvasImageData: string) => {
+    console.log('🎨 Canvas analyze triggered');
+
+    // Switch to chat tab on mobile
+    if (isMobile) {
+      setMobileTab('chat');
+    }
+
+    // Create user message with canvas image
+    const userMessage: Message = {
+      id: `msg-${Date.now()}`,
+      role: 'user',
+      content: "Please analyze this canvas drawing and explain what you see.",
+      timestamp: new Date(),
+      images: [canvasImageData]
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    setInput("Please analyze this canvas drawing and explain what you see.");
+
+    // Auto-submit for analysis
+    // The image is now in the message, it will be processed by the AI
+  }, [isMobile, setMobileTab, setMessages, setInput]);
+
 
   // Handle File Upload
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1764,6 +1280,12 @@ const ChatInterface: React.FC = () => {
 
     if ((!text.trim() && imagesToSend.length === 0) || isTyping) return;
 
+    // Check credit limit
+    if (!checkChatLimit()) return;
+
+    // Track session start time for progress tracking
+    const sessionStartTime = Date.now();
+
     // Declare codeResponse in outer scope to avoid "not defined" errors
     let codeResponse: CodeResponse | null = null;
 
@@ -1783,8 +1305,6 @@ const ChatInterface: React.FC = () => {
     });
 
     // IMPORTANT: If we're in builder mode and have existing code, we need to be smart about mode switching
-    // - Allow tutor questions (like "apa itu", "what is") to switch to tutor mode
-    // - Keep edit commands in builder mode
     if (appMode === 'builder' && hasExistingCode && !modeOverride) {
       // Check if it's an edit command (should stay in builder mode)
       const editCommandPatterns = [
@@ -1797,14 +1317,10 @@ const ChatInterface: React.FC = () => {
 
       const isEditCommand = editCommandPatterns.some(pattern => pattern.test(text.trim()));
 
-      // Only force builder mode if it's a clear edit command
-      // Otherwise, trust detectMode() which already handles tutor questions well
       if (isEditCommand) {
         detectedMode = 'builder'; // Force builder mode for edit commands
         console.log(`🔧 Edit command detected, keeping builder mode: "${text.substring(0, 50)}..."`);
       }
-      // If detectedMode is 'tutor' and it's NOT an edit command, allow the switch to tutor mode
-      // This handles cases like "apa itu", "what is", etc.
     }
 
     const mode = detectedMode;
@@ -1820,93 +1336,15 @@ const ChatInterface: React.FC = () => {
         console.log(`📚 Switched to tutor mode, resetting tab to preview`);
       }
 
-      // Auto-switch to optimal provider for the new mode - DISABLED FOR TESTING
-      // const optimalProvider = getOptimalProviderForMode(detectedMode, isSubscribed, false);
-      // if (provider !== optimalProvider) {
-      //   console.log(`🔄 Auto-switching provider: ${provider} → ${optimalProvider} (optimal for ${detectedMode} mode)`);
-      //   setProvider(optimalProvider);
-      // }
-
       // Update session mode in database if session exists (non-blocking)
       if (sessionId && user) {
-        updateChatSession(sessionId, { mode: detectedMode })
+        updateChatSession(sessionId, { mode: detectedMode as any })
           .then(() => console.log(`✅ Session mode updated to ${detectedMode}`))
           .catch(error => console.error('Error updating session mode:', error));
       }
-
-      // Show visual feedback for mode switch - DISABLED FOR TESTING (optimalProvider tidak lagi dihitung)
-      // if (detectedMode === 'builder') {
-      //   setLogs(prev => [...prev, `> Switched to Builder mode - Using ${optimalProvider === 'gemini' ? 'Claude Sonnet 4.5' : optimalProvider === 'openai' ? 'GPT-5.2' : 'Claude Opus 4.5'} (optimal for UI generation)`]);
-      // } else {
-      //   setLogs(prev => [...prev, `> Switched to Tutor mode - Using ${optimalProvider === 'openai' ? 'GPT-5.2' : optimalProvider === 'gemini' ? 'Claude Sonnet 4.5' : 'Claude Opus 4.5'} (optimal for Q&A)`]);
-      // }
     }
 
-    // Auto-switch to OpenAI if images are attached - DISABLED FOR TESTING (all providers support images now)
     let effectiveProvider = provider;
-    // DISABLED FOR TESTING - Allow images with any provider
-    // if (imagesToSend.length > 0 && provider !== 'openai' && provider !== 'gemini' && provider !== 'anthropic') {
-    //   if (!isSubscribed) {
-    //     alert('Image analysis requires GPT-5.2 (OpenAI). Please subscribe to use this feature, or remove the images to use other providers.');
-    //     return;
-    //   }
-    //   effectiveProvider = 'openai';
-    //   setProvider('openai'); // Update UI
-    //   console.log('🖼️ Images detected, switching to OpenAI for vision analysis');
-    // }
-
-    // Check Grok (Claude Sonnet 4.5) token limit - DISABLED FOR TESTING
-    // if (provider === 'gemini' && !isSubscribed && user) {
-    //   // Check if Grok is locked
-    //   if (false) {
-    //     console.log(`⚠️ Grok (Claude Sonnet 4.5) is locked due to token limit. Switching to Claude Opus 4.5.`);
-    //     effectiveProvider = 'anthropic';
-    //     setProvider('anthropic'); // Update UI
-    //     
-    //     // Show notification
-    //     if (mode === 'builder') {
-    //       setLogs(prev => [...prev, `⚠️ Claude Sonnet 4.5 locked (token limit reached). Switched to Claude Opus 4.5.`]);
-    //     }
-    //     
-    //     // Show alert to user
-    //     alert('Claude Sonnet 4.5 token limit has been reached. Please recharge tokens to use Claude Sonnet 4.5, or continue with Claude Opus 4.5.');
-    //   } else {
-    //     // Double-check with server before proceeding
-    //     try {
-    //       const token = null;
-    //       const grokLimit = await checkGrokTokenLimit(user.id, token);
-    //       
-    //       if (grokLimit.shouldFallback) {
-    //         console.log(`⚠️ Grok (Claude Sonnet 4.5) token limit exceeded (${grokLimit.tokensUsed}/${GROK_TOKEN_LIMIT}), falling back to Claude Opus 4.5`);
-    //         effectiveProvider = 'anthropic';
-    //         setProvider('anthropic'); // Update UI
-    //         
-    //         // Refresh Grok limit status
-    //         refreshLimit();
-    //         
-    //         // Show notification in logs (for builder mode) or console
-    //         if (mode === 'builder') {
-    //           setLogs(prev => [...prev, `⚠️ Claude Sonnet 4.5 limit reached (${grokLimit.tokensUsed}/${GROK_TOKEN_LIMIT}), switched to Claude Opus 4.5`]);
-    //         }
-    //       }
-    //     } catch (error) {
-    //       console.error('Error checking grok token limit:', error);
-    //       // On error, allow grok usage
-    //     }
-    //   }
-    // }
-
-    // Check general token limit - DISABLED FOR TESTING
-    // if (!isSubscribed && hasExceeded) {
-    //   if (!freeFallback) {
-    //     setShowSubscriptionPopup(true);
-    //     return;
-    //   }
-    //   // fallback gratis: paksa provider ke Claude Opus 4.5
-    //   if (provider !== 'anthropic') {
-    //     setProvider('anthropic');
-    //   }
-    // }
 
     // Ensure appMode is set (should already be set above if auto-switched)
     if (!appMode) setAppMode(mode);
@@ -1934,46 +1372,32 @@ const ChatInterface: React.FC = () => {
       setLogs(prev => [...prev, `> Processing request: "${text.substring(0, 20)}..."`]);
     }
 
-    // Optimistic token decrement even sebelum tracking ke server (agar badge sinkron)
-    incrementTokenUsage();
+    incrementFeatureUsage('chat');
 
-    // Initialize variables outside try block so they're accessible in error handler
+    // Initialize variables
     let historyForAI: any[] = [];
-    let activeSessionId = currentSessionId; // Use state instead of URL param
+    let activeSessionId = currentSessionId;
     let searchResults: any[] = [];
+    let promptToSend = text; // This will be modified with context if needed
 
     try {
       // 1. Create session if it doesn't exist
-      let token;
-      try {
-        token = null;
-      } catch (e) {
-        console.warn("Clerk Supabase template missing. See CLERK_SUPABASE_GUIDE.md");
-      }
-
       if (!activeSessionId && user) {
         try {
           const sessionTitle = text.trim().length > 0 ? text.substring(0, 30) + '...' : 'New Chat';
-          const newSession = await createChatSession(user.id, mode || 'tutor', effectiveProvider, sessionTitle);
+          const newSession = await createChatSession(user.id, (mode || 'tutor') as any, effectiveProvider, sessionTitle);
           if (newSession) {
             activeSessionId = newSession.id;
             setCurrentSessionId(newSession.id);
-            // Update URL without reloading
             window.history.replaceState(null, '', `/chat/${newSession.id}`);
-            // Trigger sidebar refresh after a short delay to ensure session is in DB
             setTimeout(() => {
-              // The real-time subscription should catch this, but refresh as backup
-              if (refreshSessions) {
-                refreshSessions();
-              }
+              if (refreshSessions) refreshSessions();
             }, 1000);
           } else {
             console.warn('⚠️ Failed to create chat session, continuing without session');
-            // Continue without session - messages won't be saved but app won't crash
           }
         } catch (error) {
           console.error('❌ Error creating chat session:', error);
-          // Continue without session - messages won't be saved but app won't crash
         }
       }
 
@@ -1989,40 +1413,39 @@ const ChatInterface: React.FC = () => {
         }));
       } else {
         // Use AI memory history if available and token not exhausted
-        // If token exhausted, don't send history (AI won't remember)
         const shouldUseMemory = !hasExceeded || isSubscribed;
         const historyToUse = shouldUseMemory ? aiMemoryHistory : [];
 
-        const tempMessage: Message = { id: 'temp', role: 'user', content: text, timestamp: new Date() };
-        const fullHistory = [...historyToUse, tempMessage].map(m => ({
+        // IMPORTANT: Do NOT add current message to historyForAI. 
+        // usage: generateCode(prompt, history) -> prompt is current, history is past.
+        const fullHistory = historyToUse.map(m => ({
           role: m.role === 'user' ? 'user' : 'model',
           parts: [{ text: m.code ? `${m.content}\n\nCode Generated:\n${m.code}` : m.content }]
         }));
 
-        // Truncate history if using OpenRouter (has prompt token limit ~2150 for free accounts)
-        // Only truncate if provider is openai, gemini, or anthropic (OpenRouter providers)
-        if ((effectiveProvider === 'openai' || effectiveProvider === 'gemini' || effectiveProvider === 'anthropic') && fullHistory.length > 0) {
-          const OPENROUTER_PROMPT_TOKEN_LIMIT = 2000; // Safe limit for free accounts
+        // Truncate history if using OpenRouter
+        if ((effectiveProvider === 'openai' || effectiveProvider === 'gemini' || effectiveProvider === 'anthropic' || effectiveProvider === 'deepseek') && fullHistory.length > 0) {
+          const OPENROUTER_PROMPT_TOKEN_LIMIT = 2000;
           historyForAI = truncateHistory(fullHistory, OPENROUTER_PROMPT_TOKEN_LIMIT);
 
           if (historyForAI.length < fullHistory.length) {
-            console.log(`⚠️ History truncated: ${fullHistory.length} → ${historyForAI.length} messages (to fit OpenRouter prompt token limit)`);
+            console.log(`⚠️ History truncated: ${fullHistory.length} → ${historyForAI.length} messages`);
           }
         } else {
           historyForAI = fullHistory;
         }
 
-        // Log memory status
         if (shouldUseMemory && historyToUse.length > 0) {
           console.log(`🧠 AI Memory: Using ${historyForAI.length} previous messages for context`);
-        } else if (!shouldUseMemory) {
-          console.log('⚠️ AI Memory: Disabled - Token limit reached. AI will not remember previous messages.');
         }
       }
 
-      // Perform web search if enabled (Tutor mode only)
-      if (mode === 'tutor' && enableWebSearch && text.trim()) {
+      // Perform web search if enabled (Allowed in all modes if explicitly enabled)
+      if (enableWebSearch && text.trim()) {
         try {
+          // Show searching indicator (optional: could add a state for this)
+          console.log('🔍 Starting web search for:', text);
+
           const searchResponse = await performWebSearch(text, 5);
           searchResults = searchResponse.results;
           setSearchResults(searchResults);
@@ -2032,32 +1455,35 @@ const ChatInterface: React.FC = () => {
             const searchContext = searchResults
               .map((r, i) => `[${i + 1}] ${r.title}: ${r.snippet}`)
               .join('\n');
-            text = `${text}\n\n[Web Search Results]\n${searchContext}\n\nPlease use the above search results to provide a comprehensive answer with citations.`;
+            promptToSend = `${text}\n\n[Web Search Results]\n${searchContext}\n\nPlease use the above search results to provide a comprehensive answer with citations.`;
+
+            // For builder mode, also append context
+            if (mode === 'builder') {
+              console.log('🏗️ Builder mode: Adding search context to prompt');
+            }
           }
         } catch (error) {
           console.error('Web search error:', error);
-          // Continue without search results
         }
       }
 
       // Include uploaded document context if available
       if (uploadedDocument && mode === 'tutor') {
         const docContext = `\n\n[Document Context: ${uploadedDocument.title}]\n${uploadedDocument.content.substring(0, 2000)}...\n\nPlease use the above document context to answer the question.`;
-        text = text + docContext;
+        promptToSend = promptToSend + docContext;
       }
 
       // Auto-explore codebase before generating (like v0.app) - Always for builder mode
       let explorationContext = '';
       if (mode === 'builder') {
         const existingFiles = fileManager.getAllFiles();
-        // Always explore codebase (even if empty, to understand structure)
         setIsExploringCodebase(true);
         try {
           const analysis = CodebaseExplorerClass.analyzeCodebase(existingFiles);
           setCodebaseAnalysis(analysis);
           explorationContext = CodebaseExplorerClass.generateContextSummary(analysis);
           // Add exploration context to prompt
-          text = explorationContext + '\n\n' + text;
+          promptToSend = explorationContext + '\n\n' + promptToSend;
         } catch (error) {
           console.error('Error exploring codebase:', error);
         } finally {
@@ -2114,15 +1540,18 @@ const ChatInterface: React.FC = () => {
         };
 
         codeResponse = await generateCode(
-          text,
+          promptToSend,
           historyForAI,
-          mode,
+          mode as any,
           effectiveProvider,
           imagesToSend,
           frameworkToUse,
           useWorkflow ? { onStatusUpdate } : false,
           activeSessionId,
-          user?.id
+          user?.id,
+          user?.fullName || 'User',
+          user?.primaryEmailAddress?.emailAddress,
+          isSubscribed ? 'pro' : 'free'
         );
 
         // Handle multi-file or single-file response (BUILDER MODE ONLY)
@@ -2338,17 +1767,18 @@ const ChatInterface: React.FC = () => {
           };
 
           codeResponse = await generateCode(
-            text,
+            promptToSend,
             historyForAI,
-            mode,
+            mode as any,
             effectiveProvider,
             imagesToSend,
             'html',
             useWorkflow ? { onStatusUpdate } : false,
             activeSessionId,
             user?.id,
-            user?.fullName || user?.firstName || undefined, // Pass user's name for AI memory
-            user?.emailAddresses?.[0]?.emailAddress || undefined // Pass user's email
+            user?.fullName || 'User',
+            user?.primaryEmailAddress?.emailAddress,
+            isSubscribed ? 'pro' : 'free'
           );
         } catch (error) {
           console.error('❌ Error calling generateCode in tutor mode:', error);
@@ -2617,8 +2047,10 @@ const ChatInterface: React.FC = () => {
           finalResponseText = "Done.";
         }
       }
-      if (searchResults.length > 0 && mode === 'tutor') {
-        finalResponseText = combineSearchAndResponse(searchResults, responseText || finalResponseText);
+      if (searchResults.length > 0) {
+        // Embed sources as hidden HTML comment for UI rendering
+        const sourcesJson = JSON.stringify(searchResults);
+        finalResponseText = (responseText || finalResponseText) + `\n\n<!-- SOURCES_JSON:${sourcesJson} -->`;
       }
 
       const aiResponse: Message = {
@@ -2630,6 +2062,31 @@ const ChatInterface: React.FC = () => {
       };
 
       setMessages(prev => [...prev, aiResponse]);
+
+      // Track learning progress in tutor mode
+      if (mode === 'tutor' && user && sessionStartTime) {
+        const topic = extractTopicFromMessages();
+        setCurrentTopic(topic);
+
+        const studyDuration = Math.round((Date.now() - sessionStartTime) / 60000) || 1;
+
+        // Update progress asynchronously (don't block UI)
+        updateProgress(topic, {
+          questionsAnswered: 1,
+          studyTime: studyDuration,
+        }).catch(err => console.error('Error updating progress:', err));
+
+        // Record study session
+        recordSession({
+          topic,
+          duration: studyDuration,
+          questionsAnswered: 1,
+          correctAnswers: 1, // Assume correct if user gets response
+          sessionType: 'qna',
+          startedAt: new Date(sessionStartTime),
+          endedAt: new Date(),
+        }).catch(err => console.error('Error recording session:', err));
+      }
 
       // Update AI memory with new messages (only if token available)
       if (!hasExceeded || isSubscribed) {
@@ -2751,7 +2208,10 @@ const ChatInterface: React.FC = () => {
             mode === 'builder' ? framework : 'html',
             useWorkflow ? { onStatusUpdate } : false,
             activeSessionId,
-            user?.id
+            user?.id,
+            user?.fullName || 'User',
+            user?.primaryEmailAddress?.emailAddress,
+            isSubscribed ? 'pro' : 'free'
           );
 
           // Handle response (same logic as above)
@@ -2891,9 +2351,9 @@ const ChatInterface: React.FC = () => {
         const providerName = effectiveProvider === 'openai' ? 'GPT-5-Nano' :
           effectiveProvider === 'anthropic' ? 'GPT OSS 20B' :
             effectiveProvider === 'gemini' ? 'GPT OSS 20B' : 'GPT OSS 20B';
-        console.log(`🔄 ${effectiveProvider} ${errorType}, auto-switching to Mistral Devstral (free alternative)...`);
-        setProvider('deepseek');
-        setLogs(prev => [...prev, `⚠️ ${providerName} ${errorType}, retrying with Mistral Devstral (free, no OpenRouter credits needed)...`]);
+        console.log(`🔄 ${effectiveProvider} ${errorType}, auto-switching to Groq/SumoPod (fallback)...`);
+        setProvider('groq');
+        setLogs(prev => [...prev, `⚠️ ${providerName} ${errorType}, retrying with Groq/SumoPod...`]);
 
         // Retry with DeepSeek and shorter history
         const truncatedHistory = truncateHistory(historyForAI, 1500);
@@ -2914,7 +2374,10 @@ const ChatInterface: React.FC = () => {
             mode === 'builder' ? framework : 'html',
             useWorkflow ? { onStatusUpdate } : false,
             activeSessionId,
-            user?.id
+            user?.id,
+            user?.fullName || 'User',
+            user?.primaryEmailAddress?.emailAddress,
+            isSubscribed ? 'pro' : 'free'
           );
 
           // Handle response (same logic as above)
@@ -3021,7 +2484,7 @@ const ChatInterface: React.FC = () => {
           return; // Success with fallback
         } catch (fallbackError) {
           setIsBuildingCode(false); // Clear building state on error
-          console.error('Fallback to Groq also failed:', fallbackError);
+          console.error('Fallback to SumoPod also failed:', fallbackError);
           // Continue to show error message
         }
       }
@@ -3154,15 +2617,15 @@ const ChatInterface: React.FC = () => {
 
   // --- Render Content ---
   const chatContent = (
-    <div className="flex flex-col h-full bg-[#0a0a0a] relative overflow-hidden">
+    <div className="flex flex-col h-full bg-white relative overflow-hidden">
       {/* Header - Clean v0.app Style */}
-      <div className="relative h-12 md:h-14 border-b border-white/[0.08] flex items-center px-4 md:px-6 justify-between shrink-0 bg-[#0a0a0a]">
-        {/* Left: Menu button (tutor mode only) + Logo */}
+      <div className="relative h-12 md:h-14 border-b border-zinc-200 flex items-center px-4 md:px-6 justify-between shrink-0 bg-white/80 backdrop-blur-md">
+        {/* Left: Menu button (Mobile: All modes, Desktop: Tutor only) + Logo */}
         <div className="flex items-center gap-3">
-          {appMode === 'tutor' && !isMobile && (
+          {(isMobile || appMode === 'tutor') && (
             <button
-              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="p-2 rounded-md hover:bg-white/5 text-gray-400 hover:text-white transition-colors"
+              onClick={() => isMobile ? setIsMobileSidebarOpen(true) : setIsSidebarOpen(!isSidebarOpen)}
+              className="p-2 rounded-md hover:bg-zinc-100 text-zinc-500 hover:text-zinc-900 transition-colors"
               title={isSidebarOpen ? "Hide sidebar" : "Show sidebar"}
             >
               <Menu size={18} />
@@ -3172,624 +2635,465 @@ const ChatInterface: React.FC = () => {
             <div className="w-6 h-6 flex items-center justify-center">
               <Logo size={24} />
             </div>
-            <span className="text-sm font-medium text-white">
+            <span className="text-sm font-medium text-zinc-900">
               {appMode === 'tutor' ? 'NEVRA' : 'NEVRA'}
             </span>
           </Link>
         </div>
         <div className="flex items-center gap-2">
           <button
+            onClick={() => setAppMode('canvas')}
+            className="p-2 rounded-md hover:bg-zinc-100 text-zinc-500 hover:text-purple-600 transition-colors"
+            title="Open Canvas (Orak Orek)"
+          >
+            <Sparkles size={16} />
+          </button>
+          <button
             onClick={handleOpenSettings}
-            className="p-2 rounded-md hover:bg-white/5 text-gray-400 hover:text-white transition-colors"
+            className="p-2 rounded-md hover:bg-zinc-100 text-zinc-500 hover:text-zinc-900 transition-colors"
+            title="Settings"
           >
             <Settings size={16} />
           </button>
+
+          {showSettingsMenu && (
+            <>
+              <div
+                className="fixed inset-0 z-40"
+                onClick={() => setShowSettingsMenu(false)}
+              />
+              <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-zinc-200 rounded-xl shadow-xl overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-200">
+                <div className="p-1">
+                  <button
+                    onClick={() => {
+                      handleOpenSettings();
+                      setShowSettingsMenu(false);
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-600 hover:text-zinc-900 hover:bg-zinc-50 rounded-lg transition-colors"
+                  >
+                    <Settings size={14} />
+                    <span>Settings</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setAppMode('canvas');
+                      setShowSettingsMenu(false);
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-600 hover:text-zinc-900 hover:bg-zinc-50 rounded-lg transition-colors"
+                  >
+                    <Sparkles size={14} className="text-purple-500" />
+                    <span>Canvas Mode</span>
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
+
 
       {/* Chat List - Clean v0.app Style */}
       <div className={cn(
         "relative flex-1 overflow-y-auto px-3 sm:px-4 md:px-5 lg:px-6 py-4 sm:py-6 md:py-8",
         messages.length === 0 ? "flex flex-col items-center justify-center text-center" : "block"
       )}>
-        {messages.length === 0 ? (
-          appMode === 'tutor' ? (
-            <div className="flex flex-col items-start justify-center w-full max-w-3xl px-4 space-y-2 mt-[-5vh]">
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, ease: "easeOut" }}
-              >
-                <h1 className="text-5xl md:text-6xl font-medium tracking-tight">
-                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400">
-                    Hi {user?.firstName || 'there'}
-                  </span>
-                </h1>
-                <h1 className="text-5xl md:text-6xl font-medium text-white/20 tracking-tight mt-2">
-                  Where should we start?
-                </h1>
-              </motion.div>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center w-full max-w-2xl px-4 space-y-4">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-500/20 to-blue-500/20 border border-white/10 flex items-center justify-center">
-                <Bot size={22} className="text-purple-300" />
-              </div>
-              <h2 className="text-2xl font-semibold text-white">Describe what you want to build</h2>
-              <p className="text-gray-400 text-sm max-w-xl">
-                Contoh: “Buat landing page SaaS modern dengan hero, fitur grid, pricing, dan footer.”<br />
-                Sertakan gaya (minimalis, glassmorphism), warna, atau referensi UI jika ada.
-              </p>
-            </div>
-          )
-        ) : (
-          <div className="max-w-3xl mx-auto space-y-6">
-            {/* Show codebase exploration if active */}
-            {isExploringCodebase && (
-              <div className="flex flex-col gap-3 items-start animate-in fade-in slide-in-from-bottom-2 duration-300">
-                <div className="flex items-center gap-2 mb-1">
-                  <div className="w-6 h-6 rounded-full bg-gray-800 border border-gray-700 flex items-center justify-center">
-                    <Bot size={14} className="text-gray-400" />
+        <AnimatePresence mode="wait">
+          {false ? (
+            <motion.div
+              key="welcome"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.3 }}
+              className={cn(
+                "w-full",
+                appMode === 'tutor' ? "h-[calc(100vh-140px)] flex flex-col items-center justify-center" : ""
+              )}
+            >
+              {appMode === 'tutor' ? (
+                <div className="flex flex-col items-center justify-center w-full max-w-2xl px-4 space-y-8 pt-20 mx-auto">
+                  <div className="flex flex-col items-center gap-4">
+                    <div className="w-14 h-14 rounded-2xl bg-black flex items-center justify-center shadow-lg">
+                      <span className="text-white font-bold text-2xl">N</span>
+                    </div>
+                    <h2 className="text-2xl font-semibold text-zinc-900">How can I help you today?</h2>
                   </div>
-                  <span className="text-xs text-gray-400">NEVRA Builder</span>
-                </div>
-                <div className="max-w-[85%] bg-[#0a0a0a] border border-white/10 rounded-xl p-4">
-                  <CodebaseExplorer
-                    analysis={codebaseAnalysis}
-                    isExploring={isExploringCodebase}
-                  />
-                </div>
-              </div>
-            )}
 
-            {messages.map((msg, idx) => (
-              <div key={msg.id} className={cn("flex flex-col gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300", msg.role === 'user' ? 'items-end' : 'items-start')}>
-                {msg.role === 'ai' && (
-                  <div className="flex items-center gap-2 mb-1">
-                    <div className="w-6 h-6 rounded-full bg-gray-800 border border-gray-700 flex items-center justify-center">
-                      <Bot size={14} className="text-gray-400" />
-                    </div>
-                    <span className="text-xs text-gray-500 font-medium">
-                      {appMode === 'tutor' ? 'Nevra Tutor' : 'Nevra Builder'}
-                    </span>
-                  </div>
-                )}
-                <div className={cn(
-                  "relative leading-relaxed transition-all duration-200",
-                  msg.role === 'user'
-                    ? "rounded-2xl px-3 md:px-4 py-2.5 md:py-3 bg-white/[0.08] border border-white/10 text-white max-w-[85%] sm:max-w-[80%] md:max-w-[85%]"
-                    : "rounded-2xl px-3 md:px-4 py-2.5 md:py-3 bg-white/[0.03] border border-white/10 text-gray-200 max-w-[90%] sm:max-w-[85%] md:max-w-[90%]"
-                )}>
-                  {msg.images && msg.images.length > 0 && (
-                    <div className="flex gap-3 mb-4 flex-wrap">
-                      {msg.images.map((img, imgIdx) => (
-                        <div key={imgIdx} className="relative group">
-                          <img src={img} alt="Attached" className={cn(
-                            "object-cover shadow-xl",
-                            appMode === 'tutor'
-                              ? "w-28 h-28 md:w-36 md:h-36 rounded-xl md:rounded-2xl border-2 border-blue-500/30"
-                              : "w-24 h-24 md:w-32 md:h-32 rounded-lg md:rounded-xl border border-purple-500/30 shadow-lg"
-                          )} />
-                          <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl md:rounded-2xl"></div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {msg.role === 'ai' ? (
-                    <div className="prose prose-sm max-w-none prose-invert prose-p:text-gray-200 prose-headings:text-white prose-strong:text-white prose-code:text-purple-300 prose-pre:bg-[#0a0a0a] prose-pre:border prose-pre:border-white/10">
-                      <ReactMarkdown
-                        remarkPlugins={[remarkGfm]}
-                        rehypePlugins={[rehypeRaw]}
-                        components={{
-                          code({ node, inline, className, children, ...props }: any) {
-                            const match = /language-(\w+)/.exec(className || '');
-                            return !inline && match ? (
-                              <div className="overflow-hidden border border-white/10 rounded-lg bg-[#0a0a0a] my-3">
-                                <div className="flex items-center justify-between border-b border-white/10 px-4 py-2 bg-[#111]">
-                                  <span className="text-xs font-medium text-gray-300 uppercase">{match[1]}</span>
-                                  <button
-                                    onClick={() => {
-                                      copyToClipboard(String(children).replace(/\n$/, ''));
-                                    }}
-                                    className="text-xs text-gray-400 hover:text-gray-200 px-2 py-1 rounded hover:bg-white/5 transition-colors"
-                                  >
-                                    Copy
-                                  </button>
-                                </div>
-                                <div className="overflow-x-auto">
-                                  <SyntaxHighlighter
-                                    style={vscDarkPlus}
-                                    language={match[1]}
-                                    PreTag="div"
-                                    customStyle={{
-                                      margin: 0,
-                                      padding: '1rem',
-                                      background: 'transparent',
-                                      fontSize: '13px',
-                                      lineHeight: '1.6'
-                                    }}
-                                    {...props}
-                                  >
-                                    {String(children).replace(/\n$/, '')}
-                                  </SyntaxHighlighter>
-                                </div>
-                              </div>
-                            ) : (
-                              <code className="rounded px-1.5 py-0.5 text-xs font-medium bg-purple-500/20 text-purple-300 border border-purple-500/30" {...props}>
-                                {children}
-                              </code>
-                            );
-                          }
-                        }}
-                      >
-                        {msg.content}
-                      </ReactMarkdown>
-                    </div>
-                  ) : (
-                    <div className="whitespace-pre-wrap text-white leading-relaxed text-sm">
-                      {msg.content}
-                    </div>
-                  )}
-                </div>
-                {/* Action Buttons - Different for Tutor vs Builder */}
-                {msg.role === 'ai' && (
-                  <div className="space-y-3 mt-2">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {/* Copy Button */}
-                      <button
-                        onClick={() => {
-                          copyToClipboard(msg.content, () => {
-                            setCopiedMessageId(msg.id);
-                            setTimeout(() => setCopiedMessageId(null), 2000); // Reset after 2 seconds
-                          });
-                        }}
-                        className="p-1.5 rounded-md hover:bg-white/10 text-gray-400 hover:text-white transition-colors flex items-center gap-1.5"
-                        title="Copy text"
-                      >
-                        {copiedMessageId === msg.id ? (
-                          <>
-                            <Check size={14} className="text-green-400" />
-                            <span className="text-xs text-green-400 font-medium animate-pulse">Copied!</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy size={14} />
-                            <span className="text-xs">Copy</span>
-                          </>
-                        )}
-                      </button>
-                      <button
-                        onClick={() => setMessageFeedback(prev => ({
-                          ...prev,
-                          [msg.id]: prev[msg.id] === 'like' ? undefined : 'like'
-                        } as any))}
-                        className={cn(
-                          "flex items-center gap-1.5 px-2 py-1 text-xs text-gray-500 hover:text-white rounded hover:bg-white/5 transition-colors",
-                          messageFeedback[msg.id] === 'like' && "text-blue-400 hover:text-blue-300"
-                        )}
-                        title="Good response"
-                      >
-                        <ThumbsUp size={14} className={cn(messageFeedback[msg.id] === 'like' && "fill-current")} />
-                      </button>
-                      <button
-                        onClick={() => setMessageFeedback(prev => ({
-                          ...prev,
-                          [msg.id]: prev[msg.id] === 'dislike' ? undefined : 'dislike'
-                        } as any))}
-                        className={cn(
-                          "flex items-center gap-1.5 px-2 py-1 text-xs text-gray-500 hover:text-white rounded hover:bg-white/5 transition-colors",
-                          messageFeedback[msg.id] === 'dislike' && "text-red-400 hover:text-red-300"
-                        )}
-                        title="Bad response"
-                      >
-                        <ThumbsDown size={14} className={cn(messageFeedback[msg.id] === 'dislike' && "fill-current")} />
-                      </button>
-
-                      {appMode === 'builder' && msg.code && (
-                        <>
-                          <div className="w-[1px] h-3 bg-white/10 mx-1" />
-                          <button
-                            onClick={() => {
-                              if (msg.code) {
-                                setCurrentCode(msg.code);
-                                fileManager.clear();
-                                fileManager.addFile('index.html', msg.code, 'page');
-                                fileManager.setEntry('index.html');
-                                setSelectedFile('index.html');
-                                if (!openFiles.includes('index.html')) {
-                                  setOpenFiles(prev => [...prev, 'index.html']);
-                                }
-                                setRefreshKey(k => k + 1);
-                              }
-                              setActiveTab('preview');
-                              if (isMobile) setMobileTab('workbench');
-                            }}
-                            className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-gray-300 hover:text-white hover:bg-white/5 rounded-md transition-colors border border-white/10"
-                          >
-                            <Eye size={14} /> View Generated
-                          </button>
-                          <button
-                            onClick={() => {
-                              copyToClipboard(msg.code || '');
-                            }}
-                            className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-gray-300 hover:text-white hover:bg-white/5 rounded-md transition-colors border border-white/10"
-                          >
-                            <Copy size={14} /> Copy Code
-                          </button>
-                        </>
-                      )}
-                      {/* Redundant copy button removed */}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-            {isTyping && (
-              <div className="pl-2">
-                <AILoading
-                  mode={appMode || 'tutor'}
-                  status={workflowStatus?.message}
-                />
-              </div>
-            )}
-            <div ref={messagesEndRef} />
-          </div>
-        )}
-      </div>
-
-      {/* Input Area - ChatGPT Style - Show after first message or always for tutor mode */}
-      {(messages.length > 0 || appMode === 'tutor') && (
-        <div className="relative p-4 md:p-6 border-t border-white/[0.08] bg-[#0a0a0a] shrink-0 pb-safe">
-          {/* DISABLED FOR TESTING - Token limit warnings */}
-          {/* {!isSubscribed && hasExceeded && !tokenLoading && (
-          <div className="mb-3 md:mb-4 text-xs md:text-sm font-medium text-amber-300 bg-amber-500/10 border border-amber-500/30 px-3 md:px-4 py-2.5 md:py-3 rounded-lg md:rounded-xl flex items-center gap-2 md:gap-2.5 shadow-lg shadow-amber-500/10">
-            <AlertTriangle size={isMobile ? 18 : 16} className="text-amber-400 shrink-0" />
-            <div className="flex flex-col gap-1">
-              <span className="text-[11px] md:text-xs">Free quota reached. Upgrade to continue generating responses.</span>
-              <span className="text-[10px] text-amber-400/80">⚠️ AI memory disabled - Previous messages will not be remembered.</span>
-            </div>
-          </div>
-        )} */}
-          {/* {!isSubscribed && false && provider === 'gemini' && (
-          <div className="mb-3 md:mb-4 text-xs md:text-sm font-medium text-amber-300 bg-amber-500/10 border border-amber-500/30 px-3 md:px-4 py-2.5 md:py-3 rounded-lg md:rounded-xl flex items-center gap-2 md:gap-2.5 shadow-lg shadow-amber-500/10">
-            <AlertTriangle size={isMobile ? 18 : 16} className="text-amber-400 shrink-0" />
-            <span className="text-[11px] md:text-xs">Claude Sonnet 4.5 token limit reached. Switching to Mistral Devstral. Recharge tokens to unlock Claude Sonnet 4.5.</span>
-          </div>
-        )} */}
-          {/* Attached Images Preview - Above Input Box */}
-          {attachedImages.length > 0 && (
-            <div className="mb-3 md:mb-4">
-              <div className="flex items-center gap-2 mb-2">
-                <ImageIcon size={isMobile ? 14 : 12} className="text-purple-400" />
-                <span className="text-[10px] md:text-xs text-purple-400 font-medium">
-                  {attachedImages.length} image{attachedImages.length > 1 ? 's' : ''} ready for AI analysis
-                </span>
-              </div>
-              <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none -mx-3 md:mx-0 px-3 md:px-0">
-                {attachedImages.map((img, idx) => (
-                  <div key={idx} className="relative group shrink-0">
-                    <img src={img} alt="Preview" className="w-12 h-12 md:w-14 md:h-14 object-cover rounded-md border border-purple-500/30 shadow-sm" />
-                    <button
-                      onClick={() => removeImage(idx)}
-                      className="absolute -top-1 -right-1 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all shadow-sm min-w-[20px] min-h-[20px] flex items-center justify-center"
-                    >
-                      <X size={10} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="max-w-3xl mx-auto w-full">
-            <div className="relative bg-white/[0.04] border border-white/10 rounded-2xl shadow-sm transition-all duration-200 hover:shadow-md hover:border-white/20 focus-within:shadow-md focus-within:border-white/20">
-              {/* Mobile: Simplified layout */}
-              {isMobile ? (
-                <>
-                  {/* Textarea */}
-                  <textarea
-                    value={input}
-                    onChange={(e) => {
-                      setInput(e.target.value);
-                      e.target.style.height = 'auto';
-                      e.target.style.height = `${Math.min(e.target.scrollHeight, 150)}px`;
-                    }}
-                    onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSend())}
-                    placeholder={appMode === 'tutor' ? "Ask me anything..." : "Describe your app..."}
-                    className="w-full bg-transparent border-0 rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base text-white placeholder-gray-400 focus:outline-none resize-none min-h-[60px] max-h-[150px] leading-relaxed"
-                    style={{ paddingRight: '48px' }}
-                  />
-
-                  {/* Send button */}
-                  <button
-                    onClick={() => handleSend()}
-                    disabled={(!input.trim() && attachedImages.length === 0) || isTyping}
-                    className="absolute top-3 right-3 p-2.5 md:p-2 bg-white text-black rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-200 min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 flex items-center justify-center"
-                    aria-label="Send message"
-                  >
-                    <Send size={16} />
-                  </button>
-
-                  {/* Attachment & Actions Row - ChatGPT Style */}
-                  <div className="flex items-center justify-between px-4 py-2 border-t border-white/10">
-                    {/* Left: Attachment Dropdown */}
-                    <div className="relative" ref={attachmentMenuRef}>
-                      <button
-                        onClick={() => setShowAttachmentMenu(!showAttachmentMenu)}
-                        className="p-2.5 md:p-2 rounded-md hover:bg-white/5 text-gray-400 hover:text-gray-300 transition-colors min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 flex items-center justify-center"
-                        title="Attach files"
-                        aria-label="Attach files"
-                      >
-                        <Plus size={16} />
-                      </button>
-                      {showAttachmentMenu && (
-                        <>
-                          <div
-                            className="fixed inset-0 z-40"
-                            onClick={() => setShowAttachmentMenu(false)}
-                          />
-                          <div className="absolute bottom-full left-0 mb-2 w-56 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-xl overflow-hidden z-50">
-                            <button
-                              onClick={() => {
-                                documentInputRef.current?.click();
-                                setShowAttachmentMenu(false);
-                              }}
-                              className="w-full flex items-center gap-3 px-4 py-3.5 md:py-3 text-sm text-left text-gray-300 hover:bg-white/10 transition-colors min-h-[44px]"
-                            >
-                              <FileText size={18} className="text-green-400 shrink-0" />
-                              <div className="flex flex-col text-left">
-                                <span className="font-medium">Upload Document</span>
-                                <span className="text-xs text-gray-500">PDF, DOCX, TXT, MD</span>
-                              </div>
-                            </button>
-                            <button
-                              onClick={() => {
-                                fileInputRef.current?.click();
-                                setShowAttachmentMenu(false);
-                              }}
-                              className="w-full flex items-center gap-3 px-4 py-3.5 md:py-3 text-sm text-left text-gray-300 hover:bg-white/10 transition-colors border-t border-white/10 min-h-[44px]"
-                            >
-                              <ImageIcon size={18} className="text-blue-400 shrink-0" />
-                              <div className="flex flex-col text-left">
-                                <span className="font-medium">Upload Image</span>
-                                <span className="text-xs text-gray-500">JPG, PNG, GIF</span>
-                              </div>
-                            </button>
-                            <button
-                              onClick={() => {
-                                handleCameraCapture();
-                                setShowAttachmentMenu(false);
-                              }}
-                              className="w-full flex items-center gap-3 px-4 py-3.5 md:py-3 text-sm text-left text-gray-300 hover:bg-white/10 transition-colors border-t border-white/10 min-h-[44px]"
-                            >
-                              <Camera size={18} className="text-purple-400 shrink-0" />
-                              <div className="flex flex-col text-left">
-                                <span className="font-medium">Take Photo</span>
-                                <span className="text-xs text-gray-500">Use camera</span>
-                              </div>
-                            </button>
-                          </div>
-                        </>
-                      )}
-                    </div>
-
-                    {/* Right: Web Search Toggle, Token & Provider */}
-                    <div className="flex items-center gap-2 ml-auto shrink-0">
-                      {appMode === 'tutor' && (
-                        <button
-                          onClick={() => setEnableWebSearch(!enableWebSearch)}
-                          className={cn(
-                            "p-1.5 rounded-md border transition-all duration-200 min-w-[32px] min-h-[32px] flex items-center justify-center shrink-0",
-                            enableWebSearch
-                              ? "bg-blue-500/20 border-blue-500/30 text-blue-400"
-                              : "bg-white/5 border-white/10 hover:bg-blue-500/20 hover:border-blue-500/30 text-gray-400 hover:text-blue-400"
-                          )}
-                          title="Web Search"
-                        >
-                          <Search size={14} />
-                        </button>
-                      )}
-                      <div className="text-[10px] text-gray-400 font-medium">
-                        ${Math.max(0, FREE_TOKEN_LIMIT - tokensUsed)}
-                      </div>
-                      {/* Model selection removed - orchestrator manages models automatically */}
-                      <div className="text-xs text-gray-500 px-2 py-1 rounded border border-white/10">
-                        Auto
-                      </div>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <>
-                  {/* Desktop: v0.app Clean Style - Large Input */}
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    className="hidden"
-                    multiple
-                    accept="image/*"
-                    capture="environment"
-                    onChange={handleFileChange}
-                  />
-                  <input
-                    type="file"
-                    ref={documentInputRef}
-                    className="hidden"
-                    accept=".pdf,.docx,.txt,.md"
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      try {
-                        const parsed = await parseDocument(file);
-                        setUploadedDocument(parsed);
-                        setShowDocumentViewer(true);
-                      } catch (error: unknown) {
-                        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-                        alert(`Failed to parse document: ${errorMessage}`);
-                      }
-                      if (documentInputRef.current) documentInputRef.current.value = '';
-                    }}
-                  />
-
-                  <div className="flex items-center gap-2 px-3 md:px-4 py-3 border-t border-white/10 bg-[#0a0a0a]/80 backdrop-blur-sm sticky bottom-0 left-0 right-0 z-20 pb-safe">
-                    {/* Left: Attachment Dropdown Button - ChatGPT Style */}
-                    <div className="relative shrink-0" ref={attachmentMenuRef}>
-                      <button
-                        onClick={() => setShowAttachmentMenu(!showAttachmentMenu)}
-                        className="p-2.5 md:p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-gray-400 hover:text-gray-300 transition-all min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 flex items-center justify-center"
-                        title="Attach files"
-                        aria-label="Attach files"
-                      >
-                        <Plus size={18} />
-                      </button>
-                      {showAttachmentMenu && (
-                        <>
-                          <div
-                            className="fixed inset-0 z-40"
-                            onClick={() => setShowAttachmentMenu(false)}
-                          />
-                          <div className="absolute bottom-full left-0 mb-2 w-56 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-xl overflow-hidden z-50">
-                            <button
-                              onClick={() => {
-                                documentInputRef.current?.click();
-                                setShowAttachmentMenu(false);
-                              }}
-                              className="w-full flex items-center gap-3 px-4 py-3.5 md:py-3 text-sm text-left text-gray-300 hover:bg-white/10 transition-colors min-h-[44px]"
-                            >
-                              <FileText size={18} className="text-green-400 shrink-0" />
-                              <div className="flex flex-col text-left">
-                                <span className="font-medium">Upload Document</span>
-                                <span className="text-xs text-gray-500">PDF, DOCX, TXT, MD</span>
-                              </div>
-                            </button>
-                            <button
-                              onClick={() => {
-                                fileInputRef.current?.click();
-                                setShowAttachmentMenu(false);
-                              }}
-                              className="w-full flex items-center gap-3 px-4 py-3.5 md:py-3 text-sm text-left text-gray-300 hover:bg-white/10 transition-colors border-t border-white/10 min-h-[44px]"
-                            >
-                              <ImageIcon size={18} className="text-blue-400 shrink-0" />
-                              <div className="flex flex-col text-left">
-                                <span className="font-medium">Upload Image</span>
-                                <span className="text-xs text-gray-500">JPG, PNG, GIF</span>
-                              </div>
-                            </button>
-                            <button
-                              onClick={() => {
-                                handleCameraCapture();
-                                setShowAttachmentMenu(false);
-                              }}
-                              className="w-full flex items-center gap-3 px-4 py-3.5 md:py-3 text-sm text-left text-gray-300 hover:bg-white/10 transition-colors border-t border-white/10 min-h-[44px]"
-                            >
-                              <Camera size={18} className="text-purple-400 shrink-0" />
-                              <div className="flex flex-col text-left">
-                                <span className="font-medium">Take Photo</span>
-                                <span className="text-xs text-gray-500">Use camera</span>
-                              </div>
-                            </button>
-                          </div>
-                        </>
-                      )}
-                    </div>
-
-                    {/* Input Field */}
+                  <div className="w-full max-w-xl relative">
                     <textarea
                       value={input}
-                      onChange={(e) => setInput(e.target.value)}
+                      onChange={(e) => {
+                        setInput(e.target.value);
+                        e.target.style.height = 'auto';
+                        e.target.style.height = `${Math.min(e.target.scrollHeight, 150)}px`;
+                      }}
                       onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSend())}
-                      placeholder={appMode === 'tutor' ? "Ask me anything..." : "Describe your app..."}
-                      className="flex-1 bg-transparent border-0 text-white placeholder-gray-400 focus:outline-none resize-none min-h-[60px] md:min-h-[60px] max-h-[200px] leading-relaxed text-sm md:text-base"
+                      placeholder="Message Nevra..."
+                      className="w-full rounded-2xl border border-zinc-200 shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-4 pr-12 text-zinc-900 focus:outline-none focus:ring-2 focus:ring-black/5 resize-none min-h-[60px]"
+                      autoFocus
                     />
-
-                    {/* Right: Web Search Toggle & Send Button */}
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button
-                        onClick={() => setEnableWebSearch(!enableWebSearch)}
-                        className={cn(
-                          "p-2.5 md:p-2 rounded-lg transition-all border min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 flex items-center justify-center",
-                          enableWebSearch
-                            ? "bg-blue-500/20 border-blue-500/30 text-blue-400"
-                            : "bg-white/5 border-white/10 hover:bg-blue-500/20 hover:border-blue-500/30 text-gray-400 hover:text-blue-400"
-                        )}
-                        title={enableWebSearch ? "Web search enabled - Click to disable" : "Enable web search - Get real-time information"}
-                        aria-label={enableWebSearch ? "Disable web search" : "Enable web search"}
-                      >
-                        <Search size={18} />
-                      </button>
-                      <button
-                        onClick={() => handleSend()}
-                        disabled={(!input.trim() && attachedImages.length === 0) || isTyping}
-                        className="p-2.5 md:p-2 rounded-lg bg-white text-black hover:bg-gray-200 transition-colors disabled:opacity-40 disabled:cursor-not-allowed min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 flex items-center justify-center"
-                        aria-label="Send message"
-                      >
-                        <Send size={18} />
-                      </button>
-                      <button
-                        onClick={() => setShowVoiceCall(true)}
-                        className="p-2.5 md:p-2 rounded-lg bg-gradient-to-br from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white transition-all shadow-lg hover:shadow-purple-500/50 min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 flex items-center justify-center"
-                        aria-label="Voice Call"
-                        title="Voice Call with Nevra"
-                      >
-                        <Phone size={18} />
-                      </button>
-                    </div>
+                    <button
+                      onClick={() => handleSend()}
+                      disabled={!input.trim() || isTyping}
+                      className="absolute right-3 bottom-3 p-2 bg-black text-white rounded-xl hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                    >
+                      <Send size={16} />
+                    </button>
                   </div>
 
-                  {/* Status indicators & Provider - Below input */}
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0 px-3 md:px-4 py-2 border-t border-white/10">
-                    {/* Left: Status indicators */}
-                    <div className="flex items-center gap-3 md:gap-4 flex-wrap">
-                      {uploadedDocument && (
-                        <div className="flex items-center gap-2 text-xs text-green-400">
-                          <FileText size={14} className="shrink-0" />
-                          <span className="truncate max-w-[120px] sm:max-w-[200px]">{uploadedDocument.title}</span>
-                          <button
-                            onClick={() => {
-                              setUploadedDocument(null);
-                              setShowDocumentViewer(false);
-                            }}
-                            className="p-1.5 hover:bg-white/10 rounded transition-colors min-w-[32px] min-h-[32px] flex items-center justify-center"
-                            title="Remove document"
-                            aria-label="Remove document"
-                          >
-                            <X size={12} />
-                          </button>
-                        </div>
-                      )}
-                      {enableWebSearch && (
-                        <div className="flex items-center gap-2 text-xs text-blue-400">
-                          <Search size={14} className="shrink-0" />
-                          <span className="whitespace-nowrap">Web search enabled</span>
-                        </div>
-                      )}
+                  <p className="text-zinc-500 text-sm max-w-xl text-center">
+                    Ask questions, research topics, or explore ideas.
+                  </p>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center w-full max-w-2xl px-4 space-y-4 pt-20 mx-auto">
+                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-500/10 to-blue-500/10 border border-zinc-200 flex items-center justify-center">
+                    <Bot size={22} className="text-purple-600" />
+                  </div>
+                  <h2 className="text-2xl font-semibold text-zinc-900">Describe what you want to build</h2>
+                  <p className="text-zinc-500 text-sm max-w-xl text-center">
+                    Contoh: “Buat landing page SaaS modern dengan hero, fitur grid, pricing, dan footer.”<br />
+                    Sertakan gaya (minimalis, glassmorphism), warna, atau referensi UI jika ada.
+                  </p>
+                </div>
+              )}
+            </motion.div>
+          ) : (
+            <motion.div
+              key="messages"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4 }}
+              className="max-w-3xl mx-auto space-y-6"
+            >
+              {/* Show codebase exploration if active */}
+              {isExploringCodebase && (
+                <div className="flex flex-col gap-3 items-start animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-6 h-6 rounded-full bg-zinc-100 border border-zinc-200 flex items-center justify-center">
+                      <Bot size={14} className="text-zinc-500" />
                     </div>
+                    <span className="text-xs text-zinc-400">NEVRA Builder</span>
+                  </div>
+                  <div className="max-w-[85%] bg-white border border-zinc-200 rounded-xl p-4 shadow-sm">
+                    <CodebaseExplorer
+                      analysis={codebaseAnalysis}
+                      isExploring={isExploringCodebase}
+                    />
+                  </div>
+                </div>
+              )}
 
-                    {/* Right: Token (Model auto-managed by orchestrator) */}
-                    <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
-                      {/* Model auto-managed by orchestrator - no manual selection */}
-                      <div className="text-xs text-gray-500 px-2 py-1 rounded border border-white/10">
-                        Auto
+              {messages.map((msg, idx) => (
+                <div key={msg.id} className={cn("flex flex-col gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300", msg.role === 'user' ? 'items-end' : 'items-start')}>
+                  {msg.role === 'ai' && (
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="w-6 h-6 rounded-full bg-zinc-100 border border-zinc-200 flex items-center justify-center">
+                        <Bot size={14} className="text-zinc-500" />
                       </div>
-                      <span className="text-xs text-gray-400 whitespace-nowrap hidden sm:inline">
-                        ${Math.max(0, FREE_TOKEN_LIMIT - tokensUsed)} remaining
+                      <span className="text-xs text-zinc-500 font-medium">
+                        Nevra
                       </span>
                     </div>
+                  )}
+                  <div className={cn(
+                    "relative leading-relaxed transition-all duration-200",
+                    msg.role === 'user'
+                      ? "rounded-2xl px-3 md:px-4 py-2.5 md:py-3 bg-zinc-100 border border-zinc-200 text-zinc-900 max-w-[85%] sm:max-w-[80%] md:max-w-[85%]"
+                      : "rounded-2xl px-3 md:px-4 py-2.5 md:py-3 bg-transparent text-zinc-800 max-w-[90%] sm:max-w-[85%] md:max-w-[90%]"
+                  )}>
+                    {msg.images && msg.images.length > 0 && (
+                      <div className="flex gap-3 mb-4 flex-wrap">
+                        {msg.images.map((img, imgIdx) => (
+                          <div key={imgIdx} className="relative group">
+                            <img src={img} alt="Attached" className={cn(
+                              "object-cover shadow-xl",
+                              appMode === 'tutor'
+                                ? "w-28 h-28 md:w-36 md:h-36 rounded-xl md:rounded-2xl border-2 border-blue-500/30"
+                                : "w-24 h-24 md:w-32 md:h-32 rounded-lg md:rounded-xl border border-purple-500/30 shadow-lg"
+                            )} />
+                            <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl md:rounded-2xl"></div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {msg.role === 'ai' ? (
+                      <div className="prose prose-sm max-w-none prose-p:text-zinc-700 prose-headings:text-zinc-900 prose-strong:text-zinc-900 prose-code:text-purple-600 prose-pre:bg-zinc-900 prose-pre:border prose-pre:border-zinc-200">
+                        {/* Parse and render sources if available (at top of message like ChatGPT) */}
+                        {(() => {
+                          const sourcesMatch = msg.content.match(/<!-- SOURCES_JSON:(.*?) -->/);
+                          if (sourcesMatch) {
+                            try {
+                              const sources = JSON.parse(sourcesMatch[1]);
+                              return (
+                                <div className="mb-4 not-prose">
+                                  <SourcesIndicator sources={sources} />
+                                </div>
+                              );
+                            } catch (e) {
+                              return null;
+                            }
+                          }
+                          return null;
+                        })()}
+
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm, remarkMath]}
+                          rehypePlugins={[rehypeRaw, rehypeKatex]}
+                          components={{
+                            code({ node, inline, className, children, ...props }: any) {
+                              const match = /language-(\w+)/.exec(className || '');
+                              return !inline && match ? (
+                                <div className="overflow-hidden border border-zinc-200 rounded-lg bg-zinc-900 my-3">
+                                  <div className="flex items-center justify-between border-b border-zinc-700 px-4 py-2 bg-zinc-800">
+                                    <span className="text-xs font-medium text-gray-300 uppercase">{match[1]}</span>
+                                    <button
+                                      onClick={() => {
+                                        copyToClipboard(String(children).replace(/\n$/, ''));
+                                      }}
+                                      className="text-xs text-gray-400 hover:text-gray-200 px-2 py-1 rounded hover:bg-white/5 transition-colors"
+                                    >
+                                      Copy
+                                    </button>
+                                  </div>
+                                  <div className="overflow-x-auto">
+                                    <SyntaxHighlighter
+                                      style={vscDarkPlus}
+                                      language={match[1]}
+                                      PreTag="div"
+                                      customStyle={{
+                                        margin: 0,
+                                        padding: '1rem',
+                                        background: 'transparent',
+                                        fontSize: '13px',
+                                        lineHeight: '1.6'
+                                      }}
+                                      {...props}
+                                    >
+                                      {String(children).replace(/\n$/, '')}
+                                    </SyntaxHighlighter>
+                                  </div>
+                                </div>
+                              ) : (
+                                <code className="rounded px-1.5 py-0.5 text-xs font-medium bg-purple-50 text-purple-600 border border-purple-200" {...props}>
+                                  {children}
+                                </code>
+                              );
+                            }
+                          }}
+                        >
+                          {msg.content.replace(/<!-- SOURCES_JSON:.*? -->/g, '')}
+                        </ReactMarkdown>
+                      </div>
+                    ) : (
+                      <div className="whitespace-pre-wrap text-zinc-900 leading-relaxed text-sm">
+                        {msg.content.replace(/<!-- SOURCES_JSON:.*? -->/g, '')}
+                      </div>
+                    )}
                   </div>
-                </>
+                  {/* Action Buttons - Different for Tutor vs Builder */}
+                  {
+                    msg.role === 'ai' && (
+                      <div className="space-y-3 mt-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {/* Copy Button */}
+                          <button
+                            onClick={() => {
+                              copyToClipboard(msg.content, () => {
+                                setCopiedMessageId(msg.id);
+                                setTimeout(() => setCopiedMessageId(null), 2000); // Reset after 2 seconds
+                              });
+                            }}
+                            className="p-1.5 rounded-md hover:bg-zinc-100 text-zinc-400 hover:text-zinc-600 transition-colors flex items-center gap-1.5"
+                            title="Copy text"
+                          >
+                            {copiedMessageId === msg.id ? (
+                              <>
+                                <Check size={14} className="text-green-400" />
+                                <span className="text-xs text-green-400 font-medium animate-pulse">Copied!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy size={14} />
+                                <span className="text-xs">Copy</span>
+                              </>
+                            )}
+                          </button>
+                          <button
+                            onClick={() => setMessageFeedback(prev => ({
+                              ...prev,
+                              [msg.id]: prev[msg.id] === 'like' ? undefined : 'like'
+                            } as any))}
+                            className={cn(
+                              "flex items-center gap-1.5 px-2 py-1 text-xs text-gray-500 hover:text-white rounded hover:bg-white/5 transition-colors",
+                              messageFeedback[msg.id] === 'like' && "text-blue-400 hover:text-blue-300"
+                            )}
+                            title="Good response"
+                          >
+                            <ThumbsUp size={14} className={cn(messageFeedback[msg.id] === 'like' && "fill-current")} />
+                          </button>
+                          <button
+                            onClick={() => setMessageFeedback(prev => ({
+                              ...prev,
+                              [msg.id]: prev[msg.id] === 'dislike' ? undefined : 'dislike'
+                            } as any))}
+                            className={cn(
+                              "flex items-center gap-1.5 px-2 py-1 text-xs text-gray-500 hover:text-white rounded hover:bg-white/5 transition-colors",
+                              messageFeedback[msg.id] === 'dislike' && "text-red-400 hover:text-red-300"
+                            )}
+                            title="Bad response"
+                          >
+                            <ThumbsDown size={14} className={cn(messageFeedback[msg.id] === 'dislike' && "fill-current")} />
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              // Share functionality placeholder
+                              console.log("Share clicked");
+                            }}
+                            className="flex items-center gap-1.5 px-2 py-1 text-xs text-gray-500 hover:text-white rounded hover:bg-white/5 transition-colors"
+                            title="Share"
+                          >
+                            <Share size={14} />
+                          </button>
+                          <button
+                            onClick={() => {
+                              // Refresh/Regenerate placeholder
+                              console.log("Regenerate clicked");
+                            }}
+                            className="flex items-center gap-1.5 px-2 py-1 text-xs text-gray-500 hover:text-white rounded hover:bg-white/5 transition-colors"
+                            title="Regenerate"
+                          >
+                            <RefreshCcw size={14} />
+                          </button>
+                          <button
+                            className="flex items-center gap-1.5 px-2 py-1 text-xs text-gray-500 hover:text-white rounded hover:bg-white/5 transition-colors"
+                            title="More"
+                          >
+                            <MoreHorizontal size={14} />
+                          </button>
+
+                          {appMode === 'builder' && msg.code && (
+                            <>
+                              <div className="w-[1px] h-3 bg-white/10 mx-1" />
+                              <button
+                                onClick={() => {
+                                  if (msg.code) {
+                                    setCurrentCode(msg.code);
+                                    fileManager.clear();
+                                    fileManager.addFile('index.html', msg.code, 'page');
+                                    fileManager.setEntry('index.html');
+                                    setSelectedFile('index.html');
+                                    if (!openFiles.includes('index.html')) {
+                                      setOpenFiles(prev => [...prev, 'index.html']);
+                                    }
+                                    setRefreshKey(k => k + 1);
+                                  }
+                                  setActiveTab('preview');
+                                  if (isMobile) setMobileTab('workbench');
+                                }}
+                                className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-gray-300 hover:text-white hover:bg-white/5 rounded-md transition-colors border border-white/10"
+                              >
+                                <Eye size={14} /> View Generated
+                              </button>
+                              <button
+                                onClick={() => {
+                                  copyToClipboard(msg.code || '');
+                                }}
+                                className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-gray-300 hover:text-white hover:bg-white/5 rounded-md transition-colors border border-white/10"
+                              >
+                                <Copy size={14} /> Copy Code
+                              </button>
+                            </>
+                          )}
+                          {/* Redundant copy button removed */}
+                        </div>
+                      </div>
+                    )
+                  }
+                </div>
+              ))}
+              {isTyping && (
+                <div className="pl-2">
+                  <AILoading
+                    mode={appMode || 'tutor'}
+                    status={workflowStatus?.message}
+                  />
+                </div>
               )}
-            </div>
-          </div>
+              <div ref={messagesEndRef} />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Soft Limit Warning Banner */}
+      {softLimitReached && !isSubscribed && (
+        <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-50 pointer-events-none w-full max-w-md px-4">
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-yellow-500/90 text-white text-xs px-4 py-2 rounded-full backdrop-blur-md shadow-lg flex items-center justify-center gap-2 pointer-events-auto mx-auto"
+          >
+            <AlertTriangle size={14} className="fill-white/20" />
+            <span className="font-medium">⚡ Low Credits: {credits} remaining today (Reset at 00:00)</span>
+            <Link to="/pricing" className="underline hover:no-underline ml-1">Upgrade</Link>
+          </motion.div>
         </div>
       )}
-    </div>
+
+      {/* Input Area - ChatGPT Style - Show after first message or always for tutor mode */}
+      {
+        true && (
+          <ChatInput
+            input={input}
+            setInput={setInput}
+            handleSend={() => handleSend()}
+            isTyping={isTyping}
+            attachedImages={attachedImages}
+            removeImage={removeImage}
+            appMode={appMode}
+            isMobile={isMobile}
+            isSubscribed={isSubscribed || false}
+            tokensUsed={tokensUsed || 0}
+            enableWebSearch={enableWebSearch}
+            setEnableWebSearch={setEnableWebSearch}
+            setShowQuiz={setShowQuiz}
+            setShowNotes={setShowNotes}
+            setShowDashboard={setShowDashboard}
+            setShowFlashcards={setShowFlashcards}
+            setShowVoiceCall={setShowVoiceCall}
+            fileInputRef={fileInputRef}
+            documentInputRef={documentInputRef}
+            handleFileChange={(e) => {
+              if (e.target.files && e.target.files.length > 0) {
+                const files = Array.from(e.target.files);
+                files.forEach(file => {
+                  const reader = new FileReader();
+                  reader.onload = (ev) => {
+                    const dataUrl = ev.target?.result as string;
+                    if (dataUrl) setAttachedImages(prev => [...prev, dataUrl]);
+                  };
+                  reader.readAsDataURL(file);
+                });
+              }
+            }}
+            handleCameraCapture={handleCameraCapture}
+            setUploadedDocument={setUploadedDocument}
+            setShowDocumentViewer={setShowDocumentViewer}
+            uploadedDocument={uploadedDocument}
+            messagesLength={messages.length}
+          />
+        )
+      }
+    </div >
   );
 
   const workbenchContent = (
-    <div className="flex flex-col h-full bg-[#0a0a0a] border-l border-white/10 font-sans relative overflow-hidden">
+    <div className="flex flex-col h-full bg-zinc-50 border-l border-zinc-200 font-sans relative overflow-hidden">
       {/* Workbench Header - Clean Dark Style */}
       <div className={cn(
-        "relative z-[100] border-b border-white/10 flex items-center justify-between shrink-0 bg-[#0f0f0f]",
+        "relative z-[100] border-b border-zinc-200 flex items-center justify-between shrink-0 bg-white",
         isMobile ? "h-12 px-3" : "h-11 px-4"
       )}>
         {/* Left: Tabs & FileTree Toggle (Mobile/Tablet) */}
@@ -3800,24 +3104,24 @@ const ChatInterface: React.FC = () => {
               onClick={() => setFileTreeOpen(!fileTreeOpen)}
               className={cn(
                 "p-2.5 md:p-2 rounded-lg transition-colors shrink-0 min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 flex items-center justify-center",
-                "bg-white/5 hover:bg-white/10 border border-white/5",
-                fileTreeOpen && "bg-purple-500/20 border-purple-500/30"
+                "bg-white hover:bg-zinc-100 border border-zinc-200",
+                fileTreeOpen && "bg-purple-50 border-purple-200"
               )}
               title={fileTreeOpen ? "Hide File Tree" : "Show File Tree"}
               aria-label={fileTreeOpen ? "Hide File Tree" : "Show File Tree"}
             >
-              <Folder size={16} className={fileTreeOpen ? "text-purple-400" : "text-gray-400"} />
+              <Folder size={16} className={fileTreeOpen ? "text-purple-600" : "text-zinc-400"} />
             </button>
           )}
           {/* Tabs - Clean Dark Style */}
-          <div className="flex items-center gap-0.5 sm:gap-1 bg-white/5 rounded-lg p-0.5 sm:p-1 border border-white/10 overflow-x-auto scrollbar-none">
+          <div className="flex items-center gap-0.5 sm:gap-1 bg-zinc-100 rounded-lg p-0.5 sm:p-1 border border-zinc-200 overflow-x-auto scrollbar-none">
             <button
               onClick={() => setActiveTab('preview')}
               className={cn(
                 "flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 md:px-3 py-2 md:py-1.5 text-[10px] sm:text-xs font-medium rounded-md transition-all min-h-[44px] md:min-h-0 whitespace-nowrap shrink-0",
                 activeTab === 'preview'
-                  ? "bg-white text-black shadow-sm"
-                  : "text-gray-400 hover:text-gray-300"
+                  ? "bg-white text-zinc-900 shadow-sm border border-zinc-200"
+                  : "text-zinc-500 hover:text-zinc-900"
               )}
             >
               <Play size={isMobile ? 10 : 12} className={activeTab === 'preview' ? "fill-current" : ""} />
@@ -3828,8 +3132,8 @@ const ChatInterface: React.FC = () => {
               className={cn(
                 "flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 md:px-3 py-2 md:py-1.5 text-[10px] sm:text-xs font-medium rounded-md transition-all min-h-[44px] md:min-h-0 whitespace-nowrap shrink-0",
                 activeTab === 'design'
-                  ? "bg-white text-black shadow-sm"
-                  : "text-gray-400 hover:text-gray-300"
+                  ? "bg-white text-zinc-900 shadow-sm border border-zinc-200"
+                  : "text-zinc-500 hover:text-zinc-900"
               )}
             >
               <Palette size={isMobile ? 10 : 12} />
@@ -3848,8 +3152,8 @@ const ChatInterface: React.FC = () => {
               className={cn(
                 "flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 md:px-3 py-2 md:py-1.5 text-[10px] sm:text-xs font-medium rounded-md transition-all min-h-[44px] md:min-h-0 whitespace-nowrap shrink-0",
                 activeTab === 'code'
-                  ? "bg-white text-black shadow-sm"
-                  : "text-gray-400 hover:text-gray-300"
+                  ? "bg-white text-zinc-900 shadow-sm border border-zinc-200"
+                  : "text-zinc-500 hover:text-zinc-900"
               )}
             >
               <Code size={isMobile ? 10 : 12} />
@@ -3859,12 +3163,12 @@ const ChatInterface: React.FC = () => {
           {/* Design Tools (when Design tab is active) */}
           {activeTab === 'design' && (
             <div className={cn(
-              "flex items-center gap-1 ml-2 pl-2 border-l border-white/10",
+              "flex items-center gap-1 ml-2 pl-2 border-l border-zinc-200",
               isMobile && "hidden"
             )}>
               <button
                 onClick={() => setShowDesignTools(!showDesignTools)}
-                className="p-2 text-gray-400 hover:text-white hover:bg-white/5 rounded-md transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+                className="p-2 text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 rounded-md transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
                 title="Fonts"
                 aria-label="Fonts"
               >
@@ -3872,7 +3176,7 @@ const ChatInterface: React.FC = () => {
               </button>
               <button
                 onClick={() => setShowDesignTools(!showDesignTools)}
-                className="p-2 text-gray-400 hover:text-white hover:bg-white/5 rounded-md transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+                className="p-2 text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 rounded-md transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
                 title="Colors"
                 aria-label="Colors"
               >
@@ -3880,7 +3184,7 @@ const ChatInterface: React.FC = () => {
               </button>
               <button
                 onClick={() => setShowDesignTools(!showDesignTools)}
-                className="p-2 text-gray-400 hover:text-white hover:bg-white/5 rounded-md transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+                className="p-2 text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 rounded-md transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
                 title="Assets"
                 aria-label="Assets"
               >
@@ -3893,7 +3197,7 @@ const ChatInterface: React.FC = () => {
           {activeTab === 'design' && isMobile && (
             <button
               onClick={() => setShowDesignTools(!showDesignTools)}
-              className="p-2 text-gray-400 hover:text-white hover:bg-white/5 rounded-md transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center ml-2"
+              className="p-2 text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 rounded-md transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center ml-2"
               title="Design Tools"
               aria-label="Design Tools"
             >
@@ -3905,29 +3209,29 @@ const ChatInterface: React.FC = () => {
         {/* Center: Canvas Controls - Clean Dark Style - Hide on mobile, show in right section */}
         {activeTab === 'preview' && !isMobile && (
           <div className="flex items-center gap-2 absolute left-1/2 -translate-x-1/2">
-            <div className="flex items-center bg-white/5 rounded-lg p-0.5 border border-white/10">
+            <div className="flex items-center bg-zinc-100 rounded-lg p-0.5 border border-zinc-200">
               <button
                 onClick={() => {
                   const newZoom = Math.max(canvasZoom - 10, 25);
                   setCanvasZoom(newZoom);
                 }}
-                className="p-1.5 hover:bg-white/10 rounded transition-colors w-6 h-6 flex items-center justify-center min-w-[24px] min-h-[24px]"
+                className="p-1.5 hover:bg-zinc-200 rounded transition-colors w-6 h-6 flex items-center justify-center min-w-[24px] min-h-[24px]"
                 disabled={canvasZoom <= 25}
                 aria-label="Zoom out"
               >
-                <ZoomOut size={12} className={canvasZoom <= 25 ? "text-gray-600" : "text-gray-400"} />
+                <ZoomOut size={12} className={canvasZoom <= 25 ? "text-zinc-300" : "text-zinc-500"} />
               </button>
-              <span className="text-xs text-gray-400 min-w-[40px] text-center font-mono">{canvasZoom}%</span>
+              <span className="text-xs text-zinc-500 min-w-[40px] text-center font-mono">{canvasZoom}%</span>
               <button
                 onClick={() => {
                   const newZoom = Math.min(canvasZoom + 10, 200);
                   setCanvasZoom(newZoom);
                 }}
-                className="p-1.5 hover:bg-white/10 rounded transition-colors w-6 h-6 flex items-center justify-center min-w-[24px] min-h-[24px]"
+                className="p-1.5 hover:bg-zinc-200 rounded transition-colors w-6 h-6 flex items-center justify-center min-w-[24px] min-h-[24px]"
                 disabled={canvasZoom >= 200}
                 aria-label="Zoom in"
               >
-                <ZoomIn size={12} className={canvasZoom >= 200 ? "text-gray-600" : "text-gray-400"} />
+                <ZoomIn size={12} className={canvasZoom >= 200 ? "text-zinc-300" : "text-zinc-500"} />
               </button>
             </div>
           </div>
@@ -3984,10 +3288,10 @@ const ChatInterface: React.FC = () => {
                     }
                   }
                 }}
-                className="p-1.5 hover:bg-white/10 rounded-md transition-colors"
+                className="p-1.5 hover:bg-zinc-100 rounded-md transition-colors"
                 title="Undo"
               >
-                <Undo2 size={12} className="text-gray-400" />
+                <Undo2 size={12} className="text-zinc-500" />
               </button>
               <button
                 onClick={() => {
@@ -4003,10 +3307,10 @@ const ChatInterface: React.FC = () => {
                     }
                   }
                 }}
-                className="p-1.5 hover:bg-white/10 rounded-md transition-colors"
+                className="p-1.5 hover:bg-zinc-100 rounded-md transition-colors"
                 title="Redo"
               >
-                <Redo2 size={12} className="text-gray-400" />
+                <Redo2 size={12} className="text-zinc-500" />
               </button>
             </div>
           )}
@@ -4014,7 +3318,7 @@ const ChatInterface: React.FC = () => {
           {/* Device Preview Toggles - Responsive sizing */}
           {activeTab === 'preview' && (
             <div className={cn(
-              "flex items-center gap-0.5 bg-white/5 rounded-lg p-0.5 border border-white/5",
+              "flex items-center gap-0.5 bg-zinc-100 rounded-lg p-0.5 border border-zinc-200",
               isMobile ? "mr-0.5" : "mr-1"
             )}>
               <button
@@ -4281,7 +3585,7 @@ const ChatInterface: React.FC = () => {
               {/* File Tabs */}
               {openFiles.length > 0 && (
                 <div className={cn(
-                  "flex items-center gap-1 bg-[#0e0e0e] border-b border-white/5 overflow-x-auto scrollbar-thin scrollbar-thumb-purple-500/20",
+                  "flex items-center gap-1 bg-zinc-50 border-b border-zinc-200 overflow-x-auto scrollbar-thin scrollbar-thumb-purple-200",
                   isMobile ? "px-1" : "px-2"
                 )}>
                   {openFiles.map(path => {
@@ -4293,8 +3597,8 @@ const ChatInterface: React.FC = () => {
                           "flex items-center gap-1 md:gap-2 rounded-t-lg transition-colors whitespace-nowrap shrink-0",
                           isMobile ? "px-2 py-1.5 text-xs" : "px-3 py-2 text-sm",
                           selectedFile === path
-                            ? "bg-[#0a0a0a] text-white border-t border-l border-r border-white/10"
-                            : "text-gray-400 hover:text-white hover:bg-white/5"
+                            ? "bg-white text-zinc-900 border-t border-l border-r border-zinc-200"
+                            : "text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100"
                         )}
                       >
                         <button
@@ -4419,9 +3723,9 @@ const ChatInterface: React.FC = () => {
                   }}
                 />
               ) : (
-                <div className="flex-1 flex items-center justify-center text-gray-500">
+                <div className="flex-1 flex items-center justify-center text-zinc-400">
                   <div className="text-center">
-                    <FileCode size={48} className="mx-auto mb-4 opacity-50" />
+                    <FileCode size={48} className="mx-auto mb-4 opacity-50 text-zinc-300" />
                     <p>No file selected</p>
                     <p className="text-sm mt-2">Select a file from the tree or generate code</p>
                   </div>
@@ -4430,7 +3734,7 @@ const ChatInterface: React.FC = () => {
             </div>
           </div>
         ) : activeTab === 'visual' ? (
-          <div className="flex-1 flex flex-col h-full overflow-hidden relative bg-[#050505] min-h-0">
+          <div className="flex-1 flex flex-col h-full overflow-hidden relative bg-zinc-50 min-h-0">
             <VisualEditor
               iframeRef={previewIframeRef}
               onUpdateCode={(updatedCode) => {
@@ -4446,258 +3750,42 @@ const ChatInterface: React.FC = () => {
             />
           </div>
         ) : activeTab === 'preview' ? (
-          <div className={cn(
-            "flex-1 flex flex-col h-full overflow-auto items-center justify-start relative bg-[#050505] min-h-0",
-            isMobile ? "p-4" : "p-6"
-          )}>
-            {/* Address Bar - Clean Dark Style */}
-            <div className={cn(
-              "bg-white/5 border border-white/10 rounded-lg shadow-sm mb-3 sm:mb-4 transition-all shrink-0 z-10 text-xs text-gray-400 flex items-center gap-2 sm:gap-3",
-              previewDevice === 'desktop'
-                ? isMobile ? "w-full px-2 sm:px-3 py-1.5 sm:py-2" : "w-[600px] px-4 py-2.5"
-                : "w-full max-w-[calc(100%-1rem)] sm:max-w-[calc(100%-2rem)] px-2 sm:px-3 py-1.5 sm:py-2"
-            )}>
-              <div className="flex gap-1.5 shrink-0">
-                <div className="w-2.5 h-2.5 rounded-full bg-red-400/60"></div>
-                <div className="w-2.5 h-2.5 rounded-full bg-yellow-400/60"></div>
-                <div className="w-2.5 h-2.5 rounded-full bg-green-400/60"></div>
-              </div>
-              <div className="flex-1 text-center font-mono text-gray-400 flex items-center justify-center gap-2 min-w-0">
-                <Globe size={12} className="shrink-0" />
-                <span className="truncate">localhost:3000</span>
-              </div>
-              <button
-                onClick={() => setRefreshKey(k => k + 1)}
-                className="p-1.5 sm:p-1.5 rounded hover:bg-white/10 text-gray-500 hover:text-gray-300 transition-all shrink-0 min-w-[32px] min-h-[32px] flex items-center justify-center"
-                aria-label="Refresh preview"
-              >
-                <RefreshCw size={14} />
-              </button>
-            </div>
-
-            {/* Iframe Preview Container - iPhone 17 Pro Max Mockup */}
-            <div
-              ref={previewContainerRef}
-              className={cn(
-                "relative z-0 transition-all duration-300 origin-center flex flex-col shrink-0 shadow-2xl overflow-visible",
-                previewDevice === 'mobile'
-                  ? isMobile
-                    ? "w-full max-w-[calc(100vw-2rem)] sm:max-w-[430px] h-[calc(100vh-200px)] sm:h-[932px] mx-auto"
-                    : "w-[430px] h-[932px]"
-                  : previewDevice === 'tablet'
-                    ? isMobile
-                      ? "w-full max-w-[calc(100vw-2rem)] sm:max-w-[600px] h-[calc(100vh-200px)] sm:h-[700px] mx-auto"
-                      : "w-[768px] h-[1024px]"
-                    : "w-full h-full max-w-full max-h-full rounded-lg border border-white/10 bg-[#1a1a1a]"
-              )}
-              style={
-                previewDevice === 'mobile' || previewDevice === 'tablet'
-                  ? {
-                    transform: `scale(${deviceScale * (canvasZoom / 100)})`,
-                    transformOrigin: 'center',
-                    margin: '0 auto'
-                  }
-                  : {
-                    transform: `scale(${canvasZoom / 100})`,
-                    transformOrigin: 'center',
-                  }
-              }>
-              {/* iPhone 17 Pro Max Frame - Premium Design */}
-              {previewDevice === 'mobile' && (
-                <>
-                  {/* Outer Frame - Premium Bezel with realistic depth */}
-                  <div className="absolute inset-0 rounded-[3.5rem] bg-gradient-to-b from-[#2d2d2d] via-[#1a1a1a] to-[#2d2d2d] shadow-[0_0_0_6px_#1a1a1a,0_0_0_7px_#0a0a0a,0_0_0_8px_#050505,0_25px_70px_rgba(0,0,0,0.9)] pointer-events-none z-0" />
-
-                  {/* Inner Screen Border - No padding */}
-                  <div className="absolute inset-0 rounded-[3.5rem] border-[2.5px] border-[#0a0a0a]/80 pointer-events-none z-10" />
-                  <div className="absolute inset-0 rounded-[3.5rem] border border-white/5 pointer-events-none z-10" />
-
-                  {/* Dynamic Island - iPhone 17 Pro Max Style */}
-                  <div className="absolute top-[8px] left-1/2 -translate-x-1/2 z-30 pointer-events-none">
-                    <div className="w-[126px] h-[37px] bg-[#000000] rounded-full shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08),inset_0_1px_2px_rgba(0,0,0,0.8),0_2px_10px_rgba(0,0,0,0.7)] flex items-center justify-center relative">
-                      {/* Dynamic Island Inner Glow */}
-                      <div className="absolute inset-0 rounded-full bg-gradient-to-b from-white/[0.03] via-transparent to-black/50"></div>
-
-                      {/* Dynamic Island Content */}
-                      <div className="flex items-center gap-2.5 z-10">
-                        <div className="w-[5px] h-[5px] rounded-full bg-white/30 shadow-[0_0_2px_rgba(255,255,255,0.2)]"></div>
-                        <div className="w-[3px] h-[3px] rounded-full bg-white/20"></div>
-                      </div>
-
-                      {/* Camera cutout hint */}
-                      <div className="absolute left-4 w-[6px] h-[6px] rounded-full bg-black/80 border border-white/10"></div>
-                      <div className="absolute right-4 w-[8px] h-[8px] rounded-full bg-black/80 border border-white/10"></div>
-                    </div>
-                  </div>
-
-                  {/* Status Bar Indicators - Left Side (Time) */}
-                  <div className="absolute top-[20px] left-[50px] z-30 flex items-center pointer-events-none">
-                    <span className="text-[14px] font-semibold text-white tracking-[-0.2px]">9:41</span>
-                  </div>
-
-                  {/* Status Bar Indicators - Right Side (Signal, Battery, etc) */}
-                  <div className="absolute top-[20px] right-[50px] z-30 flex items-center gap-1.5 pointer-events-none">
-                    {/* Signal Bars */}
-                    <div className="flex items-end gap-[2.5px]">
-                      <div className="w-[3px] h-[4px] bg-white rounded-t-[1px]"></div>
-                      <div className="w-[3px] h-[5px] bg-white rounded-t-[1px]"></div>
-                      <div className="w-[3px] h-[6px] bg-white rounded-t-[1px]"></div>
-                      <div className="w-[3px] h-[7px] bg-white rounded-t-[1px]"></div>
-                    </div>
-
-                    {/* WiFi */}
-                    <div className="w-[16px] h-[12px] relative -mt-0.5">
-                      <svg viewBox="0 0 16 12" className="w-full h-full" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round">
-                        <path d="M8 2C10 2 12 3 13.5 4.5" />
-                        <path d="M8 6.5C9 6.5 10 7 11 8" />
-                        <circle cx="8" cy="10.5" r="1" fill="white" />
-                      </svg>
-                    </div>
-
-                    {/* Battery */}
-                    <div className="w-[26px] h-[13px] border border-white rounded-[2.5px] relative">
-                      <div className="absolute left-[2.5px] top-[2.5px] w-[19px] h-[7px] bg-white rounded-[1px]"></div>
-                      <div className="absolute right-[-3.5px] top-[3.5px] w-[2.5px] h-[6px] bg-white rounded-r-[1.5px]"></div>
-                    </div>
-                  </div>
-                </>
-              )}
-
-              <div className={cn(
-                "flex-1 bg-[#1a1a1a] relative overflow-hidden min-h-0 flex flex-col",
-                previewDevice === 'mobile'
-                  ? "rounded-[3.5rem]"
-                  : previewDevice === 'tablet'
-                    ? "rounded-[1.5rem]"
-                    : "rounded-t-lg"
-              )}>
-
-                {!isSubscribed && hasExceeded && (
-                  <div className="absolute inset-0 z-30 bg-[#0a0a0a]/95 backdrop-blur flex flex-col items-center justify-center text-center px-6">
-                    <div className="text-lg font-semibold text-white mb-2">Quota reached</div>
-                    <p className="text-sm text-gray-400 mb-4">Upgrade to continue generating previews.</p>
-                  </div>
-                )}
-
-                {/* Show building animation when generating code */}
-                {isBuildingCode ? (
-                  <BuildingAnimation
-                    isBuilding={isBuildingCode}
-                    files={fileManager.getAllFiles().map(f => ({
-                      path: f.path,
-                      type: f.type
-                    }))}
-                    currentStep={isExploringCodebase ? 'Exploring codebase...' : 'Building web application...'}
-                  />
-                ) : (currentCode || fileManager.getEntry()) ? (
-                  <>
-                    {(() => {
-                      // Get code for preview
-                      const previewCode = currentCode ||
-                        fileManager.getFile(fileManager.getEntry())?.content ||
-                        '';
-
-                      // Validate code before rendering
-                      // Check if code is empty or only contains whitespace/newlines
-                      const trimmedCode = previewCode ? previewCode.trim() : '';
-                      if (!trimmedCode || trimmedCode.length === 0 || /^[\s\n\r\t]+$/.test(trimmedCode)) {
-                        return (
-                          <div className="w-full h-full flex items-center justify-center bg-[#0a0a0a] text-gray-400">
-                            <div className="text-center">
-                              <p className="text-lg mb-2">No code to preview</p>
-                              <p className="text-sm">Please generate code first by describing your app in the chat.</p>
-                            </div>
-                          </div>
-                        );
-                      }
-
-                      // Use getIframeSrc which handles React/TSX conversion automatically
-                      const entryPath = fileManager.getEntry() || selectedFile || undefined;
-
-                      return (
-                        <iframe
-                          ref={previewIframeRef}
-                          key={refreshKey}
-                          src={getIframeSrc(previewCode, entryPath, currentFramework)}
-                          className="w-full h-full border-none bg-[#1a1a1a] flex-1 min-h-0"
-                          title="Preview"
-                          sandbox="allow-scripts allow-modals allow-forms allow-popups allow-same-origin"
-                          style={{
-                            width: '100%',
-                            height: '100%',
-                            display: 'block',
-                            flex: '1 1 0',
-                            minHeight: 0
-                          }}
-                          onError={(e) => {
-                            console.error('❌ Iframe error:', e);
-                          }}
-                          onLoad={() => {
-                            console.log('✅ Preview iframe loaded successfully');
-                          }}
-                        />
-                      );
-                    })()}
-                  </>
-                ) : (
-                  <div className="flex flex-col items-center justify-center h-full text-gray-400 gap-5 bg-[#0a0a0a] min-h-[200px] flex-1">
-                    <div className="text-center">
-                      <FileCode size={48} className="mx-auto mb-4 opacity-50" />
-                      <p className="text-lg mb-2">No code to preview</p>
-                      <p className="text-sm mb-4">Generate code by describing your app in the chat, then click "View Generated App"</p>
-                      <button
-                        onClick={() => {
-                          // Try to get code from messages
-                          const lastAiMessage = messages.filter(m => m.role === 'ai' && m.code).pop();
-                          if (lastAiMessage?.code) {
-                            setCurrentCode(lastAiMessage.code);
-                            fileManager.clear();
-                            fileManager.addFile('index.html', lastAiMessage.code, 'page');
-                            fileManager.setEntry('index.html');
-                            setSelectedFile('index.html');
-                            setRefreshKey(k => k + 1);
-                            console.log('✅ Restored code from message');
-                          } else {
-                            console.warn('⚠️ No code found in messages');
-                          }
-                        }}
-                        className="px-4 py-2 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 rounded-lg text-sm text-purple-300 transition-colors"
-                      >
-                        Try to Restore from Chat
-                      </button>
-                    </div>
-                    <div className="relative">
-                      <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-purple-500/20 to-blue-500/20 shadow-2xl flex items-center justify-center animate-pulse border border-purple-500/30">
-                        <Layout size={40} className="text-purple-400/60" />
-                      </div>
-                      <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-purple-400/20 to-blue-400/20 blur-xl animate-pulse"></div>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-base font-semibold text-gray-300 mb-1">Ready to build</p>
-                      <p className="text-sm text-gray-400">Your generated app will appear here</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+          <PreviewContainer
+            isMobile={isMobile}
+            previewDevice={previewDevice}
+            isSubscribed={isSubscribed || false}
+            hasExceeded={hasExceeded || false}
+            isBuildingCode={isBuildingCode}
+            isExploringCodebase={isExploringCodebase}
+            fileManager={fileManager}
+            currentCode={currentCode}
+            currentFramework={currentFramework}
+            refreshKey={refreshKey}
+            setRefreshKey={setRefreshKey}
+            setCurrentCode={setCurrentCode}
+            setSelectedFile={setSelectedFile}
+            setOpenFiles={setOpenFiles}
+            messages={messages}
+            canvasZoom={canvasZoom}
+            selectedFile={selectedFile}
+          />
         ) : (
           <div className="flex-1 flex overflow-hidden">
             {/* File Explorer */}
-            <div className="w-56 border-r border-white/5 bg-gradient-to-b from-[#0a0a0a] to-[#080808] flex flex-col">
-              <div className="p-4 text-xs font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-2.5 border-b border-white/5">
-                <div className="w-5 h-5 rounded bg-blue-500/20 border border-blue-500/30 flex items-center justify-center">
-                  <Folder size={12} className="text-blue-400" />
+            <div className="w-56 border-r border-zinc-200 bg-zinc-50 flex flex-col">
+              <div className="p-4 text-xs font-semibold text-zinc-500 uppercase tracking-wider flex items-center gap-2.5 border-b border-zinc-200">
+                <div className="w-5 h-5 rounded bg-blue-50 border border-blue-200 flex items-center justify-center">
+                  <Folder size={12} className="text-blue-600" />
                 </div>
                 <span>Explorer</span>
               </div>
-              <div className="flex-1 overflow-y-auto p-2 scrollbar-thin scrollbar-thumb-purple-500/20 scrollbar-track-transparent">
+              <div className="flex-1 overflow-y-auto p-2 scrollbar-thin scrollbar-thumb-purple-200 scrollbar-track-transparent">
                 {files.map(file => <FileTreeItem key={file.name} node={file} />)}
               </div>
             </div>
             {/* Code Editor */}
-            <div className="flex-1 bg-gradient-to-br from-[#0e0e0e] to-[#0a0a0a] overflow-hidden flex flex-col">
-              <div className="h-11 bg-gradient-to-r from-[#0a0a0a] to-[#0c0c0c] border-b border-white/5 flex items-center px-5 gap-3">
+            <div className="flex-1 bg-white overflow-hidden flex flex-col">
+              <div className="h-11 bg-zinc-50 border-b border-zinc-200 flex items-center px-5 gap-3">
                 <div className="w-6 h-6 rounded bg-purple-500/20 border border-purple-500/30 flex items-center justify-center">
                   <FileCode size={14} className="text-purple-400" />
                 </div>
@@ -4725,49 +3813,16 @@ const ChatInterface: React.FC = () => {
         )}
 
         {/* Terminal */}
-        <div className={cn("border-t border-white/5 bg-gradient-to-t from-[#0a0a0a] to-[#0c0c0c] transition-all duration-300 flex flex-col absolute bottom-0 left-0 right-0 z-40 shadow-2xl backdrop-blur-xl", terminalOpen ? "h-72" : "h-10")}>
-          <div
-            className="h-10 flex items-center px-4 gap-3 cursor-pointer hover:bg-white/5 border-b border-white/5 bg-gradient-to-r from-[#111] to-[#0f0f0f] transition-colors"
-            onClick={() => setTerminalOpen(!terminalOpen)}
-          >
-            <div className="w-5 h-5 rounded bg-gradient-to-br from-purple-500/20 to-blue-500/20 border border-purple-500/30 flex items-center justify-center">
-              <TerminalIcon size={12} className="text-purple-400" />
-            </div>
-            <span className="text-xs font-mono font-semibold text-gray-300">Terminal</span>
-            <div className="flex-1" />
-            <div className="flex items-center gap-2">
-              {terminalOpen && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); setLogs([]); }}
-                  className="text-[10px] font-medium text-gray-500 hover:text-white px-2 py-1 rounded-md hover:bg-white/5 transition-colors"
-                >
-                  Clear
-                </button>
-              )}
-              <ChevronDown size={14} className={cn("text-gray-500 transition-transform duration-300", terminalOpen ? "" : "rotate-180")} />
-            </div>
-          </div>
-          {terminalOpen && (
-            <div className="flex-1 p-4 overflow-y-auto font-mono text-xs space-y-1.5 bg-[#0a0a0a] scrollbar-thin scrollbar-thumb-purple-500/20 scrollbar-track-transparent">
-              {logs.length === 0 ? (
-                <div className="text-gray-600 text-center py-8">No logs yet...</div>
-              ) : (
-                logs.map((log, i) => (
-                  <div key={i} className="text-gray-400 border-b border-white/5 pb-1 mb-1 last:border-0 leading-relaxed">
-                    <span className="text-purple-400/60">$</span> {log}
-                  </div>
-                ))
-              )}
-              <div className="flex items-center gap-2 text-gray-500 pt-3 mt-2 border-t border-white/5">
-                <span className="text-green-400 font-bold">➜</span>
-                <span className="text-blue-400">~</span>
-                <span className="animate-pulse text-gray-400">_</span>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
+        <ChatTerminal
+          isOpen={terminalOpen}
+          onToggle={setTerminalOpen}
+          logs={logs}
+          onClear={() => setLogs([])}
+        />
+
+
+      </div >
+    </div >
   );
 
   return (
@@ -4798,38 +3853,194 @@ const ChatInterface: React.FC = () => {
       />
       {/* Voice Call Modal - Only for Tutor Mode */}
       {appMode === 'tutor' && (
-        <VoiceCall
-          isOpen={showVoiceCall}
-          onClose={() => setShowVoiceCall(false)}
-          provider={provider}
-          sessionId={sessionId}
-          onMessage={handleVoiceMessage}
-        />
+        <>
+          {/* Learning Features Modals */}
+          {showQuiz && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
+              >
+                <div className="flex items-center justify-between p-4 border-b border-gray-200">
+                  <h2 className="text-xl font-semibold">Quiz: {currentTopic || 'General'}</h2>
+                  <button
+                    onClick={() => setShowQuiz(false)}
+                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+                <div className="flex-1 overflow-auto p-6">
+                  <QuizPanel
+                    topic={currentTopic || 'General'}
+                    difficulty="medium"
+                    provider={provider}
+                    onClose={() => setShowQuiz(false)}
+                  />
+                </div>
+              </motion.div>
+            </div>
+          )}
+
+          {showNotes && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
+              >
+                <div className="flex items-center justify-between p-4 border-b border-gray-200">
+                  <h2 className="text-xl font-semibold">Take Notes</h2>
+                  <button
+                    onClick={() => setShowNotes(false)}
+                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+                <div className="flex-1 overflow-auto p-6">
+                  <NoteEditor
+                    topic={currentTopic}
+                    conversationId={currentSessionId || sessionId || undefined}
+                    onSave={(note) => {
+                      console.log('Note saved:', note);
+                      setShowNotes(false);
+                    }}
+                    onClose={() => setShowNotes(false)}
+                  />
+                </div>
+              </motion.div>
+            </div>
+          )}
+
+          {showDashboard && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col"
+              >
+                <div className="flex items-center justify-between p-4 border-b border-gray-200">
+                  <h2 className="text-xl font-semibold">Learning Dashboard</h2>
+                  <button
+                    onClick={() => setShowDashboard(false)}
+                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+                <div className="flex-1 overflow-auto">
+                  <LearningDashboard />
+                </div>
+              </motion.div>
+            </div>
+          )}
+
+          {showFlashcards && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
+              >
+                <div className="flex items-center justify-between p-4 border-b border-gray-200">
+                  <h2 className="text-xl font-semibold">Review Flashcards</h2>
+                  <button
+                    onClick={() => setShowFlashcards(false)}
+                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+                <div className="flex-1 overflow-auto p-6">
+                  <FlashcardReview
+                    topic={currentTopic}
+                    limit={10}
+                    onComplete={() => setShowFlashcards(false)}
+                  />
+                </div>
+              </motion.div>
+            </div>
+          )}
+
+          <VoiceCall
+            isOpen={showVoiceCall}
+            onClose={() => setShowVoiceCall(false)}
+            provider={provider}
+            sessionId={sessionId}
+            onMessage={handleVoiceMessage}
+          />
+        </>
       )}
       {showSplash ? (
         <SplashScreen onComplete={() => setShowSplash(false)} />
       ) : (
-        <div className="flex h-screen bg-[#050505] text-white overflow-hidden font-sans">
+        <div className="flex h-screen bg-white text-zinc-900 overflow-hidden overflow-x-hidden font-sans">
           {isMobile ? (
             /* MOBILE LAYOUT */
-            <div className="flex flex-col h-full w-full relative">
-              <div className="flex-1 relative overflow-hidden">
+            <div className="flex flex-col h-full w-full relative overflow-x-hidden">
+              {/* Mobile Sidebar Overlay */}
+              {isMobileSidebarOpen && (
+                <div className="fixed inset-0 z-50 flex">
+                  {/* Backdrop */}
+                  <div
+                    className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
+                    onClick={() => setIsMobileSidebarOpen(false)}
+                  />
+                  {/* Sidebar Panel */}
+                  <div className="relative w-4/5 max-w-[300px] h-full bg-white shadow-2xl animate-in slide-in-from-left duration-300">
+                    <Sidebar
+                      activeSessionId={sessionId}
+                      onNewChat={() => {
+                        handleNewChat();
+                        setIsMobileSidebarOpen(false);
+                      }}
+                      onSelectSession={(sid) => {
+                        handleSelectSession(sid);
+                        setIsMobileSidebarOpen(false);
+                      }}
+                      onOpenSettings={() => {
+                        handleOpenSettings();
+                        setIsMobileSidebarOpen(false);
+                      }}
+                      onClose={() => setIsMobileSidebarOpen(false)}
+                      isSubscribed={isSubscribed}
+                    />
+                    <button
+                      onClick={() => setIsMobileSidebarOpen(false)}
+                      className="absolute top-2 right-2 p-2 bg-white rounded-full shadow-sm text-zinc-500 hover:text-zinc-900 z-50"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex-1 relative overflow-hidden overflow-x-hidden">
                 {/* Chat Layer */}
-                <div className={cn("absolute inset-0 w-full h-full transition-transform duration-300", mobileTab === 'chat' ? 'translate-x-0' : '-translate-x-full')}>
+                <div className={cn("absolute inset-0 w-full h-full transition-transform duration-300 overflow-x-hidden", mobileTab === 'chat' ? 'translate-x-0' : '-translate-x-full')}>
                   {chatContent}
                 </div>
 
-                {/* Workbench Layer */}
+                {/* Workbench Layer (Builder Mode) */}
                 {appMode === 'builder' && (
-                  <div className={cn("absolute inset-0 w-full h-full transition-transform duration-300 bg-[#0e0e0e]", mobileTab === 'workbench' ? 'translate-x-0' : 'translate-x-full')}>
+                  <div className={cn("absolute inset-0 w-full h-full transition-transform duration-300 bg-zinc-50 overflow-x-hidden", mobileTab === 'workbench' ? 'translate-x-0' : 'translate-x-full')}>
                     {workbenchContent}
+                  </div>
+                )}
+
+                {/* Canvas Layer (Canvas Mode) */}
+                {appMode === 'canvas' && (
+                  <div className={cn("absolute inset-0 w-full h-full transition-transform duration-300 bg-white overflow-x-hidden", mobileTab === 'canvas' ? 'translate-x-0' : 'translate-x-full')}>
+                    <CanvasBoard onAnalyze={handleCanvasAnalyze} />
                   </div>
                 )}
               </div>
 
               {/* Mobile Nav */}
-              {appMode === 'builder' && (
-                <div className="h-16 bg-[#0a0a0a] border-t border-white/10 flex items-center justify-around shrink-0 z-20 pb-safe px-safe">
+              {(appMode === 'builder' || appMode === 'canvas') && (
+                <div className="h-16 bg-white border-t border-zinc-200 flex items-center justify-around shrink-0 z-20 pb-safe px-safe">
                   <button
                     onClick={() => setMobileTab('chat')}
                     className={cn("flex flex-col items-center gap-1 p-3 md:p-2 rounded-lg transition-colors min-w-[60px] min-h-[60px] md:min-w-0 md:min-h-0 flex-shrink-0", mobileTab === 'chat' ? "text-purple-400" : "text-gray-500")}
@@ -4838,13 +4049,24 @@ const ChatInterface: React.FC = () => {
                     <span className="text-[10px] font-medium">Chat</span>
                   </button>
                   <div className="w-[1px] h-8 bg-white/5"></div>
-                  <button
-                    onClick={() => setMobileTab('workbench')}
-                    className={cn("flex flex-col items-center gap-1 p-3 md:p-2 rounded-lg transition-colors min-w-[60px] min-h-[60px] md:min-w-0 md:min-h-0 flex-shrink-0", mobileTab === 'workbench' ? "text-blue-400" : "text-gray-500")}
-                  >
-                    <Layout size={22} />
-                    <span className="text-[10px] font-medium">Workbench</span>
-                  </button>
+                  {appMode === 'builder' && (
+                    <button
+                      onClick={() => setMobileTab('workbench')}
+                      className={cn("flex flex-col items-center gap-1 p-3 md:p-2 rounded-lg transition-colors min-w-[60px] min-h-[60px] md:min-w-0 md:min-h-0 flex-shrink-0", mobileTab === 'workbench' ? "text-blue-400" : "text-gray-500")}
+                    >
+                      <Layout size={22} />
+                      <span className="text-[10px] font-medium">Workbench</span>
+                    </button>
+                  )}
+                  {appMode === 'canvas' && (
+                    <button
+                      onClick={() => setMobileTab('canvas')}
+                      className={cn("flex flex-col items-center gap-1 p-3 md:p-2 rounded-lg transition-colors min-w-[60px] min-h-[60px] md:min-w-0 md:min-h-0 flex-shrink-0", mobileTab === 'canvas' ? "text-orange-400" : "text-gray-500")}
+                    >
+                      <Sparkles size={22} />
+                      <span className="text-[10px] font-medium">Canvas</span>
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -4855,18 +4077,24 @@ const ChatInterface: React.FC = () => {
               {appMode === 'tutor' && isSidebarOpen && (
                 <>
                   <Panel
-                    defaultSize={isSidebarCollapsed ? 14 : 18}
-                    minSize={12}
-                    maxSize={22}
-                    className="flex flex-col bg-[#171717]"
+                    defaultSize={isSidebarCollapsed ? 4 : 18}
+                    minSize={isSidebarCollapsed ? 4 : 15}
+                    maxSize={isSidebarCollapsed ? 4 : 25}
+                    collapsible={false}
+                    className={cn(
+                      "hidden md:block border-r border-zinc-200 transition-all duration-300 ease-in-out",
+                      isSidebarCollapsed ? "min-w-[60px] max-w-[60px]" : ""
+                    )}
                   >
                     <Sidebar
                       activeSessionId={sessionId}
                       onNewChat={handleNewChat}
                       onSelectSession={handleSelectSession}
                       onOpenSettings={handleOpenSettings}
-                      onCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
                       isSubscribed={isSubscribed}
+                      onCollapse={toggleSidebarCollapse}
+                      onClose={() => setIsSidebarCollapsed(false)}
+                      isCollapsed={isSidebarCollapsed}
                     />
                   </Panel>
                   <PanelResizeHandle className="w-0 bg-transparent hover:w-1 hover:bg-blue-500/30 transition-all duration-200 cursor-col-resize z-50 relative group">
@@ -4886,19 +4114,19 @@ const ChatInterface: React.FC = () => {
                 }
                 minSize={appMode === 'builder' ? 30 : 70}
                 maxSize={appMode === 'builder' ? 60 : 90}
-                className="flex flex-col bg-[#0a0a0a]"
+                className="flex flex-col bg-transparent"
               >
                 {chatContent}
               </Panel>
 
-              {/* Panel 2: Workbench */}
-              {appMode === 'builder' && (
+              {/* Panel 2: Canvas (Orak Orek) - Replacing Workbench */}
+              {(appMode === 'builder' || appMode === 'canvas') && (
                 <>
-                  <PanelResizeHandle className="w-1 bg-white/5 hover:w-2 hover:bg-purple-500/50 transition-all duration-200 cursor-col-resize z-50 relative group">
+                  <PanelResizeHandle className="w-1 bg-zinc-200 hover:w-2 hover:bg-purple-500/50 transition-all duration-200 cursor-col-resize z-50 relative group">
                     <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-0.5 bg-purple-500/0 group-hover:bg-purple-500 transition-colors" />
                   </PanelResizeHandle>
-                  <Panel defaultSize={65} minSize={50} className="flex flex-col bg-[#050505]">
-                    {workbenchContent}
+                  <Panel defaultSize={65} minSize={50} className="flex flex-col bg-white overflow-hidden relative">
+                    <CanvasBoard onAnalyze={handleCanvasAnalysis} isAnalyzing={isTyping} />
                   </Panel>
                 </>
               )}
@@ -4963,10 +4191,10 @@ const ChatInterface: React.FC = () => {
 
       {/* Code Sandbox Modal (Tutor Mode) */}
       {appMode === 'tutor' && showCodeSandbox && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-4xl h-[80vh] bg-[#0a0a0a] border border-white/10 rounded-xl overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b border-white/10">
-              <h2 className="text-lg font-semibold text-white">Code Sandbox</h2>
+        <div className="fixed inset-0 z-50 bg-black/20 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-4xl h-[80vh] bg-white border border-zinc-200 rounded-xl overflow-hidden flex flex-col shadow-2xl">
+            <div className="flex items-center justify-between p-4 border-b border-zinc-200">
+              <h2 className="text-lg font-semibold text-zinc-900">Code Sandbox</h2>
               <button
                 onClick={() => setShowCodeSandbox(false)}
                 className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors"
@@ -4983,8 +4211,8 @@ const ChatInterface: React.FC = () => {
 
       {/* Document Viewer Modal (Tutor Mode) */}
       {appMode === 'tutor' && showDocumentViewer && uploadedDocument && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-4xl h-[80vh] bg-[#0a0a0a] border border-white/10 rounded-xl overflow-hidden">
+        <div className="fixed inset-0 z-50 bg-black/20 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-4xl h-[80vh] bg-white border border-zinc-200 rounded-xl overflow-hidden shadow-2xl">
             <DocumentViewer
               document={uploadedDocument}
               onClose={() => setShowDocumentViewer(false)}
@@ -4993,11 +4221,11 @@ const ChatInterface: React.FC = () => {
         </div>
       )}
 
-      {/* Search Results Panel (Tutor Mode) */}
-      {appMode === 'tutor' && searchResults.length > 0 && (
-        <div className="fixed right-4 bottom-20 w-96 max-h-96 bg-[#1a1a1a] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-40 backdrop-blur-xl">
-          <div className="flex items-center justify-between p-3 border-b border-white/10">
-            <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+      {/* Search Results Panel (Tutor Mode) - HIDDEN PER USER REQUEST */}
+      {/* {appMode === 'tutor' && searchResults.length > 0 && (
+        <div className="fixed right-4 bottom-20 w-96 max-h-96 bg-white border border-zinc-200 rounded-xl shadow-2xl overflow-hidden z-40 backdrop-blur-xl">
+          <div className="flex items-center justify-between p-3 border-b border-zinc-200">
+            <h3 className="text-sm font-semibold text-zinc-900 flex items-center gap-2">
               <Search size={16} className="text-blue-400" />
               Search Results
             </h3>
@@ -5012,11 +4240,11 @@ const ChatInterface: React.FC = () => {
             <SearchResults results={searchResults} />
           </div>
         </div>
-      )}
+      )} */}
 
       {/* Planner Panel (Builder Mode) */}
       {appMode === 'builder' && (showPlanner || isGeneratingPlan) && (
-        <div className="fixed right-4 top-20 bottom-20 w-96 bg-[#0a0a0a] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-40 backdrop-blur-xl flex flex-col">
+        <div className="fixed right-4 top-20 bottom-20 w-96 bg-zinc-50 border border-zinc-200 rounded-xl shadow-2xl overflow-hidden z-40 backdrop-blur-xl flex flex-col">
           <PlannerPanel
             plan={currentPlan}
             isLoading={isGeneratingPlan}
