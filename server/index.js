@@ -3586,11 +3586,11 @@ if (process.env.VERCEL !== '1' && !process.env.VERCEL_ENV) {
 
       console.log('🔓 Activating Pro subscription for:', userId, 'Order:', orderId);
 
+      const expiresAt = new Date();
+      expiresAt.setMonth(expiresAt.getMonth() + 1); // 1 month subscription
+
       // Update subscription in Supabase
       if (supabase) {
-        const expiresAt = new Date();
-        expiresAt.setMonth(expiresAt.getMonth() + 1); // 1 month subscription
-
         const { data, error } = await supabase
           .from('subscriptions')
           .upsert({
@@ -3606,39 +3606,27 @@ if (process.env.VERCEL !== '1' && !process.env.VERCEL_ENV) {
 
         if (error) {
           console.error('❌ Supabase error:', error);
-          throw error;
+          return res.status(500).json({ error: 'Failed to update subscription in database', details: error.message });
         }
 
         console.log('✅ Subscription activated in Supabase:', data);
+
+        res.json({
+          success: true,
+          tier: 'pro',
+          message: 'Subscription activated successfully',
+          expiresAt: expiresAt.toISOString()
+        });
+      } else {
+        // Supabase not available - still return success but log warning
+        console.warn('⚠️ Supabase not configured - subscription activation may not persist');
+        res.json({
+          success: true,
+          tier: 'pro',
+          message: 'Subscription activated (warning: database not configured)',
+          expiresAt: expiresAt.toISOString()
+        });
       }
-
-      // Also save to file for backup
-      const subscriptionsFile = path.join(__dirname, 'subscriptions.json');
-      let subscriptions = {};
-      try {
-        if (fs.existsSync(subscriptionsFile)) {
-          subscriptions = JSON.parse(fs.readFileSync(subscriptionsFile, 'utf-8'));
-        }
-      } catch (e) {
-        subscriptions = {};
-      }
-
-      subscriptions[userId] = {
-        tier: 'pro',
-        activatedAt: new Date().toISOString(),
-        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        orderId: orderId
-      };
-
-      fs.writeFileSync(subscriptionsFile, JSON.stringify(subscriptions, null, 2));
-      console.log('✅ Subscription saved to file backup');
-
-      res.json({
-        success: true,
-        tier: 'pro',
-        message: 'Subscription activated successfully',
-        expiresAt: subscriptions[userId].expiresAt
-      });
     } catch (error) {
       console.error('❌ Error activating subscription:', error);
       res.status(500).json({ error: 'Failed to activate subscription', details: error.message });
