@@ -104,23 +104,77 @@ export function RedesignWelcome({
         }
     }, []);
 
-    const processFile = (file: File) => {
+    const processFile = async (file: File) => {
         if (!file.type.startsWith('image/')) {
             setError('Please upload an image file (PNG, JPG, WebP)');
             return;
         }
 
-        if (file.size > 10 * 1024 * 1024) {
-            setError('Image must be under 10MB');
+        // Reduced limit for mobile (5MB instead of 10MB)
+        const maxSize = 5 * 1024 * 1024;
+        if (file.size > maxSize) {
+            setError('Image must be under 5MB');
             return;
         }
 
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            setUploadedImage(reader.result as string);
+        try {
+            // Compress image for mobile
+            const compressedImage = await compressImage(file);
+            setUploadedImage(compressedImage);
             setError(null);
-        };
-        reader.readAsDataURL(file);
+        } catch (err) {
+            console.error('Error processing image:', err);
+            setError('Failed to process image. Please try a smaller image.');
+        }
+    };
+
+    // Compress image to reduce base64 size for mobile
+    const compressImage = (file: File): Promise<string> => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    try {
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        if (!ctx) {
+                            reject(new Error('Canvas context not available'));
+                            return;
+                        }
+
+                        // Max dimension for mobile (800px)
+                        const maxDim = 800;
+                        let { width, height } = img;
+
+                        if (width > maxDim || height > maxDim) {
+                            if (width > height) {
+                                height = (height / width) * maxDim;
+                                width = maxDim;
+                            } else {
+                                width = (width / height) * maxDim;
+                                height = maxDim;
+                            }
+                        }
+
+                        canvas.width = width;
+                        canvas.height = height;
+                        ctx.drawImage(img, 0, 0, width, height);
+
+                        // Quality 0.7 for smaller file size
+                        const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                        console.log(`[Redesign] Image compressed: ${file.size} bytes -> ~${(compressedDataUrl.length * 0.75).toFixed(0)} bytes`);
+                        resolve(compressedDataUrl);
+                    } catch (err) {
+                        reject(err);
+                    }
+                };
+                img.onerror = () => reject(new Error('Failed to load image'));
+                img.src = e.target?.result as string;
+            };
+            reader.onerror = () => reject(new Error('Failed to read file'));
+            reader.readAsDataURL(file);
+        });
     };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
