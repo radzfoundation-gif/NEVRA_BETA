@@ -6,6 +6,7 @@ dotenv.config(); // Load .env
 dotenv.config({ path: path.resolve(process.cwd(), '.env.local'), override: true }); // Load .env.local requesting override
 import express from 'express';
 import cors from 'cors';
+import crypto from 'crypto';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import OpenAI from 'openai';
@@ -3555,8 +3556,9 @@ if (process.env.VERCEL !== '1' && !process.env.VERCEL_ENV) {
           quantity: 1,
           name: 'Nevra Pro Monthly Subscription'
         }],
+        custom_field1: userId,
         callbacks: {
-          finish: process.env.VITE_APP_URL || 'http://localhost:3000'
+          finish: process.env.VITE_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
         }
       };
 
@@ -3630,6 +3632,69 @@ if (process.env.VERCEL !== '1' && !process.env.VERCEL_ENV) {
     } catch (error) {
       console.error('❌ Error activating subscription:', error);
       res.status(500).json({ error: 'Failed to activate subscription', details: error.message });
+    }
+  });
+
+  // Midtrans Webhook Notification
+  app.post('/api/payment/notification', async (req, res) => {
+    try {
+      const notification = req.body;
+      const { order_id, status_code, gross_amount, transaction_status, signature_key, custom_field1 } = notification;
+
+      console.log('🔔 Received Midtrans Notification:', order_id, transaction_status);
+
+      // Verify Signature
+      const serverKey = process.env.MIDTRANS_SERVER_KEY;
+      const input = order_id + status_code + gross_amount + serverKey;
+      const signature = crypto.createHash('sha512').update(input).digest('hex');
+
+      if (signature !== signature_key) {
+        console.error('❌ Invalid Midtrans Signature');
+        return res.status(400).json({ status: 'error', message: 'Invalid signature' });
+      }
+
+      let isPaid = false;
+      if (transaction_status == 'capture') {
+        if (notification.fraud_status == 'challenge') {
+          // Deny handled elsewhere or manual
+        } else if (notification.fraud_status == 'accept') {
+          isPaid = true;
+        }
+      } else if (transaction_status == 'settlement') {
+        isPaid = true;
+      }
+
+      if (isPaid && supabase) {
+        const userId = custom_field1;
+        if (userId) {
+          const expiresAt = new Date();
+          expiresAt.setMonth(expiresAt.getMonth() + 1);
+
+          const { error } = await supabase
+            .from('subscriptions')
+            .upsert({
+              user_id: userId,
+              tier: 'pro',
+              activated_at: new Date().toISOString(),
+              expires_at: expiresAt.toISOString(),
+              midtrans_order_id: order_id,
+              updated_at: new Date().toISOString()
+            }, { onConflict: 'user_id' });
+
+          if (error) {
+            console.error('❌ Supabase Update Error:', error);
+          } else {
+            console.log(`✅ Subscription activated/renewed for ${userId}`);
+          }
+        } else {
+          console.warn('⚠️ No userId found in custom_field1');
+        }
+      }
+
+      res.status(200).json({ status: 'ok' });
+    } catch (error) {
+      console.error('Webhook Error:', error);
+      res.status(500).json({ status: 'error' });
     }
   });
 

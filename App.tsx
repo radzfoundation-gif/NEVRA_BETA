@@ -6,6 +6,7 @@ import ChatInterface from './components/pages/ChatInterface';
 import SignInPage from './components/auth/SignInPage';
 import SignUpPage from './components/auth/SignUpPage';
 import ForgotPasswordPage from './components/auth/ForgotPasswordPage';
+import NicknamePage from './components/auth/NicknamePage';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import SurveyPage from './components/pages/SurveyPage';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -30,6 +31,14 @@ const AppContent: React.FC = () => {
       <Route path="/sign-in" element={<SignInPage />} />
       <Route path="/sign-up" element={<SignUpPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route
+        path="/nickname"
+        element={
+          <ProtectedRoute requireNickname={false}>
+            <NicknamePage />
+          </ProtectedRoute>
+        }
+      />
       <Route
         path="/chat"
         element={

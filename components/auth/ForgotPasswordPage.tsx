@@ -37,7 +37,7 @@ const ForgotPasswordPage: React.FC = () => {
             }
         } catch (err: any) {
             console.error(err);
-            setError("Gagal mengirim email reset.");
+            setError("Failed to send reset email.");
         } finally {
             setIsLoading(false);
         }
@@ -45,8 +45,8 @@ const ForgotPasswordPage: React.FC = () => {
 
     if (!isLoaded) {
         return (
-            <div className="flex items-center justify-center min-h-screen bg-[#05100a] text-white">
-                <Loader2 className="animate-spin text-[#4ADE80]" size={32} />
+            <div className="flex items-center justify-center min-h-screen bg-zinc-50">
+                <Loader2 className="animate-spin text-purple-600" size={32} />
             </div>
         );
     }
@@ -54,116 +54,99 @@ const ForgotPasswordPage: React.FC = () => {
     if (isSent) {
         return (
             <div className="min-h-screen bg-zinc-50 flex items-center justify-center p-4">
-                <div className="bg-white rounded-2xl shadow-xl border border-zinc-100 p-8 max-w-md w-full text-center">
-                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <CheckCircle2 className="w-8 h-8 text-green-600" />
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="bg-white rounded-3xl shadow-xl border border-zinc-100 p-8 max-w-md w-full text-center"
+                >
+                    <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <CheckCircle2 className="w-10 h-10 text-green-500" />
                     </div>
-                    <h2 className="text-2xl font-bold text-zinc-900 mb-2">Cek Email Kamu!</h2>
-                    <p className="text-zinc-500 mb-6">
-                        Kami telah mengirim link reset password ke <span className="font-medium text-zinc-900">{email}</span>
+                    <h2 className="text-2xl font-bold text-zinc-900 mb-3">Check Your Email</h2>
+                    <p className="text-zinc-500 mb-6 leading-relaxed">
+                        We have sent a password reset link to <span className="font-semibold text-zinc-900">{email}</span>
                     </p>
-                    <p className="text-sm text-zinc-400 mb-6">
-                        Klik link di email untuk mengatur ulang password kamu. Jika tidak ada, cek folder spam.
+                    <p className="text-xs text-zinc-400 mb-8">
+                        Click the link in the email to reset your password. If you don't see it, checking your spam folder usually helps.
                     </p>
                     <Link
                         to="/sign-in"
-                        className="inline-block px-6 py-3 bg-black text-white rounded-xl font-medium hover:bg-zinc-800 transition-colors"
+                        className="inline-block w-full py-3.5 bg-zinc-900 text-white rounded-xl font-medium hover:bg-zinc-800 transition-colors shadow-lg shadow-zinc-900/20"
                     >
-                        Ke Halaman Login
+                        Back to Sign In
                     </Link>
-                </div>
+                </motion.div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-[#05100a] text-white relative overflow-hidden flex flex-col font-sans">
-            {/* Ambient Background Effects */}
-            <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] bg-[#4ADE80] rounded-full mix-blend-multiply filter blur-[128px] opacity-10 animate-pulse-slow"></div>
-            <div className="absolute bottom-[-10%] left-[-10%] w-[500px] h-[500px] bg-[#22C55E] rounded-full mix-blend-multiply filter blur-[128px] opacity-10 animate-pulse-slow delay-75"></div>
+        <div className="min-h-screen bg-zinc-50 flex items-center justify-center p-4 font-sans">
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="w-full max-w-md"
+            >
+                {/* Card Container */}
+                <div className="bg-white rounded-3xl shadow-xl border border-zinc-100 p-8 md:p-10">
 
-            {/* Navbar */}
-            <nav className="relative z-10 flex justify-between items-center p-6 md:px-12">
-                <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-xl bg-[#4ADE80]/10 border border-[#4ADE80]/20 backdrop-blur-md">
-                        <Logo size={24} color="#4ADE80" />
-                    </div>
-                    <span className="font-bold text-lg tracking-tight text-white/90">NEVRA</span>
-                </div>
-            </nav>
-
-            {/* Main Content */}
-            <div className="flex-1 flex items-center justify-center p-4 relative z-10">
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5 }}
-                    className="w-full max-w-[460px]"
-                >
-                    <div className="bg-[#0A1A10]/60 backdrop-blur-xl border border-white/5 rounded-3xl p-8 shadow-2xl relative overflow-hidden group">
-                        {/* Glass Shine Effect */}
-                        <div className="absolute inset-0 bg-gradient-to-tr from-white/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"></div>
-
-                        <div className="text-center mb-8">
-                            <h1 className="text-3xl font-bold mb-3 text-white">
-                                Lupa Kata Sandi?
-                            </h1>
-                            <p className="text-gray-400 text-sm leading-relaxed">
-                                Jangan khawatir. Masukkan email yang tertaut dengan akun Anda dan kami akan mengirimkan link reset.
-                            </p>
-                        </div>
-
-                        {error && (
-                            <motion.div
-                                initial={{ opacity: 0, height: 0 }}
-                                animate={{ opacity: 1, height: 'auto' }}
-                                className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 flex items-center gap-3 text-red-400 text-sm mb-6"
-                            >
-                                <AlertCircle size={16} className="shrink-0" />
-                                <p>{error}</p>
-                            </motion.div>
-                        )}
-
-                        <form onSubmit={handleRequestReset} className="space-y-6">
-                            <div className="space-y-2">
-                                <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider ml-1">Email</label>
-                                <div className="relative group/input">
-                                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within/input:text-[#4ADE80] transition-colors">
-                                        <Mail size={18} />
-                                    </div>
-                                    <input
-                                        type="email"
-                                        value={email}
-                                        onChange={(e) => setEmail(e.target.value)}
-                                        className="w-full bg-white border-none rounded-xl py-3.5 pl-11 pr-4 text-black placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#4ADE80] transition-all"
-                                        placeholder="nama@email.com"
-                                        required
-                                    />
-                                </div>
+                    {/* Header */}
+                    <div className="text-center mb-8">
+                        <Link to="/" className="inline-flex justify-center mb-6">
+                            <div className="p-3 bg-purple-50 rounded-2xl">
+                                <Logo size={32} className="text-purple-600" />
                             </div>
-
-                            <button
-                                type="submit"
-                                disabled={isLoading}
-                                className="w-full bg-[#3B82F6] hover:bg-[#2563EB] text-white font-bold py-3.5 rounded-xl transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2 group/btn disabled:opacity-70 disabled:cursor-not-allowed"
-                            >
-                                {isLoading ? (
-                                    <Loader2 className="animate-spin" size={20} />
-                                ) : (
-                                    "Kirim Link Reset"
-                                )}
-                            </button>
-                        </form>
-
-                        <div className="mt-8 text-center">
-                            <Link to="/sign-in" className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors">
-                                <ArrowLeft size={16} />
-                                Kembali ke halaman login
-                            </Link>
-                        </div>
+                        </Link>
+                        <h1 className="text-2xl font-bold text-zinc-900 mb-2">Forgot Password?</h1>
+                        <p className="text-zinc-500">Don't worry, we'll send you reset instructions.</p>
                     </div>
-                </motion.div>
-            </div>
+
+                    {error && (
+                        <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-xl text-sm border border-red-100 flex items-center gap-2">
+                            <AlertCircle size={16} className="shrink-0" />
+                            {error}
+                        </div>
+                    )}
+
+                    <form onSubmit={handleRequestReset} className="space-y-6">
+                        <div className="space-y-1.5">
+                            <label className="text-sm font-medium text-zinc-700 ml-1">Email</label>
+                            <div className="relative">
+                                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400">
+                                    <Mail size={18} />
+                                </div>
+                                <input
+                                    type="email"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    className="w-full pl-11 pr-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all placeholder:text-zinc-400"
+                                    placeholder="name@example.com"
+                                    required
+                                />
+                            </div>
+                        </div>
+
+                        <button
+                            type="submit"
+                            disabled={isLoading}
+                            className="w-full py-3.5 bg-zinc-900 text-white rounded-xl font-medium hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-lg shadow-zinc-900/20 hover:shadow-xl hover:shadow-zinc-900/30"
+                        >
+                            {isLoading ? (
+                                <Loader2 className="animate-spin" size={20} />
+                            ) : (
+                                "Send Reset Link"
+                            )}
+                        </button>
+                    </form>
+
+                    <div className="mt-8 text-center">
+                        <Link to="/sign-in" className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-900 transition-colors font-medium">
+                            <ArrowLeft size={16} />
+                            Back to log in
+                        </Link>
+                    </div>
+                </div>
+            </motion.div>
         </div>
     );
 };

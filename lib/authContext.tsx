@@ -14,6 +14,7 @@ interface ClerkCompatibleUser {
     lastName: string | null;
     imageUrl: string | null;
     primaryEmailAddress?: { emailAddress: string };
+    nickname: string | null;
 }
 
 interface AuthContextType {
@@ -32,6 +33,7 @@ interface AuthContextType {
     signOut: () => Promise<void>;
     signInWithGoogle: () => Promise<void>;
     resetPassword: (email: string) => Promise<{ error: Error | null }>;
+    updateProfile: (data: { nickname?: string; fullName?: string }) => Promise<{ error: Error | null }>;
 }
 
 // =====================================================
@@ -64,6 +66,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             lastName: metadata.last_name || (metadata.full_name?.split(' ').slice(1).join(' ')) || null,
             imageUrl: metadata.avatar_url || metadata.picture || null,
             primaryEmailAddress: { emailAddress: email },
+            nickname: metadata.nickname || null,
         };
     };
 
@@ -143,6 +146,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error: error ? new Error(error.message) : null };
     }, []);
 
+    const updateProfile = useCallback(async (data: { nickname?: string; fullName?: string }) => {
+        const updates: any = {};
+        if (data.nickname) updates.nickname = data.nickname;
+        if (data.fullName) updates.full_name = data.fullName;
+
+        const { data: { user }, error } = await supabase.auth.updateUser({
+            data: updates
+        });
+
+        if (user) {
+            setSupabaseUser(user);
+        }
+
+        return { error: error ? new Error(error.message) : null };
+    }, []);
+
     const value: AuthContextType = {
         user: toClerkUser(supabaseUser),
         isLoaded,
@@ -154,6 +173,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signOut,
         signInWithGoogle,
         resetPassword,
+        updateProfile,
     };
 
     return (
@@ -200,6 +220,7 @@ export function useAuth() {
         signUp: context.signUp,
         signInWithGoogle: context.signInWithGoogle,
         resetPassword: context.resetPassword,
+        updateProfile: context.updateProfile,
     };
 }
 

@@ -5,10 +5,11 @@ import { Loader2 } from 'lucide-react';
 
 interface ProtectedRouteProps {
     children: React.ReactNode;
+    requireNickname?: boolean;
 }
 
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
-    const { isLoaded, isSignedIn } = useUser();
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requireNickname = true }) => {
+    const { isLoaded, isSignedIn, user } = useUser();
     const location = useLocation();
 
     // Show loading state while checking authentication
@@ -26,6 +27,11 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     // Redirect to sign-in if not authenticated
     if (!isSignedIn) {
         return <Navigate to="/sign-in" state={{ from: location.pathname }} replace />;
+    }
+
+    // Redirect to nickname setup if nickname is missing
+    if (requireNickname && user && !user.nickname) {
+        return <Navigate to="/nickname" replace />;
     }
 
     // Render protected content
