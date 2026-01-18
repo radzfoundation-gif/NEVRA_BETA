@@ -10,10 +10,10 @@ export const PRO_ONLY_MODELS: AIProvider[] = ['openai', 'anthropic', 'gemini', '
 
 // Model display names for UI
 export const MODEL_DISPLAY_NAMES: Record<AIProvider, string> = {
-  groq: 'Gemini Flash Lite',
-  openai: 'GPT-4o / GPT-5',
+  groq: 'Gemini 2.5 Flash Lite', // Updated from Tech Spec 3.1
+  openai: 'GPT-5 Mini',          // Updated from Tech Spec 3.1 (Pro Reasoning)
   anthropic: 'Claude Opus 4.5',
-  gemini: 'Gemini 3 Pro',
+  gemini: 'Gemini 3 Pro',        // Updated from Tech Spec 3.1 (UI & Creative)
   deepseek: 'DeepSeek V3',
 };
 
@@ -40,7 +40,7 @@ export const isProOnlyModel = (provider: AIProvider): boolean => {
 const smartRouteModel = (prompt: string, requestedProvider: AIProvider, tier: 'free' | 'normal' | 'pro'): AIProvider => {
   // 1. Force Free Tier Limits
   if (tier === 'free') {
-    if (!FREE_TIER_MODELS.includes(requestedProvider)) return 'groq'; // Default free
+    if (!FREE_TIER_MODELS.includes(requestedProvider)) return 'groq'; // Default free (Gemini 2.5 Flash Lite)
     return requestedProvider;
   }
 
@@ -50,12 +50,18 @@ const smartRouteModel = (prompt: string, requestedProvider: AIProvider, tier: 'f
   // But generally, for "Hi" or "Thanks", Groq is better.
   const isSimple = prompt.length < 50 && !prompt.includes('code') && !prompt.includes('complex') && !prompt.includes('analysis');
   if (isSimple && (requestedProvider === 'openai' || requestedProvider === 'anthropic')) {
-    return 'groq';
+    return 'groq'; // Gemini 2.5 Flash Lite for simple queries
   }
 
   // 3. Complexity Handling (Upgrade to better model if 'groq' requested but task is hard?)
-  // If user asked for Groq but prompt is huge code task, maybe suggest/upgrade?
-  // For now, we trust the user or the default.
+  // Tech Spec: Pro Reasoning uses GPT-5 Mini
+  const isComplex = prompt.includes('code') || prompt.length > 500 || prompt.includes('analyze') || prompt.includes('reason');
+  if (isComplex && tier === 'pro' && requestedProvider === 'groq') {
+    // Elevate to GPT-5 Mini (openai) for complex tasks if user is Pro
+    // return 'openai'; 
+    // Commented out for now to respect explicit user choice, but this is where the routing rule would live.
+    // For now, we trust the user or the default.
+  }
 
   return requestedProvider;
 };

@@ -76,7 +76,7 @@ if (midtransServerKey) {
 // SUMOPOD AI CLIENT (Gemini 3 Pro for Redesign/Design)
 // =====================================================
 const sumopodApiKey = process.env.SUMOPOD_API_KEY?.trim();
-const sumopodBaseUrl = process.env.SUMOPOD_BASE_URL?.trim() || 'https://ai.sumopod.com';
+const sumopodBaseUrl = process.env.SUMOPOD_BASE_URL?.trim() || 'https://api.sumopod.com';
 
 let sumopodClient = null;
 if (sumopodApiKey) {
@@ -1604,8 +1604,18 @@ Always provide information based on your training data AND the current date cont
     ];
 
     try {
+      // Verify Sumopod configuration
+      const baseUrl = process.env.SUMOPOD_BASE_URL?.trim() || 'https://api.sumopod.com';
+      // Tech Spec 3.1: Default Model is gemini-2.5-flash-lite
+      const modelId = process.env.SUMOPOD_MODEL_ID?.trim() || 'gemini-2.5-flash-lite';
+
+      // Re-initialize client if needed or ensure it uses the correct base URL
+      // Note: defined globally, but let's ensure we use the right config here if we were properly re-instantiating.
+      // For now, we trust the global client but we should have initialized it with api.sumopod.com if that was the intent.
+      // Since we are editing this file, we should fix the global initialization too (done in next step). 
+
       const completion = await sumopodClient.chat.completions.create({
-        model: process.env.SUMOPOD_MODEL_ID, // Use model from env as requested
+        model: modelId,
         messages,
         temperature: mode === 'tutor' ? 0.7 : 0.5,
         max_tokens: baseMaxTokens,

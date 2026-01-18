@@ -5,7 +5,7 @@ import {
   Code, Play, Layout, Smartphone, Monitor, Download,
   X, Settings, ChevronRight, ChevronDown, FileCode,
   Folder, Terminal as TerminalIcon, RefreshCw, Globe,
-  CheckCircle2, Loader2, GraduationCap, Brain, Bot, Paperclip, Image as ImageIcon, Trash2, AlertTriangle, Phone, Lock, Camera, ImagePlus, Clock, Undo2, Redo2, Github, Search, FileText, Terminal, MoreVertical, Copy, Eye, ZoomIn, ZoomOut, Type, Palette, Save, Sparkles, Zap, ThumbsUp, ThumbsDown, Check, BarChart3, Share, RefreshCcw, MoreHorizontal
+  CheckCircle2, Loader2, GraduationCap, Brain, Bot, Paperclip, Image as ImageIcon, Trash2, AlertTriangle, Phone, Lock, Camera, ImagePlus, Clock, Undo2, Redo2, Github, Search, FileText, Terminal, MoreVertical, Copy, Eye, ZoomIn, ZoomOut, Type, Palette, Save, Sparkles, Zap, ThumbsUp, ThumbsDown, Check, BarChart3, Share, RefreshCcw, MoreHorizontal, Youtube
 } from 'lucide-react';
 import { Link, useLocation, useParams, useNavigate } from 'react-router-dom';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -2824,7 +2824,7 @@ const ChatInterface: React.FC = () => {
                     "relative leading-relaxed transition-all duration-200",
                     msg.role === 'user'
                       ? "rounded-2xl px-3 md:px-4 py-2.5 md:py-3 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 max-w-[85%] sm:max-w-[80%] md:max-w-[85%]"
-                      : "rounded-2xl px-3 md:px-4 py-2.5 md:py-3 bg-transparent text-zinc-800 dark:text-zinc-100 max-w-[90%] sm:max-w-[85%] md:max-w-[90%]"
+                      : "rounded-2xl px-4 md:px-5 py-3 md:py-4 bg-white/5 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 max-w-[95%] sm:max-w-[90%] md:max-w-[95%] shadow-sm"
                   )}>
                     {msg.images && msg.images.length > 0 && (
                       <div className="flex gap-3 mb-4 flex-wrap">
