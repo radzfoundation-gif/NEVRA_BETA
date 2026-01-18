@@ -21,6 +21,18 @@ import { YoutubeTranscript } from 'youtube-transcript';
 import nodemailer from 'nodemailer';
 import { createClient } from '@supabase/supabase-js';
 
+
+// Feature Limits (for Free Tier) - Defined globally to prevent ReferenceErrors
+const FEATURE_LIMITS = {
+  chat: { limit: 100, period: 'day' },
+  convert: { limit: 5, period: 'month' }, // PDF/Docs
+  youtube: { limit: 10, period: 'day' },
+  audio: { limit: 10, period: 'day' },
+  redesign: { limit: 5, period: 'month' },
+  image: { limit: 10, period: 'day' },
+  knowledge: { limit: 20, period: 'month' }
+};
+
 // Supabase Client for Backend
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
@@ -308,16 +320,7 @@ const FEATURE_COSTS = {
   knowledge: 2
 };
 
-// Feature Limits (for Free Tier)
-const FEATURE_LIMITS = {
-  chat: { limit: 100, period: 'day' },
-  convert: { limit: 5, period: 'month' }, // PDF/Docs
-  youtube: { limit: 10, period: 'day' },
-  audio: { limit: 10, period: 'day' },
-  redesign: { limit: 5, period: 'month' },
-  image: { limit: 10, period: 'day' },
-  knowledge: { limit: 20, period: 'month' }
-};
+
 
 // Cron logic moved to /api/cron/reset for Vercel compatibility
 
@@ -376,6 +379,14 @@ const getCurrentPeriodKey = (period) => {
 };
 
 const getFeatureUsage = async (userId, featureType) => {
+  console.log(`[Debug] getFeatureUsage call for ${userId} ${featureType}`);
+  // Debug scope
+  if (typeof FEATURE_LIMITS === 'undefined') {
+    console.error('❌ FEATURE_LIMITS is UNDEFINED in this scope!');
+  } else {
+    console.log('✅ FEATURE_LIMITS is available:', Object.keys(FEATURE_LIMITS));
+  }
+
   const config = FEATURE_LIMITS[featureType];
   if (!config) return { used: 0, limit: 0, exceeded: false };
 
@@ -1534,6 +1545,44 @@ const buildOpenAIUserContent = (prompt, images = []) => {
   return content;
 };
 
+
+
+// Web Search Endpoint
+app.post('/api/search', async (req, res) => {
+  const { query } = req.body;
+
+  if (!query) {
+    return res.status(400).json({ error: 'Query is required' });
+  }
+
+  try {
+    console.log(`[API] Searching for: ${query}`);
+    const response = await fetch('https://api.tavily.com/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        api_key: process.env.TAVILY_API_KEY,
+        query: query,
+        max_results: 5,
+        search_depth: 'basic',
+        include_answer: true,
+      }),
+    });
+
+    if (!response.ok) {
+      console.error(`[API] Tavily error: ${response.status} ${response.statusText}`);
+      // Fallback or error
+      throw new Error(`Tavily API error: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    res.json(data);
+
+  } catch (error) {
+    console.error('[API] Search error:', error);
+    res.status(500).json({ error: 'Failed to perform search', details: error.message });
+  }
+});
 
 app.post('/api/generate', async (req, res) => {
   // #region agent log
@@ -3337,7 +3386,7 @@ app.post('/api/payment/portal', async (req, res) => {
 });
 
 // Export app for Vercel serverless functions
-export default app;
+
 
 // Start server - Only if not in Vercel environment
 if (process.env.VERCEL !== '1' && !process.env.VERCEL_ENV) {

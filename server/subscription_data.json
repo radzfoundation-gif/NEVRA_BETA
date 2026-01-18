@@ -16,5 +16,11 @@
     "expiresAt": "2026-02-18T05:14:47.662Z",
     "activatedAt": "2026-01-18T05:14:47.810Z",
     "orderId": "NEVRA-PRO-1768713273037-28b925"
+  },
+  "056f6699-ff79-4a4f-b8b0-1fa22da6e840": {
+    "tier": "pro",
+    "expiresAt": "2026-02-18T10:13:09.596Z",
+    "activatedAt": "2026-01-18T10:13:09.772Z",
+    "orderId": "NEVRA-PRO-1768731172575-a6e840"
   }
 }
