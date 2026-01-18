@@ -3521,6 +3521,151 @@ if (process.env.VERCEL !== '1' && !process.env.VERCEL_ENV) {
     }
   });
 
+  // =====================================================
+  // PAYMENT ENDPOINTS (Midtrans Integration)
+  // =====================================================
+
+  // Create Midtrans transaction token
+  app.post('/api/payment/create-transaction', async (req, res) => {
+    try {
+      const { userId, userEmail, userName, plan, amount } = req.body;
+
+      if (!userId || !plan || !amount) {
+        return res.status(400).json({ error: 'userId, plan, and amount are required' });
+      }
+
+      if (!snap) {
+        return res.status(500).json({ error: 'Payment service not configured' });
+      }
+
+      const orderId = `NEVRA-PRO-${Date.now()}-${userId.slice(-6)}`;
+
+      const parameter = {
+        transaction_details: {
+          order_id: orderId,
+          gross_amount: amount
+        },
+        customer_details: {
+          email: userEmail || 'user@nevra.app',
+          first_name: userName || 'Nevra User'
+        },
+        item_details: [{
+          id: 'nevra-pro-monthly',
+          price: amount,
+          quantity: 1,
+          name: 'Nevra Pro Monthly Subscription'
+        }],
+        callbacks: {
+          finish: process.env.VITE_APP_URL || 'http://localhost:3000'
+        }
+      };
+
+      const transaction = await snap.createTransaction(parameter);
+
+      console.log('✅ Midtrans transaction created:', orderId);
+
+      res.json({
+        token: transaction.token,
+        orderId: orderId,
+        redirect_url: transaction.redirect_url
+      });
+    } catch (error) {
+      console.error('❌ Error creating transaction:', error);
+      res.status(500).json({ error: 'Failed to create transaction', details: error.message });
+    }
+  });
+
+  // Activate subscription after successful payment
+  app.post('/api/payment/activate', async (req, res) => {
+    try {
+      const { userId, orderId } = req.body;
+
+      if (!userId) {
+        return res.status(400).json({ error: 'userId is required' });
+      }
+
+      console.log('🔓 Activating Pro subscription for:', userId, 'Order:', orderId);
+
+      // Update subscription in Supabase
+      if (supabase) {
+        const expiresAt = new Date();
+        expiresAt.setMonth(expiresAt.getMonth() + 1); // 1 month subscription
+
+        const { data, error } = await supabase
+          .from('subscriptions')
+          .upsert({
+            user_id: userId,
+            tier: 'pro',
+            activated_at: new Date().toISOString(),
+            expires_at: expiresAt.toISOString(),
+            midtrans_order_id: orderId || null,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'user_id' })
+          .select()
+          .single();
+
+        if (error) {
+          console.error('❌ Supabase error:', error);
+          throw error;
+        }
+
+        console.log('✅ Subscription activated in Supabase:', data);
+      }
+
+      // Also save to file for backup
+      const subscriptionsFile = path.join(__dirname, 'subscriptions.json');
+      let subscriptions = {};
+      try {
+        if (fs.existsSync(subscriptionsFile)) {
+          subscriptions = JSON.parse(fs.readFileSync(subscriptionsFile, 'utf-8'));
+        }
+      } catch (e) {
+        subscriptions = {};
+      }
+
+      subscriptions[userId] = {
+        tier: 'pro',
+        activatedAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        orderId: orderId
+      };
+
+      fs.writeFileSync(subscriptionsFile, JSON.stringify(subscriptions, null, 2));
+      console.log('✅ Subscription saved to file backup');
+
+      res.json({
+        success: true,
+        tier: 'pro',
+        message: 'Subscription activated successfully',
+        expiresAt: subscriptions[userId].expiresAt
+      });
+    } catch (error) {
+      console.error('❌ Error activating subscription:', error);
+      res.status(500).json({ error: 'Failed to activate subscription', details: error.message });
+    }
+  });
+
+  // Get subscription status
+  app.get('/api/payment/status', async (req, res) => {
+    try {
+      const { userId } = req.query;
+
+      if (!userId) {
+        return res.status(400).json({ error: 'userId is required' });
+      }
+
+      const tier = await getUserTier(userId);
+
+      res.json({
+        tier,
+        isSubscribed: tier === 'pro'
+      });
+    } catch (error) {
+      console.error('Error getting payment status:', error);
+      res.status(500).json({ error: 'Failed to get subscription status' });
+    }
+  });
+
   // Start server locally (not on Vercel)
   if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
     app.listen(PORT, () => {
