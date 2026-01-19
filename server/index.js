@@ -137,6 +137,9 @@ const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:5173',
   'http://localhost:8788',
+  'https://www.rlabs-studio.web.id',
+  'https://rlabs-studio.web.id',
+  'https://rlabs-studio.vercel.app',
   process.env.CORS_ORIGIN
 ].filter(Boolean);
 
