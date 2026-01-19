@@ -61,14 +61,10 @@ const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Debug logging helper (must be after __dirname is defined)
-const DEBUG_LOG_PATH = path.join(__dirname, '..', '.cursor', 'debug.log');
+// Debug logging helper (console only - Vercel serverless compatible)
 const debugLog = (data) => {
   try {
-    const logDir = path.dirname(DEBUG_LOG_PATH);
-    if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
-    const logEntry = JSON.stringify({ ...data, timestamp: Date.now() }) + '\n';
-    fs.appendFileSync(DEBUG_LOG_PATH, logEntry, 'utf8');
+    console.log('[DEBUG]', JSON.stringify({ ...data, timestamp: Date.now() }));
   } catch (e) { console.error('Debug log error:', e); }
 };
 
@@ -222,21 +218,9 @@ const getCanvasAnalyzeUsage = async (userId) => {
     }
   }
 
-  // File fallback
-  try {
-    if (!fs.existsSync(canvasAnalyzeStorageFile)) return { used: 0, limit: CANVAS_ANALYZE_LIMIT, lastReset: new Date().toISOString() };
-    const data = JSON.parse(fs.readFileSync(canvasAnalyzeStorageFile, 'utf8'));
-    const usage = data[userId] || { used: 0, limit: CANVAS_ANALYZE_LIMIT, lastReset: new Date().toISOString() };
-    const lastReset = new Date(usage.lastReset);
-    const now = new Date();
-    if (now.getMonth() !== lastReset.getMonth() || now.getFullYear() !== lastReset.getFullYear()) {
-      return { used: 0, limit: CANVAS_ANALYZE_LIMIT, lastReset: now.toISOString() };
-    }
-    return usage;
-  } catch (e) {
-    console.error('Error reading canvas analyze usage:', e);
-    return { used: 0, limit: CANVAS_ANALYZE_LIMIT, lastReset: new Date().toISOString() };
-  }
+  // No file fallback - Supabase required for Vercel serverless
+  console.warn('⚠️ Supabase not available, returning default canvas usage');
+  return { used: 0, limit: CANVAS_ANALYZE_LIMIT, lastReset: new Date().toISOString() };
 };
 
 const incrementCanvasAnalyzeUsage = async (userId) => {
@@ -270,21 +254,9 @@ const incrementCanvasAnalyzeUsage = async (userId) => {
     }
   }
 
-  // File fallback
-  try {
-    let data = {};
-    if (fs.existsSync(canvasAnalyzeStorageFile)) {
-      data = JSON.parse(fs.readFileSync(canvasAnalyzeStorageFile, 'utf8'));
-    }
-    const current = await getCanvasAnalyzeUsage(userId);
-    data[userId] = { used: current.used + 1, limit: CANVAS_ANALYZE_LIMIT, lastReset: current.lastReset || new Date().toISOString() };
-    fs.writeFileSync(canvasAnalyzeStorageFile, JSON.stringify(data, null, 2));
-    console.log(`📊 File: Canvas usage updated for ${userId}: ${data[userId].used}/${CANVAS_ANALYZE_LIMIT}`);
-    return true;
-  } catch (e) {
-    console.error('Error updating canvas analyze usage:', e);
-    return false;
-  }
+  // No file fallback - Supabase required for Vercel serverless
+  console.warn('⚠️ Supabase not available, canvas usage NOT incremented');
+  return false;
 };
 
 // Daily Reset Endpoint for Vercel Cron
@@ -293,26 +265,12 @@ app.get('/api/cron/reset', (req, res) => {
   // const authHeader = req.headers['authorization'];
   // if (authHeader !== \`Bearer \${process.env.CRON_SECRET}\`) return res.status(401).json({ error: 'Unauthorized' });
 
-  console.log('🕒 Running Daily Usage Reset (Triggered via API)...');
+  console.log('🕒 Running Daily Usage Reset (Supabase-based)...');
   try {
-    if (fs.existsSync(tokenStorageFile)) {
-      const data = JSON.parse(fs.readFileSync(tokenStorageFile, 'utf8'));
-      const today = new Date().toISOString().split('T')[0];
-
-      let resetCount = 0;
-      for (const userId in data) {
-        if (data[userId].used > 0) {
-          data[userId].used = 0;
-          data[userId].lastReset = today;
-          resetCount++;
-        }
-      }
-
-      fs.writeFileSync(tokenStorageFile, JSON.stringify(data, null, 2));
-      console.log(`✅ Daily Reset Complete: Reset credits for ${resetCount} users.`);
-    }
-
-    res.json({ success: true, message: 'Daily reset completed' });
+    // Supabase handles daily resets via RLS and time-based queries
+    // No file system operations needed in serverless environment
+    console.log('✅ Daily Reset: Supabase resets handled by database');
+    res.json({ success: true, message: 'Daily reset completed via Supabase' });
   } catch (error) {
     console.error('❌ Error during Daily Reset:', error);
     res.status(500).json({ error: 'Failed to reset usage', details: error.message });
@@ -1223,22 +1181,8 @@ function getMaxTokensForTier(tier = 'free', mode) {
   return tierLimits[tier.toLowerCase()] || tierLimits.free;
 }
 
-// --- Subscription Management (Supabase with file fallback) ---
-const tokenStorageFile = path.join(__dirname, 'token_usage.json');
-const subscriptionStorageFile = path.join(__dirname, 'subscription_data.json');
-const canvasAnalyzeStorageFile = path.join(__dirname, 'canvas_analyze_data.json');
-
-
-// Ensure storage files exist (fallback)
-if (!fs.existsSync(tokenStorageFile)) {
-  fs.writeFileSync(tokenStorageFile, '{}', 'utf8');
-}
-if (!fs.existsSync(subscriptionStorageFile)) {
-  fs.writeFileSync(subscriptionStorageFile, '{}', 'utf8');
-}
-if (!fs.existsSync(canvasAnalyzeStorageFile)) {
-  fs.writeFileSync(canvasAnalyzeStorageFile, '{}', 'utf8');
-}
+// --- Subscription Management (Supabase Only - Vercel compatible) ---
+// File storage removed for serverless compatibility
 
 // Helper: Get current month in YYYY-MM format
 const getCurrentMonth = () => {
@@ -2480,12 +2424,9 @@ app.post('/api/waitlist', async (req, res) => {
   // Log to console for dev/testing (in case email fails or isn't set up)
   console.log(`[Waitlist] 🔐 Verification Code for ${email}: ${code}`);
 
-  // Log to file
-  const logEntry = `${new Date().toISOString()} - ${email} - Code: ${code}\n`;
-  const waitlistFile = path.join(__dirname, 'waitlist.txt');
-  try {
-    fs.appendFileSync(waitlistFile, logEntry);
-  } catch (e) { console.error('File log error', e); }
+  // Log to console only (Vercel serverless compatible)
+  console.log(`[Waitlist] ${new Date().toISOString()} - ${email} - Code: ${code}`);
+  // TODO: Store in Supabase waitlist table for persistence
 
 
   // Attempt to send email
@@ -2568,16 +2509,17 @@ app.post('/api/execute-code', async (req, res) => {
   try {
     const startTime = Date.now();
 
-    // Create temporary Python file
-    const tempDir = path.join(__dirname, 'temp');
-    if (!fs.existsSync(tempDir)) {
+    // Create temporary Python file in /tmp (Vercel serverless compatible)
+    // WARNING: /tmp is ephemeral and files will be deleted after function execution
+    const tempDir = process.env.VERCEL ? '/tmp' : path.join(__dirname, 'temp');
+    if (!process.env.VERCEL && !fs.existsSync(tempDir)) {
       fs.mkdirSync(tempDir, { recursive: true });
     }
 
     const tempFile = path.join(tempDir, `exec_${Date.now()}_${Math.random().toString(36).substring(7)}.py`);
 
     try {
-      // Write code to temporary file
+      // Write code to temporary file (read-only filesystem outside /tmp will fail)
       fs.writeFileSync(tempFile, code, 'utf-8');
 
       // Execute Python code with timeout (10 seconds)
