@@ -4,11 +4,13 @@ import { BUILDER_PROMPT, TUTOR_PROMPT, CodeResponse } from '../../ai';
 import { PromptEnhancer } from '../utils/PromptEnhancer';
 import { WORKFLOW_CONFIG } from '../config';
 
+import { AIProvider } from '../../ai';
+
 /**
- * Executor Agent - Uses DEVSTRAL (deepseek) for code generation
+ * Executor Agent - Uses Gemini Flash Lite (groq) for code generation
  */
 export class ExecutorAgent extends BaseAgent {
-  constructor(model: 'deepseek' = 'deepseek') {
+  constructor(model: AIProvider = 'groq') {
     super(model);
   }
 
@@ -17,7 +19,7 @@ export class ExecutorAgent extends BaseAgent {
   }
 
   getRequiredModel(): string {
-    return 'DEVSTRAL (deepseek)';
+    return 'Gemini Flash Lite (groq)';
   }
 
   async execute(

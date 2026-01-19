@@ -1,4 +1,5 @@
 import { RoutingDecision } from '../types';
+import { AIProvider } from '../../ai';
 import { IntentAnalysis } from '../analyzers/IntentAnalyzer';
 import { UserProfile } from './UserProfileEngine';
 import { WORKFLOW_CONFIG } from '../config';
@@ -27,11 +28,11 @@ export class DecisionEngine {
     mode: 'builder' | 'tutor'
   ): WorkflowDecision {
     const reasoning: string[] = [];
-    
+
     // Base routing decision
     const routing: RoutingDecision = {
       plannerModel: this.selectPlannerModel(intentAnalysis, userProfile, reasoning),
-      executorModel: 'deepseek' as const, // Always DEVSTRAL
+      executorModel: 'groq' as const, // Always Gemini Flash Lite (SumoPod)
       reviewerModel: this.selectReviewerModel(intentAnalysis, userProfile, reasoning),
       skipStages: [],
     };
@@ -67,13 +68,13 @@ export class DecisionEngine {
     intentAnalysis: IntentAnalysis,
     userProfile: UserProfile | null,
     reasoning: string[]
-  ): 'anthropic' | 'gemini' {
+  ): AIProvider {
     // Use user preference if available
     if (userProfile?.preferences?.default_provider) {
       const provider = userProfile.preferences.default_provider;
-      if (provider === 'anthropic' || provider === 'gemini') {
+      if (provider === 'groq' || provider === 'anthropic' || provider === 'gemini') {
         reasoning.push(`Using user preferred provider: ${provider}`);
-        return provider;
+        return provider as AIProvider;
       }
     }
 
@@ -90,13 +91,13 @@ export class DecisionEngine {
     intentAnalysis: IntentAnalysis,
     userProfile: UserProfile | null,
     reasoning: string[]
-  ): 'anthropic' | 'gemini' {
+  ): AIProvider {
     // Use user preference if available
     if (userProfile?.preferences?.default_provider) {
       const provider = userProfile.preferences.default_provider;
-      if (provider === 'anthropic' || provider === 'gemini') {
+      if (provider === 'groq' || provider === 'anthropic' || provider === 'gemini') {
         reasoning.push(`Using user preferred provider for review: ${provider}`);
-        return provider;
+        return provider as AIProvider;
       }
     }
 

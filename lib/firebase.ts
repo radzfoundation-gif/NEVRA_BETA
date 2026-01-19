@@ -60,7 +60,7 @@ export interface FirebaseChatSession {
     userId: string;
     title: string;
     mode: 'builder' | 'tutor';
-    provider: 'anthropic' | 'deepseek' | 'openai' | 'gemini';
+    provider: 'anthropic' | 'openai' | 'gemini' | 'groq';
     createdAt: Date;
     updatedAt: Date;
 }

@@ -30,7 +30,7 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
  */
 export async function generatePlan(
   prompt: string,
-  provider: 'anthropic' | 'gemini' | 'openai' | 'deepseek' = 'deepseek' // Default to Mistral Devstral
+  provider: 'anthropic' | 'gemini' | 'openai' | 'groq' = 'groq' // Default to Gemini SumoPod
 ): Promise<Plan> {
   try {
     // Create abort controller for timeout
@@ -66,13 +66,13 @@ export async function generatePlan(
     };
   } catch (error: any) {
     console.error('Planning error:', error);
-    
+
     // If timeout or network error, use fallback immediately
     if (error.name === 'AbortError' || error.message?.includes('timeout') || error.message?.includes('network')) {
       console.warn('Planning timeout, using fallback plan');
       return createFallbackPlan(prompt);
     }
-    
+
     // Return a basic plan as fallback for any error
     return createFallbackPlan(prompt);
   }
@@ -194,7 +194,7 @@ export function getPlanProgress(plan: Plan): number {
  * Check if plan is complete
  */
 export function isPlanComplete(plan: Plan): boolean {
-  return plan.tasks.every((task) => 
+  return plan.tasks.every((task) =>
     task.status === 'completed' || task.status === 'skipped'
   );
 }

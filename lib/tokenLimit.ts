@@ -8,7 +8,7 @@ import { TIER_LIMITS } from './supabase';
 // Token costs per provider (estimated)
 const TOKEN_COSTS = {
     anthropic: 10,      // 10 tokens per request
-    deepseek: 10,       // 10 tokens per request
+
     openai: 10,         // 10 tokens per request
     gemini: 10,         // 10 tokens per request
 };
@@ -73,7 +73,7 @@ export async function checkTokenLimit(userId: string, _token?: string | null): P
 export async function trackAIUsage(
     userId: string,
     sessionId: string,
-    provider: 'anthropic' | 'deepseek' | 'openai' | 'gemini',
+    provider: 'anthropic' | 'openai' | 'gemini' | 'groq',
     model?: string,
     _token?: string | null
 ): Promise<boolean> {

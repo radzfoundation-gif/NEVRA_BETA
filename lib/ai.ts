@@ -1,12 +1,12 @@
-export type AIProvider = 'groq' | 'openai' | 'anthropic' | 'gemini' | 'deepseek';
+export type AIProvider = 'groq' | 'openai' | 'anthropic' | 'gemini';
 export type Framework = 'html' | 'react' | 'nextjs' | 'vite';
 
 // --- MODEL TIER RESTRICTIONS ---
 // Free users: Only Gemini Flash Lite (via groq/SumoPod)
-export const FREE_TIER_MODELS: AIProvider[] = ['groq', 'deepseek'];
+export const FREE_TIER_MODELS: AIProvider[] = ['groq'];
 
 // Pro users: All models including premium ones
-export const PRO_ONLY_MODELS: AIProvider[] = ['openai', 'anthropic', 'gemini', 'deepseek'];
+export const PRO_ONLY_MODELS: AIProvider[] = ['openai', 'anthropic', 'gemini'];
 
 // Model display names for UI
 export const MODEL_DISPLAY_NAMES: Record<AIProvider, string> = {
@@ -14,7 +14,6 @@ export const MODEL_DISPLAY_NAMES: Record<AIProvider, string> = {
   openai: 'GPT-5 Mini',          // Updated from Tech Spec 3.1 (Pro Reasoning)
   anthropic: 'Claude Opus 4.5',
   gemini: 'Gemini 3 Pro',        // Updated from Tech Spec 3.1 (UI & Creative)
-  deepseek: 'DeepSeek V3',
 };
 
 // Check if a model is allowed for a given tier
@@ -570,7 +569,7 @@ const formatErrorHtml = (provider: AIProvider, message: string) => {
         <p class="text-sm mb-2">${message}</p>
         <p class="text-sm mb-3"><strong>Quick Solutions:</strong></p>
         <ul class="text-sm list-disc list-inside space-y-1 mb-3">
-          <li><strong>Switch to DeepSeek</strong> - Free alternative that doesn't require OpenRouter credits</li>
+          <li><strong>Switch to Groq/SumoPod</strong> - Free alternative that doesn't require OpenRouter credits</li>
           <li>Use a shorter, more concise prompt to reduce token usage</li>
           <li>Add credits at <a href="https://openrouter.ai/settings/credits" target="_blank" class="text-blue-400 underline">openrouter.ai/settings/credits</a></li>
           ${provider === 'openai' ? '<li>Puter.js uses User-Pays model - no API key needed</li>' : '<li>Note: ' + providerName + ' is free and does not require credits</li>'}
@@ -611,54 +610,11 @@ const formatErrorHtml = (provider: AIProvider, message: string) => {
     }
   }
 
-  // Special handling for DeepSeek errors (uses OpenRouter)
-  if (provider === 'deepseek') {
-    // Check if error is about image support (should not happen anymore, but handle it)
-    const isImageSupportError = message.toLowerCase().includes('does not support image input') || message.toLowerCase().includes('image input');
-
-    if (isImageSupportError) {
-      return `<!-- Error Generating Code --> 
-        <div class="text-yellow-500 bg-yellow-900/20 p-4 rounded-lg border border-yellow-500/50">
-          <strong>⚠️ Mistral Devstral Image Support</strong>
-          <br/><br/>
-          <p class="text-sm mb-2">Mistral Devstral via OpenRouter now supports image input. If you're seeing this error, please refresh the page or restart the backend server.</p>
-          <p class="text-sm mb-3"><strong>Note:</strong> Mistral Devstral uses OpenRouter API which supports vision models.</p>
-        </div>`;
-    }
-
-    const isUnauthorized = message.toLowerCase().includes('401') || message.toLowerCase().includes('unauthorized');
-    const isKeyError = message.toLowerCase().includes('invalid') && message.toLowerCase().includes('key');
-    const isApiKeyError = message.toLowerCase().includes('api key');
-    const isHtmlError = message.toLowerCase().includes('html') || message.toLowerCase().includes('server returned html') ||
-      message.toLowerCase().includes('api error (500)');
-    const is500Error = message.toLowerCase().includes('500') || message.toLowerCase().includes('server returned');
-
-    if (isUnauthorized || isKeyError || isApiKeyError || isHtmlError || is500Error) {
-      return `<!-- Error Generating Code --> 
-        <div class="text-red-500 bg-red-900/20 p-4 rounded-lg border border-red-500/50">
-          <strong>🚫 Mistral Devstral Error</strong>
-          <br/><br/>
-          <p class="text-sm mb-2">${message}</p>
-          <p class="text-sm mb-3"><strong>Possible Causes & Solutions:</strong></p>
-          <ul class="text-sm list-disc list-inside space-y-1 mb-3">
-            <li><strong>Invalid OpenRouter API Key:</strong> Mistral Devstral uses OpenRouter API. Check your <code class="bg-black/30 px-1 rounded">OPENROUTER_API_KEY</code> in backend environment variables.</li>
-            <li><strong>API Key Not Set:</strong> Make sure <code class="bg-black/30 px-1 rounded">OPENROUTER_API_KEY</code> is set in your backend <code class="bg-black/30 px-1 rounded">.env</code> file or Vercel environment variables</li>
-            <li><strong>Model Access:</strong> Verify that your OpenRouter API key has access to the model <code class="bg-black/30 px-1 rounded">mistralai/devstral-2512:free</code></li>
-            <li><strong>API Endpoint Error:</strong> If you see "Server returned HTML instead of JSON", this usually means the API key is invalid or the service is unavailable</li>
-            <li>Get your API key from <a href="https://openrouter.ai/keys" target="_blank" class="text-blue-400 underline">openrouter.ai/keys</a></li>
-            <li>Restart your backend server after updating the API key</li>
-            <li>Try switching to GPT OSS 20B provider as an alternative</li>
-          </ul>
-          <span class="text-xs opacity-70">Note: Mistral Devstral uses OpenRouter API (not DEEPSEEK_API_KEY). Make sure your OPENROUTER_API_KEY is valid and has access to the model.</span>
-        </div>`;
-    }
-  }
-
   // Special handling for API key not configured errors
   if (message.toLowerCase().includes('api key not configured') || message.toLowerCase().includes('not configured')) {
-    const isOpenRouterProvider = provider === 'openai' || provider === 'anthropic' || provider === 'gemini' || provider === 'deepseek';
+    const isOpenRouterProvider = provider === 'openai' || provider === 'anthropic' || provider === 'gemini';
     if (isOpenRouterProvider) {
-      const providerName = provider === 'openai' ? 'GPT-5-Nano' : provider === 'anthropic' ? 'GPT OSS 20B' : provider === 'deepseek' ? 'Mistral Devstral' : provider === 'gemini' ? 'GPT OSS 20B' : 'Unknown Provider';
+      const providerName = provider === 'openai' ? 'GPT-5-Nano' : provider === 'anthropic' ? 'GPT OSS 20B' : provider === 'gemini' ? 'Gemini 3 Pro' : 'Unknown Provider';
       return `<!-- Error Generating Code --> 
         <div class="text-red-500 bg-red-900/20 p-4 rounded-lg border border-red-500/50">
           <strong>⚠️ OpenRouter API Key Not Configured</strong>
@@ -677,7 +633,7 @@ const formatErrorHtml = (provider: AIProvider, message: string) => {
 
   return `<!-- Error Generating Code --> 
     <div class="text-red-500 bg-red-900/20 p-4 rounded-lg border border-red-500/50">
-      <strong>${provider === 'deepseek' ? 'MISTRAL DEVSTRAL' : provider.toUpperCase()} Error:</strong> ${message}
+      <strong>${provider.toUpperCase()} Error:</strong> ${message}
       <br/>
       <span class="text-sm opacity-70">Check console for details or verify API keys.</span>
     </div>`;
@@ -713,7 +669,8 @@ export const generateCode = async (
   userId?: string,
   userName?: string, // User's display name from Clerk
   userEmail?: string, // User's email from Clerk
-  userTier: 'free' | 'normal' | 'pro' = 'free' // User subscription tier for token limits
+  userTier: 'free' | 'normal' | 'pro' = 'free', // User subscription tier for token limits
+  deepDive: boolean = false // Deep Dive mode - uses GPT-5, limited 2/day
 ): Promise<CodeResponse> => {
   // Smart Model Routing
   const effectiveProvider = smartRouteModel(prompt, provider, userTier);
@@ -865,6 +822,7 @@ Always be thorough and helpful in your analysis.`;
         images,
         systemPrompt,
         userTier, // Send user tier for token limit calculation
+        deepDive, // Deep Dive mode flag - uses GPT-5 on backend
       }),
     });
 
@@ -904,7 +862,11 @@ Always be thorough and helpful in your analysis.`;
     }
 
     const data = await resp.json();
-    const content = data.content || "";
+    // DEBUG: Log full API response
+    console.log(`[${provider}] Raw API Response:`, JSON.stringify(data, null, 2));
+
+    // Support both 'text' (from new /api/generate) and 'content' (legacy) properties
+    const content = data.text || data.content || "";
 
     // Try to parse as multi-file JSON response with better error handling
     try {
@@ -1005,7 +967,7 @@ Always be thorough and helpful in your analysis.`;
 
     if (isPromptTokenError) {
       // Return error with suggestion to use shorter prompt or switch provider
-      const providerName = provider === 'openai' ? 'GPT-5-Nano' : provider === 'anthropic' ? 'GPT OSS 20B' : provider === 'gemini' ? 'Gemini 2.0' : provider === 'deepseek' ? 'Mistral Devstral' : 'External Provider';
+      const providerName = provider === 'openai' ? 'GPT-5-Nano' : provider === 'anthropic' ? 'GPT OSS 20B' : provider === 'gemini' ? 'Gemini 2.0' : 'External Provider';
       return {
         type: 'single-file',
         content: formatErrorHtml(provider, errorMessage + ` - Try using a shorter prompt or switch to a different provider.`),
@@ -1017,12 +979,6 @@ Always be thorough and helpful in your analysis.`;
       errorMessage.toLowerCase().includes('aborted') ||
       errorMessage.toLowerCase().includes('took too long');
 
-    if (isTimeoutError && provider === 'deepseek') {
-      return {
-        type: 'single-file',
-        content: formatErrorHtml(provider, `${errorMessage} - Mistral Devstral can be slower for complex prompts. Please try again with a shorter prompt or switch to a different provider like GPT OSS 20B.`),
-      } as SingleFileResponse;
-    }
 
     // Always return a valid response, even on error
     const errorContent = formatErrorHtml(provider, errorMessage);

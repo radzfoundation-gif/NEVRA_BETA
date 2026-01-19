@@ -10,6 +10,7 @@ import { useTokenLimit } from '@/hooks/useTokenLimit';
 import { FREE_TOKEN_LIMIT } from '@/lib/tokenLimit';
 import { ParsedDocument } from '@/lib/documentParser';
 import { AppMode } from '@/lib/modeDetector';
+import ModelSelector, { ModelType } from '@/components/ui/ModelSelector';
 
 function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs));
@@ -18,7 +19,7 @@ function cn(...inputs: ClassValue[]) {
 interface ChatInputProps {
     input: string;
     setInput: (value: string) => void;
-    handleSend: () => void;
+    handleSend: (deepDive?: boolean) => void;
     isTyping: boolean;
     attachedImages: string[];
     removeImage: (index: number) => void;
@@ -41,6 +42,7 @@ interface ChatInputProps {
     setShowDocumentViewer: (show: boolean) => void;
     uploadedDocument: ParsedDocument | null;
     messagesLength: number;
+    deepDiveRemaining?: number;
 }
 
 const ChatInput: React.FC<ChatInputProps> = ({
@@ -68,11 +70,12 @@ const ChatInput: React.FC<ChatInputProps> = ({
     setUploadedDocument,
     setShowDocumentViewer,
     uploadedDocument,
-    messagesLength
+    messagesLength,
+    deepDiveRemaining = 2
 }) => {
     const { credits } = useTokenLimit();
 
-
+    const [selectedModel, setSelectedModel] = useState<ModelType>('flash');
     const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
     const [showToolsMenu, setShowToolsMenu] = useState(false);
     const [isFocused, setIsFocused] = useState(false);
@@ -153,11 +156,11 @@ const ChatInput: React.FC<ChatInputProps> = ({
                 </div>
             )}
 
-            <div className="max-w-3xl mx-auto w-full">
-                {/* Main Input Container - ChatGPT Style */}
+            <div className="max-w-3xl mx-auto w-full px-4 md:px-0">
+                {/* Main Input Container - Soft/Clean Style - Highly Transparent */}
                 <div className={cn(
-                    "w-full bg-[#f4f4f4] rounded-[26px] flex items-end p-1.5 transition-all duration-200 relative",
-                    isFocused && "bg-[#f0f0f0] ring-1 ring-black/5"
+                    "w-full bg-white/10 backdrop-blur-md rounded-[26px] flex items-end p-1.5 transition-all duration-200 relative border border-white/10 shadow-sm hover:shadow-md",
+                    isFocused && "bg-white/30 ring-1 ring-purple-100/30 shadow-md"
                 )}>
 
                     {/* Left Actions (Attach) */}
@@ -165,21 +168,21 @@ const ChatInput: React.FC<ChatInputProps> = ({
                         <div className="relative" ref={attachmentMenuRef}>
                             <button
                                 onClick={() => setShowAttachmentMenu(!showAttachmentMenu)}
-                                className="p-2 rounded-full text-zinc-500 hover:text-zinc-900 hover:bg-black/5 transition-colors"
+                                className="p-2 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors"
                             >
-                                <Paperclip size={20} />
+                                <Paperclip size={20} strokeWidth={1.5} />
                             </button>
                             {/* Attachment Menu */}
                             {showAttachmentMenu && (
-                                <div className="absolute bottom-12 left-0 w-56 bg-white border border-black/5 rounded-2xl shadow-xl overflow-hidden z-50 animate-in fade-in slide-in-from-bottom-2 duration-200 p-1.5">
+                                <div className="absolute bottom-12 left-0 w-56 bg-white border border-gray-100 rounded-2xl shadow-xl overflow-hidden z-50 animate-in fade-in slide-in-from-bottom-2 duration-200 p-1.5">
                                     <button
                                         onClick={() => {
                                             documentInputRef.current?.click();
                                             setShowAttachmentMenu(false);
                                         }}
-                                        className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-zinc-100 rounded-xl transition-colors text-sm text-zinc-700"
+                                        className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 rounded-xl transition-colors text-sm text-gray-700"
                                     >
-                                        <FileText size={18} className="text-green-600 shrink-0" />
+                                        <FileText size={18} className="text-green-600 shrink-0" strokeWidth={1.5} />
                                         <span>Upload Document</span>
                                     </button>
                                     <button
@@ -187,14 +190,23 @@ const ChatInput: React.FC<ChatInputProps> = ({
                                             fileInputRef.current?.click();
                                             setShowAttachmentMenu(false);
                                         }}
-                                        className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-zinc-100 rounded-xl transition-colors text-sm text-zinc-700"
+                                        className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 rounded-xl transition-colors text-sm text-gray-700"
                                     >
-                                        <ImageIcon size={18} className="text-blue-600 shrink-0" />
+                                        <ImageIcon size={18} className="text-blue-600 shrink-0" strokeWidth={1.5} />
                                         <span>Upload Image</span>
                                     </button>
                                 </div>
                             )}
                         </div>
+                        {/* Model Selector with Web Search Integration */}
+                        <ModelSelector
+                            selectedModel={selectedModel}
+                            onModelChange={setSelectedModel}
+                            disabled={isTyping}
+                            deepDiveRemaining={deepDiveRemaining}
+                            enableWebSearch={enableWebSearch}
+                            onWebSearchToggle={() => setEnableWebSearch(!enableWebSearch)}
+                        />
                     </div>
 
                     {/* Text Area */}
@@ -206,57 +218,41 @@ const ChatInput: React.FC<ChatInputProps> = ({
                                 e.target.style.height = 'auto';
                                 e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
                             }}
-                            onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSend())}
+                            onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSend(selectedModel === 'deep_dive'))}
                             onFocus={() => setIsFocused(true)}
                             onBlur={() => setIsFocused(false)}
-                            placeholder={appMode === 'tutor' ? "Message Nevra..." : "Describe your app..."}
-                            className="w-full bg-transparent border-0 text-zinc-900 placeholder-zinc-500 focus:outline-none resize-none max-h-[200px] py-1 text-base leading-relaxed"
+                            placeholder={appMode === 'tutor' ? "Ask something..." : "Describe your app..."}
+                            className="w-full bg-transparent border-0 text-gray-800 placeholder-gray-400 focus:outline-none resize-none max-h-[200px] py-1 text-base leading-relaxed"
                             style={{ height: '44px' }}
                         />
                     </div>
 
                     {/* Right Actions (Send) */}
                     <div className="flex items-center gap-1 pb-1.5 pr-1.5">
-                        {/* Optional Web Search Toggle */}
-                        {appMode === 'tutor' && (
-                            <button
-                                onClick={() => setEnableWebSearch(!enableWebSearch)}
-                                className={cn(
-                                    "p-2 rounded-full transition-colors",
-                                    enableWebSearch ? "bg-blue-100/50 text-blue-600" : "text-zinc-500 hover:text-zinc-900 hover:bg-black/5"
-                                )}
-                                title="Web Search"
-                            >
-                                <Globe size={20} />
-                            </button>
-                        )}
 
                         <button
-                            onClick={() => handleSend()}
+                            onClick={() => handleSend(selectedModel === 'deep_dive')}
                             disabled={(!input.trim() && attachedImages.length === 0) || isTyping}
                             className={cn(
-                                "w-8 h-8 flex items-center justify-center rounded-full transition-all duration-200",
+                                "w-10 h-10 flex items-center justify-center rounded-full transition-all duration-300 shadow-md hover:shadow-lg hover:scale-105 active:scale-95",
                                 (!input.trim() && attachedImages.length === 0) || isTyping
-                                    ? "bg-zinc-200 text-zinc-400 cursor-not-allowed"
-                                    : "bg-black text-white hover:bg-zinc-800"
+                                    ? "bg-gray-100 text-gray-300 cursor-not-allowed shadow-none"
+                                    : "bg-gradient-to-r from-[#F0ABFC] to-[#A78BFA] text-white"
                             )}
                         >
-                            <ArrowUp size={16} />
+                            <ArrowUp size={20} className={cn(isTyping && "animate-pulse")} strokeWidth={2.5} />
                         </button>
                     </div>
 
                 </div>
 
                 {/* Footer Info */}
-                <div className="text-center mt-2 flex flex-col items-center gap-1">
+                <div className="text-center mt-3 pb-safe flex flex-col items-center gap-1.5 opacity-60 hover:opacity-100 transition-opacity">
                     {!isSubscribed && (
-                        <span className="text-[10px] font-medium text-zinc-600 dark:text-zinc-300 bg-white/50 dark:bg-black/40 px-2 py-0.5 rounded-full backdrop-blur-sm transition-colors border border-black/5 dark:border-white/10">
+                        <span className="text-[10px] font-medium text-gray-600 bg-white/30 px-3 py-1 rounded-full border border-white/20 shadow-sm backdrop-blur-sm">
                             {typeof credits === 'number' ? `${credits} prompts remaining today` : 'Unlimited prompts'}
                         </span>
                     )}
-                    <span className="text-[10px] text-zinc-400">
-                        Nevra can make mistakes. Check important info.
-                    </span>
                 </div>
             </div>
         </div>

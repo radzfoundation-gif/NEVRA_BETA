@@ -280,16 +280,34 @@ app.get('/api/cron/reset', (req, res) => {
 const FEATURE_LIMITS = {
   free: {
     chat: { limit: 10, period: 'day' },
+    deep_dive: { limit: 2, period: 'day' }, // Deep Dive: gpt-5, limited to 2/day
     convert: { limit: 3, period: 'month' },
     redesign: { limit: 3, period: 'month' },
     logo: { limit: 3, period: 'month' }
   },
   pro: {
     chat: { limit: 999999, period: 'day' },
+    deep_dive: { limit: 999999, period: 'day' }, // Pro: unlimited deep dive
     convert: { limit: 999999, period: 'month' },
     redesign: { limit: 999999, period: 'month' },
     logo: { limit: 999999, period: 'month' }
   }
+};
+
+// Tokens per request (for legacy compatibility - 1 prompt = 1 token)
+const TOKENS_PER_REQUEST = 1;
+
+// Feature costs for different operations (credit system)
+const FEATURE_COSTS = {
+  chat: 1,
+  deep_dive: 5, // Deep Dive costs more (uses gpt-5)
+  convert: 5,
+  redesign: 10,
+  youtube: 3,
+  audio: 5,
+  image: 10,
+  logo: 15,
+  knowledge: 5
 };
 
 const getPeriodString = (period) => {
@@ -802,6 +820,66 @@ OUTPUT FORMAT:
 });
 
 // =====================================================
+// GENERATE ENDPOINT (Standard Chat/Completion)
+// =====================================================
+app.post('/api/generate', async (req, res) => {
+  try {
+    const { prompt, model, images, messages } = req.body;
+
+    if (!prompt && (!messages || messages.length === 0)) {
+      return res.status(400).json({ error: 'Prompt or messages are required' });
+    }
+
+    // Default to SumoPod if configured
+    const client = sumopodClient || openai;
+    const targetModel = model || process.env.SUMOPOD_MODEL_ID || 'gemini/gemini-2.5-flash-lite';
+
+    // Construct messages if only prompt provided
+    const chatMessages = messages || [
+      { role: 'user', content: prompt }
+    ];
+
+    // Handle images if provided (add to last user message)
+    if (images && images.length > 0) {
+      const lastMsg = chatMessages[chatMessages.length - 1];
+      if (lastMsg.role === 'user') {
+        if (typeof lastMsg.content === 'string') {
+          lastMsg.content = [
+            { type: 'text', text: lastMsg.content },
+            ...images.map(img => ({ type: 'image_url', image_url: { url: img } }))
+          ];
+        }
+      }
+    }
+
+    console.log(`[Generate] Processing request for model: ${targetModel}`);
+
+    const completion = await client.chat.completions.create({
+      model: targetModel,
+      messages: chatMessages,
+      temperature: 0.7,
+      max_tokens: 1000,
+    });
+
+    const responseText = completion.choices[0].message.content;
+
+    res.json({
+      text: responseText,
+      model: targetModel
+    });
+
+  } catch (error) {
+    console.error('[Generate] Error:', error);
+    // CRITICAL: Always return JSON, never HTML
+    res.status(500).json({
+      error: 'Failed to generate response',
+      details: error.message || 'Creating chat completion failed',
+      code: 'GENERATE_ERROR'
+    });
+  }
+});
+
+// =====================================================
 // TOOLS ENDPOINTS (YouTube, URL, PDF, Audio)
 // =====================================================
 
@@ -1153,15 +1231,23 @@ console.log('🔑 API Key Status:', {
   }
 });
 
-// SumoPod models (OpenAI-compatible)
+// SumoPod models - Smart Routing per Tech Spec
 const SUMOPOD_MODELS = {
-  default: SUMOPOD_MODEL_ID, // SumoPod model ID from environment
-  fast: SUMOPOD_MODEL_ID, // Use same model for fast mode
-  tutor: SUMOPOD_MODEL_ID, // Use same model for tutor mode
+  // Default chat - gemini-2.5-flash-lite (fast, cost-effective)
+  default: SUMOPOD_MODEL_ID || 'gemini-2.5-flash-lite',
+  fast: 'gemini-2.5-flash-lite',
+  // Pro/Tutor mode - gpt-5-mini (complex reasoning)
+  tutor: 'gpt-5-mini',
+  pro: 'gpt-5-mini',
+  // Redesign/Creative - gemini-3-pro-preview
+  redesign: 'gemini-3-pro-preview',
+  creative: 'gemini-3-pro-preview',
 };
 
 const MODELS = {
-  groq: SUMOPOD_MODEL_ID || 'gemini/gemini-2.5-flash-lite', // Use SUMOPOD_MODEL_ID from .env or default to gemini/gemini-2.5-flash-lite
+  groq: SUMOPOD_MODEL_ID || 'gemini-2.5-flash-lite', // Default model
+  redesign: 'gemini-3-pro-preview', // UI/Creative tasks
+  pro: 'gpt-5-mini', // Pro reasoning mode
 };
 
 // Validate model ID
@@ -1425,7 +1511,7 @@ app.post('/api/generate', async (req, res) => {
 
   // Ensure response is always sent, even on unexpected errors
   let responseSent = false;
-  let provider = 'deepseek'; // Default to Mistral Devstral (free)
+  let provider = 'groq'; // Default to Gemini Flash Lite (SumoPod)
   let mode = 'builder';
   let prompt = '';
 
@@ -1455,19 +1541,26 @@ app.post('/api/generate', async (req, res) => {
 
   // --- TOKEN LIMIT CHECK ---
   if (userId) {
-    // New Feature-Based Limit (Supabase)
-    const usageCheck = await checkFeatureUsage(userId, 'chat');
+    // Check if deep_dive mode (uses gpt-5, limited to 2/day for free users)
+    const isDeepDive = body.deepDive === true || mode === 'deep_dive';
+    const featureToCheck = isDeepDive ? 'deep_dive' : 'chat';
+
+    const usageCheck = await checkFeatureUsage(userId, featureToCheck);
 
     if (!usageCheck.allowed) {
-      console.warn(`[TokenLimit] User ${userId} exceeded ${usageCheck.tier} chat limit (${usageCheck.used}/${usageCheck.limit})`);
+      const limitMessage = isDeepDive
+        ? `Deep Dive limit exceeded (${usageCheck.limit} prompts/day). Deep Dive uses GPT-5 for advanced reasoning.`
+        : `Daily chat limit exceeded (${usageCheck.limit} prompts/day). Please upgrade to Pro for unlimited access.`;
+
+      console.warn(`[TokenLimit] User ${userId} exceeded ${usageCheck.tier} ${featureToCheck} limit (${usageCheck.used}/${usageCheck.limit})`);
       return sendResponse(403, {
-        error: `Daily chat limit exceeded (${usageCheck.limit} prompts/day). Please upgrade to Pro for unlimited access.`,
-        code: 'TOKEN_LIMIT_EXCEEDED',
+        error: limitMessage,
+        code: isDeepDive ? 'DEEP_DIVE_LIMIT_EXCEEDED' : 'TOKEN_LIMIT_EXCEEDED',
         usage: { used: usageCheck.used, limit: usageCheck.limit, tier: usageCheck.tier }
       });
     }
 
-    console.log(`[TokenLimit] User ${userId}: ${usageCheck.used}/${usageCheck.limit} prompts (Tier: ${usageCheck.tier})`);
+    console.log(`[TokenLimit] User ${userId}: ${usageCheck.used}/${usageCheck.limit} ${featureToCheck} (Tier: ${usageCheck.tier})`);
   }
   // -------------------------
 
@@ -1574,18 +1667,35 @@ Always provide information based on your training data AND the current date cont
     try {
       // Verify Sumopod configuration
       const baseUrl = process.env.SUMOPOD_BASE_URL?.trim() || 'https://api.sumopod.com';
-      // Tech Spec 3.1: Default Model is gemini-2.5-flash-lite
-      const modelId = process.env.SUMOPOD_MODEL_ID?.trim() || 'gemini-2.5-flash-lite';
+
+      // Smart Model Routing per Tech Spec
+      // - Deep Dive: gpt-5 (advanced reasoning)
+      // - Tutor: gpt-5-mini (complex reasoning)
+      // - Default: gemini-2.5-flash-lite (fast, cost-effective)
+      const isDeepDive = body.deepDive === true || mode === 'deep_dive';
+      let modelId;
+
+      if (isDeepDive) {
+        modelId = 'gpt-5'; // Deep Dive uses GPT-5 for advanced reasoning
+        console.log(`[DeepDive] 🧠 Using GPT-5 for deep reasoning`);
+      } else if (mode === 'tutor') {
+        modelId = SUMOPOD_MODELS.tutor || 'gpt-5-mini';
+      } else {
+        modelId = process.env.SUMOPOD_MODEL_ID?.trim() || 'gemini-2.5-flash-lite';
+      }
 
       // Re-initialize client if needed or ensure it uses the correct base URL
       // Note: defined globally, but let's ensure we use the right config here if we were properly re-instantiating.
       // For now, we trust the global client but we should have initialized it with api.sumopod.com if that was the intent.
       // Since we are editing this file, we should fix the global initialization too (done in next step). 
 
+      // GPT-5 models only support temperature=1
+      const temperature = modelId.includes('gpt-5') ? 1 : (mode === 'tutor' ? 0.7 : 0.5);
+
       const completion = await sumopodClient.chat.completions.create({
         model: modelId,
         messages,
-        temperature: mode === 'tutor' ? 0.7 : 0.5,
+        temperature,
         max_tokens: baseMaxTokens,
       }, {
         signal: controller.signal,
@@ -1611,8 +1721,11 @@ Always provide information based on your training data AND the current date cont
     }
 
     if (userId) {
-      updateUserUsage(userId, TOKENS_PER_REQUEST);
-      console.log(`[TokenLimit] Deducted ${TOKENS_PER_REQUEST} tokens for User ${userId}`);
+      // Increment the correct feature usage (deep_dive or chat)
+      const isDeepDive = body.deepDive === true || mode === 'deep_dive';
+      const featureUsed = isDeepDive ? 'deep_dive' : 'chat';
+      await incrementFeatureUsage(userId, featureUsed);
+      console.log(`[TokenLimit] Incremented ${featureUsed} usage for User ${userId}`);
     }
 
     return sendResponse(200, { content });
@@ -2591,7 +2704,7 @@ app.post('/api/execute-code', async (req, res) => {
 
 // Agentic Planning endpoint
 app.post('/api/plan', async (req, res) => {
-  const { prompt, provider = 'deepseek' } = req.body || {}; // Default to Mistral Devstral
+  const { prompt, provider = 'groq' } = req.body || {}; // Default to Gemini Flash Lite (SumoPod)
 
   if (!prompt) {
     return res.status(400).json({ error: 'Prompt is required' });
@@ -2783,7 +2896,7 @@ app.get('/api/user/feature-usage', async (req, res) => {
   if (!userId) return res.status(400).json({ error: 'User ID required' });
 
   try {
-    const usageData = getUserUsage(userId);
+    const usageData = await getUserUsage(userId);
     const tier = await getUserTier(userId);
 
     // Calculate remaining credits
@@ -2814,7 +2927,7 @@ app.post('/api/user/feature-usage/increment', abuseLimiter, async (req, res) => 
 
     // Check if user has enough credits
     const tier = await getUserTier(userId);
-    const usageData = getUserUsage(userId);
+    const usageData = await getUserUsage(userId);
 
     if (tier !== 'pro' && (usageData.used + cost > usageData.limit)) {
       return res.status(403).json({
@@ -3141,7 +3254,7 @@ app.post('/api/workflow', async (req, res) => {
     prompt,
     history = [],
     mode = 'builder',
-    provider = 'deepseek',
+    provider = 'groq',
     images = [],
     framework = 'html',
     userId,
@@ -3217,7 +3330,7 @@ app.post('/api/payment/portal', async (req, res) => {
   try {
     // For Midtrans, we don't have a customer portal like Stripe
     // Instead, return subscription info
-    const subscription = getUserSubscription(userId);
+    const subscription = await getUserSubscription(userId);
 
     if (subscription && subscription.tier === 'pro') {
       res.json({

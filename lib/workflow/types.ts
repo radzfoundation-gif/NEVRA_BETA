@@ -63,7 +63,7 @@ export interface PreprocessedInput {
 
 export interface RoutingDecision {
   plannerModel: AIProvider; // Flexible provider (e.g., groq, anthropic, gemini)
-  executorModel: AIProvider; // Flexible provider (e.g., deepseek, groq)
+  executorModel: AIProvider; // Flexible provider (e.g., groq)
   reviewerModel: AIProvider; // Flexible provider (e.g., groq, anthropic, gemini)
   skipStages?: ('planner' | 'reviewer')[]; // For simple requests
 }

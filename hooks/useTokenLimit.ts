@@ -33,7 +33,7 @@ export function useTokenLimit() {
     // Soft limit warning (when <= 5 credits remain)
     const softLimitReached = !isSubscribed && usage.credits <= 5 && usage.credits > 0;
 
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8788';
+    const apiUrl = import.meta.env.VITE_API_URL || '';
 
     // Fetch subscription directly from Supabase - PRIMARY source of truth
     const fetchSubscriptionFromSupabase = useCallback(async (force = false) => {

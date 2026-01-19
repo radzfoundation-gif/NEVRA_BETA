@@ -3,11 +3,13 @@ import { WorkflowContext, ReviewResult, ExecutionResult, EnhancedPlan } from '..
 import { PromptEnhancer } from '../utils/PromptEnhancer';
 import { WORKFLOW_CONFIG } from '../config';
 
+import { AIProvider } from '../../ai';
+
 /**
  * Reviewer Agent - Uses GPT-OSS-20B for code review
  */
 export class ReviewerAgent extends BaseAgent {
-  constructor(model: 'anthropic' | 'gemini' = 'anthropic') {
+  constructor(model: AIProvider = 'groq') {
     super(model);
   }
 
@@ -16,7 +18,7 @@ export class ReviewerAgent extends BaseAgent {
   }
 
   getRequiredModel(): string {
-    return 'GPT-OSS-20B (anthropic/gemini)';
+    return 'Gemini Flash Lite (groq)';
   }
 
   async execute(

@@ -10,7 +10,7 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
 export async function executePlan(
   plan: EnhancedPlan | null,
   context: WorkflowContext,
-  provider: 'deepseek' // DEVSTRAL
+  provider: 'groq' // Gemini Flash Lite
 ): Promise<ExecutionResult> {
   const startTime = Date.now();
 
@@ -30,7 +30,7 @@ export async function executePlan(
 
     // Execute by calling API directly (avoid circular dependency)
     const systemPrompt = context.mode === 'builder' ? BUILDER_PROMPT : TUTOR_PROMPT;
-    
+
     const resp = await fetch(`${API_BASE}/generate`, {
       method: 'POST',
       headers: {
@@ -52,7 +52,7 @@ export async function executePlan(
 
     const data = await resp.json();
     let result: CodeResponse;
-    
+
     // Handle response format
     if (data.content) {
       // Single file response
@@ -117,7 +117,7 @@ export async function executePlan(
 
     // Return error result
     return {
-      code: context.mode === 'builder' 
+      code: context.mode === 'builder'
         ? '// Error: Failed to generate code. Please try again.'
         : undefined,
       explanation: context.mode === 'tutor'
@@ -140,9 +140,9 @@ function createExecutionPromptFromPlan(
   context: WorkflowContext
 ): string {
   let prompt = `Execute the following plan:\n\n`;
-  
+
   prompt += `Original Request: ${plan.prompt}\n\n`;
-  
+
   prompt += `Execution Steps:\n`;
   plan.executionSteps.forEach((step, index) => {
     prompt += `${index + 1}. ${step.action}\n`;
@@ -166,13 +166,13 @@ function createExecutionPromptFromPlan(
  */
 function estimateTokens(prompt: string, result: string | CodeResponse): number {
   const promptTokens = Math.ceil(prompt.length / 4);
-  
+
   let resultTokens = 0;
   if (typeof result === 'string') {
     resultTokens = Math.ceil(result.length / 4);
   } else if ('type' in result) {
     if (result.type === 'multi-file') {
-      resultTokens = result.files.reduce((sum, file) => 
+      resultTokens = result.files.reduce((sum, file) =>
         sum + Math.ceil(file.content.length / 4), 0
       );
     } else {

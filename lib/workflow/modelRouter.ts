@@ -18,7 +18,7 @@ export function routeModels(
   // Reviewer: Always GPT-OSS-20B (anthropic or gemini via OpenRouter)
   const decision: RoutingDecision = {
     plannerModel: WORKFLOW_CONFIG.defaultPlannerModel, // GPT-OSS-20B (anthropic/gemini)
-    executorModel: 'deepseek' as const, // DEVSTRAL - ALWAYS deepseek
+    executorModel: 'groq' as const, // Gemini Flash Lite - ALWAYS groq
     reviewerModel: WORKFLOW_CONFIG.defaultReviewerModel, // GPT-OSS-20B (anthropic/gemini)
     skipStages: [],
   };

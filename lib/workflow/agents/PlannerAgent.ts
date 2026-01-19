@@ -4,11 +4,13 @@ import { generatePlan, Plan } from '../../agenticPlanner';
 import { PromptEnhancer } from '../utils/PromptEnhancer';
 import { WORKFLOW_CONFIG } from '../config';
 
+import { AIProvider } from '../../ai';
+
 /**
  * Planner Agent - Uses GPT-OSS-20B for planning
  */
 export class PlannerAgent extends BaseAgent {
-  constructor(model: 'anthropic' | 'gemini' = 'anthropic') {
+  constructor(model: AIProvider = 'groq') {
     super(model);
   }
 
@@ -17,7 +19,7 @@ export class PlannerAgent extends BaseAgent {
   }
 
   getRequiredModel(): string {
-    return 'GPT-OSS-20B (anthropic/gemini)';
+    return 'Gemini Flash Lite (groq)';
   }
 
   async execute(
@@ -66,7 +68,7 @@ export class PlannerAgent extends BaseAgent {
 
   private createPlanningPrompt(prompt: string, context: PreprocessedInput): string {
     const { intent, context: ctx, metadata } = context;
-    
+
     let enhancedPrompt = `Create a detailed execution plan for the following request:\n\n${prompt}\n\n`;
 
     if (ctx.hasCode) {
@@ -96,7 +98,7 @@ export class PlannerAgent extends BaseAgent {
 
   private createExecutionSteps(plan: Plan, context: PreprocessedInput) {
     const steps = [];
-    
+
     plan.tasks.forEach((task, index) => {
       steps.push({
         step: index + 1,

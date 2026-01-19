@@ -122,7 +122,7 @@ export const TIER_LIMITS = {
         monthlyTokens: -1, // Unlimited
         monthlyCanvasAnalyzes: -1, // Unlimited
         chatHistoryDays: -1, // Unlimited
-        allowedModels: ['groq', 'openai', 'anthropic', 'gemini', 'deepseek']
+        allowedModels: ['groq', 'openai', 'anthropic', 'gemini']
     }
 };
 

@@ -1,4 +1,4 @@
-export type AIProvider = 'anthropic' | 'deepseek' | 'openai' | 'gemini';
+export type AIProvider = 'anthropic' | 'openai' | 'gemini' | 'groq';
 
 // --- ENHANCED SYSTEM PROMPTS (Bolt.new / v0.app Level) ---
 const BUILDER_PROMPT_ENHANCED = `
@@ -196,9 +196,9 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
 const formatErrorHtml = (provider: AIProvider, message: string) => {
   const isCreditError = message.toLowerCase().includes('credit') || message.toLowerCase().includes('insufficient');
   const isOpenRouterProvider = provider === 'openai' || provider === 'anthropic' || provider === 'gemini';
-  
+
   if (isOpenRouterProvider && isCreditError) {
-    const providerName = provider === 'openai' ? 'GPT-5.2' : provider === 'anthropic' ? 'Claude Sonnet 4.5' : provider === 'deepseek' ? 'Mistral Devstral' : 'Claude Sonnet 4.5';
+    const providerName = provider === 'openai' ? 'GPT-5.2' : provider === 'anthropic' ? 'Claude Sonnet 4.5' : 'Claude Sonnet 4.5';
     return `<!-- Error Generating Code --> 
       <div class="text-red-500 bg-red-900/20 p-4 rounded-lg border border-red-500/50">
         <strong>⚠️ OpenRouter Credits Insufficient</strong>
@@ -211,7 +211,7 @@ const formatErrorHtml = (provider: AIProvider, message: string) => {
           <li>Try a shorter prompt to reduce token usage</li>
           ${provider === 'openai' || provider === 'gemini' ? '<li>Check your OpenRouter API key has sufficient credits for ' + providerName + '</li>' : '<li>Note: ' + providerName + ' is free and does not require credits</li>'}
         </ul>
-        <span class="text-xs opacity-70">Note: All models use OpenRouter. Mistral Devstral is free, but GPT-5.2 and Claude Sonnet 4.5 require credits. Try <strong>DeepSeek</strong> for a free alternative.</span>
+        <span class="text-xs opacity-70">Note: All models use OpenRouter. Mistral Devstral is free, but GPT-5.2 and Claude Sonnet 4.5 require credits. Try <strong>Groq</strong> for a free alternative.</span>
       </div>`;
   }
 
@@ -220,7 +220,7 @@ const formatErrorHtml = (provider: AIProvider, message: string) => {
     const isHtmlError = message.toLowerCase().includes('html') || message.toLowerCase().includes('doctype');
     const isModelError = message.toLowerCase().includes('model') && message.toLowerCase().includes('not found');
     const isKeyError = message.toLowerCase().includes('invalid') && message.toLowerCase().includes('key');
-    
+
     if (isHtmlError || isModelError || isKeyError) {
       return `<!-- Error Generating Code --> 
         <div class="text-red-500 bg-red-900/20 p-4 rounded-lg border border-red-500/50">
@@ -242,37 +242,12 @@ const formatErrorHtml = (provider: AIProvider, message: string) => {
     }
   }
 
-  // Special handling for DeepSeek errors (uses OpenRouter)
-  if (provider === 'deepseek') {
-    const isUnauthorized = message.toLowerCase().includes('401') || message.toLowerCase().includes('unauthorized');
-    const isKeyError = message.toLowerCase().includes('invalid') && message.toLowerCase().includes('key');
-    const isApiKeyError = message.toLowerCase().includes('api key');
-    
-    if (isUnauthorized || isKeyError || isApiKeyError) {
-      return `<!-- Error Generating Code --> 
-        <div class="text-red-500 bg-red-900/20 p-4 rounded-lg border border-red-500/50">
-          <strong>🚫 Mistral Devstral Error</strong>
-          <br/><br/>
-          <p class="text-sm mb-2">${message}</p>
-          <p class="text-sm mb-3"><strong>Possible Causes & Solutions:</strong></p>
-          <ul class="text-sm list-disc list-inside space-y-1 mb-3">
-            <li><strong>Invalid OpenRouter API Key:</strong> Mistral Devstral uses OpenRouter API. Check your <code class="bg-black/30 px-1 rounded">OPENROUTER_API_KEY</code> in backend environment variables.</li>
-            <li><strong>API Key Not Set:</strong> Make sure <code class="bg-black/30 px-1 rounded">OPENROUTER_API_KEY</code> is set in your backend <code class="bg-black/30 px-1 rounded">.env</code> file</li>
-            <li><strong>Model Access:</strong> Verify that your OpenRouter API key has access to the model <code class="bg-black/30 px-1 rounded">mistralai/devstral-2512:free</code></li>
-            <li>Get your API key from <a href="https://openrouter.ai/keys" target="_blank" class="text-blue-400 underline">openrouter.ai/keys</a></li>
-            <li>Restart your backend server after updating the API key</li>
-          </ul>
-          <span class="text-xs opacity-70">Note: Mistral Devstral uses OpenRouter API (not DEEPSEEK_API_KEY). Make sure your OPENROUTER_API_KEY is valid and has access to the model.</span>
-        </div>`;
-    }
-  }
+
 
   // Special handling for API key not configured errors
   if (message.toLowerCase().includes('api key not configured') || message.toLowerCase().includes('not configured')) {
-    const isOpenRouterProvider = provider === 'openai' || provider === 'anthropic' || provider === 'gemini' || provider === 'deepseek';
-    if (isOpenRouterProvider) {
-      const providerName = provider === 'openai' ? 'GPT-5.2' : provider === 'anthropic' ? 'Claude Sonnet 4.5' : provider === 'deepseek' ? 'Mistral Devstral' : 'Claude Sonnet 4.5';
-      return `<!-- Error Generating Code --> 
+    const providerName = provider === 'openai' ? 'GPT-5.2' : provider === 'anthropic' ? 'Claude Sonnet 4.5' : 'Claude Sonnet 4.5';
+    return `<!-- Error Generating Code --> 
         <div class="text-red-500 bg-red-900/20 p-4 rounded-lg border border-red-500/50">
           <strong>⚠️ OpenRouter API Key Not Configured</strong>
           <br/><br/>
@@ -285,8 +260,8 @@ const formatErrorHtml = (provider: AIProvider, message: string) => {
           </ul>
           <span class="text-xs opacity-70">Note: ${providerName} requires OpenRouter API key. Make sure it's set in backend environment variables.</span>
         </div>`;
-    }
   }
+
 
   return `<!-- Error Generating Code --> 
     <div class="text-red-500 bg-red-900/20 p-4 rounded-lg border border-red-500/50">
@@ -306,7 +281,7 @@ export const generateCode = async (
 ) => {
 
   // Use enhanced prompt if enabled, otherwise use original
-  const systemPrompt = mode === 'builder' 
+  const systemPrompt = mode === 'builder'
     ? (useEnhanced ? BUILDER_PROMPT_ENHANCED : BUILDER_PROMPT_ENHANCED) // For now, always use enhanced
     : TUTOR_PROMPT;
 
@@ -330,7 +305,7 @@ export const generateCode = async (
       // Try to parse as JSON first, fallback to text if HTML response
       let errorData: any = {};
       const contentType = resp.headers.get('content-type') || '';
-      
+
       if (contentType.includes('application/json')) {
         try {
           errorData = await resp.json();
@@ -344,11 +319,11 @@ export const generateCode = async (
         // Response is HTML or other non-JSON format
         const text = await resp.text();
         console.error(`[${provider}] HTML error response:`, text.slice(0, 500));
-        errorData = { 
-          error: `API Error (${resp.status}): Server returned HTML instead of JSON. This usually means the API endpoint is incorrect, API key is invalid, or the service is unavailable.` 
+        errorData = {
+          error: `API Error (${resp.status}): Server returned HTML instead of JSON. This usually means the API endpoint is incorrect, API key is invalid, or the service is unavailable.`
         };
       }
-      
+
       const msg = errorData?.error || resp.statusText || 'Unknown error';
       throw new Error(msg);
     }
@@ -365,10 +340,10 @@ export const generateCode = async (
     return data.content || "";
   } catch (error) {
     console.error(`${provider} Error:`, error);
-    const errorMessage = error instanceof Error 
-      ? error.message 
-      : typeof error === 'string' 
-        ? error 
+    const errorMessage = error instanceof Error
+      ? error.message
+      : typeof error === 'string'
+        ? error
         : 'Unknown error occurred';
     return formatErrorHtml(provider, errorMessage);
   }

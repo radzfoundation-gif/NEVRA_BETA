@@ -28,7 +28,6 @@ const providers: {
     { id: 'openai', name: 'GPT-4o / GPT-5', icon: Brain, color: 'text-green-400', isPro: true, description: 'Most Capable' },
     { id: 'anthropic', name: 'Claude Opus 4.5', icon: Sparkles, color: 'text-purple-400', isPro: true, description: 'Best Reasoning' },
     { id: 'gemini', name: 'Gemini 3 Pro', icon: Zap, color: 'text-blue-400', isPro: true, description: 'Google Latest' },
-    { id: 'deepseek', name: 'DeepSeek V3', icon: Zap, color: 'text-cyan-400', isPro: true, description: 'Code Specialist' },
   ];
 
 const ProviderSelector: React.FC<ProviderSelectorProps> = ({

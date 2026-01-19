@@ -124,13 +124,13 @@ const SplashScreen: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
   }, [onComplete]);
 
   return (
-    <div className="flex items-center justify-center h-screen bg-[#050505] text-white">
+    <div className="flex items-center justify-center h-screen bg-gradient-to-br from-[#FFF8F0] via-[#F5F3FF] to-[#F0F8FF] text-gray-800">
       <div className="text-center space-y-6 animate-pulse">
-        <div className="w-16 h-16 mx-auto flex items-center justify-center">
+        <div className="w-16 h-16 mx-auto flex items-center justify-center text-[#7C3AED]">
           <Logo size={64} />
         </div>
-        <h1 className="text-3xl font-display font-bold tracking-widest">NEVRA</h1>
-        <p className="text-sm text-gray-400">Initializing Neural Automation...</p>
+        <h1 className="text-3xl font-display font-bold tracking-widest text-[#7C3AED]">ai.ua</h1>
+        <p className="text-sm text-gray-400">Initializing...</p>
       </div>
     </div>
   );
@@ -154,17 +154,17 @@ const ChatInterface: React.FC = () => {
 
   // Helper: Get optimal provider for mode (moved outside component to be accessible)
   const getOptimalProviderForMode = (mode: AppMode | null, isSubscribed: boolean = false): AIProvider => {
-    if (!mode) return 'deepseek'; // Default to Mistral Devstral (free)
+    if (!mode) return 'groq'; // Default to Gemini Flash Lite (SumoPod)
 
     if (mode === 'builder') {
-      // Builder mode: Mistral Devstral (free, good for code generation)
-      return 'deepseek'; // Mistral Devstral for code generation
+      // Builder mode: Gemini Flash Lite (SumoPod)
+      return 'groq'; // Gemini Flash Lite for code generation
     } else if (mode === 'canvas') {
       // Canvas mode requires vision capabilities
-      return 'deepseek'; // Or 'gemini' if available/preferred for vision
+      return 'groq'; // Gemini Flash Lite for vision
     } else {
-      // Tutor mode: Mistral Devstral (optimized for NEVRA Tutor)
-      return 'deepseek'; // Mistral Devstral for Tutor mode (default)
+      // Tutor mode: Gemini Flash Lite (SumoPod)
+      return 'groq'; // Gemini Flash Lite for Tutor mode (default)
     }
   };
 
@@ -218,7 +218,7 @@ const ChatInterface: React.FC = () => {
         mode: explicitMode,
         messages: [],
         shouldAutoSend: false,
-        initialProvider: 'deepseek' as AIProvider,
+        initialProvider: 'groq' as AIProvider,
         initialImages: [],
         targetFile: undefined,
         codebaseMode: false,
@@ -226,7 +226,7 @@ const ChatInterface: React.FC = () => {
       };
     }
     // Default to tutor mode if no prompt (auto-detect from Home.tsx)
-    return { mode: 'tutor' as AppMode, messages: [], shouldAutoSend: false, initialProvider: 'deepseek' as AIProvider, initialImages: [], targetFile: undefined, codebaseMode: false, enableWebSearch: enableWebSearch || true };
+    return { mode: 'tutor' as AppMode, messages: [], shouldAutoSend: false, initialProvider: 'groq' as AIProvider, initialImages: [], targetFile: undefined, codebaseMode: false, enableWebSearch: enableWebSearch || true };
   };
 
   const initialState = getInitialState();
@@ -1225,10 +1225,9 @@ const ChatInterface: React.FC = () => {
     setIsGeneratingPlan(true);
     try {
       // Generate plan with built-in timeout (15 seconds in agenticPlanner)
-      // Use Mistral Devstral for plan generation (now default)
-      const planProvider = provider === 'deepseek' ? 'deepseek' :
-        (provider === 'openai' || provider === 'gemini' || provider === 'anthropic') ? provider : 'deepseek';
-      const plan = await generatePlan(promptText, planProvider as 'anthropic' | 'gemini' | 'openai' | 'deepseek');
+      // Use SumoPod/Groq for plan generation (now default)
+      const planProvider = (provider === 'openai' || provider === 'gemini' || provider === 'anthropic') ? provider : 'groq';
+      const plan = await generatePlan(promptText, planProvider as 'anthropic' | 'gemini' | 'openai' | 'groq');
       setCurrentPlan(plan);
       setShowPlanner(true);
     } catch (error: any) {
@@ -1354,8 +1353,17 @@ const ChatInterface: React.FC = () => {
     }
   };
 
-  const handleSend = async (textOverride?: string, modeOverride?: AppMode, historyOverride?: Message[]) => {
-    let text = textOverride || input;
+  const handleSend = async (textOverride?: string | boolean, modeOverride?: AppMode, historyOverride?: Message[], deepDiveOverride?: boolean) => {
+    // Handle case where first arg is boolean (deepDive flag from ChatInput)
+    let deepDive = false;
+    let text: string;
+    if (typeof textOverride === 'boolean') {
+      deepDive = textOverride;
+      text = input;
+    } else {
+      text = textOverride || input;
+      deepDive = deepDiveOverride || false;
+    }
     const imagesToSend = historyOverride ? (historyOverride[historyOverride.length - 1]?.images || []) : attachedImages;
 
     if ((!text.trim() && imagesToSend.length === 0) || isTyping) return;
@@ -1512,7 +1520,7 @@ const ChatInterface: React.FC = () => {
         }));
 
         // Truncate history if using OpenRouter
-        if ((effectiveProvider === 'openai' || effectiveProvider === 'gemini' || effectiveProvider === 'anthropic' || effectiveProvider === 'deepseek') && fullHistory.length > 0) {
+        if ((effectiveProvider === 'openai' || effectiveProvider === 'gemini' || effectiveProvider === 'anthropic') && fullHistory.length > 0) {
           const OPENROUTER_PROMPT_TOKEN_LIMIT = 2000;
           historyForAI = truncateHistory(fullHistory, OPENROUTER_PROMPT_TOKEN_LIMIT);
 
@@ -2427,14 +2435,14 @@ const ChatInterface: React.FC = () => {
         }
       }
 
-      // Auto-fallback: If OpenRouter providers fail with token limit or credit error, switch to DeepSeek (free, no OpenRouter credits needed)
+      // Auto-fallback: If OpenRouter providers fail with token limit or credit error, switch to Groq/SumoPod (free)
       const isCreditError = errorMessage.toLowerCase().includes('credit') || errorMessage.toLowerCase().includes('insufficient');
       const isTokenLimitError = (effectiveProvider === 'openai' || effectiveProvider === 'gemini' || effectiveProvider === 'anthropic') &&
         (errorMessage.toLowerCase().includes('prompt tokens') ||
           errorMessage.toLowerCase().includes('token limit exceeded') ||
           isCreditError);
 
-      if (isTokenLimitError && effectiveProvider !== 'deepseek' as AIProvider) {
+      if (isTokenLimitError && effectiveProvider !== 'groq' as AIProvider) {
         const errorType = isCreditError ? 'credits exceeded' : 'token limit exceeded';
         const providerName = effectiveProvider === 'openai' ? 'GPT-5-Nano' :
           effectiveProvider === 'anthropic' ? 'GPT OSS 20B' :
@@ -2443,7 +2451,7 @@ const ChatInterface: React.FC = () => {
         setProvider('groq');
         setLogs(prev => [...prev, `⚠️ ${providerName} ${errorType}, retrying with Groq/SumoPod...`]);
 
-        // Retry with DeepSeek and shorter history
+        // Retry with Groq/SumoPod and shorter history
         const truncatedHistory = truncateHistory(historyForAI, 1500);
         try {
           const { WORKFLOW_CONFIG } = await import('@/lib/workflow/config');
@@ -2457,7 +2465,7 @@ const ChatInterface: React.FC = () => {
             text,
             truncatedHistory,
             mode,
-            'deepseek',
+            'groq',
             imagesToSend,
             mode === 'builder' ? framework : 'html',
             useWorkflow ? { onStatusUpdate } : false,
@@ -2705,93 +2713,68 @@ const ChatInterface: React.FC = () => {
 
   // --- Render Content ---
   const chatContent = (
-    <div className="flex flex-col h-full bg-white/30 backdrop-blur-sm relative overflow-hidden transition-colors duration-500">
+    <div className="flex flex-col h-full bg-transparent relative overflow-hidden transition-colors duration-500">
       <DynamicBackground />
-      {/* Header - Clean v0.app Style */}
-      <div className="relative h-12 md:h-14 border-b border-white/20 flex items-center px-4 md:px-6 justify-between shrink-0 bg-white/40 backdrop-blur-md">
-        {/* Left: Menu button (Mobile: All modes, Desktop: Tutor only) + Logo */}
-        <div className="flex items-center gap-3">
-          {(isMobile || appMode === 'tutor') && (
-            <button
-              onClick={() => isMobile ? setIsMobileSidebarOpen(true) : setIsSidebarOpen(!isSidebarOpen)}
-              className="p-2 rounded-md hover:bg-zinc-100 text-zinc-500 hover:text-zinc-900 transition-colors"
-              title={isSidebarOpen ? "Hide sidebar" : "Show sidebar"}
-            >
-              <Menu size={18} />
-            </button>
-          )}
-          <Link to="/" className="flex items-center gap-2 group">
-            <div className="w-6 h-6 flex items-center justify-center">
-              <Logo size={24} />
-            </div>
-            <span className="text-sm font-medium text-zinc-900">
-              {appMode === 'tutor' ? 'NEVRA' : 'NEVRA'}
-            </span>
-          </Link>
-        </div>
-        <div className="flex items-center gap-2">
-          {(appMode === 'builder' || appMode === 'canvas') && (
-            <button
-              onClick={() => setIsCanvasOpen(!isCanvasOpen)}
-              className={cn(
-                "p-2 rounded-md hover:bg-zinc-100 transition-colors",
-                isCanvasOpen ? "text-purple-600 bg-purple-50" : "text-zinc-500 hover:text-zinc-900"
-              )}
-              title={isCanvasOpen ? "Close Canvas" : "Open Canvas"}
-            >
-              <Layout size={18} />
-            </button>
-          )}
+      {/* Header - Transparent & Clean */}
+      <div className={cn(
+        "absolute top-0 left-0 right-0 z-30 flex items-center justify-between px-4 transition-all duration-300",
+        isMobile ? "h-14 bg-gradient-to-b from-white/80 to-transparent backdrop-blur-[2px]" : "h-16 bg-white/40 backdrop-blur-md border-b border-white/20"
+      )}>
+        <div className="flex items-center gap-3 overflow-hidden flex-1 min-w-0 mr-2">
           <button
-            onClick={handleShareChat}
-            className="p-2 rounded-md hover:bg-zinc-100 text-zinc-500 hover:text-blue-600 transition-colors"
-            title="Share Chat"
+            onClick={() => isMobile ? setIsMobileSidebarOpen(true) : toggleSidebarCollapse()}
+            className="p-2 -ml-2 rounded-lg text-gray-600 hover:bg-white/20 transition-colors shrink-0"
           >
-            <Share size={18} />
+            <Menu size={20} strokeWidth={1.5} />
           </button>
 
+          <div className="flex flex-col min-w-0 flex-1">
+            {/* Show Chat Title instead of Logo */}
+            <h1 className="text-sm md:text-base font-semibold text-gray-800 truncate leading-tight w-full">
+              {currentSessionId ? (
+                // Find title from sessions or default
+                sessions.find(s => s.id === currentSessionId)?.title || "Old Chat"
+              ) : (
+                // If no session, show default based on input or generic
+                input.trim().length > 0 ? "New Chat" : "New Chat"
+              )}
+            </h1>
+            {isMobile && appMode === 'tutor' && (
+              <span className="text-[10px] text-gray-500 font-medium truncate">Assistant</span>
+            )}
+          </div>
+        </div>
 
-          {showSettingsMenu && (
-            <>
-              <div
-                className="fixed inset-0 z-40"
-                onClick={() => setShowSettingsMenu(false)}
-              />
-              <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-zinc-200 rounded-xl shadow-xl overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-200">
-                <div className="p-1">
-                  <button
-                    onClick={() => {
-                      handleOpenSettings();
-                      setShowSettingsMenu(false);
-                    }}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-600 hover:text-zinc-900 hover:bg-zinc-50 rounded-lg transition-colors"
-                  >
-                    <Settings size={14} />
-                    <span>Settings</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      setAppMode('canvas');
-                      setShowSettingsMenu(false);
-                    }}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-600 hover:text-zinc-900 hover:bg-zinc-50 rounded-lg transition-colors"
-                  >
-                    <Sparkles size={14} className="text-purple-500" />
-                    <span>Canvas Mode</span>
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
+        <div className="flex items-center gap-1 shrink-0">
+          {/* Share Button (Restored) */}
+          <button
+            onClick={handleShareChat || (() => console.log('Share clicked'))}
+            className="p-2 rounded-full hover:bg-white/20 text-gray-600 transition-colors"
+            title="Share Chat"
+          >
+            <Share size={20} strokeWidth={1.5} />
+          </button>
+
+          {/* New Chat Button */}
+          <button
+            onClick={handleNewChat}
+            className="p-2 rounded-full hover:bg-white/20 text-gray-600 transition-colors"
+            title="New Chat"
+          >
+            <Plus size={20} strokeWidth={1.5} />
+          </button>
         </div>
       </div>
 
 
+
       {/* Chat List - Clean v0.app Style */}
-      <div className={cn(
-        "relative flex-1 overflow-y-auto px-3 sm:px-4 md:px-5 lg:px-6 py-4 sm:py-6 md:py-8",
-        messages.length === 0 ? "flex flex-col items-center justify-center text-center" : "block"
-      )}>
+      < div className={
+        cn(
+          "relative flex-1 overflow-y-auto px-3 sm:px-4 md:px-5 lg:px-6 py-4 sm:py-6 md:py-8",
+          messages.length === 0 ? "flex flex-col items-center justify-center text-center" : "block"
+        )
+      } >
         <AnimatePresence mode="wait">
           {false ? (
             <motion.div
@@ -2894,8 +2877,8 @@ const ChatInterface: React.FC = () => {
                   <div className={cn(
                     "relative leading-relaxed transition-all duration-200",
                     msg.role === 'user'
-                      ? "rounded-2xl px-3 md:px-4 py-2.5 md:py-3 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 max-w-[85%] sm:max-w-[80%] md:max-w-[85%]"
-                      : "rounded-2xl px-4 md:px-5 py-3 md:py-4 bg-white/5 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 max-w-[95%] sm:max-w-[90%] md:max-w-[95%] shadow-sm"
+                      ? "rounded-[20px] rounded-br-[4px] px-5 py-3 bg-gradient-to-r from-[#F0ABFC]/20 to-[#A78BFA]/20 text-indigo-950 font-medium max-w-[85%] sm:max-w-[70%] ml-auto shadow-sm backdrop-blur-sm border border-white/30"
+                      : "rounded-[24px] px-6 py-5 bg-white/60 backdrop-blur-md border border-white/60 text-gray-800 max-w-[95%] sm:max-w-[90%] shadow-lg shadow-purple-900/5 group-hover:shadow-purple-900/10 transition-shadow"
                   )}>
                     {msg.images && msg.images.length > 0 && (
                       <div className="flex gap-3 mb-4 flex-wrap">
@@ -2932,16 +2915,16 @@ const ChatInterface: React.FC = () => {
                     )}
                     {msg.role === 'ai' ? (
                       <div className="prose prose-sm md:prose-base max-w-none 
-                        prose-p:text-zinc-700 dark:prose-p:text-zinc-300 prose-p:leading-relaxed
-                        prose-headings:text-zinc-900 dark:prose-headings:text-zinc-100 prose-headings:font-bold prose-headings:tracking-tight
-                        prose-strong:text-zinc-900 dark:prose-strong:text-zinc-100 
-                        prose-code:text-purple-600 dark:prose-code:text-purple-400 prose-code:bg-purple-50 dark:prose-code:bg-purple-500/10 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:font-medium prose-code:before:content-none prose-code:after:content-none
-                        prose-pre:bg-zinc-950 dark:prose-pre:bg-black/50 prose-pre:border prose-pre:border-zinc-800 dark:prose-pre:border-zinc-800 prose-pre:rounded-xl
-                        prose-li:text-zinc-700 dark:prose-li:text-zinc-300 
-                        prose-ul:text-zinc-700 dark:prose-ul:text-zinc-300
-                        prose-blockquote:border-l-4 prose-blockquote:border-purple-500 prose-blockquote:bg-zinc-50 dark:prose-blockquote:bg-zinc-900/50 prose-blockquote:py-2 prose-blockquote:px-4 prose-blockquote:rounded-r-lg prose-blockquote:text-zinc-600 dark:prose-blockquote:text-zinc-400 prose-blockquote:not-italic prose-blockquote:shadow-sm
-                        prose-th:text-zinc-900 dark:prose-th:text-zinc-100 prose-td:text-zinc-700 dark:prose-td:text-zinc-300
-                        prose-a:text-blue-600 dark:prose-a:text-blue-400 prose-a:no-underline hover:prose-a:underline
+                        prose-p:text-gray-700 prose-p:leading-relaxed
+                        prose-headings:text-gray-900 prose-headings:font-bold prose-headings:tracking-tight
+                        prose-strong:text-gray-900 
+                        prose-code:text-indigo-600 prose-code:bg-indigo-50 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:font-medium prose-code:before:content-none prose-code:after:content-none
+                        prose-pre:bg-[#1e1e1e] prose-pre:border prose-pre:border-gray-200 prose-pre:rounded-xl prose-pre:shadow-sm
+                        prose-li:text-gray-700 
+                        prose-ul:text-gray-700
+                        prose-blockquote:border-l-4 prose-blockquote:border-purple-300 prose-blockquote:bg-purple-50/50 prose-blockquote:py-2 prose-blockquote:px-4 prose-blockquote:rounded-r-lg prose-blockquote:text-purple-800 prose-blockquote:not-italic
+                        prose-th:text-gray-900 prose-td:text-gray-700
+                        prose-a:text-indigo-600 prose-a:no-underline hover:prose-a:underline
                         prose-img:rounded-xl prose-img:shadow-lg
                       ">
                         {/* Parse and render sources if available (at top of message like ChatGPT) */}
@@ -3150,22 +3133,24 @@ const ChatInterface: React.FC = () => {
             </motion.div>
           )}
         </AnimatePresence>
-      </div>
+      </div >
 
       {/* Soft Limit Warning Banner */}
-      {softLimitReached && !isSubscribed && (
-        <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-50 pointer-events-none w-full max-w-md px-4">
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-yellow-500/90 text-white text-xs px-4 py-2 rounded-full backdrop-blur-md shadow-lg flex items-center justify-center gap-2 pointer-events-auto mx-auto"
-          >
-            <AlertTriangle size={14} className="fill-white/20" />
-            <span className="font-medium">⚡ Low Credits: {credits} remaining today (Reset at 00:00)</span>
-            <Link to="/pricing" className="underline hover:no-underline ml-1">Upgrade</Link>
-          </motion.div>
-        </div>
-      )}
+      {
+        softLimitReached && !isSubscribed && (
+          <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-50 pointer-events-none w-full max-w-md px-4">
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-yellow-500/90 text-white text-xs px-4 py-2 rounded-full backdrop-blur-md shadow-lg flex items-center justify-center gap-2 pointer-events-auto mx-auto"
+            >
+              <AlertTriangle size={14} className="fill-white/20" />
+              <span className="font-medium">⚡ Low Credits: {credits} remaining today (Reset at 00:00)</span>
+              <Link to="/pricing" className="underline hover:no-underline ml-1">Upgrade</Link>
+            </motion.div>
+          </div>
+        )
+      }
 
       {/* Input Area - ChatGPT Style - Show after first message or always for tutor mode */}
       {
@@ -3173,7 +3158,7 @@ const ChatInterface: React.FC = () => {
           <ChatInput
             input={input}
             setInput={setInput}
-            handleSend={() => handleSend()}
+            handleSend={(deepDive?: boolean) => handleSend(deepDive)}
             isTyping={isTyping}
             attachedImages={attachedImages}
             removeImage={removeImage}
@@ -4101,7 +4086,7 @@ const ChatInterface: React.FC = () => {
       {showSplash ? (
         <SplashScreen onComplete={() => setShowSplash(false)} />
       ) : (
-        <div className="flex h-screen bg-white text-zinc-900 overflow-hidden overflow-x-hidden font-sans">
+        <div className="flex h-screen bg-transparent text-zinc-900 overflow-hidden overflow-x-hidden font-sans">
           {isMobile ? (
             /* MOBILE LAYOUT */
             <div className="flex flex-col h-full w-full relative overflow-x-hidden">

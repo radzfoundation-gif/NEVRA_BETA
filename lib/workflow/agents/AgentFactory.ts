@@ -3,6 +3,7 @@ import { PlannerAgent } from './PlannerAgent';
 import { ExecutorAgent } from './ExecutorAgent';
 import { ReviewerAgent } from './ReviewerAgent';
 import { SelfReflectionAgent } from './SelfReflectionAgent';
+import { AIProvider } from '../../ai';
 import { RoutingDecision, MemoryEntry } from '../types';
 
 /**
@@ -36,15 +37,15 @@ export class AgentFactory {
    * Get or create Planner Agent (GPT-OSS-20B) with configuration
    */
   static getPlannerAgent(
-    model: 'anthropic' | 'gemini' = 'anthropic',
+    model: AIProvider = 'groq',
     config?: Partial<AgentConfig>
   ): PlannerAgent {
     const key = `planner-${model}`;
-    
+
     if (!this.agents.has(key)) {
       const agent = new PlannerAgent(model);
       this.agents.set(key, agent);
-      
+
       // Store configuration
       this.agentConfigs.set(key, {
         model,
@@ -61,7 +62,7 @@ export class AgentFactory {
         model, // Ensure model matches
       });
     }
-    
+
     return this.agents.get(key) as PlannerAgent;
   }
 
@@ -69,15 +70,15 @@ export class AgentFactory {
    * Get or create Executor Agent (DEVSTRAL) with configuration
    */
   static getExecutorAgent(
-    model: 'deepseek' = 'deepseek',
+    model: AIProvider = 'groq',
     config?: Partial<AgentConfig>
   ): ExecutorAgent {
     const key = `executor-${model}`;
-    
+
     if (!this.agents.has(key)) {
       const agent = new ExecutorAgent(model);
       this.agents.set(key, agent);
-      
+
       // Store configuration
       this.agentConfigs.set(key, {
         model,
@@ -94,7 +95,7 @@ export class AgentFactory {
         model, // Ensure model matches
       });
     }
-    
+
     return this.agents.get(key) as ExecutorAgent;
   }
 
@@ -102,15 +103,15 @@ export class AgentFactory {
    * Get or create Reviewer Agent (GPT-OSS-20B) with configuration
    */
   static getReviewerAgent(
-    model: 'anthropic' | 'gemini' = 'anthropic',
+    model: AIProvider = 'groq',
     config?: Partial<AgentConfig>
   ): ReviewerAgent {
     const key = `reviewer-${model}`;
-    
+
     if (!this.agents.has(key)) {
       const agent = new ReviewerAgent(model);
       this.agents.set(key, agent);
-      
+
       // Store configuration
       this.agentConfigs.set(key, {
         model,
@@ -127,7 +128,7 @@ export class AgentFactory {
         model, // Ensure model matches
       });
     }
-    
+
     return this.agents.get(key) as ReviewerAgent;
   }
 
@@ -135,15 +136,15 @@ export class AgentFactory {
    * Get or create Self-Reflection Agent (GPT-OSS-20B)
    */
   static getSelfReflectionAgent(
-    model: 'anthropic' | 'gemini' = 'anthropic',
+    model: AIProvider = 'groq',
     config?: Partial<AgentConfig>
   ): SelfReflectionAgent {
     const key = `reflection-${model}`;
-    
+
     if (!this.agents.has(key)) {
       const agent = new SelfReflectionAgent(model);
       this.agents.set(key, agent);
-      
+
       // Store configuration
       this.agentConfigs.set(key, {
         model,
@@ -160,7 +161,7 @@ export class AgentFactory {
         model, // Ensure model matches
       });
     }
-    
+
     return this.agents.get(key) as SelfReflectionAgent;
   }
 

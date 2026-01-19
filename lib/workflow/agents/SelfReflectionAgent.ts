@@ -17,12 +17,14 @@ export interface SelfReflectionResult {
   recommendations: string[];
 }
 
+import { AIProvider } from '../../ai';
+
 /**
  * Self-Reflection Agent
  * Analyzes workflow output and generates reflection for continuous improvement
  */
 export class SelfReflectionAgent extends BaseAgent {
-  constructor(model: 'anthropic' | 'gemini' = 'anthropic') {
+  constructor(model: AIProvider = 'groq') {
     super(model);
   }
 
@@ -31,7 +33,7 @@ export class SelfReflectionAgent extends BaseAgent {
   }
 
   getRequiredModel(): string {
-    return 'GPT-OSS-20B (anthropic/gemini)';
+    return 'Gemini Flash Lite (groq)';
   }
 
   async execute(
