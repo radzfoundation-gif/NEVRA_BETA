@@ -56,6 +56,8 @@
     "tailwind-merge": "^3.4.0",
     "tailwindcss-animate": "^1.0.7",
     "three": "^0.181.2",
+    "y-websocket": "^3.0.0",
+    "yjs": "^13.6.29",
     "youtube-transcript": "^1.2.1"
   },
   "devDependencies": {
