@@ -31,7 +31,7 @@ export default defineConfig(({ mode }) => {
     },
     optimizeDeps: {
       exclude: ['@excalidraw/excalidraw'],
-      include: ['react', 'react-dom', 'es6-promise-pool'],
+      include: ['react', 'react-dom', 'es6-promise-pool', 'png-chunks-extract'],
     },
     build: {
       rollupOptions: {
