@@ -1,6 +1,6 @@
 import React, { useCallback, useState, useEffect } from 'react';
 import { Excalidraw, exportToBlob } from '@excalidraw/excalidraw';
-import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types/types';
+import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types/excalidraw/types';
 import { Sparkles, Loader2, Lock, Crown } from 'lucide-react';
 import { useUser } from '@/lib/authContext';
 
