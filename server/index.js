@@ -36,6 +36,25 @@ if (supabase) {
   console.warn('⚠️ Supabase not configured. Using file-based fallback.');
 }
 
+// =====================================================
+// MISSING FUNCTION DEFINITIONS (Fixed)
+// =====================================================
+
+// Note: tokenStorageFile, subscriptionStorageFile, canvasAnalyzeStorageFile
+// are defined later in the file (around line 1255)
+// Note: getUserTier is defined later in the file (around line 1310)
+
+// Get feature usage for a specific feature (wrapper for checkFeatureUsage)
+// Note: checkFeatureUsage is defined later, so we use a forward reference pattern
+const getFeatureUsage = async (userId, featureType) => {
+  // This will be resolved at runtime when checkFeatureUsage is available
+  if (typeof checkFeatureUsage === 'function') {
+    return await checkFeatureUsage(userId, featureType);
+  }
+  // Fallback if called before checkFeatureUsage is defined
+  return { used: 0, limit: 10, allowed: true, tier: 'free' };
+};
+
 const execAsync = promisify(exec);
 const require = createRequire(import.meta.url);
 
@@ -1202,8 +1221,10 @@ function getMaxTokensForTier(tier = 'free', mode) {
 }
 
 // --- Subscription Management (Supabase with file fallback) ---
+const tokenStorageFile = path.join(__dirname, 'token_usage.json');
 const subscriptionStorageFile = path.join(__dirname, 'subscription_data.json');
 const canvasAnalyzeStorageFile = path.join(__dirname, 'canvas_analyze_data.json');
+
 
 // Ensure storage files exist (fallback)
 if (!fs.existsSync(tokenStorageFile)) {
