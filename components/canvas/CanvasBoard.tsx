@@ -1,6 +1,6 @@
 import React, { useCallback, useState, useEffect } from 'react';
-import { Tldraw, Editor, TldrawFile, useEditor } from 'tldraw';
-import 'tldraw/tldraw.css';
+import { Excalidraw, exportToBlob } from '@excalidraw/excalidraw';
+import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types/types';
 import { Sparkles, Loader2, Lock, Crown } from 'lucide-react';
 import { useUser } from '@/lib/authContext';
 
@@ -18,8 +18,8 @@ interface CanvasUsage {
     };
 }
 
-const CustomUi = ({ onAnalyze, isAnalyzing }: CanvasBoardProps) => {
-    const editor = useEditor();
+export const CanvasBoard: React.FC<CanvasBoardProps> = ({ onAnalyze, isAnalyzing = false }) => {
+    const [excalidrawAPI, setExcalidrawAPI] = useState<ExcalidrawImperativeAPI | null>(null);
     const { user } = useUser();
     const [canvasUsage, setCanvasUsage] = useState<CanvasUsage | null>(null);
     const [showLimitReached, setShowLimitReached] = useState(false);
@@ -42,7 +42,7 @@ const CustomUi = ({ onAnalyze, isAnalyzing }: CanvasBoardProps) => {
     }, [user?.id]);
 
     const handleAnalyzeClick = useCallback(async () => {
-        if (!editor || !user?.id) return;
+        if (!excalidrawAPI || !user?.id) return;
 
         // Check if free user at limit
         if (canvasUsage && canvasUsage.tier === 'free' && typeof canvasUsage.usage.remaining === 'number' && canvasUsage.usage.remaining <= 0) {
@@ -50,21 +50,17 @@ const CustomUi = ({ onAnalyze, isAnalyzing }: CanvasBoardProps) => {
             return;
         }
 
-        // Get all shapes or selected shapes
-        const shapeIds = editor.getCurrentPageShapeIds();
-        if (shapeIds.size === 0) return;
-
         try {
-            // Export to blob
-            const blob = await editor.toImage(Array.from(shapeIds), {
-                format: 'png',
-                background: true,
-                padding: 20,
-                scale: 1,
-            });
+            const elements = excalidrawAPI.getSceneElements();
+            if (elements.length === 0) return;
 
-            // Convert blob to base64 for API check
-            const blobData = blob instanceof Blob ? blob : (blob as any).blob;
+            // Export to blob using Excalidraw's export function
+            const blob = await exportToBlob({
+                elements,
+                appState: excalidrawAPI.getAppState(),
+                files: excalidrawAPI.getFiles(),
+                getDimensions: () => ({ width: 1920, height: 1080 }),
+            });
 
             // Check limit with backend first
             const checkResp = await fetch('/api/canvas/analyze', {
@@ -102,21 +98,24 @@ const CustomUi = ({ onAnalyze, isAnalyzing }: CanvasBoardProps) => {
             }
 
             // Call the original analyze callback
-            if (blobData instanceof Blob) {
-                onAnalyze(blobData);
-            }
+            onAnalyze(blob);
         } catch (error) {
             console.error("Failed to export canvas:", error);
         }
-    }, [editor, onAnalyze, user?.id, canvasUsage]);
+    }, [excalidrawAPI, onAnalyze, user?.id, canvasUsage]);
 
     const isPro = canvasUsage?.tier === 'pro';
-    const usedCount = canvasUsage?.usage?.used ?? 0;
     const limitCount = canvasUsage?.usage?.limit ?? 2;
     const remaining = canvasUsage?.usage?.remaining;
 
     return (
-        <>
+        <div className="w-full h-full relative bg-white">
+            <Excalidraw
+                excalidrawAPI={(api) => setExcalidrawAPI(api)}
+                theme="light"
+            />
+
+            {/* Custom UI Overlay */}
             <div className="absolute top-2 md:top-4 right-2 md:right-4 z-[9999] flex gap-2 pointer-events-auto">
                 {/* Usage Counter for Free Users */}
                 {canvasUsage && !isPro && (
@@ -196,19 +195,6 @@ const CustomUi = ({ onAnalyze, isAnalyzing }: CanvasBoardProps) => {
                     </div>
                 </div>
             )}
-        </>
-    );
-};
-
-export const CanvasBoard: React.FC<CanvasBoardProps> = ({ onAnalyze, isAnalyzing = false }) => {
-    return (
-        <div className="w-full h-full relative bg-white">
-            <Tldraw
-                persistenceKey="nevra-canvas-persistence"
-                hideUi={false}
-            >
-                <CustomUi onAnalyze={onAnalyze} isAnalyzing={isAnalyzing} />
-            </Tldraw>
         </div>
     );
 };

@@ -15,6 +15,7 @@
     "check:env": "bash scripts/check-env.sh"
   },
   "dependencies": {
+    "@excalidraw/excalidraw": "^0.18.0",
     "@modelcontextprotocol/sdk": "^1.25.0",
     "@monaco-editor/react": "^4.7.0",
     "@paper-design/shaders-react": "^0.0.70",
@@ -55,7 +56,6 @@
     "tailwind-merge": "^3.4.0",
     "tailwindcss-animate": "^1.0.7",
     "three": "^0.181.2",
-    "tldraw": "^4.2.3",
     "youtube-transcript": "^1.2.1"
   },
   "devDependencies": {
