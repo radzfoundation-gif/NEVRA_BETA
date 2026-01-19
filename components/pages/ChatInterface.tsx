@@ -1290,6 +1290,49 @@ const ChatInterface: React.FC = () => {
     return truncated;
   };
 
+  // Robust copy to clipboard helper
+  const copyTextToClipboard = async (text: string) => {
+    if (!navigator.clipboard) {
+      fallbackCopyTextToClipboard(text);
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      alert("Chat link copied to clipboard: " + text);
+    } catch (err) {
+      console.error('Async: Could not copy text: ', err);
+      fallbackCopyTextToClipboard(text);
+    }
+  };
+
+  const fallbackCopyTextToClipboard = (text: string) => {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+
+    // Avoid scrolling to bottom
+    textArea.style.top = "0";
+    textArea.style.left = "0";
+    textArea.style.position = "fixed";
+
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+
+    try {
+      const successful = document.execCommand('copy');
+      if (successful) {
+        alert("Chat link copied to clipboard: " + text);
+      } else {
+        alert("Failed to copy text. Please try selecting and copying manually.");
+      }
+    } catch (err) {
+      console.error('Fallback: Oops, unable to copy', err);
+      alert("Failed to copy text. Please try selecting and copying manually.");
+    }
+
+    document.body.removeChild(textArea);
+  };
+
   // Helper to share chat
   const handleShareChat = async () => {
     if (!currentSessionId) {
@@ -1301,9 +1344,7 @@ const ChatInterface: React.FC = () => {
       const id = await shareChatSession(currentSessionId);
       if (id) {
         const shareUrl = `https://rlabs-studio.web.id/share/${id}`;
-        copyToClipboard(shareUrl, () => {
-          alert("Chat link copied to clipboard: " + shareUrl);
-        });
+        copyTextToClipboard(shareUrl);
       }
     } catch (err) {
       console.error("Failed to share chat", err);
