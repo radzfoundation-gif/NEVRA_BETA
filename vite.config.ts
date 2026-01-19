@@ -39,7 +39,8 @@ export default defineConfig(({ mode }) => {
         'png-chunks-encode',
         'png-chunk-text',
         'crc-32',
-        'pako'
+        'pako',
+        '@braintree/sanitize-url'
       ],
     },
     build: {
