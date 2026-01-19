@@ -110,15 +110,32 @@ export const CanvasBoard: React.FC<CanvasBoardProps> = ({ onAnalyze, isAnalyzing
     return (
         <div className="w-full h-full relative bg-white overflow-hidden">
             {/* Excalidraw Container - Must be positioned absolutely to fill parent */}
-            <div className="absolute inset-0 w-full h-full">
+            <div className="absolute inset-0 w-full h-full pointer-events-none opacity-50 blur-[2px]">
                 <Excalidraw
                     excalidrawAPI={(api) => setExcalidrawAPI(api)}
                     theme="light"
                 />
             </div>
 
-            {/* Custom UI Overlay */}
-            <div className="absolute top-2 md:top-4 right-2 md:right-4 z-[9999] flex gap-2 pointer-events-auto">
+            {/* Coming Soon Overlay */}
+            <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/5 backdrop-blur-sm">
+                <div className="bg-white/90 p-8 rounded-2xl shadow-2xl border border-white/20 text-center max-w-md mx-4 animate-in fade-in zoom-in duration-300">
+                    <div className="w-16 h-16 bg-purple-100 text-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-inner">
+                        <Sparkles size={32} />
+                    </div>
+                    <h2 className="text-3xl font-bold text-zinc-900 mb-3 tracking-tight">Coming Soon</h2>
+                    <p className="text-zinc-600 mb-6 leading-relaxed">
+                        We are crafting an intelligent collaborative canvas experience. Stay tuned for something amazing!
+                    </p>
+                    <div className="flex items-center justify-center gap-2 text-xs font-medium text-zinc-400 uppercase tracking-widest">
+                        <span className="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></span>
+                        Under Development
+                    </div>
+                </div>
+            </div>
+
+            {/* Hidden UI Overlay (Disabled) */}
+            <div className="hidden absolute top-2 md:top-4 right-2 md:right-4 z-[9999] gap-2 pointer-events-auto">
                 {/* Usage Counter for Free Users */}
                 {canvasUsage && !isPro && (
                     <div className="flex items-center gap-2 px-3 py-2 bg-zinc-800/90 text-white rounded-lg text-xs backdrop-blur-sm">
