@@ -40,7 +40,8 @@ export default defineConfig(({ mode }) => {
         'png-chunk-text',
         'crc-32',
         'pako',
-        '@braintree/sanitize-url'
+        '@braintree/sanitize-url',
+        'lodash.throttle'
       ],
     },
     build: {
