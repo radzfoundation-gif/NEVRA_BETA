@@ -109,11 +109,14 @@ export const CanvasBoard: React.FC<CanvasBoardProps> = ({ onAnalyze, isAnalyzing
     const remaining = canvasUsage?.usage?.remaining;
 
     return (
-        <div className="w-full h-full relative bg-white">
-            <Excalidraw
-                excalidrawAPI={(api) => setExcalidrawAPI(api)}
-                theme="light"
-            />
+        <div className="w-full h-full relative bg-white overflow-hidden">
+            {/* Excalidraw Container - Must be positioned absolutely to fill parent */}
+            <div className="absolute inset-0 w-full h-full">
+                <Excalidraw
+                    excalidrawAPI={(api) => setExcalidrawAPI(api)}
+                    theme="light"
+                />
+            </div>
 
             {/* Custom UI Overlay */}
             <div className="absolute top-2 md:top-4 right-2 md:right-4 z-[9999] flex gap-2 pointer-events-auto">
