@@ -29,6 +29,10 @@ export default defineConfig(({ mode }) => {
         '@': path.resolve(__dirname, '.'),
       }
     },
+    optimizeDeps: {
+      exclude: ['@excalidraw/excalidraw'],
+      include: ['react', 'react-dom'],
+    },
     build: {
       rollupOptions: {
         external: [
