@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './lib/authContext';
 import Home from './components/pages/Home';
 import ChatInterface from './components/pages/ChatInterface';
+import SharedChat from './components/pages/SharedChat';
 import SignInPage from './components/auth/SignInPage';
 import SignUpPage from './components/auth/SignUpPage';
 import ForgotPasswordPage from './components/auth/ForgotPasswordPage';
@@ -62,6 +63,7 @@ const AppContent: React.FC = () => {
             </ProtectedRoute>
           }
         />
+        <Route path="/share/:id" element={<SharedChat />} />
       </Routes>
     </>
   );

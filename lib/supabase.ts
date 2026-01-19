@@ -60,6 +60,7 @@ export interface ChatSession {
     provider: string;
     created_at: string;
     updated_at: string;
+    is_shared?: boolean;
 }
 
 export interface Message {

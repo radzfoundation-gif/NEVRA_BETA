@@ -41,7 +41,10 @@ export default defineConfig(({ mode }) => {
         'crc-32',
         'pako',
         '@braintree/sanitize-url',
-        'lodash.throttle'
+        'lodash.throttle',
+        'lodash.debounce',
+        'fuzzy',
+        'use-sync-external-store/shim/with-selector.js'
       ],
     },
     build: {

@@ -32,7 +32,7 @@ import SubscriptionPopup from '../SubscriptionPopup';
 import TokenBadge from '../TokenBadge';
 import { useTokenLimit, useTrackAIUsage } from '@/hooks/useTokenLimit';
 import { FREE_TOKEN_LIMIT } from '@/lib/tokenLimit';
-import { createChatSession, saveMessage, getSessionMessages, updateChatSession, getUserSessions } from '@/lib/supabaseDatabase';
+import { createChatSession, saveMessage, getSessionMessages, updateChatSession, getUserSessions, shareChatSession } from '@/lib/supabaseDatabase';
 import { useUser, useAuth } from '@/lib/authContext';
 import FeedbackPopup from '../FeedbackPopup';
 import { useUserPreferences, useChatSessions } from '@/hooks/useSupabase';
@@ -335,7 +335,7 @@ const ChatInterface: React.FC = () => {
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [workflowStatus, setWorkflowStatus] = useState<{ status: string; message: string } | null>(null);
-  const [attachedImages, setAttachedImages] = useState<string[]>([]);
+  const [attachedImages, setAttachedImages] = useState<string[]>(initialState.initialImages || []);
   const MAX_IMAGES = 3;
   const MAX_SIZE_MB = 2;
 
@@ -472,6 +472,7 @@ const ChatInterface: React.FC = () => {
   const [fileTreeOpen, setFileTreeOpen] = useState(false); // For mobile/tablet collapsible file tree
   const previewContainerRef = useRef<HTMLDivElement>(null);
   const previewIframeRef = useRef<HTMLIFrameElement>(null);
+  const [isCanvasOpen, setIsCanvasOpen] = useState(true);
 
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -1289,9 +1290,29 @@ const ChatInterface: React.FC = () => {
     return truncated;
   };
 
+  // Helper to share chat
+  const handleShareChat = async () => {
+    if (!currentSessionId) {
+      alert("Please start a conversation before sharing.");
+      return;
+    }
+
+    try {
+      const id = await shareChatSession(currentSessionId);
+      if (id) {
+        const shareUrl = `https://rlabs-studio.web.id/share/${id}`;
+        copyToClipboard(shareUrl, () => {
+          alert("Chat link copied to clipboard: " + shareUrl);
+        });
+      }
+    } catch (err) {
+      console.error("Failed to share chat", err);
+    }
+  };
+
   const handleSend = async (textOverride?: string, modeOverride?: AppMode, historyOverride?: Message[]) => {
     let text = textOverride || input;
-    const imagesToSend = historyOverride ? [] : attachedImages; // Only send new images if not overriding history
+    const imagesToSend = historyOverride ? (historyOverride[historyOverride.length - 1]?.images || []) : attachedImages;
 
     if ((!text.trim() && imagesToSend.length === 0) || isTyping) return;
 
@@ -2665,20 +2686,26 @@ const ChatInterface: React.FC = () => {
           </Link>
         </div>
         <div className="flex items-center gap-2">
+          {(appMode === 'builder' || appMode === 'canvas') && (
+            <button
+              onClick={() => setIsCanvasOpen(!isCanvasOpen)}
+              className={cn(
+                "p-2 rounded-md hover:bg-zinc-100 transition-colors",
+                isCanvasOpen ? "text-purple-600 bg-purple-50" : "text-zinc-500 hover:text-zinc-900"
+              )}
+              title={isCanvasOpen ? "Close Canvas" : "Open Canvas"}
+            >
+              <Layout size={18} />
+            </button>
+          )}
           <button
-            onClick={() => setAppMode('canvas')}
-            className="p-2 rounded-md hover:bg-zinc-100 text-zinc-500 hover:text-purple-600 transition-colors"
-            title="Open Canvas (Orak Orek)"
+            onClick={handleShareChat}
+            className="p-2 rounded-md hover:bg-zinc-100 text-zinc-500 hover:text-blue-600 transition-colors"
+            title="Share Chat"
           >
-            <Sparkles size={16} />
+            <Share size={18} />
           </button>
-          <button
-            onClick={handleOpenSettings}
-            className="p-2 rounded-md hover:bg-zinc-100 text-zinc-500 hover:text-zinc-900 transition-colors"
-            title="Settings"
-          >
-            <Settings size={16} />
-          </button>
+
 
           {showSettingsMenu && (
             <>
@@ -4174,7 +4201,7 @@ const ChatInterface: React.FC = () => {
               </Panel>
 
               {/* Panel 2: Canvas (Orak Orek) - Replacing Workbench */}
-              {(appMode === 'builder' || appMode === 'canvas') && (
+              {(appMode === 'builder' || appMode === 'canvas') && isCanvasOpen && (
                 <>
                   <PanelResizeHandle className="w-1 bg-zinc-200 hover:w-2 hover:bg-purple-500/50 transition-all duration-200 cursor-col-resize z-50 relative group">
                     <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-0.5 bg-purple-500/0 group-hover:bg-purple-500 transition-colors" />

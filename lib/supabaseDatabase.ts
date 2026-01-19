@@ -308,6 +308,25 @@ export async function deleteChatSession(sessionId: string): Promise<boolean> {
 }
 
 /**
+ * Share chat session (make public)
+ */
+export async function shareChatSession(sessionId: string): Promise<string | null> {
+    try {
+        const { error } = await supabase
+            .from('chat_sessions')
+            .update({ is_shared: true })
+            .eq('id', sessionId);
+
+        if (error) throw error;
+
+        return sessionId;
+    } catch (error) {
+        console.error('Error sharing chat session:', error);
+        return null;
+    }
+}
+
+/**
  * Subscribe to user sessions (real-time)
  */
 export function subscribeToUserSessions(

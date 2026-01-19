@@ -118,18 +118,32 @@ export const CanvasBoard: React.FC<CanvasBoardProps> = ({ onAnalyze, isAnalyzing
             </div>
 
             {/* Coming Soon Overlay */}
-            <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/5 backdrop-blur-sm">
-                <div className="bg-white/90 p-8 rounded-2xl shadow-2xl border border-white/20 text-center max-w-md mx-4 animate-in fade-in zoom-in duration-300">
-                    <div className="w-16 h-16 bg-purple-100 text-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-inner">
-                        <Sparkles size={32} />
-                    </div>
-                    <h2 className="text-3xl font-bold text-zinc-900 mb-3 tracking-tight">Coming Soon</h2>
-                    <p className="text-zinc-600 mb-6 leading-relaxed">
-                        We are crafting an intelligent collaborative canvas experience. Stay tuned for something amazing!
-                    </p>
-                    <div className="flex items-center justify-center gap-2 text-xs font-medium text-zinc-400 uppercase tracking-widest">
-                        <span className="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></span>
-                        Under Development
+            <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-zinc-950/60 backdrop-blur-sm">
+                <div className="relative overflow-hidden bg-zinc-900/90 p-10 rounded-3xl shadow-2xl border border-white/10 text-center max-w-lg mx-6 transform transition-all animate-in fade-in zoom-in duration-500">
+
+                    {/* Background Glow Effect */}
+                    <div className="absolute top-0 opacity-20 left-1/2 -translate-x-1/2 w-48 h-48 bg-purple-500/50 blur-[80px] rounded-full pointer-events-none"></div>
+
+                    <div className="relative z-10">
+                        <div className="w-20 h-20 bg-gradient-to-br from-purple-500/20 to-blue-500/10 border border-purple-500/20 text-purple-400 rounded-2xl flex items-center justify-center mx-auto mb-8 shadow-lg ring-1 ring-purple-500/20">
+                            <Sparkles size={36} className="text-purple-400 drop-shadow-[0_0_10px_rgba(168,85,247,0.5)]" />
+                        </div>
+
+                        <h2 className="text-4xl font-bold text-white mb-4 tracking-tight drop-shadow-sm">
+                            Canvas <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400">2.0</span>
+                        </h2>
+
+                        <p className="text-zinc-400 mb-8 text-lg leading-relaxed font-light">
+                            We are rebuilding the infinite canvas engine to bring you true neural collaboration. A workspace that thinks with you.
+                        </p>
+
+                        <div className="inline-flex items-center gap-3 px-4 py-2 bg-purple-500/10 border border-purple-500/20 rounded-full">
+                            <span className="relative flex h-2.5 w-2.5">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-purple-500"></span>
+                            </span>
+                            <span className="text-xs font-semibold text-purple-300 uppercase tracking-widest">Coming Very Soon</span>
+                        </div>
                     </div>
                 </div>
             </div>
