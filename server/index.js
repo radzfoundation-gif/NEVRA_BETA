@@ -824,9 +824,9 @@ OUTPUT FORMAT:
 // =====================================================
 app.post('/api/generate', async (req, res) => {
   try {
-    const { prompt, model, images, messages } = req.body;
+    const { prompt, model, images, messages, history, systemPrompt } = req.body;
 
-    if (!prompt && (!messages || messages.length === 0)) {
+    if (!prompt && (!messages || messages.length === 0) && (!history || history.length === 0)) {
       return res.status(400).json({ error: 'Prompt or messages are required' });
     }
 
@@ -834,10 +834,42 @@ app.post('/api/generate', async (req, res) => {
     const client = sumopodClient || openai;
     const targetModel = model || process.env.SUMOPOD_MODEL_ID || 'gemini/gemini-2.5-flash-lite';
 
-    // Construct messages if only prompt provided
-    const chatMessages = messages || [
-      { role: 'user', content: prompt }
-    ];
+    // Construct messages
+    let chatMessages = messages || history || [];
+
+    // If empty history/messages, start with prompt
+    if (chatMessages.length === 0 && prompt) {
+      chatMessages = [{ role: 'user', content: prompt }];
+    } else if (chatMessages.length > 0 && prompt) {
+      // If history exists, append the new prompt
+      // Check if last message is already the prompt (prevent duplicate)
+      const lastMsg = chatMessages[chatMessages.length - 1];
+      if (lastMsg.role !== 'user' || lastMsg.content !== prompt) {
+        chatMessages.push({ role: 'user', content: prompt });
+      }
+    }
+
+    // SYSTEM PROMPT INJECTION
+    // Enforce clean formatting and prevent [1] citations unless grounded
+    const defaultSystemPrompt = `You are Nevra, a helpful AI assistant.
+FORMATTING RULES:
+- Use standard Markdown formatting.
+- Use **Bold** for emphasis and headers.
+- Use lists (bullet points) for structure.
+- Use \`code blocks\` for code.
+- Do NOT use bracketed citation numbers like [1], [2], [3] unless you are specifically listing sources at the end. If you cannot provide the link/source, plain text is better.
+- Keep responses concise and "rapi" (neat).
+- If explaining code, break it down step-by-step.`;
+
+    const finalSystemPrompt = systemPrompt ? `${defaultSystemPrompt}\n\n${systemPrompt}` : defaultSystemPrompt;
+
+    // Prepend system prompt if not present
+    if (chatMessages.length === 0 || chatMessages[0].role !== 'system') {
+      chatMessages.unshift({ role: 'system', content: finalSystemPrompt });
+    } else {
+      // If system prompt exists, append our formatting rules to it
+      chatMessages[0].content = `${finalSystemPrompt}\n\n${chatMessages[0].content}`;
+    }
 
     // Handle images if provided (add to last user message)
     if (images && images.length > 0) {

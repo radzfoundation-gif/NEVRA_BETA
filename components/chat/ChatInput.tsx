@@ -134,7 +134,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
     );
 
     return (
-        <div className="relative p-4 pb-6 md:pb-8 bg-transparent shrink-0 z-20">
+        <div className="absolute bottom-0 left-0 right-0 p-4 pb-safe md:pb-8 bg-transparent z-20">
             {renderHiddenInputs()}
 
             {/* Attached Images Preview */}

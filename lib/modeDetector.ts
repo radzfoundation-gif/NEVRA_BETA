@@ -117,92 +117,12 @@ export const detectMode = (text: string): AppMode => {
         'evening routine', 'rutinitas', 'rutinitas pagi', 'rutinitas sore'
     ];
 
-    // Check for builder intent (only count if NOT in exclusion patterns)
-    const builderScore = builderKeywords.reduce((score, keyword) => {
-        if (lowerText.includes(keyword)) {
-            // Skip if this keyword is part of a tutor-only pattern
-            const isExcluded = tutorOnlyPatterns.some(pattern => {
-                const match = text.match(pattern);
-                return match && match[0].toLowerCase().includes(keyword);
-            });
-            if (isExcluded) return score;
-
-            // Give higher weight to more specific keywords
-            if (['buat web', 'buat website', 'buat aplikasi', 'build web', 'create website', 'make app'].includes(keyword)) {
-                return score + 3;
-            }
-            return score + 1;
-        }
-        return score;
-    }, 0);
-
-    // Check for tutor intent (questions)
-    const tutorScore = tutorKeywords.reduce((score, keyword) => {
-        if (lowerText.includes(keyword)) {
-            // Give higher weight to question words at the start
-            if (lowerText.startsWith(keyword) || lowerText.startsWith(keyword + ' ')) {
-                return score + 3;
-            }
-            // Give higher weight to specific question patterns
-            if (['what is', 'what are', 'how to', 'bagaimana cara', 'apa itu'].includes(keyword)) {
-                return score + 2;
-            }
-            // Give higher weight to schedule/routine related keywords
-            if (['jadwal', 'schedule', 'routine', 'plan', 'rencana', 'agenda', 'morning routine', 'evening routine'].includes(keyword)) {
-                return score + 3;
-            }
-            return score + 1;
-        }
-        return score;
-    }, 0);
-
-    // Check for question mark (strong indicator of tutor mode)
-    const hasQuestionMark = text.includes('?');
-    if (hasQuestionMark && tutorScore > 0) {
-        return 'tutor';
+    // RESTRICTIVE CANVAS LOGIC: Only trigger if explicitly asked
+    if (canvasPatterns.some(p => p.test(text))) {
+        return 'canvas';
     }
 
-    // Check for imperative builder commands - NOW MAP TO CANVAS if ambiguous, or keep builder for pure code gen? 
-    // User wants to REPLACE builder with canvas. So if it's builder intent, we can Default to Canvas for now?
-    // User said "hapus mode nevra builder ganti dengan canvas orak orek".
-    // So I will return 'canvas' where I would have returned 'builder' for now, OR I will rely on the canvas patterns above.
-    // Let's keep builder for strictly code generation requests if they don't match canvas patterns, but maybe prompt user to use canvas?
-    // Actually, I'll modify the below to prefer canvas if there is any ambiguity.
-
-    const imperativeBuilderPatterns = [
-        /^buat\s+(web|website|aplikasi|app|halaman|situs)/i,
-        /^build\s+(web|website|app|application|page|site)/i,
-        /^create\s+(web|website|app|application|page|site)/i,
-        /^make\s+(web|website|app|application|page|site)/i,
-        /^generate\s+(web|website|app|application|page|site)/i
-    ];
-
-    const hasImperativeBuilder = imperativeBuilderPatterns.some(pattern => pattern.test(text));
-    if (hasImperativeBuilder) {
-        return 'canvas'; // Redirect builder commands to Canvas for now per user request
-    }
-
-    // Decision logic
-    if (builderScore > tutorScore && builderScore > 0) {
-        return 'canvas'; // Redirect builder to canvas
-    }
-
-    if (tutorScore > builderScore && tutorScore > 0) {
-        return 'tutor';
-    }
-
-    // If scores are equal or both zero, check for specific patterns
-    if (builderScore === tutorScore) {
-        // If text contains both, prioritize based on context
-        if (hasQuestionMark) {
-            return 'tutor';
-        }
-        // If starts with builder command, it's builder -> canvas
-        if (hasImperativeBuilder) {
-            return 'canvas';
-        }
-    }
-
-    // Default to tutor mode for general queries
+    // Default to tutor mode for all other queries (including code generation requests)
+    // The user specifically requested NOT to open canvas for "buatkan code"
     return 'tutor';
 };

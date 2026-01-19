@@ -2769,10 +2769,10 @@ const ChatInterface: React.FC = () => {
 
 
       {/* Chat List - Clean v0.app Style */}
-      < div className={
+      <div className={
         cn(
-          "relative flex-1 overflow-y-auto px-3 sm:px-4 md:px-5 lg:px-6 py-4 sm:py-6 md:py-8",
-          messages.length === 0 ? "flex flex-col items-center justify-center text-center" : "block"
+          "relative flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain px-3 sm:px-4 md:px-5 lg:px-6 pt-4 pb-36 sm:pb-40 md:pt-8 md:pb-48 scroll-smooth",
+          messages.length === 0 ? "flex flex-col items-center justify-center text-center pb-0" : "block"
         )
       } >
         <AnimatePresence mode="wait">
@@ -4236,7 +4236,11 @@ const ChatInterface: React.FC = () => {
                     <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-0.5 bg-purple-500/0 group-hover:bg-purple-500 transition-colors" />
                   </PanelResizeHandle>
                   <Panel defaultSize={65} minSize={50} className="flex flex-col bg-white overflow-hidden relative">
-                    <CanvasBoard onAnalyze={handleCanvasAnalysis} isAnalyzing={isTyping} />
+                    <CanvasBoard
+                      onAnalyze={handleCanvasAnalysis}
+                      isAnalyzing={isTyping}
+                      onClose={() => setIsCanvasOpen(false)}
+                    />
                   </Panel>
                 </>
               )}

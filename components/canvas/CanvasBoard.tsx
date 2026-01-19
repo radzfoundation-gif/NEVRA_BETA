@@ -3,9 +3,11 @@ import { Excalidraw, exportToBlob } from '@excalidraw/excalidraw';
 import { Sparkles, Loader2, Lock, Crown } from 'lucide-react';
 import { useUser } from '@/lib/authContext';
 
+
 interface CanvasBoardProps {
     onAnalyze: (blob: Blob) => void;
     isAnalyzing?: boolean;
+    onClose?: () => void;
 }
 
 interface CanvasUsage {
@@ -17,7 +19,7 @@ interface CanvasUsage {
     };
 }
 
-export const CanvasBoard: React.FC<CanvasBoardProps> = ({ onAnalyze, isAnalyzing = false }) => {
+export const CanvasBoard: React.FC<CanvasBoardProps> = ({ onAnalyze, isAnalyzing = false, onClose }) => {
     const [excalidrawAPI, setExcalidrawAPI] = useState<any | null>(null);
     const { user } = useUser();
     const [canvasUsage, setCanvasUsage] = useState<CanvasUsage | null>(null);
@@ -109,6 +111,20 @@ export const CanvasBoard: React.FC<CanvasBoardProps> = ({ onAnalyze, isAnalyzing
 
     return (
         <div className="w-full h-full relative bg-white overflow-hidden">
+            {/* Close Button - Restored */}
+            {onClose && (
+                <button
+                    onClick={onClose}
+                    className="absolute top-4 left-4 z-[9999] p-2 bg-white/80 hover:bg-white text-gray-600 rounded-lg shadow-sm backdrop-blur-sm transition-colors border border-gray-200"
+                    title="Close Canvas"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M18 6 6 18" />
+                        <path d="m6 6 12 12" />
+                    </svg>
+                </button>
+            )}
+
             {/* Excalidraw Container - Must be positioned absolutely to fill parent */}
             <div className="absolute inset-0 w-full h-full pointer-events-none opacity-50 blur-[2px]">
                 <Excalidraw
