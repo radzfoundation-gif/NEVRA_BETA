@@ -46,9 +46,15 @@ export async function parseDocument(
     }
 
     const data = await response.json();
+
+    // Ensure content is always a string
+    const contentStr = typeof data.content === 'string'
+      ? data.content
+      : (data.content ? String(data.content) : '');
+
     return {
       title: data.title || file.name,
-      content: data.content || '',
+      content: contentStr,
       pages: data.pages,
       sections: data.sections || [],
       metadata: data.metadata || {},
@@ -68,7 +74,7 @@ export async function extractTextFromFile(file: File): Promise<string> {
 
     reader.onload = (e) => {
       const content = e.target?.result as string;
-      
+
       if (file.type === 'text/plain' || file.name.endsWith('.txt')) {
         resolve(content);
       } else if (file.name.endsWith('.md')) {
@@ -80,7 +86,7 @@ export async function extractTextFromFile(file: File): Promise<string> {
     };
 
     reader.onerror = reject;
-    
+
     if (file.type === 'text/plain' || file.name.endsWith('.txt') || file.name.endsWith('.md')) {
       reader.readAsText(file);
     } else {
@@ -134,15 +140,15 @@ export function searchInDocument(
 export function getDocumentSummary(document: ParsedDocument): string {
   const wordCount = document.content.split(/\s+/).length;
   const pageCount = document.pages || Math.ceil(wordCount / 500);
-  
+
   let summary = `**${document.title}**\n\n`;
   summary += `- Pages: ${pageCount}\n`;
   summary += `- Word Count: ${wordCount}\n`;
-  
+
   if (document.metadata?.author) {
     summary += `- Author: ${document.metadata.author}\n`;
   }
-  
+
   if (document.sections && document.sections.length > 0) {
     summary += `- Sections: ${document.sections.length}\n`;
     summary += `\n**Sections:**\n`;
@@ -150,6 +156,6 @@ export function getDocumentSummary(document: ParsedDocument): string {
       summary += `${index + 1}. ${section.title}\n`;
     });
   }
-  
+
   return summary;
 }

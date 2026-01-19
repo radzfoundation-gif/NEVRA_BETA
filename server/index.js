@@ -2373,70 +2373,64 @@ app.post('/api/parse-document', upload.single('file'), async (req, res) => {
     try {
       // Parse based on file type
       if (fileExt === '.pdf') {
-        // pdf-parse v2+ exports PDFParse class, create wrapper function
-        const pdfParseModule = require('pdf-parse');
-        const PDFParse = pdfParseModule.PDFParse;
+        try {
+          // pdf-parse v2.x - import PDFParse class from explicit ESM path
+          const pdfParseModule = await import('pdf-parse');
+          console.log('pdf-parse module keys:', Object.keys(pdfParseModule));
 
-        if (!PDFParse || typeof PDFParse !== 'function') {
-          throw new Error(`pdf-parse PDFParse class not found. Please reinstall: npm install pdf-parse`);
-        }
-
-        const dataBuffer = fs.readFileSync(filePath);
-
-        // Create wrapper function compatible with old API
-        const pdfParseWrapper = async (buffer) => {
-          const parser = new PDFParse({ data: buffer });
-          await parser.load();
-
-          const text = parser.getText();
-          const info = parser.getInfo();
-
-          // Get page count (try different properties)
-          let numPages = 0;
-          if (parser.numPages !== undefined) {
-            numPages = parser.numPages;
-          } else if (parser.pages && Array.isArray(parser.pages)) {
-            numPages = parser.pages.length;
-          } else if (info && info.Pages) {
-            numPages = parseInt(info.Pages) || 0;
+          const PDFParse = pdfParseModule.PDFParse;
+          if (!PDFParse) {
+            throw new Error(`PDFParse class not found in module. Available exports: ${Object.keys(pdfParseModule).join(', ')}`);
           }
 
-          return {
-            text: text || '',
-            numpages: numPages,
-            info: info || {},
-          };
-        };
+          const dataBuffer = fs.readFileSync(filePath);
 
-        const pdfData = await pdfParseWrapper(dataBuffer);
-        content = pdfData.text;
-        pages = pdfData.numpages;
-        metadata = {
-          author: pdfData.info?.Author,
-          createdAt: pdfData.info?.CreationDate,
-          wordCount: content.split(/\s+/).length,
-        };
+          // Create PDFParse instance with data buffer
+          const parser = new PDFParse({ data: dataBuffer });
+          await parser.load();
+
+          // Get text and info using v2 API
+          const textResult = await parser.getText();
+          const infoResult = await parser.getInfo();
+
+          content = textResult.text || '';
+          pages = textResult.total || infoResult.total || 0;
+          metadata = {
+            author: infoResult.info?.Author,
+            createdAt: infoResult.info?.CreationDate,
+            wordCount: typeof content === 'string' ? content.split(/\s+/).length : 0,
+          };
+
+          // Clean up parser
+          await parser.destroy();
+        } catch (pdfError) {
+          console.error('PDF parsing failed:', pdfError.message);
+          // Fallback: return basic file info
+          content = `[PDF file: ${fileName}]\n\nPDF parsing failed. The content could not be extracted.\nError: ${pdfError.message}`;
+          pages = 0;
+          metadata = { wordCount: 0 };
+        }
       } else if (fileExt === '.docx') {
         const result = await mammoth.extractRawText({ path: filePath });
-        content = result.value;
+        content = result.value || '';
         const messages = result.messages;
         metadata = {
-          wordCount: content.split(/\s+/).length,
+          wordCount: typeof content === 'string' ? content.split(/\s+/).length : 0,
         };
         // Estimate pages (rough estimate: 500 words per page)
         pages = Math.ceil(metadata.wordCount / 500);
       } else if (fileExt === '.txt' || fileExt === '.md') {
-        content = fs.readFileSync(filePath, 'utf-8');
+        content = fs.readFileSync(filePath, 'utf-8') || '';
         metadata = {
-          wordCount: content.split(/\s+/).length,
+          wordCount: typeof content === 'string' ? content.split(/\s+/).length : 0,
         };
         pages = Math.ceil(metadata.wordCount / 500);
       } else {
         // Try to read as text for unknown types
         try {
-          content = fs.readFileSync(filePath, 'utf-8');
+          content = fs.readFileSync(filePath, 'utf-8') || '';
           metadata = {
-            wordCount: content.split(/\s+/).length,
+            wordCount: typeof content === 'string' ? content.split(/\s+/).length : 0,
           };
           pages = Math.ceil(metadata.wordCount / 500);
         } catch (err) {
@@ -2452,7 +2446,9 @@ app.post('/api/parse-document', upload.single('file'), async (req, res) => {
 
       // Split content into sections (by paragraphs or headings)
       const sections = [];
-      const paragraphs = content.split(/\n\n+/).filter(p => p.trim().length > 0);
+      // Ensure content is a string before splitting
+      const contentStr = typeof content === 'string' ? content : '';
+      const paragraphs = contentStr.split(/\n\n+/).filter(p => p.trim().length > 0);
 
       paragraphs.forEach((para, index) => {
         // Check if paragraph looks like a heading (short and might be all caps or have specific patterns)

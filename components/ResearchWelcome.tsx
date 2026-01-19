@@ -458,20 +458,20 @@ export function ResearchWelcome({
 
                             {/* Animated Waveform for Audio */}
                             {processingMessage.toLowerCase().includes('transcribing') || processingMessage.toLowerCase().includes('audio') ? (
-                                <div className="flex items-end justify-center gap-1.5 h-16 mb-6">
-                                    {[...Array(8)].map((_, i) => (
+                                <div className="flex items-end justify-center gap-1 h-20 mb-6">
+                                    {[...Array(12)].map((_, i) => (
                                         <motion.div
                                             key={i}
-                                            className="w-2 bg-gradient-to-t from-purple-600 to-indigo-500 rounded-full"
+                                            className="w-1.5 bg-gradient-to-t from-purple-600 via-indigo-500 to-blue-400 rounded-full"
                                             animate={{
-                                                height: [16, Math.random() * 48 + 16, 16],
-                                                opacity: [0.5, 1, 0.5]
+                                                height: [12, 48 + Math.sin(i * 0.5) * 20, 12],
+                                                scaleY: [1, 1.2, 1],
                                             }}
                                             transition={{
-                                                duration: 0.8,
+                                                duration: 0.6 + (i % 3) * 0.1,
                                                 repeat: Infinity,
-                                                delay: i * 0.1,
-                                                ease: "easeInOut"
+                                                delay: i * 0.08,
+                                                ease: [0.4, 0, 0.2, 1]
                                             }}
                                         />
                                     ))}
@@ -1050,28 +1050,8 @@ export function ResearchWelcome({
 
             </motion.div>
 
-            {/* Loading Overlay */}
-            <AnimatePresence>
-                {isProcessing && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 bg-black/60 backdrop-blur-md z-[100] flex flex-col items-center justify-center p-4"
-                    >
-                        <div className="bg-white/10 border border-white/20 p-8 rounded-2xl flex flex-col items-center shadow-2xl backdrop-blur-xl">
-                            <div className="relative mb-6">
-                                <div className="absolute inset-0 bg-purple-500/30 blur-xl rounded-full animate-pulse"></div>
-                                <Loader2 className="w-12 h-12 text-white animate-spin relative z-10" />
-                            </div>
-                            <h3 className="text-xl font-bold text-white mb-2 text-center">Thinking...</h3>
-                            <p className="text-zinc-300 text-center max-w-xs animate-pulse">
-                                {processingMessage || 'Processing your request...'}
-                            </p>
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+
+            {/* Loading Overlay removed - using the one at line ~447 with improved audio waveform animation */}
 
             {/* Subscription Popup */}
             <SubscriptionPopup

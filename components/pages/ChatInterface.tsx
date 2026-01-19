@@ -534,6 +534,9 @@ const ChatInterface: React.FC = () => {
   const [messageFeedback, setMessageFeedback] = useState<Record<string, 'like' | 'dislike'>>({});
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
 
+  // Image Lightbox State (for viewing full-size images)
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+
   // Chat Sessions (for sidebar)
   const { sessions, deleteSession, refreshSessions } = useChatSessions();
 
@@ -2883,14 +2886,20 @@ const ChatInterface: React.FC = () => {
                     {msg.images && msg.images.length > 0 && (
                       <div className="flex gap-3 mb-4 flex-wrap">
                         {msg.images.map((img, imgIdx) => (
-                          <div key={imgIdx} className="relative group">
+                          <div
+                            key={imgIdx}
+                            className="relative group cursor-pointer"
+                            onClick={() => setLightboxImage(img)}
+                          >
                             <img src={img} alt="Attached" className={cn(
-                              "object-cover shadow-xl",
+                              "object-cover shadow-xl transition-transform hover:scale-105",
                               appMode === 'tutor'
                                 ? "w-28 h-28 md:w-36 md:h-36 rounded-xl md:rounded-2xl border-2 border-blue-500/30"
                                 : "w-24 h-24 md:w-32 md:h-32 rounded-lg md:rounded-xl border border-purple-500/30 shadow-lg"
                             )} />
-                            <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl md:rounded-2xl"></div>
+                            <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl md:rounded-2xl flex items-center justify-center">
+                              <ZoomIn size={24} className="text-white" />
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -4510,6 +4519,27 @@ const ChatInterface: React.FC = () => {
             }
           }}
         />
+      )}
+
+      {/* Image Lightbox Modal */}
+      {lightboxImage && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => setLightboxImage(null)}
+        >
+          <button
+            onClick={() => setLightboxImage(null)}
+            className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors z-10"
+          >
+            <X size={24} />
+          </button>
+          <img
+            src={lightboxImage}
+            alt="Full size"
+            className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
       )}
     </>
   );
