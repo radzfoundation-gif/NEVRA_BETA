@@ -185,17 +185,20 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER IF NOT EXISTS update_user_profiles_updated_at
+DROP TRIGGER IF EXISTS update_user_profiles_updated_at ON public.user_profiles;
+CREATE TRIGGER update_user_profiles_updated_at
     BEFORE UPDATE ON public.user_profiles
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER IF NOT EXISTS update_canvas_sessions_updated_at
+DROP TRIGGER IF EXISTS update_canvas_sessions_updated_at ON public.canvas_sessions;
+CREATE TRIGGER update_canvas_sessions_updated_at
     BEFORE UPDATE ON public.canvas_sessions
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER IF NOT EXISTS update_subscriptions_updated_at
+DROP TRIGGER IF EXISTS update_subscriptions_updated_at ON public.subscriptions;
+CREATE TRIGGER update_subscriptions_updated_at
     BEFORE UPDATE ON public.subscriptions
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
