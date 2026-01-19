@@ -1,6 +1,5 @@
 import React, { useCallback, useState, useEffect } from 'react';
 import { Excalidraw, exportToBlob } from '@excalidraw/excalidraw';
-import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types/excalidraw/types';
 import { Sparkles, Loader2, Lock, Crown } from 'lucide-react';
 import { useUser } from '@/lib/authContext';
 
@@ -19,7 +18,7 @@ interface CanvasUsage {
 }
 
 export const CanvasBoard: React.FC<CanvasBoardProps> = ({ onAnalyze, isAnalyzing = false }) => {
-    const [excalidrawAPI, setExcalidrawAPI] = useState<ExcalidrawImperativeAPI | null>(null);
+    const [excalidrawAPI, setExcalidrawAPI] = useState<any | null>(null);
     const { user } = useUser();
     const [canvasUsage, setCanvasUsage] = useState<CanvasUsage | null>(null);
     const [showLimitReached, setShowLimitReached] = useState(false);
