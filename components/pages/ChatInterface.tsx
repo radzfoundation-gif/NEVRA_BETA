@@ -231,6 +231,8 @@ const ChatInterface: React.FC = () => {
 
   const initialState = getInitialState();
   const [templateName, setTemplateName] = useState<string | undefined>((initialState as any).templateName);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [shareUrl, setShareUrl] = useState('');
 
   // Hydrate state from navigation (Fix for Image Generation output)
   useEffect(() => {
@@ -1343,8 +1345,9 @@ const ChatInterface: React.FC = () => {
     try {
       const id = await shareChatSession(currentSessionId);
       if (id) {
-        const shareUrl = `https://rlabs-studio.web.id/share/${id}`;
-        copyTextToClipboard(shareUrl);
+        const url = `https://rlabs-studio.web.id/share/${id}`;
+        setShareUrl(url);
+        setIsShareModalOpen(true);
       }
     } catch (err) {
       console.error("Failed to share chat", err);
@@ -4406,6 +4409,81 @@ const ChatInterface: React.FC = () => {
             }
           }}
         />
+      )}
+
+      {/* Share Chat Modal - Fix for Safari Clipboard Issue */}
+      {isShareModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white border border-zinc-200 rounded-xl shadow-2xl p-6 flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-zinc-900 flex items-center gap-2">
+                <Share size={20} className="text-blue-500" />
+                Share This Chat
+              </h3>
+              <button
+                onClick={() => setIsShareModalOpen(false)}
+                className="p-1 text-zinc-400 hover:text-zinc-600 rounded-full hover:bg-zinc-100 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <p className="text-sm text-zinc-500">
+              Anyone with this link can view this chat session.
+            </p>
+
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                readOnly
+                value={shareUrl}
+                className="flex-1 bg-zinc-50 border border-zinc-200 text-zinc-700 text-sm rounded-lg px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
+              <button
+                onClick={() => {
+                  // Synchronous copy for Safari compatibility
+                  try {
+                    const textArea = document.createElement("textarea");
+                    textArea.value = shareUrl;
+                    textArea.style.position = "fixed"; // Avoid scrolling to bottom
+                    document.body.appendChild(textArea);
+                    textArea.focus();
+                    textArea.select();
+                    const successful = document.execCommand('copy');
+                    document.body.removeChild(textArea);
+
+                    if (successful) {
+                      alert("Copied!");
+                    } else {
+                      // Fallback attempt with Navigator API if execCommand fails unexpectedly (unlikely on modern browsers)
+                      if (navigator.clipboard) {
+                        navigator.clipboard.writeText(shareUrl).then(() => alert("Copied!")).catch(() => alert("Failed to copy. Please select and copy manually."));
+                      } else {
+                        alert("Failed to copy. Please select the text and copy manually.");
+                      }
+                    }
+                  } catch (err) {
+                    console.error("Copy failed", err);
+                    alert("Manual copy required.");
+                  }
+                }}
+                className="bg-blue-600 hover:bg-blue-700 text-white p-2.5 rounded-lg transition-colors flex items-center justify-center shrink-0"
+                title="Copy Link"
+              >
+                <Copy size={18} />
+              </button>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={() => setIsShareModalOpen(false)}
+                className="text-sm font-medium text-zinc-500 hover:text-zinc-800 px-4 py-2"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Database Panel removed - using Firebase */}
