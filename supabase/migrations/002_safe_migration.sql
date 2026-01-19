@@ -33,12 +33,12 @@ ALTER TABLE public.user_profiles ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Users can view own profile" ON public.user_profiles;
 CREATE POLICY "Users can view own profile"
     ON public.user_profiles FOR SELECT
-    USING (auth.uid() = id);
+    USING (auth.uid()::uuid = id);
 
 DROP POLICY IF EXISTS "Users can update own profile" ON public.user_profiles;
 CREATE POLICY "Users can update own profile"
     ON public.user_profiles FOR UPDATE
-    USING (auth.uid() = id);
+    USING (auth.uid()::uuid = id);
 
 -- Auto-create profile on user signup
 CREATE OR REPLACE FUNCTION public.handle_new_user()
@@ -80,22 +80,22 @@ ALTER TABLE public.canvas_sessions ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Users can view own canvases" ON public.canvas_sessions;
 CREATE POLICY "Users can view own canvases"
     ON public.canvas_sessions FOR SELECT
-    USING (auth.uid() = user_id);
+    USING (auth.uid()::uuid = user_id);
 
 DROP POLICY IF EXISTS "Users can create own canvases" ON public.canvas_sessions;
 CREATE POLICY "Users can create own canvases"
     ON public.canvas_sessions FOR INSERT
-    WITH CHECK (auth.uid() = user_id);
+    WITH CHECK (auth.uid()::uuid = user_id);
 
 DROP POLICY IF EXISTS "Users can update own canvases" ON public.canvas_sessions;
 CREATE POLICY "Users can update own canvases"
     ON public.canvas_sessions FOR UPDATE
-    USING (auth.uid() = user_id);
+    USING (auth.uid()::uuid = user_id);
 
 DROP POLICY IF EXISTS "Users can delete own canvases" ON public.canvas_sessions;
 CREATE POLICY "Users can delete own canvases"
     ON public.canvas_sessions FOR DELETE
-    USING (auth.uid() = user_id);
+    USING (auth.uid()::uuid = user_id);
 
 -- =====================================================
 -- AI USAGE TRACKING
@@ -121,7 +121,7 @@ ALTER TABLE public.ai_usage ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Users can view own usage" ON public.ai_usage;
 CREATE POLICY "Users can view own usage"
     ON public.ai_usage FOR SELECT
-    USING (auth.uid() = user_id);
+    USING (auth.uid()::uuid = user_id);
 
 DROP POLICY IF EXISTS "Service role can insert usage" ON public.ai_usage;
 CREATE POLICY "Service role can insert usage"
@@ -162,7 +162,7 @@ ALTER TABLE public.subscriptions ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Users can view own subscription" ON public.subscriptions;
 CREATE POLICY "Users can view own subscription"
     ON public.subscriptions FOR SELECT
-    USING (auth.uid() = user_id);
+    USING (auth.uid()::uuid = user_id);
 
 -- =====================================================
 -- WAITLIST
