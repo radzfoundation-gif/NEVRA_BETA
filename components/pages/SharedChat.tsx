@@ -175,19 +175,20 @@ const SharedChat: React.FC = () => {
                                     "relative max-w-[90%] md:max-w-[85%] rounded-2xl px-4 py-3 md:px-6 md:py-5 text-sm md:text-base leading-relaxed overflow-hidden shadow-lg",
                                     msg.role === 'user'
                                         ? "bg-zinc-800 text-white border border-zinc-700 rounded-tr-sm"
-                                        : "bg-black/80 backdrop-blur-xl text-zinc-100 border border-white/10 rounded-tl-sm"
+                                        : "bg-[#09090b] text-white border border-white/10 rounded-tl-sm shadow-xl"
                                 )}>
                                     {msg.role === 'ai' ? (
-                                        <div className="prose prose-sm md:prose-base prose-invert max-w-none
-                                        prose-p:leading-relaxed prose-p:text-zinc-100
+                                        <div className="prose prose-sm md:prose-base prose-invert max-w-none text-white
+                                        [&_*]:text-white
+                                        prose-p:leading-relaxed prose-p:text-white
                                         prose-headings:text-white prose-headings:font-bold prose-headings:mb-2 prose-headings:mt-4
                                         prose-strong:text-white prose-strong:font-bold
                                         prose-ul:my-2 prose-ol:my-2
-                                        prose-li:my-0.5 prose-li:text-zinc-200
-                                        prose-pre:bg-black prose-pre:border prose-pre:border-white/10 prose-pre:rounded-xl prose-pre:my-3
-                                        prose-code:bg-white/10 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-purple-200 prose-code:before:content-none prose-code:after:content-none
+                                        prose-li:my-0.5 prose-li:text-white
+                                        prose-pre:bg-[#0a0a0a] prose-pre:border prose-pre:border-white/10 prose-pre:rounded-xl prose-pre:my-3
+                                        prose-code:bg-white/10 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-white prose-code:before:content-none prose-code:after:content-none
                                         prose-a:text-blue-400 prose-a:no-underline hover:prose-a:underline
-                                        prose-blockquote:border-l-4 prose-blockquote:border-purple-500 prose-blockquote:bg-purple-500/10 prose-blockquote:px-4 prose-blockquote:py-1 prose-blockquote:text-zinc-200 prose-blockquote:rounded-r-lg
+                                        prose-blockquote:border-l-4 prose-blockquote:border-purple-500 prose-blockquote:bg-purple-500/10 prose-blockquote:px-4 prose-blockquote:py-1 prose-blockquote:text-white prose-blockquote:rounded-r-lg
                                         prose-hr:border-white/10 prose-hr:my-4
                                     ">
                                             <ReactMarkdown
