@@ -43,6 +43,7 @@ interface ChatInputProps {
     uploadedDocument: ParsedDocument | null;
     messagesLength: number;
     deepDiveRemaining?: number;
+    toggleCanvas?: () => void;
 }
 
 const ChatInput: React.FC<ChatInputProps> = ({
@@ -71,7 +72,8 @@ const ChatInput: React.FC<ChatInputProps> = ({
     setShowDocumentViewer,
     uploadedDocument,
     messagesLength,
-    deepDiveRemaining = 2
+    deepDiveRemaining = 2,
+    toggleCanvas
 }) => {
     const { credits } = useTokenLimit();
 
@@ -143,8 +145,55 @@ const ChatInput: React.FC<ChatInputProps> = ({
         </>
     );
 
+    // Looping Typewriter effect for placeholder
+    const [placeholderText, setPlaceholderText] = useState("");
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [loopNum, setLoopNum] = useState(0);
+    const [typingSpeed, setTypingSpeed] = useState(100);
+
+    const phrases = [
+        "Ask anything with Nevra...",
+        "Generate code & images...",
+        "Analyze complex data...",
+        "Summarize documents..."
+    ];
+
+    useEffect(() => {
+        const handleTyping = () => {
+            const i = loopNum % phrases.length;
+            const fullText = phrases[i];
+
+            setPlaceholderText(isDeleting
+                ? fullText.substring(0, placeholderText.length - 1)
+                : fullText.substring(0, placeholderText.length + 1)
+            );
+
+            setTypingSpeed(isDeleting ? 50 : 100);
+
+            if (!isDeleting && placeholderText === fullText) {
+                setTimeout(() => setIsDeleting(true), 2000); // Pause at end
+            } else if (isDeleting && placeholderText === '') {
+                setIsDeleting(false);
+                setLoopNum(loopNum + 1);
+                setTypingSpeed(500); // Pause before typing next
+            }
+        };
+
+        const timer = setTimeout(handleTyping, typingSpeed);
+        return () => clearTimeout(timer);
+    }, [placeholderText, isDeleting, loopNum, typingSpeed]);
+
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    // Auto-collapse when input is cleared (message sent)
+    useEffect(() => {
+        if (!input && textareaRef.current) {
+            textareaRef.current.style.height = '28px';
+        }
+    }, [input]);
+
     return (
-        <div className="absolute bottom-0 left-0 right-0 p-4 pb-safe md:pb-8 bg-transparent z-20">
+        <div className="absolute bottom-0 left-0 right-0 p-4 pb-safe md:pb-4 bg-transparent z-20">
             {renderHiddenInputs()}
 
             {/* Attached Images Preview */}
@@ -152,14 +201,14 @@ const ChatInput: React.FC<ChatInputProps> = ({
             <div className="max-w-2xl mx-auto w-full px-4 md:px-0">
                 {/* Main Input Container - Compact Clean White Card Style */}
                 <div className={cn(
-                    "w-full bg-white rounded-3xl flex flex-col p-2 transition-all duration-200 relative border border-gray-200/60 shadow-[0_8px_30px_rgb(0,0,0,0.04)]",
-                    isFocused && "shadow-[0_8px_30px_rgb(0,0,0,0.08)] ring-1 ring-black/5"
+                    "w-full bg-white rounded-3xl flex flex-col p-1 transition-all duration-200 relative border border-gray-200/60 shadow-[0_-8px_30px_rgb(0,0,0,0.04)]", // Changed shadow direction for bottom bar
+                    isFocused && "border-gray-300" // Subtle border color change only, no ring or shadow expansion
                 )}>
 
                     {/* Attached Images Preview Inside Card */}
                     {attachedImages.length > 0 && (
-                        <div className="w-full mb-2 px-2 pt-2">
-                            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
+                        <div className="w-full mb-1 px-2 pt-1">
+                            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
                                 {attachedImages.map((img, idx) => (
                                     <div key={idx} className="relative group shrink-0">
                                         <img src={img} alt="Preview" className="w-16 h-16 object-cover rounded-xl border border-black/5" />
@@ -175,15 +224,61 @@ const ChatInput: React.FC<ChatInputProps> = ({
                         </div>
                     )}
 
-                    <div className="w-full flex items-end">
+                    <div className="flex-1 min-w-0 py-0.5 px-2 flex items-center">
+                        <textarea
+                            ref={textareaRef}
+                            value={input}
+                            onChange={(e) => {
+                                setInput(e.target.value);
+                                e.target.style.height = 'auto';
+                                e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
+                            }}
+                            onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSend(selectedModel === 'deep_dive'))}
+                            onFocus={(e) => {
+                                setIsFocused(true);
+                                // Auto-expand on focus if there is content
+                                if (input) {
+                                    e.target.style.height = 'auto';
+                                    e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
+                                }
+                            }}
+                            onBlur={(e) => {
+                                setIsFocused(false);
+                                // Auto-collapse on blur
+                                e.target.style.height = '28px';
+                            }}
+                            placeholder={placeholderText}
+                            className="w-full bg-transparent border-0 text-gray-800 placeholder-gray-400 focus:outline-none resize-none max-h-[200px] text-base leading-relaxed font-normal scrollbar-none transition-all duration-200 ease-in-out"
+                            style={{ height: '28px', minHeight: '28px', paddingTop: '4px' }}
+                        />
+                    </div>
+
+                    {/* Bottom Actions Row */}
+                    <div className="w-full flex items-center justify-between pl-2 pr-2 pb-1.5 mt-0.5">
                         {/* Left Actions (Tools Menu) */}
-                        <div className="flex items-center gap-1 pb-1.5 pl-2">
-                            <div className="relative" ref={toolsMenuRef}>
+                        <div className="flex items-center gap-1">
+                            <div className="relative flex items-center gap-1" ref={toolsMenuRef}>
                                 <button
                                     onClick={() => setShowToolsMenu(!showToolsMenu)}
-                                    className="p-2 rounded-full text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100 transition-colors"
+                                    className="p-1.5 rounded-full text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100 transition-colors"
                                 >
-                                    <Plus size={20} className={cn("transition-transform duration-200", showToolsMenu && "rotate-45")} strokeWidth={2} />
+                                    <Plus size={18} className={cn("transition-transform duration-200", showToolsMenu && "rotate-45")} strokeWidth={2} />
+                                </button>
+
+                                {/* Token Badge - Integrated here next to Plus */}
+                                {!isSubscribed && (
+                                    <div className="flex items-center justify-center h-6 min-w-[32px] px-1.5 bg-yellow-100/50 text-yellow-700 rounded-lg text-[10px] font-bold shrink-0 border border-yellow-200/50 select-none shadow-sm" title={`${credits} prompts remaining`}>
+                                        <span className="leading-none">{credits}</span>
+                                    </div>
+                                )}
+
+                                {/* Canvas/Layout Toggle - Restored */}
+                                <button
+                                    className="p-2 rounded-full text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 transition-colors hidden sm:flex"
+                                    title="Toggle Canvas"
+                                    onClick={toggleCanvas}
+                                >
+                                    <Layout size={20} strokeWidth={2} />
                                 </button>
 
                                 {/* Consolidated Tools Menu */}
@@ -201,13 +296,11 @@ const ChatInput: React.FC<ChatInputProps> = ({
                                             <span>Photo Library</span>
                                         </button>
 
+                                        {/* Mobile Camera Option */}
                                         <button
                                             onClick={() => {
-                                                if (isMobile) {
-                                                    cameraInputRef.current?.click();
-                                                } else {
-                                                    handleCameraCapture();
-                                                }
+                                                if (isMobile) cameraInputRef.current?.click();
+                                                else handleCameraCapture();
                                                 setShowToolsMenu(false);
                                             }}
                                             className="w-full flex items-center gap-3 px-3 py-2 hover:bg-zinc-50 transition-colors text-sm text-zinc-700"
@@ -218,11 +311,20 @@ const ChatInput: React.FC<ChatInputProps> = ({
 
                                         <div className="h-[1px] bg-zinc-100 my-1 mx-2" />
 
+                                        {/* Token Badge for Menu (More visible option) */}
+                                        {!isSubscribed && (
+                                            <div className="px-3 py-2 flex items-center justify-between bg-yellow-50/50 mx-2 rounded-lg border border-yellow-100 mb-1">
+                                                <div className="flex items-center gap-2 text-yellow-700">
+                                                    <Zap size={14} className="fill-yellow-500 text-yellow-500" />
+                                                    <span className="text-xs font-medium">{credits} prompts left</span>
+                                                </div>
+                                                <span className="text-[10px] text-yellow-600">Free</span>
+                                            </div>
+                                        )}
+
                                         <button
                                             onClick={() => {
                                                 setEnableWebSearch(!enableWebSearch);
-                                                // Don't close menu immediately to let user see toggle state change if desired, or close it.
-                                                // Let's close it for cleaner UX like a menu action.
                                                 setShowToolsMenu(false);
                                             }}
                                             className="w-full flex items-center justify-between px-3 py-2 hover:bg-zinc-50 transition-colors text-sm text-zinc-700 group"
@@ -238,26 +340,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
                             </div>
                         </div>
 
-                        {/* Text Area */}
-                        <div className="flex-1 min-w-0 py-2.5 px-2">
-                            <textarea
-                                value={input}
-                                onChange={(e) => {
-                                    setInput(e.target.value);
-                                    e.target.style.height = 'auto';
-                                    e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
-                                }}
-                                onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSend(selectedModel === 'deep_dive'))}
-                                onFocus={() => setIsFocused(true)}
-                                onBlur={() => setIsFocused(false)}
-                                placeholder={appMode === 'tutor' ? "Ask something..." : "Describe your app..."}
-                                className="w-full bg-transparent border-0 text-gray-800 placeholder-gray-400 focus:outline-none resize-none max-h-[200px] py-2 text-base leading-relaxed font-normal"
-                                style={{ height: '40px', minHeight: '40px' }}
-                            />
-                        </div>
-
-                        {/* Right Actions (Send & Model) */}
-                        <div className="flex items-center gap-2 pb-1.5 pr-1.5 self-end">
+                        <div className="flex items-center gap-3 pb-1.5 pr-1.5 self-end">
                             <ModelSelector
                                 selectedModel={selectedModel}
                                 onModelChange={setSelectedModel}
@@ -271,26 +354,21 @@ const ChatInput: React.FC<ChatInputProps> = ({
                                 onClick={() => handleSend(selectedModel === 'deep_dive')}
                                 disabled={(!input.trim() && attachedImages.length === 0) || isTyping}
                                 className={cn(
-                                    "w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 hover:bg-zinc-100",
-                                    isTyping
-                                        ? "text-zinc-300 cursor-not-allowed"
-                                        : "text-zinc-900"
+                                    "w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200",
+                                    (!input.trim() && attachedImages.length === 0) || isTyping
+                                        ? "bg-zinc-100 text-zinc-300 cursor-not-allowed"
+                                        : "bg-[#eaac94] text-white hover:bg-[#d6a992] shadow-sm"
                                 )}
                             >
                                 <ArrowUp size={18} className={cn(isTyping && "animate-pulse")} strokeWidth={2.5} />
                             </button>
                         </div>
                     </div>
-
                 </div>
 
-                {/* Footer Info */}
-                <div className="text-center mt-3 pb-safe flex flex-col items-center gap-1.5 opacity-60 hover:opacity-100 transition-opacity">
-                    {!isSubscribed && (
-                        <span className="text-[10px] font-medium text-gray-600 bg-white/30 px-3 py-1 rounded-full border border-white/20 shadow-sm backdrop-blur-sm">
-                            {typeof credits === 'number' ? `${credits} prompts remaining today` : 'Unlimited prompts'}
-                        </span>
-                    )}
+                {/* Footer Disclaimer */}
+                <div className="text-center mt-2">
+                    <p className="text-[11px] text-zinc-400">Nevra is AI and can make mistakes. Please double-check responses.</p>
                 </div>
             </div>
         </div>

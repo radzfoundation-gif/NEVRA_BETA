@@ -5,7 +5,7 @@ import {
   Code, Play, Layout, Smartphone, Monitor, Download,
   X, Settings, ChevronRight, ChevronDown, FileCode,
   Folder, Terminal as TerminalIcon, RefreshCw, Globe,
-  CheckCircle2, Loader2, GraduationCap, Brain, Bot, Paperclip, Image as ImageIcon, Trash2, AlertTriangle, Phone, Lock, Camera, ImagePlus, Clock, Undo2, Redo2, Github, Search, FileText, Terminal, MoreVertical, Copy, Eye, ZoomIn, ZoomOut, Type, Palette, Save, Sparkles, Zap, ThumbsUp, ThumbsDown, Check, BarChart3, Share, RefreshCcw, MoreHorizontal, Youtube
+  CheckCircle2, Loader2, GraduationCap, Brain, Bot, Paperclip, Image as ImageIcon, Trash2, AlertTriangle, Phone, Lock, Camera, ImagePlus, Clock, Undo2, Redo2, Github, Search, FileText, Terminal, MoreVertical, Copy, Eye, ZoomIn, ZoomOut, Type, Palette, Save, Sparkles, Zap, ThumbsUp, ThumbsDown, Check, BarChart3, Share, RefreshCcw, MoreHorizontal, Youtube, Pencil
 } from 'lucide-react';
 import { Link, useLocation, useParams, useNavigate } from 'react-router-dom';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -29,7 +29,6 @@ import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css'; // Build error fix: Import CSS here
 
 import SubscriptionPopup from '../SubscriptionPopup';
-import TokenBadge from '../TokenBadge';
 import { useTokenLimit, useTrackAIUsage } from '@/hooks/useTokenLimit';
 import { FREE_TOKEN_LIMIT } from '@/lib/tokenLimit';
 import { createChatSession, saveMessage, getSessionMessages, updateChatSession, getUserSessions, shareChatSession } from '@/lib/supabaseDatabase';
@@ -233,6 +232,7 @@ const ChatInterface: React.FC = () => {
   const [templateName, setTemplateName] = useState<string | undefined>((initialState as any).templateName);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [shareUrl, setShareUrl] = useState('');
+  const [isTitleDropdownOpen, setIsTitleDropdownOpen] = useState(false);
 
   // Hydrate state from navigation (Fix for Image Generation output)
   useEffect(() => {
@@ -864,7 +864,7 @@ const ChatInterface: React.FC = () => {
   // Mode selection is now automatic from Home.tsx prompt detection
   // No manual mode selection needed
 
-  // Sidebar handlers (only for tutor mode)
+  // Sidebar handlers
   const handleNewChat = () => {
     setMessages([]);
     setInput('');
@@ -872,14 +872,77 @@ const ChatInterface: React.FC = () => {
     setUploadedDocument(null);
     setSearchResults([]);
     setAppMode('tutor');
-    // Clear sessionId to start fresh
+
+    // Reset file manager for builder mode
+    fileManager.clear();
+    setOpenFiles([]);
+    setSelectedFile(undefined);
+    setCurrentCode('');
+    setIsBuildingCode(false);
+
+    // Explicitly reset session ID and URL
     navigate('/chat');
     window.history.replaceState(null, '', '/chat');
+
     // Force refresh sessions in sidebar
     if (sessions && refreshSessions) {
-      setTimeout(() => refreshSessions(), 500);
+      setTimeout(() => refreshSessions(), 100);
     }
   };
+
+  // Auto-Title Generation
+  const generateAutoTitle = useCallback(async (firstMessage: string) => {
+    if (!sessionId || !user) return;
+
+    try {
+      const prompt = `Generate a short, concise title (3-5 words max) for a chat about: "${firstMessage}". Return ONLY the title text. Do not use quotes, markdown, or HTML. Just the plain text title.`;
+
+      // Use groq for fast title generation
+      const response = await generateCode(
+        prompt,
+        [],
+        'tutor', // Use tutor mode to avoid HTML generation templates
+        'groq',
+        [],
+        'html',
+        false,
+        sessionId,
+        user.id,
+        user.fullName || 'User',
+        user.primaryEmailAddress?.emailAddress,
+        'free'
+      );
+
+      // Clean up response: remove quotes, newlines, and markdown code ticks
+      let title = response.content?.trim() || "New Chat";
+      title = title.replace(/^["']|["']$/g, '')          // Remove surrounding quotes
+        .replace(/`/g, '')                     // Remove backticks
+        .replace(/\*\*/g, '')                  // Remove bold markdown
+        .replace(/# /g, '')                    // Remove header markdown
+        .split('\n')[0]                        // Take first line only
+        .substring(0, 50);                     // Hard limit length
+
+      if (title && title.length > 0) {
+        await updateChatSession(sessionId, { title });
+        if (refreshSessions) refreshSessions();
+      }
+    } catch (error) {
+      console.error("Auto-title generation failed:", error);
+    }
+  }, [sessionId, user, refreshSessions]);
+
+  // Trigger Auto-Title
+  useEffect(() => {
+    if (messages.length === 2 && messages[1].role === 'ai' && sessionId && sessions) {
+      const currentSession = sessions.find(s => s.id === sessionId);
+      // Only generate if title is default or empty
+      if (currentSession && (currentSession.title === 'New Chat' || !currentSession.title)) {
+        if (messages[0].role === 'user') {
+          generateAutoTitle(messages[0].content);
+        }
+      }
+    }
+  }, [messages.length, sessionId, sessions, generateAutoTitle]);
 
   const handleSelectSession = (selectedSessionId: string) => {
     navigate(`/chat/${selectedSessionId}`);
@@ -1370,7 +1433,7 @@ const ChatInterface: React.FC = () => {
       }
     } catch (err) {
       console.error('Fallback: Oops, unable to copy', err);
-      alert("Failed to copy text. Please try selecting and copying manually.");
+      alert("Failed to copy text. Please copy the text manually.");
     }
 
     document.body.removeChild(textArea);
@@ -2329,7 +2392,6 @@ const ChatInterface: React.FC = () => {
         const truncatedHistory = truncateHistory(historyForAI, 1500); // Even shorter limit
 
         try {
-          // Always use React framework for builder mode, html for tutor mode
           const { WORKFLOW_CONFIG } = await import('@/lib/workflow/config');
           const useWorkflow = WORKFLOW_CONFIG.enableWorkflow;
 
@@ -2757,12 +2819,12 @@ const ChatInterface: React.FC = () => {
   const chatContent = (
     <div className="flex flex-col h-full bg-transparent relative overflow-hidden transition-colors duration-500">
       <DynamicBackground />
-      {/* Header - Transparent & Clean */}
+      {/* Header - Claude Style */}
       <div className={cn(
         "absolute top-0 left-0 right-0 z-30 flex items-center justify-between px-4 transition-all duration-300",
-        isMobile ? "h-14 bg-gradient-to-b from-white/80 to-transparent backdrop-blur-[2px]" : "h-16 bg-white/40 backdrop-blur-md border-b border-white/20"
+        isMobile ? "h-14 bg-gradient-to-b from-white/90 to-transparent backdrop-blur-[2px]" : "h-14 bg-white/80 backdrop-blur-md border-b border-zinc-200/50"
       )}>
-        <div className="flex items-center gap-3 overflow-hidden flex-1 min-w-0 mr-2">
+        <div className="flex items-center gap-3 flex-1 min-w-0 mr-2">
           {/* Mobile Sidebar Toggle */}
           {isMobile && (
             <button
@@ -2770,41 +2832,66 @@ const ChatInterface: React.FC = () => {
               className="p-2 -ml-2 rounded-full hover:bg-black/5 text-gray-600 transition-colors"
               title="Open Sidebar"
             >
-              <Menu size={20} strokeWidth={1.5} />
+              <Menu size={20} strokeWidth={1.5} className="relative z-50" />
             </button>
           )}
 
-          <div className="flex flex-col min-w-0 flex-1">
-            {/* Show Chat Title instead of Logo */}
-            <h1 className="text-sm md:text-base font-semibold text-gray-800 truncate leading-tight w-full">
-              {currentSessionId ? (
-                // Find title from sessions or default
-                sessions.find(s => s.id === currentSessionId)?.title || "Old Chat"
-              ) : (
-                // If no session, show default based on input or generic
-                input.trim().length > 0 ? "New Chat" : "New Chat"
+          <div className="flex items-center gap-2 min-w-0">
+            {/* Title Dropdown */}
+            <div className="relative group">
+              <button
+                onClick={() => setIsTitleDropdownOpen(!isTitleDropdownOpen)}
+                className="flex items-center gap-2 px-2 py-1.5 -ml-1 rounded-lg hover:bg-zinc-100/80 text-zinc-800 transition-colors max-w-full"
+              >
+                <span className="text-sm font-semibold text-zinc-800 px-1 truncate max-w-[300px] sm:max-w-xl transition-all duration-300">
+                  {sessions.find(s => s.id === sessionId)?.title || "New Chat"}
+                </span>
+                <ChevronDown size={14} className="text-zinc-400" />
+              </button>
+
+              {/* Dropdown Menu */}
+              {isTitleDropdownOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setIsTitleDropdownOpen(false)} />
+                  <div className="absolute top-full left-0 mt-1 w-48 bg-white border border-zinc-200 rounded-xl shadow-lg z-50 py-1 animate-in fade-in zoom-in-95 duration-100">
+                    <button
+                      onClick={() => {
+                        setIsTitleDropdownOpen(false);
+                        const currentTitle = sessions.find(s => s.id === sessionId)?.title || "New Chat";
+                        const newTitle = prompt("Enter new title:", currentTitle);
+                        if (newTitle && sessionId) {
+                          updateChatSession(sessionId, { title: newTitle }).then(() => refreshSessions?.());
+                        }
+                      }}
+                      className="flex items-center gap-2 w-full px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50 text-left transition-colors"
+                    >
+                      <Pencil size={14} className="text-zinc-500" /> Rename
+                    </button>
+                    <button
+                      onClick={() => {
+                        setIsTitleDropdownOpen(false);
+                        if (sessionId && confirm("Delete this chat?")) {
+                          // Assuming delete logic exists or we implement it later
+                          console.log("Delete triggered");
+                          // For now just clear
+                          handleNewChat();
+                        }
+                      }}
+                      className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 text-left transition-colors"
+                    >
+                      <Trash2 size={14} /> Delete Chat
+                    </button>
+                  </div>
+                </>
               )}
-            </h1>
-            {isMobile && appMode === 'tutor' && (
-              <span className="text-[10px] text-gray-500 font-medium truncate">Assistant</span>
-            )}
+            </div>
           </div>
         </div>
 
         <div className="flex items-center gap-1 shrink-0">
-          {/* Share Button (Restored) */}
-          <button
-            onClick={handleShareChat || (() => console.log('Share clicked'))}
-            className="p-2 rounded-full hover:bg-white/20 text-gray-600 transition-colors"
-            title="Share Chat"
-          >
-            <Share size={20} strokeWidth={1.5} />
-          </button>
-
-          {/* New Chat Button */}
           <button
             onClick={handleNewChat}
-            className="p-2 rounded-full hover:bg-white/20 text-gray-600 transition-colors"
+            className="p-2 rounded-full hover:bg-zinc-100 text-zinc-500 hover:text-zinc-900 transition-colors"
             title="New Chat"
           >
             <Plus size={20} strokeWidth={1.5} />
@@ -2817,7 +2904,7 @@ const ChatInterface: React.FC = () => {
       {/* Chat List - Clean v0.app Style */}
       <div className={
         cn(
-          "relative flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain px-3 sm:px-4 md:px-5 lg:px-6 pt-4 pb-64 sm:pb-72 md:pt-8 md:pb-80 scroll-smooth",
+          "relative flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain px-3 sm:px-4 md:px-5 lg:px-6 pt-20 pb-64 sm:pb-72 md:pt-24 md:pb-80 scroll-smooth",
           messages.length === 0 ? "flex flex-col items-center justify-center text-center pb-0" : "block"
         )
       } >
@@ -3123,7 +3210,7 @@ const ChatInterface: React.FC = () => {
                               setMessageFeedback(prev => ({ ...prev, [msg.id]: newFeedback }));
 
                               // Send to Database
-                              if (activeSessionId && user) {
+                              if (sessionId && user) {
                                 try {
                                   const { supabase } = await import('@/lib/supabase');
                                   await supabase
@@ -3302,6 +3389,15 @@ const ChatInterface: React.FC = () => {
             setShowDashboard={setShowDashboard}
             setShowFlashcards={setShowFlashcards}
             setShowVoiceCall={setShowVoiceCall}
+            toggleCanvas={() => {
+              // Toggle canvas panel
+              if (appMode === 'builder') {
+                setActiveTab(activeTab === 'preview' ? 'code' : 'preview');
+              } else {
+                // For now, simple console log or switch mode if applicable
+                console.log("Toggle Canvas triggered");
+              }
+            }}
             fileInputRef={fileInputRef}
             documentInputRef={documentInputRef}
             handleFileChange={(e) => {

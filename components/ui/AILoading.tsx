@@ -8,14 +8,40 @@ const cn = (...inputs: Parameters<typeof clsx>) => twMerge(clsx(inputs));
 interface AILoadingProps {
   mode?: 'builder' | 'tutor' | 'canvas';
   status?: string;
+  loadingMessages?: string[];
   className?: string;
 }
 
-export default function AILoading({ mode = 'tutor', status, className }: AILoadingProps) {
-  const [loadingText, setLoadingText] = useState(status || 'Nevra is thinking');
+const DEFAULT_MESSAGES = [
+  "Nevra is thinking...",
+  "Analyzing request...",
+  "Connecting to knowledge base...",
+  "Formulating response...",
+  "Writing code...",
+  "Almost there..."
+];
 
-  // Optional: Cycle through messages for a more "alive" feel if no status is provided
-  // For now, keeping it simple and elegant as requested.
+export default function AILoading({ mode = 'tutor', status, loadingMessages, className }: AILoadingProps) {
+  // Use provided messages or defaults, but if status is provided, prioritize it as a fixed message initially
+  const messages = loadingMessages && loadingMessages.length > 0 ? loadingMessages : DEFAULT_MESSAGES;
+
+  // If status is provided, we can optionally just show that, OR we can start with it.
+  // For this design, let's behave as follows:
+  // If status is specific (passed from outside irrelevant to cycling), we might want to respect it.
+  // BUT the requirement is to cycle. Let's assume 'status' might be the initial state.
+
+  const [msgIndex, setMsgIndex] = useState(0);
+
+  useEffect(() => {
+    // Change text every 4 seconds
+    const interval = setInterval(() => {
+      setMsgIndex((prev) => (prev + 1) % messages.length);
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [messages.length]);
+
+  const currentText = status && !loadingMessages ? status : messages[msgIndex];
 
   return (
     <div className={cn("flex items-center gap-3 py-2 select-none", className)}>
@@ -48,15 +74,20 @@ export default function AILoading({ mode = 'tutor', status, className }: AILoadi
         />
       </div>
 
-      {/* Elegant Text Label */}
-      <div className="flex flex-col justify-center h-full">
-        <motion.span
-          initial={{ opacity: 0, x: -5 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="text-xs font-medium text-zinc-500 tracking-wide"
-        >
-          {status || 'Nevra is thinking...'}
-        </motion.span>
+      {/* Elegant Text Label with Typing Effect */}
+      <div className="flex flex-col justify-center h-full min-w-[150px]">
+        <AnimatePresence mode="wait">
+          <motion.span
+            key={currentText} // Trigger animation on text change
+            initial={{ opacity: 0, clipPath: 'inset(0 100% 0 0)' }}
+            animate={{ opacity: 1, clipPath: 'inset(0 0 0 0)' }}
+            exit={{ opacity: 0, clipPath: 'inset(0 0 0 100%)' }} // Optional exit
+            transition={{ duration: 1.5, ease: "linear" }}
+            className="text-xs font-medium text-zinc-500 tracking-wide whitespace-nowrap"
+          >
+            {currentText}
+          </motion.span>
+        </AnimatePresence>
       </div>
     </div>
   );
