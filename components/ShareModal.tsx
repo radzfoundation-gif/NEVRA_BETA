@@ -5,14 +5,18 @@ import { motion, AnimatePresence } from 'framer-motion';
 interface ShareModalProps {
     isOpen: boolean;
     onClose: () => void;
+    shareUrl?: string;
+    title?: string;
 }
 
-const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose }) => {
+const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, shareUrl, title }) => {
     const [copied, setCopied] = useState(false);
-    const referralLink = 'https://nevra.ai/invite/u/radzfoundation'; // Placeholder, ideally dynamic
+    // Use provided shareUrl or default to referral link (or current page if suitable)
+    const linkToShare = shareUrl || 'https://nevra.ai/invite/u/radzfoundation';
+    const isReferral = !shareUrl; // If no specific URL provided, assume it's the referral/invite mode
 
     const handleCopy = () => {
-        navigator.clipboard.writeText(referralLink);
+        navigator.clipboard.writeText(linkToShare);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
     };
@@ -50,10 +54,10 @@ const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose }) => {
                                 <div>
                                     <h2 className="text-xl font-bold text-zinc-900 flex items-center gap-2">
                                         <Share2 className="w-5 h-5 text-purple-600" />
-                                        Share with Friends
+                                        {title || (isReferral ? 'Share with Friends' : 'Share Chat')}
                                     </h2>
                                     <p className="text-sm text-zinc-500 mt-1">
-                                        Invite friends and unlock Pro features!
+                                        {isReferral ? 'Invite friends and unlock Pro features!' : 'Share this conversation via link or social media.'}
                                     </p>
                                 </div>
                                 <button
@@ -65,12 +69,14 @@ const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose }) => {
                             </div>
 
                             <div className="p-6 space-y-6">
-                                {/* Referral Link */}
+                                {/* Link Field */}
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium text-zinc-700">Your Referral Link</label>
+                                    <label className="text-sm font-medium text-zinc-700">
+                                        {isReferral ? 'Your Referral Link' : 'Chat Link'}
+                                    </label>
                                     <div className="flex gap-2">
                                         <div className="flex-1 bg-zinc-50 border border-zinc-200 rounded-lg px-4 py-2.5 text-sm text-zinc-600 truncate font-mono">
-                                            {referralLink}
+                                            {linkToShare}
                                         </div>
                                         <button
                                             onClick={handleCopy}
@@ -88,6 +94,17 @@ const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose }) => {
                                         <button
                                             key={opt.label}
                                             className={`flex flex-col items-center gap-2 group`}
+                                            onClick={() => {
+                                                // Basic social share implementation
+                                                let url = '';
+                                                switch (opt.label) {
+                                                    case 'Twitter': url = `https://twitter.com/intent/tweet?url=${encodeURIComponent(linkToShare)}`; break;
+                                                    case 'Facebook': url = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(linkToShare)}`; break;
+                                                    case 'LinkedIn': url = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(linkToShare)}`; break;
+                                                    case 'WhatsApp': url = `https://wa.me/?text=${encodeURIComponent(linkToShare)}`; break;
+                                                }
+                                                if (url) window.open(url, '_blank');
+                                            }}
                                         >
                                             <div className={`w-12 h-12 rounded-full flex items-center justify-center shadow-sm transition-transform group-hover:scale-110 ${opt.color}`}>
                                                 <opt.icon size={20} />
@@ -97,18 +114,20 @@ const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose }) => {
                                     ))}
                                 </div>
 
-                                {/* Reward Info */}
-                                <div className="bg-purple-50 border border-purple-100 rounded-xl p-4 flex items-start gap-4">
-                                    <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center shrink-0">
-                                        <Share2 className="w-5 h-5 text-purple-600" />
+                                {/* Reward Info - Only for Referral Mode */}
+                                {isReferral && (
+                                    <div className="bg-purple-50 border border-purple-100 rounded-xl p-4 flex items-start gap-4">
+                                        <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center shrink-0">
+                                            <Share2 className="w-5 h-5 text-purple-600" />
+                                        </div>
+                                        <div>
+                                            <h4 className="font-semibold text-purple-900">Get 1 Month Free Pro</h4>
+                                            <p className="text-sm text-purple-700 mt-1">
+                                                For every 3 friends who sign up using your link, you get 1 month of Pro features for free.
+                                            </p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <h4 className="font-semibold text-purple-900">Get 1 Month Free Pro</h4>
-                                        <p className="text-sm text-purple-700 mt-1">
-                                            For every 3 friends who sign up using your link, you get 1 month of Pro features for free.
-                                        </p>
-                                    </div>
-                                </div>
+                                )}
                             </div>
                         </div>
                     </motion.div>

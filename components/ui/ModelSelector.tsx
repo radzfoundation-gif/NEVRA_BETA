@@ -91,7 +91,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
             </button>
 
             {isOpen && (
-                <div className="absolute bottom-full left-0 mb-2 w-48 bg-white/90 backdrop-blur-xl border border-white/20 shadow-2xl rounded-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                <div className="absolute bottom-full right-0 mb-2 w-48 bg-white/90 backdrop-blur-xl border border-white/20 shadow-2xl rounded-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
                     {/* Web Search Toggle Section */}
                     {onWebSearchToggle && (
                         <div className="p-1 border-b border-gray-100/50">

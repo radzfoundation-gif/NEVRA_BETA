@@ -835,23 +835,34 @@ app.post('/api/generate', async (req, res) => {
     const targetModel = model || process.env.SUMOPOD_MODEL_ID || 'gemini/gemini-2.5-flash-lite';
 
     // Construct messages
-    let chatMessages = messages || history || [];
+    let rawMessages = messages || history || [];
 
-    // If empty history/messages, start with prompt
+    // 1. Validate and Normalize Roles (model -> assistant)
+    let chatMessages = rawMessages.map(msg => ({
+      role: msg.role === 'model' ? 'assistant' : msg.role,
+      content: msg.content
+    }));
+
+    // 2. Append new prompt if provided
     if (chatMessages.length === 0 && prompt) {
       chatMessages = [{ role: 'user', content: prompt }];
     } else if (chatMessages.length > 0 && prompt) {
-      // If history exists, append the new prompt
-      // Check if last message is already the prompt (prevent duplicate)
       const lastMsg = chatMessages[chatMessages.length - 1];
+      // Only add if explicit new prompt (and not duplicate of last user message)
       if (lastMsg.role !== 'user' || lastMsg.content !== prompt) {
         chatMessages.push({ role: 'user', content: prompt });
       }
     }
 
-    // SYSTEM PROMPT INJECTION
-    // Enforce clean formatting and prevent [1] citations unless grounded
-    const defaultSystemPrompt = `You are Nevra, a helpful AI assistant.
+    // 3. Merge Consecutive Messages (Strict Alternation for Gemini/LiteLLM)
+    // Merges: system?, user, assistant, user, assistant...
+    const mergedMessages = [];
+    if (chatMessages.length > 0) {
+      // Handle System Prompt Separately
+      let startIndex = 0;
+
+      // Enforce clean formatting and prevent [1] citations unless grounded
+      const defaultSystemPrompt = `You are Nevra, a helpful AI assistant.
 FORMATTING RULES:
 - Use standard Markdown formatting.
 - Use **Bold** for emphasis and headers.
@@ -861,20 +872,52 @@ FORMATTING RULES:
 - Keep responses concise and "rapi" (neat).
 - If explaining code, break it down step-by-step.`;
 
-    const finalSystemPrompt = systemPrompt ? `${defaultSystemPrompt}\n\n${systemPrompt}` : defaultSystemPrompt;
+      const finalSystemPrompt = systemPrompt ? `${defaultSystemPrompt}\n\n${systemPrompt}` : defaultSystemPrompt;
 
-    // Prepend system prompt if not present
-    if (chatMessages.length === 0 || chatMessages[0].role !== 'system') {
-      chatMessages.unshift({ role: 'system', content: finalSystemPrompt });
-    } else {
-      // If system prompt exists, append our formatting rules to it
-      chatMessages[0].content = `${finalSystemPrompt}\n\n${chatMessages[0].content}`;
+      // Check for existing system prompt first
+      if (chatMessages[0].role === 'system') {
+        mergedMessages.push({
+          role: 'system',
+          content: `${finalSystemPrompt}\n\n${chatMessages[0].content}`
+        });
+        startIndex = 1;
+      } else {
+        mergedMessages.push({ role: 'system', content: finalSystemPrompt });
+      }
+
+      // Process remaining messages to merge consecutive roles
+      for (let i = startIndex; i < chatMessages.length; i++) {
+        const currentMsg = chatMessages[i];
+        const lastMerged = mergedMessages[mergedMessages.length - 1];
+
+        // Ensure role is valid (skip 'system' here as it's already handled at start)
+        if (currentMsg.role === 'system') continue; // Should not happen in middle, but safe to skip
+
+        // If same role as last message, append content
+        if (lastMerged && lastMerged.role === currentMsg.role) {
+          // For text content, add newline
+          if (typeof lastMerged.content === 'string' && typeof currentMsg.content === 'string') {
+            lastMerged.content += `\n\n${currentMsg.content}`;
+          } else {
+            // If complex content (array), simplistic merge or keep last (Gemini is tricky with arrays)
+            // For safety, convert to string if mixed, or just keep array if supported.
+            // Here simplified: if complex, just push as new (risk of error) or try to combine text.
+            // Best safe bet for text-based chat:
+            lastMerged.content = JSON.stringify(lastMerged.content) + "\n\n" + JSON.stringify(currentMsg.content);
+          }
+        } else {
+          mergedMessages.push(currentMsg);
+        }
+      }
     }
+
+    // Assign back to chatMessages for use
+    chatMessages = mergedMessages;
 
     // Handle images if provided (add to last user message)
     if (images && images.length > 0) {
       const lastMsg = chatMessages[chatMessages.length - 1];
-      if (lastMsg.role === 'user') {
+      if (lastMsg && lastMsg.role === 'user') {
         if (typeof lastMsg.content === 'string') {
           lastMsg.content = [
             { type: 'text', text: lastMsg.content },

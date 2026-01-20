@@ -154,14 +154,14 @@ const SubscriptionPopup: React.FC<SubscriptionPopupProps> = ({
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         onClick={showSuccess ? handleSuccessClose : onClose}
-                        className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50"
+                        className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100]"
                     />
 
                     <motion.div
                         initial={{ opacity: 0, scale: 0.95, y: 20 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                        className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto"
+                        exit={{ opacity: 0, scale: 0.95, y: 0 }}
+                        className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 overflow-y-auto"
                     >
                         {showSuccess ? (
                             <div className="bg-white border border-zinc-200 rounded-2xl w-full max-w-sm sm:max-w-lg p-6 sm:p-8 shadow-2xl text-center relative overflow-hidden mx-auto">

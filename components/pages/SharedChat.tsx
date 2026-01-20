@@ -92,36 +92,36 @@ const SharedChat: React.FC = () => {
     }
 
     return (
-        <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-purple-500/30 relative overflow-x-hidden">
+        <div className="min-h-screen bg-[#FDFCFE] text-zinc-900 font-sans selection:bg-purple-200 relative overflow-x-hidden">
             <div className="fixed inset-0 z-0 pointer-events-none">
                 <DynamicBackground />
             </div>
 
             {/* Header */}
-            <header className="fixed top-0 left-0 right-0 z-50 h-14 md:h-16 border-b border-white/10 bg-[#050505]/80 backdrop-blur-md flex items-center justify-between px-4 md:px-8 shadow-sm">
+            <header className="fixed top-0 left-0 right-0 z-50 h-14 md:h-16 border-b border-white/40 bg-white/70 backdrop-blur-xl flex items-center justify-between px-4 md:px-8 shadow-sm transition-all duration-300">
                 <Link to="/" className="flex items-center gap-2">
                     <Logo size={24} />
-                    <span className="text-base md:text-lg font-bold tracking-tight">NEVRA</span>
+                    <span className="text-base md:text-lg font-bold tracking-tight text-zinc-900">NEVRA</span>
                 </Link>
                 <div className="flex items-center gap-3">
-                    <Link to="/" className="px-3 py-1.5 md:px-4 md:py-2 bg-white text-black text-xs md:text-sm font-medium rounded-lg hover:bg-zinc-200 transition-colors">
+                    <Link to="/" className="px-3 py-1.5 md:px-4 md:py-2 bg-black text-white text-xs md:text-sm font-medium rounded-lg hover:bg-zinc-800 transition-colors shadow-sm">
                         Try Nevra
                     </Link>
                 </div>
             </header>
 
             {/* Content */}
-            <main className="relative z-10 pt-20 md:pt-24 pb-20 px-3 md:px-4 max-w-3xl md:max-w-4xl mx-auto">
-                <div className="mb-6 md:mb-8 text-left border-b border-white/10 pb-6 glass-panel p-4 md:p-6 rounded-2xl bg-zinc-900/40 backdrop-blur-md border border-white/5">
+            <main className="relative z-10 pt-20 md:pt-24 pb-20 px-3 md:px-4 max-w-2xl mx-auto">
+                <div className="mb-6 md:mb-8 text-left border-b border-zinc-200 pb-6 p-4 md:p-6 rounded-2xl bg-white/60 backdrop-blur-md border border-white/60 shadow-sm">
                     <div className="flex flex-col gap-4">
                         <div className="flex flex-col gap-2">
-                            <h1 className="text-xl md:text-3xl font-bold text-white leading-tight">{session.title || "Untitled Chat"}</h1>
-                            <div className="flex items-center gap-3 text-zinc-400 text-xs md:text-sm flex-wrap">
-                                <div className="flex items-center gap-1.5 bg-black/20 px-2 py-1 rounded-md border border-white/5">
+                            <h1 className="text-xl md:text-3xl font-bold text-zinc-900 leading-tight">{session.title || "Untitled Chat"}</h1>
+                            <div className="flex items-center gap-3 text-zinc-500 text-xs md:text-sm flex-wrap">
+                                <div className="flex items-center gap-1.5 bg-zinc-100 px-2 py-1 rounded-md border border-zinc-200">
                                     <Calendar size={12} className="md:w-3.5 md:h-3.5" />
                                     <span>{new Date(session.created_at).toLocaleDateString()}</span>
                                 </div>
-                                <div className="flex items-center gap-1.5 bg-black/20 px-2 py-1 rounded-md border border-white/5">
+                                <div className="flex items-center gap-1.5 bg-zinc-100 px-2 py-1 rounded-md border border-zinc-200">
                                     <Share size={12} className="md:w-3.5 md:h-3.5" />
                                     <span>Shared Chat</span>
                                 </div>
@@ -136,7 +136,7 @@ const SharedChat: React.FC = () => {
                                         {creator.avatar_url ? (
                                             <img src={creator.avatar_url} alt={creator.full_name || 'User'} className="w-full h-full object-cover" />
                                         ) : (
-                                            <div className="w-full h-full flex items-center justify-center bg-zinc-800 text-white font-bold text-xs md:text-sm">
+                                            <div className="w-full h-full flex items-center justify-center bg-zinc-100 text-zinc-600 font-bold text-xs md:text-sm">
                                                 {creator.full_name ? creator.full_name[0].toUpperCase() : 'U'}
                                             </div>
                                         )}
@@ -144,7 +144,7 @@ const SharedChat: React.FC = () => {
                                 </div>
                                 <div className="flex flex-col">
                                     <span className="text-[10px] md:text-xs text-zinc-500 uppercase tracking-widest font-semibold">Shared by</span>
-                                    <span className="text-xs md:text-sm font-medium text-white">{creator.full_name || 'Anonymous User'}</span>
+                                    <span className="text-xs md:text-sm font-medium text-zinc-900">{creator.full_name || 'Anonymous User'}</span>
                                 </div>
                             </div>
                         )}
@@ -172,44 +172,44 @@ const SharedChat: React.FC = () => {
 
                                 {/* Message Bubble */}
                                 <div className={cn(
-                                    "relative max-w-[90%] md:max-w-[85%] rounded-2xl px-4 py-3 md:px-6 md:py-5 text-sm md:text-base leading-relaxed overflow-hidden shadow-lg",
+                                    "relative leading-relaxed transition-all duration-200 shadow-sm",
                                     msg.role === 'user'
-                                        ? "bg-zinc-800 text-white border border-zinc-700 rounded-tr-sm"
-                                        : "bg-[#09090b] text-white border border-white/10 rounded-tl-sm shadow-xl"
+                                        ? "rounded-[20px] rounded-br-[4px] px-5 py-3 bg-gradient-to-r from-[#F0ABFC]/20 to-[#A78BFA]/20 text-indigo-950 font-medium max-w-[85%] sm:max-w-[70%] border border-white/30 backdrop-blur-sm"
+                                        : "rounded-[24px] px-6 py-5 bg-white/80 backdrop-blur-md border border-white/60 text-gray-800 max-w-[95%] sm:max-w-[90%] shadow-lg shadow-purple-900/5 w-full"
                                 )}>
                                     {msg.role === 'ai' ? (
-                                        <div className="prose prose-sm md:prose-base prose-invert max-w-none text-white
-                                        [&_*]:text-white
-                                        prose-p:leading-relaxed prose-p:text-white
-                                        prose-headings:text-white prose-headings:font-bold prose-headings:mb-2 prose-headings:mt-4
-                                        prose-strong:text-white prose-strong:font-bold
-                                        prose-ul:my-2 prose-ol:my-2
-                                        prose-li:my-0.5 prose-li:text-white
-                                        prose-pre:bg-[#0a0a0a] prose-pre:border prose-pre:border-white/10 prose-pre:rounded-xl prose-pre:my-3
-                                        prose-code:bg-white/10 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-white prose-code:before:content-none prose-code:after:content-none
-                                        prose-a:text-blue-400 prose-a:no-underline hover:prose-a:underline
-                                        prose-blockquote:border-l-4 prose-blockquote:border-purple-500 prose-blockquote:bg-purple-500/10 prose-blockquote:px-4 prose-blockquote:py-1 prose-blockquote:text-white prose-blockquote:rounded-r-lg
-                                        prose-hr:border-white/10 prose-hr:my-4
+                                        <div className="prose prose-sm md:prose-base max-w-none w-full break-words overflow-hidden
+                                        prose-p:text-gray-700 prose-p:leading-relaxed
+                                        prose-headings:text-gray-900 prose-headings:font-bold prose-headings:tracking-tight
+                                        prose-strong:text-gray-900 
+                                        prose-code:text-indigo-600 prose-code:bg-indigo-50 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:font-medium prose-code:before:content-none prose-code:after:content-none
+                                        prose-pre:bg-[#1e1e1e] prose-pre:border prose-pre:border-gray-200 prose-pre:rounded-xl prose-pre:shadow-sm
+                                        prose-li:text-gray-700 
+                                        prose-ul:text-gray-700
+                                        prose-blockquote:border-l-4 prose-blockquote:border-purple-300 prose-blockquote:bg-purple-50/50 prose-blockquote:py-2 prose-blockquote:px-4 prose-blockquote:rounded-r-lg prose-blockquote:text-purple-800 prose-blockquote:not-italic
+                                        prose-th:text-gray-900 prose-td:text-gray-700
+                                        prose-a:text-indigo-600 prose-a:no-underline hover:prose-a:underline
+                                        prose-img:rounded-xl prose-img:shadow-lg
                                     ">
                                             <ReactMarkdown
                                                 remarkPlugins={[remarkGfm, remarkMath]}
-                                                rehypePlugins={[rehypeRaw, rehypeKatex]}
+                                                rehypePlugins={[rehypeKatex]}
                                                 components={{
                                                     code({ node, inline, className, children, ...props }: any) {
                                                         const match = /language-(\w+)/.exec(className || '');
                                                         return !inline && match ? (
-                                                            <div className="relative group rounded-lg overflow-hidden my-3 md:my-4 border border-white/10 bg-[#0a0a0a]">
-                                                                <div className="flex items-center justify-between px-3 py-1.5 bg-white/5 border-b border-white/5">
-                                                                    <span className="text-[10px] md:text-xs text-zinc-400 font-mono uppercase">{match[1]}</span>
+                                                            <div className="overflow-hidden border border-zinc-200 rounded-lg bg-zinc-900 my-3">
+                                                                <div className="flex items-center justify-between border-b border-zinc-700 px-4 py-2 bg-zinc-800">
+                                                                    <span className="text-xs font-medium text-gray-300 uppercase">{match[1]}</span>
                                                                     <button
                                                                         onClick={() => {
                                                                             copyToClipboard(String(children));
                                                                             setCopiedId(msg.id + match[1]);
                                                                             setTimeout(() => setCopiedId(null), 2000);
                                                                         }}
-                                                                        className="text-zinc-500 hover:text-white transition-colors"
+                                                                        className="text-xs text-gray-400 hover:text-gray-200 px-2 py-1 rounded hover:bg-white/5 transition-colors"
                                                                     >
-                                                                        {copiedId === msg.id + match[1] ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
+                                                                        {copiedId === msg.id + match[1] ? "Copied!" : "Copy"}
                                                                     </button>
                                                                 </div>
                                                                 <div className="overflow-x-auto">
@@ -217,7 +217,13 @@ const SharedChat: React.FC = () => {
                                                                         style={vscDarkPlus}
                                                                         language={match[1]}
                                                                         PreTag="div"
-                                                                        customStyle={{ margin: 0, padding: '1rem', background: 'transparent' }}
+                                                                        customStyle={{
+                                                                            margin: 0,
+                                                                            padding: '1rem',
+                                                                            background: 'transparent',
+                                                                            fontSize: '13px',
+                                                                            lineHeight: '1.6'
+                                                                        }}
                                                                         {...props}
                                                                     >
                                                                         {String(children).replace(/\n$/, '')}
@@ -225,7 +231,7 @@ const SharedChat: React.FC = () => {
                                                                 </div>
                                                             </div>
                                                         ) : (
-                                                            <code className={className} {...props}>
+                                                            <code className="rounded px-1.5 py-0.5 text-xs font-medium bg-purple-50 text-purple-600 border border-purple-200" {...props}>
                                                                 {children}
                                                             </code>
                                                         );

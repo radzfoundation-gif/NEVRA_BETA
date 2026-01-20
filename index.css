@@ -358,3 +358,155 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* KaTeX Math Formula Styling */
+.katex {
+  font-size: 1.05em !important;
+  color: #1f2937;
+  /* gray-800 */
+}
+
+.katex-display {
+  margin: 1rem 0 !important;
+  padding: 1rem;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border-radius: 0.75rem;
+  border: 1px solid #e2e8f0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.katex-display>.katex {
+  text-align: left;
+  color: #111827;
+  /* gray-900 */
+}
+
+/* Inline math */
+.katex:not(.katex-display .katex) {
+  padding: 0.1em 0.3em;
+  background-color: rgba(99, 102, 241, 0.08);
+  border-radius: 0.25rem;
+}
+
+/* Mobile responsive math */
+@media (max-width: 640px) {
+  .katex {
+    font-size: 0.95em !important;
+  }
+
+  .katex-display {
+    padding: 0.75rem;
+    margin: 0.75rem 0 !important;
+  }
+}
+
+/* Prose table polish */
+.prose table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1.5rem 0;
+  font-size: 0.875rem;
+}
+
+.prose th,
+.prose td {
+  border: 1px solid #e5e7eb;
+  padding: 0.5rem 0.75rem;
+}
+
+.prose th {
+  background-color: #f9fafb;
+  font-weight: 600;
+  text-align: left;
+}
+
+.prose tbody tr:nth-child(even) {
+  background-color: #fafafa;
+}
+
+/* Improved list styling */
+.prose ol {
+  counter-reset: list-counter;
+  list-style: none;
+  padding-left: 1.5rem;
+}
+
+.prose ol>li {
+  counter-increment: list-counter;
+  position: relative;
+  padding-left: 0.5rem;
+}
+
+.prose ol>li::before {
+  content: counter(list-counter) ".";
+  position: absolute;
+  left: -1.25rem;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+/* Citation Badge Styling */
+.citation-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.1em;
+  height: 1.1em;
+  padding: 0 0.35em;
+  margin-left: 1px;
+  margin-right: 1px;
+  font-size: 0.65em;
+  font-weight: 600;
+  line-height: 1;
+  color: #6366f1;
+  background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
+  border: 1px solid #c7d2fe;
+  border-radius: 0.5em;
+  vertical-align: super;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-decoration: none;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+
+.citation-badge:hover {
+  background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
+  color: #4f46e5;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(99, 102, 241, 0.2);
+}
+
+/* Multiple citation badges in a row */
+.citation-badge+.citation-badge {
+  margin-left: 2px;
+}
+
+/* Citation Highlight Animation */
+@keyframes citation-highlight {
+  0% {
+    background-color: white;
+  }
+
+  25% {
+    background-color: #eef2ff;
+    border-color: #6366f1;
+  }
+
+  50% {
+    background-color: white;
+  }
+
+  75% {
+    background-color: #eef2ff;
+    border-color: #6366f1;
+  }
+
+  100% {
+    background-color: white;
+  }
+}
+
+.animate-citation-highlight {
+  animation: citation-highlight 2s ease-in-out;
+}

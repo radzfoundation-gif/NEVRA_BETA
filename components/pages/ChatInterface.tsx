@@ -181,8 +181,8 @@ const ChatInterface: React.FC = () => {
     const enableWebSearch = location.state?.enableWebSearch as boolean | undefined;
 
     if (initialPrompt || (initialImages && initialImages.length > 0)) {
-      // Use explicit mode if provided (and not just 'codebase' flag), otherwise detect
-      const detectedMode = (explicitMode && explicitMode !== 'codebase')
+      // Use explicit mode if provided, otherwise detect
+      const detectedMode = explicitMode
         ? explicitMode
         : (codebaseMode ? 'builder' : (initialPrompt ? detectMode(initialPrompt) : 'tutor'));
       const userMsgId = Date.now().toString();
@@ -213,7 +213,7 @@ const ChatInterface: React.FC = () => {
     }
 
     // If no prompt/images but explicit mode is provided (e.g. silent canvas open)
-    if (explicitMode && explicitMode !== 'codebase') {
+    if (explicitMode) {
       return {
         mode: explicitMode,
         messages: [],
@@ -467,7 +467,7 @@ const ChatInterface: React.FC = () => {
   // Mobile State
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [isTablet, setIsTablet] = useState(window.innerWidth >= 768 && window.innerWidth < 1024);
-  const [mobileTab, setMobileTab] = useState<'chat' | 'workbench'>('chat');
+  const [mobileTab, setMobileTab] = useState<'chat' | 'workbench' | 'canvas'>('chat');
   const [previewDevice, setPreviewDevice] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
   const [deviceScale, setDeviceScale] = useState(1);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -533,6 +533,38 @@ const ChatInterface: React.FC = () => {
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [messageFeedback, setMessageFeedback] = useState<Record<string, 'like' | 'dislike'>>({});
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
+  const [regenerateMenuOpen, setRegenerateMenuOpen] = useState<string | null>(null);
+
+  // Handle Regenerate Message
+  const handleRegenerate = async (messageId: string) => {
+    // Find the message index
+    const messageIndex = messages.findIndex(m => m.id === messageId);
+    if (messageIndex === -1) return;
+
+    // Find the last user message before this one
+    // If the current message is AI, we look backwards from it
+    // If it's the very last message, we just look at the one before it
+    let userMessageToResend = null;
+
+    // Iterate backwards starting from the message before the target
+    for (let i = messageIndex - 1; i >= 0; i--) {
+      if (messages[i].role === 'user') {
+        userMessageToResend = messages[i];
+        break;
+      }
+    }
+
+    if (userMessageToResend) {
+      console.log('🔄 Regenerating from user message:', userMessageToResend.content.substring(0, 50));
+      // Call handleSend with the content and current mode
+      // We pass the history override to "cut off" the conversation after the user message we found
+      // ensuring we regenerate from that point
+      const historyUntilUserMessage = messages.slice(0, messages.indexOf(userMessageToResend));
+      await handleSend(userMessageToResend.content, appMode, historyUntilUserMessage);
+    } else {
+      console.warn('⚠️ Could not find a user message to regenerate from.');
+    }
+  };
 
   // Image Lightbox State (for viewing full-size images)
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
@@ -765,7 +797,7 @@ const ChatInterface: React.FC = () => {
             content: m.content,
             code: m.code || undefined,
             images: m.images || undefined,
-            timestamp: new Date(m.createdAt as any),
+            timestamp: new Date(m.created_at || Date.now()),
           }));
           setMessages(restoredMessages);
 
@@ -805,7 +837,7 @@ const ChatInterface: React.FC = () => {
           content: m.content,
           code: m.code || undefined,
           images: m.images || undefined,
-          timestamp: new Date(m.createdAt as any),
+          timestamp: new Date(m.created_at || Date.now()),
         }));
         setMessages(restoredMessages);
 
@@ -860,25 +892,32 @@ const ChatInterface: React.FC = () => {
   };
 
   // Handle Canvas Analyze
-  const handleCanvasAnalyze = useCallback(async (canvasImageData: string) => {
+  const handleCanvasAnalyze = useCallback((blob: Blob) => {
     console.log('🎨 Canvas analyze triggered');
 
-    // Switch to chat tab on mobile
-    if (isMobile) {
-      setMobileTab('chat');
-    }
+    // Convert blob to base64
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const canvasImageData = reader.result as string;
 
-    // Create user message with canvas image
-    const userMessage: Message = {
-      id: `msg-${Date.now()}`,
-      role: 'user',
-      content: "Please analyze this canvas drawing and explain what you see.",
-      timestamp: new Date(),
-      images: [canvasImageData]
+      // Switch to chat tab on mobile
+      if (isMobile) {
+        setMobileTab('chat');
+      }
+
+      // Create user message with canvas image
+      const userMessage: Message = {
+        id: `msg-${Date.now()}`,
+        role: 'user',
+        content: "Please analyze this canvas drawing and explain what you see.",
+        timestamp: new Date(),
+        images: [canvasImageData]
+      };
+
+      setMessages(prev => [...prev, userMessage]);
+      setInput("Please analyze this canvas drawing and explain what you see.");
     };
-
-    setMessages(prev => [...prev, userMessage]);
-    setInput("Please analyze this canvas drawing and explain what you see.");
+    reader.readAsDataURL(blob);
 
     // Auto-submit for analysis
     // The image is now in the message, it will be processed by the AI
@@ -2301,7 +2340,7 @@ const ChatInterface: React.FC = () => {
           const fallbackResponse = await generateCode(
             text,
             truncatedHistory,
-            mode,
+            mode as 'builder' | 'tutor',
             effectiveProvider,
             imagesToSend,
             mode === 'builder' ? framework : 'html',
@@ -2467,7 +2506,7 @@ const ChatInterface: React.FC = () => {
           const fallbackResponse = await generateCode(
             text,
             truncatedHistory,
-            mode,
+            mode as 'builder' | 'tutor',
             'groq',
             imagesToSend,
             mode === 'builder' ? framework : 'html',
@@ -2724,12 +2763,16 @@ const ChatInterface: React.FC = () => {
         isMobile ? "h-14 bg-gradient-to-b from-white/80 to-transparent backdrop-blur-[2px]" : "h-16 bg-white/40 backdrop-blur-md border-b border-white/20"
       )}>
         <div className="flex items-center gap-3 overflow-hidden flex-1 min-w-0 mr-2">
-          <button
-            onClick={() => isMobile ? setIsMobileSidebarOpen(true) : toggleSidebarCollapse()}
-            className="p-2 -ml-2 rounded-lg text-gray-600 hover:bg-white/20 transition-colors shrink-0"
-          >
-            <Menu size={20} strokeWidth={1.5} />
-          </button>
+          {/* Mobile Sidebar Toggle */}
+          {isMobile && (
+            <button
+              onClick={() => setIsMobileSidebarOpen(true)}
+              className="p-2 -ml-2 rounded-full hover:bg-black/5 text-gray-600 transition-colors"
+              title="Open Sidebar"
+            >
+              <Menu size={20} strokeWidth={1.5} />
+            </button>
+          )}
 
           <div className="flex flex-col min-w-0 flex-1">
             {/* Show Chat Title instead of Logo */}
@@ -2774,7 +2817,7 @@ const ChatInterface: React.FC = () => {
       {/* Chat List - Clean v0.app Style */}
       <div className={
         cn(
-          "relative flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain px-3 sm:px-4 md:px-5 lg:px-6 pt-4 pb-36 sm:pb-40 md:pt-8 md:pb-48 scroll-smooth",
+          "relative flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain px-3 sm:px-4 md:px-5 lg:px-6 pt-4 pb-64 sm:pb-72 md:pt-8 md:pb-80 scroll-smooth",
           messages.length === 0 ? "flex flex-col items-center justify-center text-center pb-0" : "block"
         )
       } >
@@ -2845,7 +2888,7 @@ const ChatInterface: React.FC = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.4 }}
-              className="max-w-3xl mx-auto space-y-6"
+              className="max-w-2xl mx-auto space-y-6"
             >
               {/* Show codebase exploration if active */}
               {isExploringCodebase && (
@@ -2923,18 +2966,24 @@ const ChatInterface: React.FC = () => {
                       </div>
                     )}
                     {msg.role === 'ai' ? (
-                      <div className="prose prose-sm md:prose-base max-w-none 
-                        prose-p:text-gray-700 prose-p:leading-relaxed
-                        prose-headings:text-gray-900 prose-headings:font-bold prose-headings:tracking-tight
-                        prose-strong:text-gray-900 
-                        prose-code:text-indigo-600 prose-code:bg-indigo-50 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:font-medium prose-code:before:content-none prose-code:after:content-none
-                        prose-pre:bg-[#1e1e1e] prose-pre:border prose-pre:border-gray-200 prose-pre:rounded-xl prose-pre:shadow-sm
-                        prose-li:text-gray-700 
-                        prose-ul:text-gray-700
-                        prose-blockquote:border-l-4 prose-blockquote:border-purple-300 prose-blockquote:bg-purple-50/50 prose-blockquote:py-2 prose-blockquote:px-4 prose-blockquote:rounded-r-lg prose-blockquote:text-purple-800 prose-blockquote:not-italic
-                        prose-th:text-gray-900 prose-td:text-gray-700
-                        prose-a:text-indigo-600 prose-a:no-underline hover:prose-a:underline
-                        prose-img:rounded-xl prose-img:shadow-lg
+                      <div className="prose prose-sm sm:prose-base max-w-none w-full break-words overflow-hidden
+                        prose-p:text-gray-700 prose-p:leading-[1.75] prose-p:my-3 prose-p:text-[15px] sm:prose-p:text-base
+                        prose-headings:text-gray-900 prose-headings:font-semibold prose-headings:tracking-tight prose-headings:mt-5 prose-headings:mb-3
+                        prose-h1:text-xl prose-h1:font-bold prose-h2:text-lg prose-h2:font-bold prose-h3:text-base prose-h3:font-bold
+                        prose-strong:text-gray-900 prose-strong:font-semibold
+                        prose-em:text-gray-800 prose-em:italic
+                        prose-code:text-[13px] prose-code:text-indigo-700 prose-code:bg-indigo-50/80 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:font-mono prose-code:font-medium prose-code:before:content-none prose-code:after:content-none prose-code:border prose-code:border-indigo-100
+                        prose-pre:bg-[#1a1a1a] prose-pre:border prose-pre:border-zinc-700/50 prose-pre:rounded-xl prose-pre:shadow-md prose-pre:my-4
+                        prose-li:text-gray-700 prose-li:leading-relaxed prose-li:my-1
+                        prose-ul:text-gray-700 prose-ul:pl-4 prose-ul:my-3
+                        prose-ol:text-gray-700 prose-ol:pl-4 prose-ol:my-3
+                        prose-blockquote:border-l-[3px] prose-blockquote:border-amber-400 prose-blockquote:bg-amber-50/60 prose-blockquote:py-3 prose-blockquote:px-4 prose-blockquote:rounded-r-lg prose-blockquote:text-amber-900 prose-blockquote:not-italic prose-blockquote:my-4 prose-blockquote:font-medium
+                        prose-th:text-gray-900 prose-th:font-semibold prose-th:text-left prose-th:border-b prose-th:border-gray-200 prose-th:py-2 prose-th:px-3
+                        prose-td:text-gray-700 prose-td:py-2 prose-td:px-3 prose-td:border-b prose-td:border-gray-100
+                        prose-table:my-4 prose-table:w-full prose-table:border-collapse
+                        prose-a:text-indigo-600 prose-a:font-medium prose-a:no-underline hover:prose-a:underline
+                        prose-img:rounded-xl prose-img:shadow-lg prose-img:my-4
+                        prose-hr:border-gray-200 prose-hr:my-6
                       ">
                         {/* Parse and render sources if available (at top of message like ChatGPT) */}
                         {(() => {
@@ -2944,7 +2993,7 @@ const ChatInterface: React.FC = () => {
                               const sources = JSON.parse(sourcesMatch[1]);
                               return (
                                 <div className="mb-4 not-prose">
-                                  <SourcesIndicator sources={sources} />
+                                  <SourcesIndicator sources={sources} messageId={msg.id} />
                                 </div>
                               );
                             } catch (e) {
@@ -2999,7 +3048,39 @@ const ChatInterface: React.FC = () => {
                             }
                           }}
                         >
-                          {msg.content.replace(/<!-- SOURCES_JSON:.*? -->/g, '')}
+                          {(() => {
+                            // Transform citation numbers [1, 2] into styled superscript badges
+                            const content = msg.content.replace(/<!-- SOURCES_JSON:.*? -->/g, '');
+
+                            // Split content by citation pattern and rebuild with styled citations
+                            const citationPattern = /\[(\d+(?:,\s*\d+)*)\]/g;
+                            const parts = content.split(citationPattern);
+
+                            // If no citations found, just return the content
+                            if (parts.length === 1) {
+                              return content;
+                            }
+
+                            // Rebuild content with HTML citation badges
+                            let result = '';
+                            let lastIndex = 0;
+                            let match;
+                            const tempContent = content;
+                            citationPattern.lastIndex = 0;
+
+                            while ((match = citationPattern.exec(tempContent)) !== null) {
+                              result += tempContent.slice(lastIndex, match.index);
+                              const nums = match[1].split(',').map(n => n.trim());
+                              // Add onclick handler that dispatches custom event with message ID and source index
+                              result += nums.map(n =>
+                                `<sup class="citation-badge" onclick="window.dispatchEvent(new CustomEvent('citation-click', { detail: { messageId: '${msg.id}', sourceIndex: ${n} } }))" title="Click to view source ${n}">${n}</sup>`
+                              ).join('');
+                              lastIndex = citationPattern.lastIndex;
+                            }
+                            result += tempContent.slice(lastIndex);
+
+                            return result;
+                          })()}
                         </ReactMarkdown>
                       </div>
                     ) : (
@@ -3037,26 +3118,52 @@ const ChatInterface: React.FC = () => {
                             )}
                           </button>
                           <button
-                            onClick={() => setMessageFeedback(prev => ({
-                              ...prev,
-                              [msg.id]: prev[msg.id] === 'like' ? undefined : 'like'
-                            } as any))}
+                            onClick={async () => {
+                              const newFeedback = messageFeedback[msg.id] === 'like' ? null : 'like';
+                              setMessageFeedback(prev => ({ ...prev, [msg.id]: newFeedback }));
+
+                              // Send to Database
+                              if (activeSessionId && user) {
+                                try {
+                                  const { supabase } = await import('@/lib/supabase');
+                                  await supabase
+                                    .from('messages')
+                                    .update({ feedback: newFeedback })
+                                    .eq('id', msg.id);
+                                } catch (err) {
+                                  console.error('Error sending feedback:', err);
+                                }
+                              }
+                            }}
                             className={cn(
-                              "flex items-center gap-1.5 px-2 py-1 text-xs text-gray-500 hover:text-white rounded hover:bg-white/5 transition-colors",
-                              messageFeedback[msg.id] === 'like' && "text-blue-400 hover:text-blue-300"
+                              "flex items-center gap-1.5 px-2 py-1 text-xs text-gray-500 hover:text-zinc-800 rounded hover:bg-zinc-100 transition-colors",
+                              messageFeedback[msg.id] === 'like' && "text-blue-500 hover:text-blue-600 font-medium"
                             )}
                             title="Good response"
                           >
                             <ThumbsUp size={14} className={cn(messageFeedback[msg.id] === 'like' && "fill-current")} />
                           </button>
                           <button
-                            onClick={() => setMessageFeedback(prev => ({
-                              ...prev,
-                              [msg.id]: prev[msg.id] === 'dislike' ? undefined : 'dislike'
-                            } as any))}
+                            onClick={async () => {
+                              const newFeedback = messageFeedback[msg.id] === 'dislike' ? null : 'dislike';
+                              setMessageFeedback(prev => ({ ...prev, [msg.id]: newFeedback }));
+
+                              // Send to Database
+                              if (activeSessionId && user) {
+                                try {
+                                  const { supabase } = await import('@/lib/supabase');
+                                  await supabase
+                                    .from('messages')
+                                    .update({ feedback: newFeedback })
+                                    .eq('id', msg.id);
+                                } catch (err) {
+                                  console.error('Error sending feedback:', err);
+                                }
+                              }
+                            }}
                             className={cn(
-                              "flex items-center gap-1.5 px-2 py-1 text-xs text-gray-500 hover:text-white rounded hover:bg-white/5 transition-colors",
-                              messageFeedback[msg.id] === 'dislike' && "text-red-400 hover:text-red-300"
+                              "flex items-center gap-1.5 px-2 py-1 text-xs text-gray-500 hover:text-zinc-800 rounded hover:bg-zinc-100 transition-colors",
+                              messageFeedback[msg.id] === 'dislike' && "text-red-500 hover:text-red-600 font-medium"
                             )}
                             title="Bad response"
                           >
@@ -3064,25 +3171,38 @@ const ChatInterface: React.FC = () => {
                           </button>
 
                           <button
-                            onClick={() => {
-                              // Share functionality placeholder
-                              console.log("Share clicked");
-                            }}
-                            className="flex items-center gap-1.5 px-2 py-1 text-xs text-gray-500 hover:text-white rounded hover:bg-white/5 transition-colors"
+                            onClick={handleShareChat}
+                            className="flex items-center gap-1.5 px-2 py-1 text-xs text-gray-500 hover:text-zinc-800 rounded hover:bg-zinc-100 transition-colors"
                             title="Share"
                           >
                             <Share size={14} />
                           </button>
-                          <button
-                            onClick={() => {
-                              // Refresh/Regenerate placeholder
-                              console.log("Regenerate clicked");
-                            }}
-                            className="flex items-center gap-1.5 px-2 py-1 text-xs text-gray-500 hover:text-white rounded hover:bg-white/5 transition-colors"
-                            title="Regenerate"
-                          >
-                            <RefreshCcw size={14} />
-                          </button>
+                          {/* Regenerate Button with Dropdown */}
+                          <div className="relative">
+                            <button
+                              onClick={() => setRegenerateMenuOpen(regenerateMenuOpen === msg.id ? null : msg.id)}
+                              className="flex items-center gap-1.5 px-2 py-1 text-xs text-gray-500 hover:text-zinc-800 rounded hover:bg-zinc-100 transition-colors"
+                              title="Regenerate"
+                            >
+                              <RefreshCcw size={14} />
+                            </button>
+
+                            {/* Dropdown Menu */}
+                            {regenerateMenuOpen === msg.id && (
+                              <div className="absolute top-full left-0 mt-1 w-40 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1 animation-in fade-in zoom-in-95 duration-200">
+                                <button
+                                  onClick={() => {
+                                    handleRegenerate(msg.id);
+                                    setRegenerateMenuOpen(null);
+                                  }}
+                                  className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                                >
+                                  <RefreshCcw size={12} />
+                                  With no changes
+                                </button>
+                              </div>
+                            )}
+                          </div>
                           <button
                             className="flex items-center gap-1.5 px-2 py-1 text-xs text-gray-500 hover:text-white rounded hover:bg-white/5 transition-colors"
                             title="More"
@@ -3878,7 +3998,7 @@ const ChatInterface: React.FC = () => {
             isExploringCodebase={isExploringCodebase}
             fileManager={fileManager}
             currentCode={currentCode}
-            currentFramework={currentFramework}
+            currentFramework={currentFramework as Framework}
             refreshKey={refreshKey}
             setRefreshKey={setRefreshKey}
             setCurrentCode={setCurrentCode}
@@ -4095,10 +4215,10 @@ const ChatInterface: React.FC = () => {
       {showSplash ? (
         <SplashScreen onComplete={() => setShowSplash(false)} />
       ) : (
-        <div className="flex h-screen bg-transparent text-zinc-900 overflow-hidden overflow-x-hidden font-sans">
+        <div className="flex h-dvh w-full bg-transparent text-zinc-900 overflow-hidden overscroll-none font-sans">
           {isMobile ? (
-            /* MOBILE LAYOUT */
-            <div className="flex flex-col h-full w-full relative overflow-x-hidden">
+            /* MOBILE LAYOUT - Locked Viewport */
+            <div className="flex flex-col fixed inset-0 w-full h-dvh overflow-hidden overscroll-none">
               {/* Mobile Sidebar Overlay */}
               {isMobileSidebarOpen && (
                 <div className="fixed inset-0 z-50 flex">

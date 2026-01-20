@@ -822,19 +822,31 @@ export function ResearchWelcome({
                 className="flex flex-col items-center w-full z-10"
             >
                 {/* 3D Orb Visual */}
-                <div className="mb-6 md:mb-8 scale-90 md:scale-110">
+                {/* 3D Orb Visual */}
+                <button
+                    onClick={() => !isSubscribed && setShowSubscriptionPopup(true)}
+                    className={cn(
+                        "mb-6 md:mb-8 scale-90 md:scale-110 transition-transform active:scale-95 outline-none relative group",
+                        !isSubscribed ? "cursor-pointer hover:opacity-90" : "cursor-default"
+                    )}
+                >
+                    {!isSubscribed && (
+                        <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-gradient-to-r from-pink-500 to-purple-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                            Click to Upgrade
+                        </div>
+                    )}
                     <LiquidMetal
                         metalConfig={{
-                            colorBack: isWebSearchEnabled ? '#3B82F6' : '#8B5CF6',
+                            colorBack: isWebSearchEnabled ? '#3B82F6' : (isSubscribed ? '#8B5CF6' : '#EC4899'),
                             colorTint: '#FFFFFF',
                             speed: 0.5,
                             repetition: 4
                         }}
-                        className="pointer-events-none px-8 py-4 text-xl font-bold tracking-widest text-white"
+                        className="px-8 py-4 text-xl font-bold tracking-widest text-white"
                     >
-                        NEVRA
+                        {isSubscribed ? "NEVRA PRO" : "UPGRADE TO PRO"}
                     </LiquidMetal>
-                </div>
+                </button>
 
                 {/* Soft Limit Warning */}
                 {softLimitReached && (
