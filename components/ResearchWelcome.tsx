@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Globe, ArrowUp, Link as LinkIcon, Layers, Paperclip, ChevronDown, Check, Sparkles, LayoutGrid, Mic, Youtube, FileText, X, Loader2, Wrench, AlertTriangle, Image as ImageIcon } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, getApiUrl } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import LiquidMetal from './ui/liquid-metal';
 import { useTokenLimit } from '@/hooks/useTokenLimit';
@@ -107,7 +107,7 @@ export function ResearchWelcome({
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const audioInputRef = useRef<HTMLInputElement>(null);
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8788';
+    const apiUrl = getApiUrl();
     const navigate = useNavigate();
 
     const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {

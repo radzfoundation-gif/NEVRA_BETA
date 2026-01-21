@@ -15,6 +15,7 @@ import SubscriptionPopup from '../SubscriptionPopup';
 import TokenBadge from '../TokenBadge';
 import { useTokenLimit } from '@/hooks/useTokenLimit';
 import { FREE_TOKEN_LIMIT } from '@/lib/tokenLimit';
+import { getApiUrl } from '@/lib/utils'; // Import getApiUrl
 
 import Sidebar from '../Sidebar';
 import SettingsModal from '../settings/SettingsModal';

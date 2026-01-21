@@ -23,7 +23,7 @@ const Gallery: React.FC = () => {
             type: (session.mode === 'logo' ? 'logo' : 'design') as 'logo' | 'design',
             title: session.title || 'Untitled Design',
             date: new Date(session.updated_at || session.created_at || Date.now()).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
-            image: null as string | null,
+            image: session.metadata?.thumbnail || null,
             preview: 'View Result'
         }));
 

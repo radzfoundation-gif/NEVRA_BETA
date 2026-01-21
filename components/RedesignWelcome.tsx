@@ -2,11 +2,12 @@ import React, { useState, useRef, useCallback } from 'react';
 import { useUser } from '@/lib/authContext';
 import { createChatSession, saveMessage } from '@/lib/supabaseDatabase';
 import { X, Download, Check, Code, Sparkles, ExternalLink, Loader2, Upload, Copy, Image as ImageIcon, RefreshCw, ArrowRight, Palette, AlertTriangle, Zap, Plus, Mic, Send, Layout, Monitor, PenTool, ChevronDown, Paperclip } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, getApiUrl } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import LiquidMetal from './ui/liquid-metal';
 import { useTokenLimit } from '@/hooks/useTokenLimit';
 import SubscriptionPopup from './SubscriptionPopup';
+
 interface RedesignWelcomeProps {
     onRedesign?: (result: RedesignResult) => void;
     className?: string;
@@ -31,6 +32,8 @@ export function RedesignWelcome({
     const [uploadedImage, setUploadedImage] = useState<string | null>(null);
     const [prompt, setPrompt] = useState('');
     const [result, setResult] = useState<RedesignResult | null>(null);
+    const [savingStatus, setSavingStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+
     const [isLoading, setIsLoading] = useState(false);
     const [loadingStep, setLoadingStep] = useState(0);
     const [activeTab, setActiveTab] = useState<'preview' | 'code' | 'compare'>('preview');
@@ -50,7 +53,7 @@ export function RedesignWelcome({
         setPrompt(e.target.value);
     };
 
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8788';
+    const apiUrl = getApiUrl();
 
     // Usage limits hook
     const { checkFeatureLimit, incrementFeatureUsage, isSubscribed, featureUsage } = useTokenLimit();
@@ -211,6 +214,7 @@ export function RedesignWelcome({
         setIsLoading(true);
         setError(null);
         setLoadingStep(0);
+        setSavingStatus('idle');
 
         const stepInterval = setInterval(() => {
             setLoadingStep(prev => (prev + 1) % loadingSteps.length);
@@ -333,8 +337,9 @@ Return ONLY the HTML code, no explanations.
             setActiveTab(mode === 'redesign' ? 'compare' : 'preview');
             onRedesign?.(redesignResult);
 
-            // Save to history
+            // Save to history & generate thumbnail
             if (user?.id) {
+                setSavingStatus('saving');
                 try {
                     const session = await createChatSession(
                         user.id,
@@ -358,9 +363,85 @@ Return ONLY the HTML code, no explanations.
                             cleanHtml,
                             cleanHtml
                         );
+
+                        // --- AUTO THUMBNAIL GENERATION ---
+                        import('html2canvas').then(({ default: html2canvas }) => {
+                            const iframe = document.createElement('iframe');
+                            Object.assign(iframe.style, {
+                                position: 'absolute',
+                                left: '-9999px',
+                                width: '1024px',
+                                height: '768px',
+                                opacity: '0',
+                                pointerEvents: 'none',
+                                background: 'white' // Ensure white background
+                            });
+
+                            document.body.appendChild(iframe);
+                            const doc = iframe.contentDocument || iframe.contentWindow?.document;
+
+                            if (doc) {
+                                // Wait for iframe to load content
+                                iframe.onload = () => {
+                                    // Slight delay for CSS/Fonts to settle
+                                    setTimeout(() => {
+                                        html2canvas(doc.body, {
+                                            useCORS: true,
+                                            logging: false,
+                                            scale: 0.8,
+                                            width: 1024,
+                                            height: 768,
+                                            backgroundColor: '#ffffff'
+                                        }).then(async (canvas) => {
+                                            canvas.toBlob(async (blob) => {
+                                                if (blob) {
+                                                    try {
+                                                        const { uploadFile, updateChatSessionMetadata } = await import('@/lib/supabaseDatabase');
+                                                        // Ensure filename is unique and typically categorized
+                                                        const path = `thumbnails/${user.id}/${session.id}-${Date.now()}.jpg`;
+
+                                                        console.log('[Gallery] Uploading thumbnail to:', path);
+                                                        const publicUrl = await uploadFile('chat-attachments', path, blob);
+
+                                                        if (publicUrl) {
+                                                            await updateChatSessionMetadata(session.id, { thumbnail: publicUrl });
+                                                            console.log('[Gallery] Thumbnail saved successfully:', publicUrl);
+                                                            setSavingStatus('saved');
+                                                        } else {
+                                                            console.warn('[Gallery] Upload returned null publicUrl');
+                                                            setSavingStatus('error');
+                                                        }
+                                                    } catch (e) {
+                                                        console.error('[Gallery] Failed to upload/save:', e);
+                                                        setSavingStatus('error');
+                                                    }
+                                                }
+                                                document.body.removeChild(iframe);
+                                            }, 'image/jpeg', 0.85);
+                                        }).catch(err => {
+                                            console.warn('[Gallery] html2canvas failed:', err);
+                                            setSavingStatus('error');
+                                            document.body.removeChild(iframe);
+                                        });
+                                    }, 1500); // 1.5s delay for rendering
+                                };
+
+                                // Write content
+                                doc.open();
+                                doc.write(cleanHtml);
+                                doc.close();
+                            } else {
+                                document.body.removeChild(iframe);
+                                setSavingStatus('error');
+                            }
+                        });
+                    } else {
+                        console.error('[Gallery] Failed to create session');
+                        setSavingStatus('error');
                     }
                 } catch (e) {
                     console.error('Failed to save session:', e);
+                    setSavingStatus('error');
                 }
             }
 
@@ -506,47 +587,73 @@ Return ONLY the HTML code, no explanations.
             </AnimatePresence>
 
             {result ? (
-                // RESULT VIEW
+                // RESULT VIEW - RETRO THEME
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="w-full"
+                    className="w-full max-w-5xl mx-auto"
                 >
                     {/* Header */}
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-                        <div>
-                            <h2 className="text-2xl font-bold text-zinc-900">
-                                {mode === 'redesign' ? 'Redesign Complete ✨' : 'Design Created ✨'}
+                    <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
+                        <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                                <div className="inline-block px-3 py-1 bg-yellow-400 border-2 border-black font-bold text-xs uppercase tracking-wider shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] text-black">
+                                    Status: Complete
+                                </div>
+                                {savingStatus === 'saving' && (
+                                    <div className="inline-block px-3 py-1 bg-blue-100 border-2 border-black font-bold text-xs uppercase tracking-wider shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] text-blue-800 animate-pulse">
+                                        Saving to Gallery...
+                                    </div>
+                                )}
+                                {savingStatus === 'saved' && (
+                                    <div className="inline-block px-3 py-1 bg-green-100 border-2 border-black font-bold text-xs uppercase tracking-wider shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] text-green-800">
+                                        Saved to Gallery
+                                    </div>
+                                )}
+                                {savingStatus === 'error' && (
+                                    <div className="inline-block px-3 py-1 bg-red-100 border-2 border-black font-bold text-xs uppercase tracking-wider shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] text-red-800">
+                                        Save Failed
+                                    </div>
+                                )}
+                            </div>
+                            <h2 className="text-3xl md:text-4xl font-black text-zinc-900 uppercase tracking-tight break-words" style={{ textShadow: '2px 2px 0px rgba(0,0,0,0.1)' }}>
+                                {mode === 'redesign' ? 'UI_MODERNIZED' : 'ASSET_GENERATED'}
                             </h2>
-                            <p className="text-zinc-500 text-sm">
-                                {mode === 'redesign' ? 'Your UI has been modernized' : 'Your design is ready'}
+                            <p className="text-zinc-600 font-medium font-mono text-sm max-w-lg">
+                                {mode === 'redesign' ? '>> Layout modernized successfully. Check comparison below.' : '>> Visual asset rendering complete.'}
                             </p>
                         </div>
-                        <div className="flex items-center gap-2">
-                            <button onClick={handleReset} className="px-4 py-2 text-sm font-medium text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 rounded-lg transition-all">
+                        <div className="flex items-center gap-3">
+                            <button
+                                onClick={handleReset}
+                                className="px-6 py-3 text-sm font-bold text-black bg-white border-2 border-black hover:bg-zinc-100 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-y-1 hover:shadow-none transition-all uppercase tracking-wide"
+                            >
                                 New {mode === 'redesign' ? 'Redesign' : 'Design'}
                             </button>
                         </div>
                     </div>
 
                     {/* Tabs */}
-                    {/* Tabs (Hidden in Logo Mode) */}
                     {mode === 'redesign' && (
-                        <div className="flex bg-zinc-100 p-1 rounded-xl mb-6 w-fit">
+                        <div className="flex flex-wrap gap-2 mb-0 px-2">
                             <button
                                 onClick={() => setActiveTab('compare')}
                                 className={cn(
-                                    "px-4 py-2 rounded-lg text-sm font-medium transition-all",
-                                    activeTab === 'compare' ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-500"
+                                    "px-6 py-3 rounded-t-xl text-sm font-bold border-2 border-b-0 transition-all uppercase tracking-wider",
+                                    activeTab === 'compare'
+                                        ? "bg-white border-black text-black -mb-[2px] z-10 py-4"
+                                        : "bg-zinc-200 border-transparent text-zinc-500 hover:bg-zinc-300"
                                 )}
                             >
-                                Before / After
+                                Comparison
                             </button>
                             <button
                                 onClick={() => setActiveTab('preview')}
                                 className={cn(
-                                    "px-4 py-2 rounded-lg text-sm font-medium transition-all",
-                                    activeTab === 'preview' ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-500"
+                                    "px-6 py-3 rounded-t-xl text-sm font-bold border-2 border-b-0 transition-all uppercase tracking-wider",
+                                    activeTab === 'preview'
+                                        ? "bg-white border-black text-black -mb-[2px] z-10 py-4"
+                                        : "bg-zinc-200 border-transparent text-zinc-500 hover:bg-zinc-300"
                                 )}
                             >
                                 Preview
@@ -554,69 +661,75 @@ Return ONLY the HTML code, no explanations.
                             <button
                                 onClick={() => setActiveTab('code')}
                                 className={cn(
-                                    "px-4 py-2 rounded-lg text-sm font-medium transition-all",
-                                    activeTab === 'code' ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-500"
+                                    "px-6 py-3 rounded-t-xl text-sm font-bold border-2 border-b-0 transition-all uppercase tracking-wider",
+                                    activeTab === 'code'
+                                        ? "bg-white border-black text-black -mb-[2px] z-10 py-4"
+                                        : "bg-zinc-200 border-transparent text-zinc-500 hover:bg-zinc-300"
                                 )}
                             >
-                                Code
+                                Source_Code
                             </button>
                         </div>
                     )}
 
-                    {/* Content */}
-                    <div className="bg-white rounded-2xl shadow-xl border border-zinc-200 overflow-hidden">
+                    {/* Content Container */}
+                    <div className="bg-white border-2 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] rounded-xl overflow-hidden relative z-0">
+
+                        {/* Comparison View */}
                         {activeTab === 'compare' && mode === 'redesign' ? (
-                            <div className="grid md:grid-cols-2 gap-0 divide-x divide-zinc-200">
-                                <div className="p-4">
-                                    <div className="flex items-center gap-2 mb-3">
-                                        <div className="w-2 h-2 rounded-full bg-red-500" />
-                                        <span className="text-sm font-medium text-zinc-600">Before</span>
+                            <div className="flex flex-col md:grid md:grid-cols-2 divide-y-2 md:divide-y-0 md:divide-x-2 divide-black">
+                                <div className="p-4 md:p-6 bg-stone-50">
+                                    <div className="flex items-center gap-2 mb-4">
+                                        <div className="w-3 h-3 border-2 border-black bg-red-500" />
+                                        <span className="text-sm font-bold text-black uppercase tracking-wider">Before_Input</span>
                                     </div>
-                                    <div className="rounded-xl overflow-hidden border border-zinc-200 bg-zinc-50">
-                                        <img src={result.originalImage} alt="Original" className="w-full h-auto object-contain max-h-[500px]" />
+                                    <div className="rounded-lg overflow-hidden border-2 border-zinc-200 bg-white shadow-sm">
+                                        <img src={result.originalImage} alt="Original" className="w-full h-auto object-contain max-h-[400px]" />
                                     </div>
                                 </div>
-                                <div className="p-4">
-                                    <div className="flex items-center gap-2 mb-3">
-                                        <div className="w-2 h-2 rounded-full bg-green-500" />
-                                        <span className="text-sm font-medium text-zinc-600">After</span>
+                                <div className="p-4 md:p-6 bg-stone-50">
+                                    <div className="flex items-center gap-2 mb-4">
+                                        <div className="w-3 h-3 border-2 border-black bg-green-500" />
+                                        <span className="text-sm font-bold text-black uppercase tracking-wider">After_Output</span>
                                     </div>
-                                    <div className="rounded-xl overflow-hidden border border-zinc-200 bg-white h-[500px]">
+                                    <div className="rounded-lg overflow-hidden border-2 border-black bg-white h-[400px] md:h-[500px] shadow-sm">
                                         <iframe srcDoc={result.redesignedHtml} className="w-full h-full border-0" title="Redesigned" sandbox="allow-scripts allow-same-origin" />
                                     </div>
                                 </div>
                             </div>
                         ) : activeTab === 'preview' ? (
-                            <div className="relative group">
-                                <iframe srcDoc={result.redesignedHtml} className="w-full h-[600px] border-0" title="Preview" sandbox="allow-scripts allow-same-origin" />
-                                <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button onClick={() => window.open(URL.createObjectURL(new Blob([result.redesignedHtml], { type: 'text/html' })), '_blank')} className="bg-white/90 backdrop-blur text-xs font-medium px-3 py-1.5 rounded-lg border border-zinc-200 shadow-sm hover:bg-white flex items-center gap-1.5">
-                                        <ExternalLink size={12} /> Fullscreen
+                            <div className="relative group bg-stone-50 p-2">
+                                <div className="bg-white border-2 border-black rounded-lg overflow-hidden h-[500px] md:h-[600px]">
+                                    <iframe srcDoc={result.redesignedHtml} className="w-full h-full border-0" title="Preview" sandbox="allow-scripts allow-same-origin" />
+                                </div>
+                                <div className="absolute top-6 right-6 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button onClick={() => window.open(URL.createObjectURL(new Blob([result.redesignedHtml], { type: 'text/html' })), '_blank')} className="bg-white text-black font-bold px-4 py-2 rounded border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all flex items-center gap-2 text-xs uppercase">
+                                        <ExternalLink size={14} /> Fullscreen
                                     </button>
                                 </div>
                             </div>
                         ) : (
-                            <div className="bg-zinc-900">
-                                <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-800">
-                                    <span className="text-xs text-zinc-400 font-mono">index.html</span>
-                                    <button onClick={handleCopyHtml} className="text-xs text-zinc-400 hover:text-white flex items-center gap-1">
-                                        {copied ? <Check size={12} /> : <Copy size={12} />}
-                                        {copied ? 'Copied!' : 'Copy'}
+                            <div className="bg-[#1e1e1e] border-b-2 border-black">
+                                <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-700 bg-[#2d2d2d]">
+                                    <span className="text-xs text-zinc-400 font-mono">source/index.html</span>
+                                    <button onClick={handleCopyHtml} className="text-xs text-zinc-400 hover:text-white flex items-center gap-2 font-mono uppercase">
+                                        {copied ? <Check size={14} className="text-green-400" /> : <Copy size={14} />}
+                                        {copied ? 'COPIED' : 'COPY'}
                                     </button>
                                 </div>
-                                <textarea readOnly value={result.redesignedHtml} className="w-full h-[500px] bg-zinc-950 text-zinc-300 font-mono text-xs p-4 resize-none focus:outline-none" spellCheck={false} />
+                                <textarea readOnly value={result.redesignedHtml} className="w-full h-[500px] bg-[#1e1e1e] text-zinc-300 font-mono text-xs p-6 resize-none focus:outline-none leading-relaxed" spellCheck={false} />
                             </div>
                         )}
 
-                        {/* Actions */}
-                        <div className="flex gap-2 p-4 border-t border-zinc-100 bg-zinc-50">
-                            <button onClick={handleDownload} disabled={isDownloading} className={cn("flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-medium text-sm transition-all disabled:opacity-50", mode === 'redesign' ? "bg-zinc-900 text-white hover:bg-zinc-800" : "bg-gradient-to-r from-pink-500 to-orange-500 text-white hover:opacity-90")}>
-                                {isDownloading ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
-                                {(mode === 'logo') ? 'Download Image' : 'Download HTML'}
+                        {/* Actions Footer */}
+                        <div className="flex flex-col md:flex-row gap-3 p-4 md:p-6 border-t-2 border-black bg-stone-100">
+                            <button onClick={handleDownload} disabled={isDownloading} className={cn("flex-1 flex items-center justify-center gap-2 px-6 py-4 rounded-lg font-bold text-sm transition-all uppercase tracking-wider border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-y-1 hover:shadow-none", mode === 'redesign' ? "bg-black text-white hover:bg-zinc-800" : "bg-pink-500 text-white hover:bg-pink-600")}>
+                                {isDownloading ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
+                                {(mode === 'logo') ? 'Download Asset' : 'Download HTML'}
                             </button>
-                            <button onClick={handleCopyHtml} className="px-4 py-3 bg-white text-zinc-700 rounded-xl font-medium text-sm hover:bg-zinc-100 transition-all flex items-center gap-2 border border-zinc-200">
-                                {copied ? <Check size={16} className="text-green-600" /> : <Code size={16} />}
-                                {copied ? 'Copied!' : 'Copy Code'}
+                            <button onClick={handleCopyHtml} className="px-6 py-4 bg-white text-black rounded-lg font-bold text-sm hover:bg-zinc-50 transition-all flex items-center justify-center gap-2 border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-y-1 hover:shadow-none uppercase tracking-wider">
+                                {copied ? <Check size={18} className="text-green-600" /> : <Code size={18} />}
+                                {copied ? 'Copied' : 'Copy Code'}
                             </button>
                         </div>
                     </div>

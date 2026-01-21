@@ -61,6 +61,7 @@ export interface ChatSession {
     created_at: string;
     updated_at: string;
     is_shared?: boolean;
+    metadata?: Record<string, any>;
 }
 
 export interface Message {

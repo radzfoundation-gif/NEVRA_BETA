@@ -674,3 +674,55 @@ export async function canAccessModel(userId: string, provider: string): Promise<
     const allowedModels = TIER_LIMITS[tier].allowedModels;
     return allowedModels.includes(provider);
 }
+
+// =====================================================
+// STORAGE FUNCTIONS
+// =====================================================
+
+/**
+ * Upload file to Supabase Storage
+ */
+export async function uploadFile(
+    bucket: string,
+    path: string,
+    file: File | Blob
+): Promise<string | null> {
+    try {
+        const { data, error } = await supabase.storage
+            .from(bucket)
+            .upload(path, file, {
+                cacheControl: '3600',
+                upsert: true
+            });
+
+        if (error) throw error;
+
+        // Get public URL
+        const { data: { publicUrl } } = supabase.storage
+            .from(bucket)
+            .getPublicUrl(path);
+
+        return publicUrl;
+    } catch (error) {
+        console.error('Error uploading file:', error);
+        return null;
+    }
+}
+
+/**
+ * Update chat session metadata (e.g. for thumbnails)
+ */
+export async function updateChatSessionMetadata(sessionId: string, metadata: Record<string, any>): Promise<boolean> {
+    try {
+        const { error } = await supabase
+            .from('chat_sessions')
+            .update({ metadata })
+            .eq('id', sessionId);
+
+        if (error) throw error;
+        return true;
+    } catch (error) {
+        console.error('Error updating session metadata:', error);
+        return false;
+    }
+}
