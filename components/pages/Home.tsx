@@ -31,7 +31,11 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-const Home: React.FC = () => {
+interface HomeProps {
+  defaultMode?: 'chat' | 'redesign';
+}
+
+const Home: React.FC<HomeProps> = ({ defaultMode = 'chat' }) => {
   const { isSignedIn } = useAuth();
   const { user } = useUser();
   const { hasExceeded, tokensUsed, isSubscribed, refreshLimit } = useTokenLimit();
@@ -40,7 +44,7 @@ const Home: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [showTemplateBrowser, setShowTemplateBrowser] = useState(false);
   const [showVoiceCall, setShowVoiceCall] = useState(false);
-  const [activeMode, setActiveMode] = useState<'chat' | 'redesign'>('chat');
+  const [activeMode, setActiveMode] = useState<'chat' | 'redesign'>(defaultMode);
 
   const [wibTime, setWibTime] = useState('');
 
@@ -74,7 +78,7 @@ const Home: React.FC = () => {
   const navigate = useNavigate();
 
   const handleNewChat = () => {
-    navigate('/chat/new');
+    navigate('/redesign');
   };
 
   const handleSelectSession = (sessionId: string) => {

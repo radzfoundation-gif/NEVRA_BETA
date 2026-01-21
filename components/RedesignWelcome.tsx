@@ -1,4 +1,6 @@
 import React, { useState, useRef, useCallback } from 'react';
+import { useUser } from '@/lib/authContext';
+import { createChatSession, saveMessage } from '@/lib/supabaseDatabase';
 import { X, Download, Check, Code, Sparkles, ExternalLink, Loader2, Upload, Copy, Image as ImageIcon, RefreshCw, ArrowRight, Palette, AlertTriangle, Zap, Plus, Mic, Send, Layout, Monitor, PenTool, ChevronDown, Paperclip } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -23,6 +25,7 @@ export function RedesignWelcome({
     className,
     userName
 }: RedesignWelcomeProps) {
+    const { user } = useUser();
     const [mode, setMode] = useState<'redesign' | 'logo'>('redesign');
     const [selectedModel, setSelectedModel] = useState<'gemini-3-pro'>('gemini-3-pro');
     const [uploadedImage, setUploadedImage] = useState<string | null>(null);
@@ -329,6 +332,38 @@ Return ONLY the HTML code, no explanations.
             setResult(redesignResult);
             setActiveTab(mode === 'redesign' ? 'compare' : 'preview');
             onRedesign?.(redesignResult);
+
+            // Save to history
+            if (user?.id) {
+                try {
+                    const session = await createChatSession(
+                        user.id,
+                        mode,
+                        'gemini',
+                        prompt.trim() || (mode === 'logo' ? 'Logo Design' : 'Web Redesign')
+                    );
+
+                    if (session) {
+                        await saveMessage(
+                            session.id,
+                            'user',
+                            prompt.trim() || (uploadedImage ? 'Redesign from Image' : 'New Design'),
+                            undefined,
+                            uploadedImage ? [uploadedImage] : undefined
+                        );
+
+                        await saveMessage(
+                            session.id,
+                            'ai',
+                            cleanHtml,
+                            cleanHtml
+                        );
+                    }
+                } catch (e) {
+                    console.error('Failed to save session:', e);
+                }
+            }
+
             // Increment redesign usage on success
             incrementFeatureUsage('redesign');
         } catch (err) {

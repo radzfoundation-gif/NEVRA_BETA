@@ -56,7 +56,7 @@ export interface ChatSession {
     id: string;
     user_id: string;
     title: string;
-    mode: 'builder' | 'tutor' | 'canvas';
+    mode: 'builder' | 'tutor' | 'canvas' | 'redesign' | 'logo';
     provider: string;
     created_at: string;
     updated_at: string;

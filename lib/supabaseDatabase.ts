@@ -202,7 +202,7 @@ export async function activateProSubscription(userId: string, orderId: string, m
  */
 export async function createChatSession(
     userId: string,
-    mode: 'builder' | 'tutor' | 'canvas',
+    mode: 'builder' | 'tutor' | 'canvas' | 'redesign' | 'logo',
     provider: string,
     title: string = 'New Chat'
 ): Promise<ChatSession | null> {

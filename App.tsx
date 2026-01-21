@@ -26,6 +26,7 @@ const AppContent: React.FC = () => {
       <DynamicBackground />
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route path="/redesign" element={<Home defaultMode="redesign" />} />
         <Route path="/gallery" element={<ProtectedRoute><Gallery /></ProtectedRoute>} />
         <Route path="/survey" element={<SurveyPage />} />
         <Route path="/sign-in" element={<SignInPage />} />
