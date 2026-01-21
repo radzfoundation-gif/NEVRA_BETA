@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { X, Download, Check, Code, Sparkles, ExternalLink, Loader2, Upload, Copy, Image as ImageIcon, RefreshCw, ArrowRight, Palette, AlertTriangle } from 'lucide-react';
+import { X, Download, Check, Code, Sparkles, ExternalLink, Loader2, Upload, Copy, Image as ImageIcon, RefreshCw, ArrowRight, Palette, AlertTriangle, Zap, Plus, Mic, Send, Layout, Monitor, PenTool, ChevronDown, Paperclip } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import LiquidMetal from './ui/liquid-metal';
@@ -24,6 +24,7 @@ export function RedesignWelcome({
     userName
 }: RedesignWelcomeProps) {
     const [mode, setMode] = useState<'redesign' | 'logo'>('redesign');
+    const [selectedModel, setSelectedModel] = useState<'gemini-3-pro'>('gemini-3-pro');
     const [uploadedImage, setUploadedImage] = useState<string | null>(null);
     const [prompt, setPrompt] = useState('');
     const [result, setResult] = useState<RedesignResult | null>(null);
@@ -37,6 +38,14 @@ export function RedesignWelcome({
     const [showSubscriptionPopup, setShowSubscriptionPopup] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const [isToolsOpen, setIsToolsOpen] = useState(false);
+
+    // Auto-resize textarea
+    const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        e.target.style.height = 'auto';
+        e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
+        setPrompt(e.target.value);
+    };
 
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8788';
 
@@ -287,8 +296,10 @@ Return ONLY the HTML code, no explanations.
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    image: mode === 'redesign' ? uploadedImage : null,
+                    image: uploadedImage,
                     prompt: effectivePrompt,
+                    model: selectedModel,
+                    designMode: mode,
                 }),
             });
 
@@ -379,6 +390,7 @@ Return ONLY the HTML code, no explanations.
     };
 
     const handleDownload = () => {
+        // If Logo mode, prefer PNG download
         if (mode === 'logo') {
             handleDownloadPng();
         } else {
@@ -483,8 +495,9 @@ Return ONLY the HTML code, no explanations.
                     </div>
 
                     {/* Tabs */}
-                    <div className="flex bg-zinc-100 p-1 rounded-xl mb-6 w-fit">
-                        {mode === 'redesign' && (
+                    {/* Tabs (Hidden in Logo Mode) */}
+                    {mode === 'redesign' && (
+                        <div className="flex bg-zinc-100 p-1 rounded-xl mb-6 w-fit">
                             <button
                                 onClick={() => setActiveTab('compare')}
                                 className={cn(
@@ -494,26 +507,26 @@ Return ONLY the HTML code, no explanations.
                             >
                                 Before / After
                             </button>
-                        )}
-                        <button
-                            onClick={() => setActiveTab('preview')}
-                            className={cn(
-                                "px-4 py-2 rounded-lg text-sm font-medium transition-all",
-                                activeTab === 'preview' ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-500"
-                            )}
-                        >
-                            Preview
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('code')}
-                            className={cn(
-                                "px-4 py-2 rounded-lg text-sm font-medium transition-all",
-                                activeTab === 'code' ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-500"
-                            )}
-                        >
-                            Code
-                        </button>
-                    </div>
+                            <button
+                                onClick={() => setActiveTab('preview')}
+                                className={cn(
+                                    "px-4 py-2 rounded-lg text-sm font-medium transition-all",
+                                    activeTab === 'preview' ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-500"
+                                )}
+                            >
+                                Preview
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('code')}
+                                className={cn(
+                                    "px-4 py-2 rounded-lg text-sm font-medium transition-all",
+                                    activeTab === 'code' ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-500"
+                                )}
+                            >
+                                Code
+                            </button>
+                        </div>
+                    )}
 
                     {/* Content */}
                     <div className="bg-white rounded-2xl shadow-xl border border-zinc-200 overflow-hidden">
@@ -564,7 +577,7 @@ Return ONLY the HTML code, no explanations.
                         <div className="flex gap-2 p-4 border-t border-zinc-100 bg-zinc-50">
                             <button onClick={handleDownload} disabled={isDownloading} className={cn("flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-medium text-sm transition-all disabled:opacity-50", mode === 'redesign' ? "bg-zinc-900 text-white hover:bg-zinc-800" : "bg-gradient-to-r from-pink-500 to-orange-500 text-white hover:opacity-90")}>
                                 {isDownloading ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
-                                {mode === 'redesign' ? 'Download HTML' : 'Download PNG'}
+                                {(mode === 'logo') ? 'Download Image' : 'Download HTML'}
                             </button>
                             <button onClick={handleCopyHtml} className="px-4 py-3 bg-white text-zinc-700 rounded-xl font-medium text-sm hover:bg-zinc-100 transition-all flex items-center gap-2 border border-zinc-200">
                                 {copied ? <Check size={16} className="text-green-600" /> : <Code size={16} />}
@@ -582,92 +595,158 @@ Return ONLY the HTML code, no explanations.
                             metalConfig={{ colorBack: mode === 'redesign' ? '#8B5CF6' : '#EC4899', colorTint: '#FFFFFF', speed: 0.5, repetition: 4 }}
                             className="text-4xl md:text-5xl font-bold tracking-widest text-white px-8 py-5 rounded-2xl shadow-xl"
                         >
-                            STUDIO
+                            NEVRA LABS
                         </LiquidMetal>
                     </div>
 
                     {/* Headline */}
                     <div className="text-center mb-6 space-y-2">
+                        <div className="inline-block px-3 py-1 rounded-full bg-blue-600 text-white text-xs font-bold uppercase tracking-wider mb-2 shadow-[0_0_15px_rgba(37,99,235,0.4)] border border-blue-400/50">
+                            Under Development
+                        </div>
                         <h1 className="text-3xl md:text-4xl font-bold text-zinc-900 dark:text-white tracking-tight">
-                            {mode === 'redesign' ? 'AI Frontend Redesigner' : 'AI Design Studio'}
+                            {mode === 'redesign' ? 'UI/UX Generation Engine' : 'AI Design Studio'}
                         </h1>
                         <p className="text-base text-zinc-500 max-w-lg mx-auto">
-                            {mode === 'redesign' ? 'Upload a screenshot and get a modern redesign.' : 'Create logos, components, and visual designs.'}
+                            {mode === 'redesign' ? 'Specialized UI/UX Engine powered by Gemini 3 Pro & GPT-4.1 Mini' : 'Create logos, components, and visual designs.'}
                         </p>
                     </div>
 
-                    {/* Mode Toggle */}
-                    <div className="flex bg-zinc-100 p-1 rounded-xl mb-8">
-                        <button onClick={() => switchMode('redesign')} className={cn("flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all", mode === 'redesign' ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-500 hover:text-zinc-700")}>
-                            <RefreshCw size={16} /> Redesign
-                        </button>
-                        <button onClick={() => switchMode('logo')} className={cn("flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all", mode === 'logo' ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-500 hover:text-zinc-700")}>
-                            <Palette size={16} /> Logo & Design
-                        </button>
-                    </div>
+                    {/* Gemini-Style Input Area */}
+                    <div className="w-full max-w-3xl relative mt-8 z-40">
 
-                    {mode === 'redesign' ? (
-                        <>
-                            {/* Upload Area */}
-                            <div className={cn("w-full bg-white rounded-2xl border-2 border-dashed transition-all duration-300 mb-6 overflow-hidden", isDragging ? "border-purple-500 bg-purple-50" : uploadedImage ? "border-zinc-200" : "border-zinc-300 hover:border-purple-400")} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
-                                <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
-                                {uploadedImage ? (
-                                    <div className="relative group">
-                                        <img src={uploadedImage} alt="Uploaded" className="w-full h-auto max-h-[400px] object-contain" />
-                                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
-                                            <button onClick={() => fileInputRef.current?.click()} className="px-4 py-2 bg-white text-zinc-900 rounded-lg font-medium text-sm">Change</button>
-                                            <button onClick={() => { setUploadedImage(null); if (fileInputRef.current) fileInputRef.current.value = ''; }} className="px-4 py-2 bg-red-500 text-white rounded-lg font-medium text-sm">Remove</button>
+                        {/* Tools Dropdown */}
+                        <AnimatePresence>
+                            {isToolsOpen && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                    className="absolute bottom-full left-0 mb-4 bg-[#1E1F20] border border-white/10 rounded-2xl shadow-2xl p-2 w-64 z-50 overflow-hidden"
+                                >
+                                    <div className="text-xs font-bold text-zinc-500 px-3 py-2 uppercase tracking-wider mb-1">Tools</div>
+                                    <button
+                                        onClick={() => { switchMode('redesign'); setIsToolsOpen(false); }}
+                                        className={cn("w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-all text-left", mode === 'redesign' ? "bg-[#333537] text-white" : "text-zinc-400 hover:bg-[#2C2D2E] hover:text-white")}
+                                    >
+                                        <div className="w-8 h-8 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center">
+                                            <Monitor size={16} />
                                         </div>
-                                    </div>
-                                ) : (
-                                    <div onClick={() => fileInputRef.current?.click()} className="p-12 md:p-16 flex flex-col items-center justify-center cursor-pointer">
-                                        <div className={cn("w-16 h-16 rounded-2xl flex items-center justify-center mb-4 transition-all", isDragging ? "bg-purple-500 text-white scale-110" : "bg-zinc-100 text-zinc-400")}>
-                                            <Upload size={28} />
+                                        <div>
+                                            <div className="text-white">Visual Layout</div>
+                                            <div className="text-[10px] text-zinc-500 font-normal">Website & UI Redesign</div>
                                         </div>
-                                        <h3 className="text-lg font-semibold text-zinc-700 mb-1">{isDragging ? "Drop here" : "Upload screenshot"}</h3>
-                                        <p className="text-sm text-zinc-400 mb-4">Drag & drop or click • PNG, JPG, WebP up to 10MB</p>
-                                        <button className="px-4 py-2 bg-zinc-900 text-white rounded-lg font-medium text-sm">Choose File</button>
+                                    </button>
+                                    <button
+                                        onClick={() => { switchMode('logo'); setIsToolsOpen(false); }}
+                                        className={cn("w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-all text-left", mode === 'logo' ? "bg-[#333537] text-white" : "text-zinc-400 hover:bg-[#2C2D2E] hover:text-white")}
+                                    >
+                                        <div className="w-8 h-8 rounded-full bg-pink-500/20 text-pink-400 flex items-center justify-center">
+                                            <PenTool size={16} />
+                                        </div>
+                                        <div>
+                                            <div className="text-white">Create Logo</div>
+                                            <div className="text-[10px] text-zinc-500 font-normal">Brand & Icon Design</div>
+                                        </div>
+                                    </button>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+
+                        {/* Input Bar */}
+                        <div
+                            className={cn(
+                                "group bg-[#1E1F20] border border-zinc-800 hover:border-zinc-700 focus-within:border-zinc-600 rounded-[24px] md:rounded-[28px] p-2 pr-2 md:pr-4 shadow-xl transition-all relative flex items-end gap-2",
+                                isDragging ? "ring-2 ring-purple-500 border-purple-500" : ""
+                            )}
+                            onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}
+                        >
+                            {/* Hidden File Input */}
+                            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+
+                            {/* Tools Trigger */}
+                            <button
+                                onClick={() => setIsToolsOpen(!isToolsOpen)}
+                                className={cn("h-10 w-10 md:h-12 md:w-12 rounded-full transition-all bg-[#2C2D2E] hover:bg-[#3C3D3F] text-white shrink-0 flex items-center justify-center")}
+                                title="Open Tools"
+                            >
+                                <Plus className="w-5 h-5 md:w-6 md:h-6" />
+                            </button>
+
+                            {/* Input Content */}
+                            <div className="flex-1 min-w-0 py-2 md:py-3 relative">
+                                {/* Image Preview Chip */}
+                                {uploadedImage && (
+                                    <div className="relative inline-block mb-2 md:mb-3 mr-2 group/img">
+                                        <img src={uploadedImage} alt="Upload" className="h-12 w-12 md:h-16 md:w-16 object-cover rounded-lg md:rounded-xl border border-white/10" />
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); setUploadedImage(null); }}
+                                            className="absolute -top-2 -right-2 bg-zinc-900 border border-zinc-700 text-white rounded-full p-1 hover:bg-red-500 hover:border-red-500 transition-all opacity-0 group-hover/img:opacity-100 shadow-sm"
+                                        >
+                                            <X size={12} />
+                                        </button>
                                     </div>
                                 )}
+
+                                <textarea
+                                    ref={textareaRef}
+                                    value={prompt}
+                                    onChange={handleInput}
+                                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleGenerate(); } }}
+                                    placeholder={mode === 'redesign' ? "Upload a screenshot or describe a layout..." : "Describe the logo you want to create..."}
+                                    className="w-full bg-transparent text-white placeholder-zinc-500 text-base md:text-lg resize-none focus:outline-none max-h-[200px] overflow-y-auto leading-relaxed scrollbar-hide"
+                                    rows={1}
+                                    style={{ minHeight: '28px' }}
+                                />
                             </div>
 
-                            {uploadedImage && (
-                                <div className="w-full mb-6">
-                                    <label className="text-sm font-medium text-zinc-700 mb-2 block">Additional instructions (optional)</label>
-                                    <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="e.g., 'Make it dark mode', 'Use blue accents'..." className="w-full bg-zinc-50 rounded-xl border border-zinc-200 text-base p-4 text-zinc-800 placeholder:text-zinc-400 focus:ring-2 focus:ring-purple-500/20 resize-none min-h-[80px]" />
-                                </div>
-                            )}
-                        </>
-                    ) : (
-                        <>
-                            {/* Logo Design Input */}
-                            <div className="w-full bg-white rounded-2xl shadow-lg border border-zinc-200 p-1.5 mb-6">
-                                <textarea ref={textareaRef} value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Describe your design... (e.g., 'Modern minimalist logo for tech startup Nova')" className="w-full bg-zinc-50 rounded-xl border-none text-base md:text-lg p-5 text-zinc-800 placeholder:text-zinc-400 focus:ring-2 focus:ring-pink-500/20 focus:bg-white resize-none min-h-[120px]" />
-                            </div>
+                            {/* Right Actions */}
+                            <div className="flex items-center gap-2 pb-2 shrink-0">
+                                {/* Upload Trigger (if no image) */}
+                                <button
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="p-2.5 text-zinc-400 hover:text-white transition-colors rounded-full hover:bg-white/10"
+                                    title="Upload Image"
+                                >
+                                    <Paperclip size={20} />
+                                </button>
 
-                            {/* Example Prompts */}
-                            <div className="w-full mb-6">
-                                <p className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-3">Try an example</p>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                    {logoPrompts.map((ex, i) => (
-                                        <button key={i} onClick={() => setPrompt(ex)} className="text-left p-3 rounded-xl bg-zinc-50 border border-zinc-200 hover:bg-white hover:border-pink-300 hover:shadow-md transition-all group">
-                                            <div className="flex items-center gap-3">
-                                                <Palette size={14} className="text-pink-500 shrink-0" />
-                                                <span className="text-sm text-zinc-600 group-hover:text-zinc-900">{ex}</span>
-                                            </div>
-                                        </button>
-                                    ))}
-                                </div>
+                                <button
+                                    onClick={handleGenerate}
+                                    disabled={isLoading || (!prompt.trim() && !uploadedImage && mode === 'redesign')}
+                                    className={cn(
+                                        "h-10 w-10 md:h-12 md:w-12 rounded-full transition-all flex items-center justify-center",
+                                        (prompt.trim() || uploadedImage) && !isLoading
+                                            ? "bg-white text-zinc-900 hover:scale-105 shadow-md"
+                                            : "bg-[#2C2D2E] text-zinc-600"
+                                    )}
+                                >
+                                    {isLoading ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} className={cn((prompt.trim() || uploadedImage) ? "ml-0.5" : "")} />}
+                                </button>
                             </div>
-                        </>
-                    )}
+                        </div>
 
-                    {/* Generate Button */}
-                    <button onClick={handleGenerate} disabled={(mode === 'redesign' ? !uploadedImage : !prompt.trim()) || isLoading} className={cn("w-full max-w-md flex items-center justify-center gap-3 px-6 py-4 rounded-xl font-semibold text-base transition-all", (mode === 'redesign' ? uploadedImage : prompt.trim()) ? (mode === 'redesign' ? "bg-gradient-to-r from-purple-600 to-pink-600" : "bg-gradient-to-r from-pink-500 to-orange-500") + " text-white shadow-lg hover:opacity-90" : "bg-zinc-100 text-zinc-400 cursor-not-allowed")}>
-                        {mode === 'redesign' ? <RefreshCw size={20} /> : <Palette size={20} />}
-                        {mode === 'redesign' ? 'Redesign Now' : 'Create Design'}
-                        <ArrowRight size={20} />
-                    </button>
+                        {/* Drag Overlay Hint */}
+                        {isDragging && (
+                            <div className="absolute inset-0 bg-purple-500/20 rounded-[28px] border-2 border-purple-500 border-dashed z-20 flex items-center justify-center backdrop-blur-[1px] pointer-events-none">
+                                <span className="px-4 py-2 bg-zinc-900 text-white rounded-full text-sm font-bold shadow-lg">Drop image here</span>
+                            </div>
+                        )}
+
+                        {/* Helper Text / Mode Indicator */}
+                        <div className="mt-6 flex justify-between items-center px-4">
+                            <div className="flex gap-2">
+                                <span className={cn("text-xs font-medium px-3 py-1.5 rounded-full bg-white/5 border border-zinc-200/50 dark:border-white/10 text-zinc-500 dark:text-zinc-400 flex items-center gap-2 transition-all hover:bg-white/10 cursor-pointer")} onClick={() => setIsToolsOpen(true)}>
+                                    {mode === 'redesign' ? <Monitor size={14} className="text-purple-500" /> : <PenTool size={14} className="text-pink-500" />}
+                                    {mode === 'redesign' ? 'Visual Layout' : 'Logo Creator'}
+                                    <ChevronDown size={12} className="opacity-50 ml-1" />
+                                </span>
+                            </div>
+                            <div className="text-xs text-zinc-400 hidden sm:block">
+                                Powered by <span className="text-zinc-500 font-bold">Gemini 3 Pro</span>
+                            </div>
+                        </div>
+                    </div>
 
                     {/* Features */}
                     {mode === 'redesign' && (

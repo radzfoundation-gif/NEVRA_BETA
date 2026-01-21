@@ -10,6 +10,7 @@ import ForgotPasswordPage from './components/auth/ForgotPasswordPage';
 import NicknamePage from './components/auth/NicknamePage';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import SurveyPage from './components/pages/SurveyPage';
+import Gallery from './components/pages/Gallery';
 import ErrorBoundary from './components/ErrorBoundary';
 
 import DynamicBackground from './components/ui/DynamicBackground';
@@ -25,48 +26,7 @@ const AppContent: React.FC = () => {
       <DynamicBackground />
       <Routes>
         <Route path="/" element={<Home />} />
-        <Route path="/survey" element={<SurveyPage />} />
-        <Route path="/sign-in" element={<SignInPage />} />
-        <Route path="/sign-up" element={<SignUpPage />} />
-        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-        <Route
-          path="/nickname"
-          element={
-            <ProtectedRoute requireNickname={false}>
-              <NicknamePage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/chat"
-          element={
-            <ProtectedRoute>
-              <ErrorBoundary>
-                <ChatInterface />
-              </ErrorBoundary>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/chat/:id"
-          element={
-            <ProtectedRoute>
-              <ErrorBoundary>
-                <ChatInterface />
-              </ErrorBoundary>
-            </ProtectedRoute>
-          }
-        />
-        <Route path="/share/:id" element={<SharedChat />} />
-      </Routes>
-    </>
-  );
-
-  return (
-    <>
-      <DynamicBackground />
-      <Routes>
-        <Route path="/" element={<Home />} />
+        <Route path="/gallery" element={<ProtectedRoute><Gallery /></ProtectedRoute>} />
         <Route path="/survey" element={<SurveyPage />} />
         <Route path="/sign-in" element={<SignInPage />} />
         <Route path="/sign-up" element={<SignUpPage />} />

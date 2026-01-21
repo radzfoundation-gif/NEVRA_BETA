@@ -7,7 +7,7 @@ import {
     Sparkles, User, Zap, History,
     Calendar, Box, RefreshCw,
     Share2, Database, FolderOpen, Bot,
-    Home, HelpCircle, Clock, Check, PanelLeft
+    Home, HelpCircle, Clock, Check, PanelLeft, LayoutGrid
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useUser, useAuth } from '@/lib/authContext';
@@ -86,6 +86,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         },
         { type: 'divider' as const },
         { type: 'button' as const, icon: Home, label: 'Home', action: () => navigate('/') },
+        { type: 'button' as const, icon: LayoutGrid, label: 'Gallery', action: () => navigate('/gallery') },
         { type: 'button' as const, icon: Share2, label: 'Share with Friend', action: () => setShowShare(true) },
         { type: 'button' as const, icon: CreditCard, label: 'Pricing', action: () => setShowPricing(true) },
         { type: 'button' as const, icon: Settings, label: 'Settings', action: onOpenSettings },
@@ -157,6 +158,14 @@ const Sidebar: React.FC<SidebarProps> = ({
                         title="Home"
                     >
                         <Home size={20} strokeWidth={1.5} />
+                    </button>
+
+                    <button
+                        onClick={() => navigate('/gallery')}
+                        className="p-2 hover:bg-zinc-200 rounded-lg text-zinc-500 hover:text-zinc-900 transition-colors"
+                        title="Gallery"
+                    >
+                        <LayoutGrid size={20} strokeWidth={1.5} />
                     </button>
 
                     <button
@@ -363,6 +372,9 @@ const Sidebar: React.FC<SidebarProps> = ({
                 <div className="flex md:hidden items-center justify-between px-2 mb-3 pb-2 border-b border-zinc-50">
                     <button onClick={() => navigate('/')} className="p-2 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-lg transition-colors" title="Home">
                         <Home size={18} strokeWidth={1.5} />
+                    </button>
+                    <button onClick={() => navigate('/gallery')} className="p-2 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-lg transition-colors" title="Gallery">
+                        <LayoutGrid size={18} strokeWidth={1.5} />
                     </button>
                     <button onClick={() => setShowShare(true)} className="p-2 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-lg transition-colors" title="Share">
                         <Share2 size={18} strokeWidth={1.5} />

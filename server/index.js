@@ -674,7 +674,7 @@ app.post('/api/generate-image', async (req, res) => {
 // =====================================================
 app.post('/api/redesign', async (req, res) => {
   try {
-    const { image, prompt, userId } = req.body;
+    const { image, prompt, userId, model } = req.body;
 
     // Check for URL in prompt if explicit 'url' field isn't passed
     const urlMatch = prompt?.match(/https?:\/\/[^\s]+/);
@@ -714,68 +714,168 @@ app.post('/api/redesign', async (req, res) => {
       }
     }
 
-    // Use Gemini 3 Pro Preview for better vision capabilities, fallback to configured SUMOPOD_MODEL_ID
-    const redesignModelId = process.env.SUMOPOD_REDESIGN_MODEL_ID || process.env.SUMOPOD_MODEL_ID || 'gemini/gemini-3-pro-preview';
+    // Nevra Labs Model Routing
+    let targetModelId = process.env.SUMOPOD_REDESIGN_MODEL_ID || process.env.SUMOPOD_MODEL_ID || 'gemini/gemini-3-pro-preview';
 
-    const systemPrompt = `You are an expert UI / UX designer, Frontend Developer, and Digital Artist.
-Your task is to create high - fidelity HTML / CSS designs based on the user's request.
-${scrapedContext ? `\nCONTEXT: The user wants to CLONE or reference the website content provided below. Use this content to populate the design.` : ''}
+    // Explicit model selection from frontend
+    if (model === 'gpt-image-1') {
+      targetModelId = 'gpt-image-1';
+    } else if (model === 'gemini-3-pro') {
+      targetModelId = 'gemini/gemini-3-pro-preview';
+    }
 
-    CAPABILITIES:
-    1. ** Redesign **: If an image is provided, redesign it based on instructions.
-2. ** Clone **: If user asks to "clone", replicate the image pixel - perfectly.
-3. ** Creation **: If NO image is provided(or if requested), create designs from scratch.
-4. ** Mockups **: You can create realistic 3D product mockups(t - shirts, phones, boxes) using advanced CSS (transform - style: preserve - 3d, gradients, box - shadows) or SVG.
+    // Customize System Prompt based on Mode (Strict Separation)
+    const designMode = req.body.designMode || (image ? 'redesign' : 'logo'); // Fallback if missing
+    let systemPrompt;
 
-USER REQUEST: ${prompt}
-${scrapedContext}
+    // MODE 1: LOGO & VISUAL DESIGN (Strict SVG/Graphic)
+    if (designMode === 'logo') {
+      systemPrompt = `You are an expert Brand Identity Designer and Vector Artist.
+Your task is to REDESIGN or CREATE a logo based on the user's request/reference.
 
-OUTPUT FORMAT:
-1. Return ONLY valid HTML code(complete document with < !DOCTYPE html >)
-2. Include all CSS inline or in a < style > tag
-3. Use Tailwind CSS via CDN: <script src="https://cdn.tailwindcss.com"></script>
-4. For 3D Mockups / Art: Use pure CSS / Tailwind or SVG.Do NOT use external images for the product itself if possible, build it with code.
-5. Make it responsive and interactive(hover states, animations).
-6. Use modern, premium aesthetics.
+CRITICAL INSTRUCTIONS:
+1. **OUTPUT FORMAT**: Return **ONLY** an HTML file containing a **centered, large SVG**.
+2. **FIDELITY**: The logo must be **SHARP, CRISP, and CLEAN**. Use precise SVG paths.
+3. **NO BLUR**: Avoid excessive gaussian blurs or soft shadows that make the image look "unclear". Use solid colors or smooth gradients.
+4. **PROMPT ADHERENCE**: If the user provides a prompt (e.g., "fox icon", "minimalist"), you **MUST** follow it. The image is just a reference for style/layout unless told otherwise.
+5. **SVG SCALING**: Ensure the SVG has a proper \`viewBox\` and fits nicely within the container.
 
-  CRITICAL: Your response must be ONLY the HTML code, nothing else. No explanations, no markdown.`;
+OUTPUT TEMPLATE:
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; display: flex; align-items: center; justify-content: center; min-height: 100vh; background-color: #f8fafc; }
+        .canvas { 
+            width: 512px; height: 512px; 
+            padding: 0; 
+            display: flex; align-items: center; justify-content: center;
+            background: white; border-radius: 24px; box-shadow: 0 10px 30px -5px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="canvas">
+        <!-- SVG HERE - Make it width="100%" height="100%" to fill the canvas -->
+        <svg width="100%" height="100%" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+            ... 
+        </svg>
+    </div>
+</body>
+</html>`;
+    }
+    // MODE 2: WEBSITE REDESIGN (HTML/FW)
+    else {
+      // 'redesign' mode or default
+      systemPrompt = `You are an expert UI/UX Designer and Frontend Developer.
+Your task is to redesign the provided screenshot (or concept) into a modern, high-fidelity WEBSITE using HTML and Tailwind CSS.
+${scrapedContext ? `\nCONTEXT FROM URL: ${scrapedContext}` : ''}
 
-    console.log(`[Design] Processing request: "${prompt.substring(0, 50)}..." via ${redesignModelId} (Image provided: ${!!image})`);
+CAPABILITIES:
+1. **Redesign**: Analyze the image's layout and content, then modernize it for the web.
+2. **Clone**: If requested, replicate the layout pixel-perfectly but with cleaner code.
+3. **Reference**: Use the structure but apply a specific theme if requested.
 
-    const messages = [
-      { role: 'system', content: systemPrompt },
-      {
-        role: 'user',
-        content: image
-          ? [
-            { type: 'text', text: `Request: "${prompt}".Create the design as HTML code only.` },
-            { type: 'image_url', image_url: { url: image } }
-          ]
-          : [
-            { type: 'text', text: `Request: "${prompt}".Create this design / mockup from scratch using HTML/CSS. Make it high-quality and premium.` }
-          ]
+OUTPUT REQUIREMENTS:
+- Return ONLY valid HTML code (complete document with <!DOCTYPE html>).
+- Use Tailwind CSS via CDN: <script src="https://cdn.tailwindcss.com"></script>.
+- Ensure the design is responsive (mobile-friendly).
+- Use high-quality placeholders from Unsplash if needed (source.unsplash.com).
+- NO Markdown, NO Explanations. ONLY raw HTML code.`;
+    }
+
+    // Append Scraped Context if available
+    if (scrapedContext) {
+      systemPrompt += `\n\nCONTEXT FROM URL: ${scrapedContext}`;
+    }
+
+    console.log(`[NevraLabs] Processing request: "${prompt.substring(0, 50)}..." via ${targetModelId} (Mode: ${designMode})`);
+
+    let htmlContent = '';
+    const suggestions = [];
+
+    // BRANCH: Image Generation (GPT Image 1) vs Code Generation (Gemini/GPT-4)
+    if (targetModelId === 'gpt-image-1') {
+      console.log(`[NevraLabs] Generating IMAGE via ${targetModelId}...`);
+
+      try {
+        const imageResponse = await sumopodClient.images.generate({
+          model: targetModelId,
+          prompt: prompt + " --quality hd --style natural", // Enhance prompt slightly
+          n: 1,
+          size: "1024x1024",
+        });
+
+        const imageUrl = imageResponse.data[0]?.url;
+
+        if (!imageUrl) throw new Error("No image URL returned from provider");
+
+        // Wrap the image in a nice HTML container for the iframe
+        htmlContent = `
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+                <script src="https://cdn.tailwindcss.com"></script>
+                <style>
+                    body { margin: 0; background-color: #f8fafc; height: 100vh; display: flex; align-items: center; justify-content: center; }
+                    img { max-height: 90vh; max-width: 90vw; border-radius: 12px; box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1); }
+                </style>
+            </head>
+            <body>
+                <img src="${imageUrl}" alt="AI Generated Design" />
+            </body>
+            </html>
+         `;
+        suggestions.push("Generated DALL-E 3 / GPU Image");
+
+      } catch (imgError) {
+        console.error('[NevraLabs] Image Gen Error:', imgError);
+        // Fallback to text error in HTML
+        throw imgError;
       }
-    ];
 
-    const completion = await sumopodClient.chat.completions.create({
-      model: redesignModelId,
-      messages,
-      temperature: 0.7,
-      max_tokens: 8000,
-    });
+    } else {
+      // BRANCH: Code Generation (Gemini 3 Pro / GPT 4.1 Mini)
+      const messages = [
+        { role: 'system', content: systemPrompt },
+        {
+          role: 'user',
+          content: image
+            ? [
+              { type: 'text', text: `Request: "${prompt}".Create the design as HTML code only.` },
+              { type: 'image_url', image_url: { url: image } }
+            ]
+            : [
+              { type: 'text', text: `Request: "${prompt}".Create this design / mockup from scratch using HTML/CSS. Make it high-quality and premium.` }
+            ]
+        }
+      ];
 
-    let htmlContent = completion.choices[0]?.message?.content || '';
+      const completion = await sumopodClient.chat.completions.create({
+        model: targetModelId,
+        messages,
+        temperature: 0.7,
+        max_tokens: 8000,
+      });
 
-    // Clean up response - remove markdown code blocks if present
-    htmlContent = htmlContent.replace(/```html\n?/gi, '').replace(/```\n?/gi, '').trim();
+      htmlContent = completion.choices[0]?.message?.content || '';
 
-    // If response doesn't start with <!DOCTYPE or <html, it might be wrapped
-    if (!htmlContent.toLowerCase().startsWith('<!doctype') && !htmlContent.toLowerCase().startsWith('<html')) {
-      // Try to extract HTML from the response
-      const htmlMatch = htmlContent.match(/<!DOCTYPE[\s\S]*<\/html>/i) || htmlContent.match(/<html[\s\S]*<\/html>/i);
-      if (htmlMatch) {
-        htmlContent = htmlMatch[0];
+      // Clean up response - remove markdown code blocks if present
+      htmlContent = htmlContent.replace(/```html\n?/gi, '').replace(/```\n?/gi, '').trim();
+
+      // If response doesn't start with <!DOCTYPE or <html, it might be wrapped
+      if (!htmlContent.toLowerCase().startsWith('<!doctype') && !htmlContent.toLowerCase().startsWith('<html')) {
+        const htmlMatch = htmlContent.match(/<!DOCTYPE[\s\S]*<\/html>/i) || htmlContent.match(/<html[\s\S]*<\/html>/i);
+        if (htmlMatch) {
+          htmlContent = htmlMatch[0];
+        }
       }
+    }
+
+    // Default suggestions if empty
+    if (suggestions.length === 0) {
+      suggestions.push(`Created design based on request`);
     }
 
     // SAVE TO DATABASE (Supabase)
@@ -785,24 +885,15 @@ OUTPUT FORMAT:
           user_id: userId,
           prompt: prompt,
           content: htmlContent,
-          type: image ? 'redesign' : 'creation' // Differentiate slightly
+          type: image ? 'redesign' : (targetModelId === 'gpt-image-1' ? 'image-gen' : 'creation')
         });
         console.log(`[Redesign] Saved to history for user ${userId}`);
       } catch (dbErr) {
         console.error('[Redesign] Failed to save to DB:', dbErr.message);
-        // Don't fail the request if save fails
       }
     }
 
-    // Generate design suggestions based on the prompt
-    const suggestions = [
-      `Created design based on your request: "${prompt.substring(0, 50)}${prompt.length > 50 ? '...' : ''}"`,
-      `Used modern design principles with responsive layout`,
-      `Added smooth animations and hover effects`,
-      `Optimized for both mobile and desktop views`
-    ];
-
-    console.log(`[Redesign] Successfully generated redesign (${htmlContent.length} chars)`);
+    console.log(`[Redesign] Successfully generated content (${htmlContent.length} chars)`);
 
     res.json({
       html: htmlContent,
@@ -811,10 +902,20 @@ OUTPUT FORMAT:
     });
 
   } catch (error) {
-    console.error('[Redesign] Error:', error);
+    console.error('[NevraLabs] CRITICAL ERROR:', error);
+
+    // Detailed error logging for API provider errors
+    if (error.response) {
+      console.error('[NevraLabs] Provider Response Status:', error.response.status);
+      console.error('[NevraLabs] Provider Response Data:', JSON.stringify(error.response.data, null, 2));
+    }
+
+    const errorMessage = error.response?.data?.error?.message || error.message || 'Unknown error occurred during generation';
+
     res.status(500).json({
-      error: 'Failed to generate redesign',
-      details: error.message
+      error: 'Failed to generate design',
+      details: errorMessage,
+      provider: error.response?.data ? 'AI Provider Error' : 'Server/Network Error'
     });
   }
 });
