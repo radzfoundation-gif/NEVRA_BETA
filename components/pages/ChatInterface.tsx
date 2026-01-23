@@ -346,7 +346,7 @@ const ChatInterface: React.FC = () => {
 
   // Model Selection State (Controlled from here)
   const [selectedModel, setSelectedModel] = useState<ModelType>(
-    (location.state?.model as ModelType) || 'gemini-flash'
+    (location.state?.model as ModelType) || 'sonar'
   );
   const [withReasoning, setWithReasoning] = useState<boolean>(
     (location.state?.reasoning as boolean) || false
@@ -3436,6 +3436,12 @@ const ChatInterface: React.FC = () => {
             setShowDocumentViewer={setShowDocumentViewer}
             uploadedDocument={uploadedDocument}
             messagesLength={messages.length}
+
+            // Model Selection Props
+            selectedModel={selectedModel}
+            onModelChange={setSelectedModel}
+            withReasoning={withReasoning}
+            setWithReasoning={setWithReasoning}
           />
         )
       }

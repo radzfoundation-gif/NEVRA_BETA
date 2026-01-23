@@ -24,13 +24,13 @@ const MODEL_OPTIONS: ModelOption[] = [
         id: 'gemini-flash',
         name: 'Gemini 2.5 Flash',
         provider: 'Google',
-        icon: <span className="text-base font-bold text-blue-500">G</span>,
+        icon: <img src="/gemini-logo-v2.png" alt="Gemini" className="w-5 h-5 object-contain" />,
     },
     {
         id: 'gemini-pro',
         name: 'Gemini 3 Pro',
         provider: 'Google',
-        icon: <span className="text-base font-bold text-blue-500">G</span>,
+        icon: <img src="/gemini-logo-v2.png" alt="Gemini" className="w-5 h-5 object-contain" />,
         isNew: true,
         locked: true,
         badge: 'pro',
@@ -39,7 +39,7 @@ const MODEL_OPTIONS: ModelOption[] = [
         id: 'gpt-5',
         name: 'GPT-5.2',
         provider: 'OpenAI',
-        icon: <Sparkles size={16} className="text-emerald-500" />,
+        icon: <img src="/gpt-logo.jpg" alt="GPT" className="w-4 h-4 object-contain" />,
         locked: true,
         badge: 'pro',
     },
@@ -47,7 +47,7 @@ const MODEL_OPTIONS: ModelOption[] = [
         id: 'claude-sonnet',
         name: 'Claude Sonnet 4.5',
         provider: 'Anthropic',
-        icon: <span className="text-base font-bold text-orange-500">A</span>,
+        icon: <img src="/claude-logo.jpg" alt="Claude" className="w-4 h-4 object-contain rounded-sm" />,
         locked: true,
         badge: 'pro',
     },
@@ -55,7 +55,7 @@ const MODEL_OPTIONS: ModelOption[] = [
         id: 'claude-opus',
         name: 'Claude Opus 4.5',
         provider: 'Anthropic',
-        icon: <span className="text-base font-bold text-orange-500">A</span>,
+        icon: <img src="/claude-logo.jpg" alt="Claude" className="w-4 h-4 object-contain rounded-sm" />,
         badge: 'max',
         locked: true,
     },
@@ -63,7 +63,7 @@ const MODEL_OPTIONS: ModelOption[] = [
         id: 'grok',
         name: 'Grok 4.1',
         provider: 'xAI',
-        icon: <span className="text-base font-bold text-zinc-700">𝕏</span>,
+        icon: <img src="/grok-logo.png" alt="Grok" className="w-5 h-5 object-contain bg-black rounded-sm p-[1px]" />,
         locked: true,
         badge: 'pro',
     },
@@ -75,6 +75,7 @@ export interface ModelSelectorProps {
     disabled?: boolean;
     withReasoning?: boolean;
     onReasoningToggle?: () => void;
+    isSubscribed?: boolean; // NEW: Unlock Pro models for subscribers
 }
 
 export const ModelSelector: React.FC<ModelSelectorProps> = ({
@@ -82,7 +83,8 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     onModelChange,
     disabled = false,
     withReasoning = false,
-    onReasoningToggle
+    onReasoningToggle,
+    isSubscribed = false
 }) => {
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -131,21 +133,23 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                     <div className="py-1 max-h-[320px] overflow-y-auto">
                         {MODEL_OPTIONS.map((option) => {
                             const isSelected = selectedModel === option.id;
+                            // Unlock Pro models if user is subscribed
+                            const isLocked = option.locked && !isSubscribed;
 
                             return (
                                 <button
                                     key={option.id}
                                     onClick={() => {
-                                        if (!option.locked) {
+                                        if (!isLocked) {
                                             onModelChange(option.id);
                                             setIsOpen(false);
                                         }
                                     }}
-                                    disabled={option.locked}
+                                    disabled={isLocked}
                                     className={`
                                         w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all
                                         ${isSelected ? 'bg-teal-50' : 'hover:bg-gray-50'}
-                                        ${option.locked ? 'opacity-50 cursor-not-allowed group' : ''}
+                                        ${isLocked ? 'opacity-50 cursor-not-allowed group' : ''}
                                     `}
                                 >
                                     <span className="w-5 h-5 flex items-center justify-center shrink-0">
@@ -174,7 +178,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                                     {isSelected && (
                                         <Check size={16} className="text-teal-600 shrink-0" />
                                     )}
-                                    {option.locked && !isSelected && (
+                                    {isLocked && !isSelected && (
                                         <Lock size={14} className="text-gray-400 shrink-0" />
                                     )}
                                 </button>

@@ -263,6 +263,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
                                 disabled={isTyping}
                                 withReasoning={withReasoning}
                                 onReasoningToggle={() => setWithReasoning(!withReasoning)}
+                                isSubscribed={isSubscribed}
                             />
 
                             {/* Attach */}

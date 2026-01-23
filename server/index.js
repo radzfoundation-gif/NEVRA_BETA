@@ -104,6 +104,28 @@ if (sumopodApiKey) {
   console.warn('⚠️ SUMOPOD_API_KEY not set. Redesign/Design features will not work.');
 }
 
+// =====================================================
+// OPENROUTER AI CLIENT (Pro Models - Claude, GPT, Grok, etc.)
+// =====================================================
+const openrouterApiKey = process.env.OPENROUTER_API_KEY?.trim();
+const openrouterBaseUrl = 'https://openrouter.ai/api/v1';
+
+let openrouterClient = null;
+if (openrouterApiKey) {
+  openrouterClient = new OpenAI({
+    apiKey: openrouterApiKey,
+    baseURL: openrouterBaseUrl,
+    defaultHeaders: {
+      'HTTP-Referer': 'https://nevra.ai',
+      'X-Title': 'Nevra AI'
+    }
+  });
+  console.log('✅ OpenRouter AI client initialized');
+  console.log('🔑 OpenRouter Key Present:', !!openrouterApiKey); // Log status
+} else {
+  console.warn('⚠️ OPENROUTER_API_KEY not set. Pro models will not work.');
+}
+
 const app = express();
 
 // Security Headers
@@ -923,7 +945,7 @@ OUTPUT REQUIREMENTS:
 // =====================================================
 // GENERATE ENDPOINT (Standard Chat/Completion)
 // =====================================================
-app.post('/api/generate', async (req, res) => {
+app.post('/api/generate-legacy-unused', async (req, res) => {
   try {
     const { prompt, model, images, messages, history, systemPrompt } = req.body;
 
@@ -1845,44 +1867,65 @@ Always provide information based on your training data AND the current date cont
       const baseUrl = process.env.SUMOPOD_BASE_URL?.trim() || 'https://api.sumopod.com';
 
       // Smart Model Routing based on frontend selection
-      // Mapping frontend model IDs to actual API model IDs
-      const MODEL_MAPPING = {
-        'sonar': 'perplexity/sonar-pro',
-        'gemini-flash': 'gemini/gemini-2.5-flash-lite',
-        'gemini-pro': 'gemini/gemini-3-pro',
-        'gpt-5': 'gpt-5.2',
-        'claude-sonnet': 'claude-sonnet-4-5',
-        'claude-opus': 'claude-opus-4-5',
-        'grok': 'grok-4.1',
+      // SumoPod: gemini-flash (free tier)
+      // OpenRouter: All Pro models (sonar/NevraSync, gemini-pro, gpt-5, claude, grok)
+
+      const OPENROUTER_MODEL_MAPPING = {
+        'sonar': 'perplexity/sonar', // NevraSync - Perplexity Sonar (reliable online model)
+        'gemini-pro': 'google/gemini-2.0-flash-exp:free',
+        'gpt-5': 'openai/gpt-4o-mini',
+        'claude-sonnet': 'anthropic/claude-3.5-sonnet',
+        'claude-opus': 'anthropic/claude-3-opus',
+        'grok': 'x-ai/grok-2-1212',
       };
 
       const isDeepDive = body.deepDive === true || mode === 'deep_dive';
-      const selectedModel = body.model || 'gemini-flash'; // Default to gemini-flash
-      let modelId;
+      const selectedModel = body.model || 'sonar'; // Default to sonar (NevraSync)
 
-      // Priority: User-selected model > Deep Dive default > Normal default
-      if (selectedModel && MODEL_MAPPING[selectedModel]) {
-        modelId = MODEL_MAPPING[selectedModel];
-        console.log(`[AI] 🎯 Using user-selected model: ${modelId}`);
-      } else if (isDeepDive) {
-        modelId = 'claude-sonnet-4-5'; // Deep Dive default
-        console.log(`[DeepDive] 🧠 Using Claude Sonnet 4.5 for deep reasoning`);
+      // Determine which client to use based on selected model
+      const useOpenRouter = selectedModel !== 'gemini-flash' && OPENROUTER_MODEL_MAPPING[selectedModel];
+
+      let completion;
+
+      if (useOpenRouter && openrouterClient) {
+        // Use OpenRouter for Pro models
+        const openrouterModelId = OPENROUTER_MODEL_MAPPING[selectedModel];
+        console.log(`[AI] 🚀 Using OpenRouter model: ${openrouterModelId} (${selectedModel})`);
+
+        const temperature = selectedModel === 'gpt-5' || selectedModel === 'grok' ? 1 : 0.7;
+
+        try {
+          completion = await openrouterClient.chat.completions.create({
+            model: openrouterModelId,
+            messages,
+            temperature,
+            max_tokens: baseMaxTokens,
+          }, {
+            signal: controller.signal,
+          });
+        } catch (orErr) {
+          console.error(`[OpenRouter] Error:`, orErr);
+          return sendResponse(500, {
+            error: `OpenRouter API Error: ${orErr?.message || String(orErr)}`,
+            detail: orErr?.error || orErr?.message,
+          });
+        }
       } else {
-        modelId = 'gemini/gemini-2.5-flash-lite'; // Default fast model
-        console.log(`[Citation] ⚡ Using Gemini 2.5 Flash Lite`);
+        // Use SumoPod for Gemini Flash (free tier)
+        const sumopodModelId = 'gemini/gemini-2.5-flash-lite';
+        console.log(`[AI] ⚡ Using SumoPod model: ${sumopodModelId}`);
+
+        const temperature = 0.5;
+
+        completion = await sumopodClient.chat.completions.create({
+          model: sumopodModelId,
+          messages,
+          temperature,
+          max_tokens: baseMaxTokens,
+        }, {
+          signal: controller.signal,
+        });
       }
-
-      // Model-specific temperature settings
-      const temperature = modelId.includes('gpt-5') || modelId.includes('grok') ? 1 : 0.5;
-
-      const completion = await sumopodClient.chat.completions.create({
-        model: modelId,
-        messages,
-        temperature,
-        max_tokens: baseMaxTokens,
-      }, {
-        signal: controller.signal,
-      });
 
       content = completion.choices[0]?.message?.content;
     } catch (sdkErr) {

@@ -47,7 +47,7 @@ export function ResearchWelcome({
     const [showSubscriptionPopup, setShowSubscriptionPopup] = useState(false);
 
     // Model Selector State
-    const [selectedModel, setSelectedModel] = useState<ModelType>('gemini-flash');
+    const [selectedModel, setSelectedModel] = useState<ModelType>('sonar');
     const [withReasoning, setWithReasoning] = useState(false);
 
     // Usage limits hook
@@ -992,6 +992,7 @@ export function ResearchWelcome({
                                 disabled={isProcessing}
                                 withReasoning={withReasoning}
                                 onReasoningToggle={() => setWithReasoning(!withReasoning)}
+                                isSubscribed={isSubscribed}
                             />
 
                             {/* Attach */}
