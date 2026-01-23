@@ -1,5 +1,5 @@
 /**
- * API Integration Wizard for NEVRA Builder
+ * API Integration Wizard for NOIR AI Builder
  * Connect to external APIs (REST, GraphQL) and auto-generate client code
  */
 
@@ -48,7 +48,7 @@ export function generateAPIClient(connection: APIConnection): string {
  */
 function generateRESTClient(connection: APIConnection): string {
   const authHeader = getAuthHeader(connection);
-  
+
   const clientCode = `
 // Generated API Client for ${connection.name}
 const API_BASE_URL = '${connection.baseUrl}';
@@ -94,7 +94,7 @@ ${connection.endpoints.map(endpoint => generateEndpointMethod(endpoint)).join('\
 // Export instance
 export const apiClient = new APIClient();
 `;
-  
+
   return clientCode;
 }
 
@@ -160,28 +160,28 @@ function generateEndpointMethod(endpoint: APIEndpoint): string {
     .filter(p => p && !p.startsWith(':'))
     .map(p => p.charAt(0).toUpperCase() + p.slice(1))
     .join('') || 'request';
-  
+
   const params = endpoint.parameters?.filter(p => p.location === 'path' || p.location === 'query') || [];
   const bodyParams = endpoint.parameters?.filter(p => p.location === 'body') || [];
-  
+
   const methodParams = params.map(p => `${p.name}: ${p.type}${p.required ? '' : '?'}`).join(', ');
   const bodyParam = bodyParams.length > 0 ? `body: { ${bodyParams.map(p => p.name).join(', ')} }` : '';
   const allParams = [methodParams, bodyParam].filter(Boolean).join(', ');
-  
+
   const queryString = params.filter(p => p.location === 'query').length > 0
     ? `const queryParams = new URLSearchParams({ ${params.filter(p => p.location === 'query').map(p => `${p.name}`).join(', ')} });`
     : '';
-  
+
   const pathParams = params.filter(p => p.location === 'path');
   let processedPath = endpoint.path;
   pathParams.forEach(param => {
     processedPath = processedPath.replace(`:${param.name}`, `\${${param.name}}`);
   });
-  
-  const url = queryString 
+
+  const url = queryString
     ? `\`\${this.baseUrl}${processedPath}?\${queryParams.toString()}\``
     : `\`\${this.baseUrl}${processedPath}\``;
-  
+
   return `
   async ${methodName}(${allParams}): Promise<${endpoint.response?.type || 'any'}> {
     ${queryString}
@@ -230,36 +230,36 @@ export async function testAPIEndpoint(
 ): Promise<{ success: boolean; data?: any; error?: string }> {
   try {
     let url = `${connection.baseUrl}${endpoint.path}`;
-    
+
     // Replace path parameters
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
         url = url.replace(`:${key}`, String(value));
       });
     }
-    
+
     // Add query parameters
     const queryParams = endpoint.parameters
       ?.filter(p => p.location === 'query' && params?.[p.name])
       .map(p => `${p.name}=${encodeURIComponent(params[p.name])}`)
       .join('&');
-    
+
     if (queryParams) {
       url += `?${queryParams}`;
     }
-    
+
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       ...connection.headers,
     };
-    
+
     // Add auth headers
     if (connection.authType === 'api-key' && connection.apiKey) {
       headers['X-API-Key'] = connection.apiKey;
     } else if (connection.authType === 'bearer' && connection.bearerToken) {
       headers['Authorization'] = `Bearer ${connection.bearerToken}`;
     }
-    
+
     const response = await fetch(url, {
       method: endpoint.method,
       headers,
@@ -267,14 +267,14 @@ export async function testAPIEndpoint(
         ? JSON.stringify(params)
         : undefined,
     });
-    
+
     if (!response.ok) {
       return {
         success: false,
         error: `HTTP ${response.status}: ${response.statusText}`,
       };
     }
-    
+
     const data = await response.json();
     return { success: true, data };
   } catch (error: any) {

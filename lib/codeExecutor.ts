@@ -1,5 +1,5 @@
 /**
- * Code Execution Sandbox for NEVRA Tutor
+ * Code Execution Sandbox for NOIR AI Tutor
  * Provides safe code execution in browser for educational purposes
  */
 
@@ -33,7 +33,7 @@ export function executeJavaScript(code: string): ExecutionResult {
     // Override console.log to capture output
     const originalConsoleLog = console.log;
     console.log = (...args: unknown[]) => {
-      logs.push(args.map(arg => 
+      logs.push(args.map(arg =>
         typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
       ).join(' '));
     };
@@ -51,12 +51,12 @@ export function executeJavaScript(code: string): ExecutionResult {
           'use strict';
           ${code}
         `);
-        
+
         // Execute with timeout (5 seconds max)
         const timeoutId = setTimeout(() => {
           throw new Error('Execution timeout: Code took too long to execute');
         }, 5000);
-        
+
         try {
           func();
           clearTimeout(timeoutId);

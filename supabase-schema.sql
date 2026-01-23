@@ -1,5 +1,5 @@
 -- =====================================================
--- NEVRA Database Schema for Supabase
+-- NOIR AI Database Schema for Supabase
 -- Run this in Supabase SQL Editor
 -- =====================================================
 

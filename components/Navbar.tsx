@@ -59,7 +59,7 @@ const Navbar: React.FC = () => {
             <Link
               to="/"
               className="flex items-center gap-2 group"
-              aria-label="Nevra Home"
+              aria-label="Noir Home"
             >
               <Logo size={28} className="text-zinc-900 dark:text-white" />
             </Link>

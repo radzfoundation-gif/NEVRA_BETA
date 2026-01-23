@@ -1,5 +1,5 @@
 {
-  "name": "nevra-|-neural-automation",
+  "name": "noir-ai",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "@excalidraw/excalidraw": "^0.18.0",
-    "@modelcontextprotocol/sdk": "^1.25.0",
+    "@modelcontextprotocol/sdk": "^1.25.3",
     "@monaco-editor/react": "^4.7.0",
     "@paper-design/shaders-react": "^0.0.70",
     "@react-three/fiber": "^9.4.2",

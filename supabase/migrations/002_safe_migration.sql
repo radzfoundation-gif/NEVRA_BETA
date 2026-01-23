@@ -1,5 +1,5 @@
 -- =====================================================
--- NEVRA Production Database Schema - SAFE MIGRATION
+-- NOIR AI Production Database Schema - SAFE MIGRATION
 -- Version: 1.0.1
 -- Handles existing tables gracefully
 -- =====================================================

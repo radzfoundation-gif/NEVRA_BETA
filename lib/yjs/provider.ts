@@ -16,7 +16,7 @@ export interface YJSConnection {
 
 /**
  * Create YJS connection for a canvas room
- * @param roomId - Room ID (format: nevra-{canvasId})
+ * @param roomId - Room ID (format: noir-{canvasId})
  * @param onSynced - Callback when initial sync is complete
  * @param onStatusChange - Callback for connection status changes
  */
@@ -39,8 +39,8 @@ export async function createYJSConnection(
         const yjsServerUrl = process.env.NEXT_PUBLIC_YJS_SERVER_URL || 'ws://localhost:1234';
 
         // Ensure roomId has correct format
-        if (!roomId.startsWith('nevra-')) {
-            roomId = `nevra-${roomId}`;
+        if (!roomId.startsWith('noir-')) {
+            roomId = `noir-${roomId}`;
         }
 
         // Create Y.Doc

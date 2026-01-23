@@ -101,11 +101,11 @@ const SharedChat: React.FC = () => {
             <header className="fixed top-0 left-0 right-0 z-50 h-14 md:h-16 border-b border-white/40 bg-white/70 backdrop-blur-xl flex items-center justify-between px-4 md:px-8 shadow-sm transition-all duration-300">
                 <Link to="/" className="flex items-center gap-2">
                     <Logo size={24} />
-                    <span className="text-base md:text-lg font-bold tracking-tight text-zinc-900">NEVRA</span>
+                    <span className="text-base md:text-lg font-bold tracking-tight text-zinc-900">NOIR AI</span>
                 </Link>
                 <div className="flex items-center gap-3">
                     <Link to="/" className="px-3 py-1.5 md:px-4 md:py-2 bg-black text-white text-xs md:text-sm font-medium rounded-lg hover:bg-zinc-800 transition-colors shadow-sm">
-                        Try Nevra
+                        Try Noir AI
                     </Link>
                 </div>
             </header>

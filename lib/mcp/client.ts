@@ -3,7 +3,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { spawn } from 'child_process';
 
 /**
- * MCP Client for Nevra
+ * MCP Client for Noir AI
  * Connects to MCP server and provides resource access API
  */
 class MCPClient {
@@ -56,7 +56,7 @@ class MCPClient {
             // Create client
             this.client = new Client(
                 {
-                    name: 'nevra-client',
+                    name: 'noir-ai-client',
                     version: '1.0.0',
                 },
                 {

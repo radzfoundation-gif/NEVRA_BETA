@@ -1,8 +1,8 @@
-# NEVRA Production SaaS - Deployment Guide
+# NOIR AI Production SaaS - Deployment Guide
 
 ## 🚀 Deployment Overview
 
-NEVRA requires three separate deployments:
+NOIR AI requires three separate deployments:
 
 1. **Frontend + API Routes** → Vercel
 2. **YJS Collaboration Server** → Railway/Render
@@ -79,7 +79,7 @@ SUMOPOD_KEY=sk-your-sumopod-api-key
 NEXT_PUBLIC_YJS_SERVER_URL=wss://your-yjs-server.railway.app
 
 # App
-NEXT_PUBLIC_APP_URL=https://nevra.ai
+NEXT_PUBLIC_APP_URL=https://noir-ai.com
 NODE_ENV=production
 ```
 
@@ -163,9 +163,9 @@ NODE_ENV=production
 
 #### Step 4: Get WebSocket URL
 
-After deployment, copy the service URL (e.g., `https://nevra-yjs.onrender.com`)
+After deployment, copy the service URL (e.g., `https://noir-ai-yjs.onrender.com`)
 
-Use WebSocket protocol: `wss://nevra-yjs.onrender.com`
+Use WebSocket protocol: `wss://noir-ai-yjs.onrender.com`
 
 ---
 
@@ -183,10 +183,10 @@ SUPABASE_SERVICE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 SUMOPOD_KEY=sk-1BmaayhWccwE0E715vfSjw
 
 # YJS Collaboration Server
-NEXT_PUBLIC_YJS_SERVER_URL=wss://nevra-yjs.railway.app
+NEXT_PUBLIC_YJS_SERVER_URL=wss://noir-ai-yjs.railway.app
 
 # App Configuration
-NEXT_PUBLIC_APP_URL=https://nevra.ai
+NEXT_PUBLIC_APP_URL=https://noir-ai.com
 NODE_ENV=production
 ```
 
@@ -209,10 +209,10 @@ NODE_ENV=production
 
 ```bash
 # Test main page
-curl https://nevra.ai
+curl https://noir-ai.com
 
 # Test API endpoint
-curl -X POST https://nevra.ai/api/analyze-canvas \
+curl -X POST https://noir-ai.com/api/analyze-canvas \
   -H "Content-Type: application/json" \
   -d '{"canvasJSON":{"elements":[]}}' \
   -H "Authorization: Bearer YOUR_TOKEN"

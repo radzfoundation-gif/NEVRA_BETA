@@ -1,9 +1,9 @@
 #!/bin/bash
-# Automated Vercel Deployment Script for Nevra AI
+# Automated Vercel Deployment Script for Noir AI
 
 set -e  # Exit on error
 
-echo "🚀 Nevra AI - Automated Vercel Deployment"
+echo "🚀 Noir AI - Automated Vercel Deployment"
 echo "=========================================="
 
 # Colors for output

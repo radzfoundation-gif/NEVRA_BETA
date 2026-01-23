@@ -471,7 +471,7 @@ Return ONLY the HTML code, no explanations.
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `nevra-${mode}-${Date.now()}.html`;
+            a.download = `noir-ai-${mode}-${Date.now()}.html`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -495,7 +495,7 @@ Return ONLY the HTML code, no explanations.
                 import('html2canvas').then(({ default: html2canvas }) => {
                     html2canvas(doc.body, { backgroundColor: null, scale: 2, useCORS: true, logging: false }).then(canvas => {
                         const link = document.createElement('a');
-                        link.download = `nevra-design-${Date.now()}.png`;
+                        link.download = `noir-ai-design-${Date.now()}.png`;
                         link.href = canvas.toDataURL('image/png');
                         document.body.appendChild(link); link.click(); document.body.removeChild(link);
                         document.body.removeChild(iframe); setIsDownloading(false);
@@ -743,7 +743,7 @@ Return ONLY the HTML code, no explanations.
                             metalConfig={{ colorBack: mode === 'redesign' ? '#8B5CF6' : '#EC4899', colorTint: '#FFFFFF', speed: 0.5, repetition: 4 }}
                             className="text-4xl md:text-5xl font-bold tracking-widest text-white px-8 py-5 rounded-2xl shadow-xl"
                         >
-                            NEVRA LABS
+                            NOIR AI LABS
                         </LiquidMetal>
                     </div>
 

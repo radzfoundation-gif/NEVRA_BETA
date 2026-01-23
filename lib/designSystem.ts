@@ -1,5 +1,5 @@
 /**
- * Design System Manager for NEVRA Builder
+ * Design System Manager for NOIR AI Builder
  * Manages design tokens (colors, typography, spacing, effects) that can be reused across projects
  */
 
@@ -326,7 +326,7 @@ class DesignSystemManager {
   applyToCode(code: string, system: DesignSystem = this.getCurrentSystem()): string {
     // Inject CSS variables
     const cssVars = this.generateCSSVariables(system);
-    
+
     // Check if code already has style tag
     if (code.includes('<style>')) {
       // Insert CSS variables at the beginning of style tag
@@ -347,7 +347,7 @@ class DesignSystemManager {
    */
   private loadFromStorage(): void {
     try {
-      const stored = localStorage.getItem('nevra_design_systems');
+      const stored = localStorage.getItem('noir_ai_design_systems');
       if (stored) {
         const data = JSON.parse(stored);
         if (data.systems) {
@@ -377,7 +377,7 @@ class DesignSystemManager {
         systems: Array.from(this.systems.values()),
         currentSystemId: this.currentSystemId,
       };
-      localStorage.setItem('nevra_design_systems', JSON.stringify(data));
+      localStorage.setItem('noir_ai_design_systems', JSON.stringify(data));
     } catch (error) {
       console.error('Failed to save design systems to storage:', error);
     }

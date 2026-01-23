@@ -104,7 +104,7 @@ const Logo: React.FC<LogoProps> = ({
       </div>
       {showText && (
         <span className={`font-display font-bold tracking-tight ${textClassName}`}>
-          NEVRA
+          NOIR AI
         </span>
       )}
     </div>

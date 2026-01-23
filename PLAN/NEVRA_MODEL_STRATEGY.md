@@ -1,9 +1,9 @@
-# NEVRA AI MODEL STACK & AUTO ROUTER STRATEGY
+# NOIR AI MODEL STACK & AUTO ROUTER STRATEGY
 
 ## Overview
 
 Dokumen ini menjelaskan strategi pemilihan model AI, sistem auto-router,
-struktur pricing, dan cost optimization Nevra menggunakan SumoPod
+struktur pricing, dan cost optimization Noir AI menggunakan SumoPod
 multi-provider gateway.
 
 Tujuan utama:
@@ -54,4 +54,4 @@ Tujuan utama:
 
 ------------------------------------------------------------------------
 
-Nevra AI Infrastructure Ready For Production Scaling.
+Noir AI Infrastructure Ready For Production Scaling.

@@ -1,7 +1,7 @@
 # Documentation: One-Time Retro Splash Screen
 
 ## Overview
-Nevra features a "Soft Aesthetic Retro" splash screen that appears once per user. 
+Noir AI features a "Soft Aesthetic Retro" splash screen that appears once per user. 
 Theme: Vaporwave / Dreamy / Soft Glassmorphism.
 
 ## Persistence Logic

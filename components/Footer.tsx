@@ -7,10 +7,10 @@ const Footer: React.FC = () => {
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
 
         <div className="flex items-center gap-2">
-          <div className="flex items-center justify-center w-6 h-6 rounded bg-gradient-to-tr from-purple-500 to-blue-500">
+          <div className="flex items-center justify-center w-6 h-6 rounded bg-zinc-950">
             <Command className="w-3 h-3 text-white" />
           </div>
-          <span className="font-display font-bold text-zinc-900 tracking-tight">NEVRA</span>
+          <span className="font-display font-bold text-zinc-900 tracking-tight">NOIR AI</span>
         </div>
 
         <div className="flex flex-wrap justify-center gap-4 md:gap-8 text-sm text-zinc-500">
@@ -21,7 +21,7 @@ const Footer: React.FC = () => {
         </div>
 
         <div className="text-sm text-zinc-400">
-          © 2024 Nevra Systems. All rights reserved.
+          © 2024 Noir Systems. All rights reserved.
         </div>
 
       </div>

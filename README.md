@@ -1,6 +1,6 @@
-# Nevra | Neural Automation
+# Noir AI | Intelligent Workspace
 
-Nevra is an advanced AI-powered SaaS platform that integrates multiple generative AI capabilities into a unified workspace. It features intelligent chat, UI/UX design generation, collaborative whiteboarding, and a personalized knowledge base.
+Noir AI is an advanced AI-powered SaaS platform that integrates multiple generative AI capabilities into a unified workspace. It features intelligent chat, UI/UX design generation, collaborative whiteboarding, and a personalized knowledge base.
 
 ## 🚀 Key Features
 
@@ -37,7 +37,7 @@ Nevra is an advanced AI-powered SaaS platform that integrates multiple generativ
 ### 1. Clone & Install
 ```bash
 git clone <repository-url>
-cd Nevra
+cd NoirAI
 npm install
 ```
 
@@ -99,4 +99,4 @@ npm run dev
 5.  Open a Pull Request.
 
 ---
-© 2024 Nevra. All rights reserved.
+© 2024 Noir AI. All rights reserved.

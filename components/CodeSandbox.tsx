@@ -68,7 +68,7 @@ const CodeSandbox: React.FC<CodeSandboxProps> = ({
 
   return (
     <div className={clsx("flex flex-col h-full bg-[#0a0a0a] border border-white/10 rounded-xl overflow-hidden", className)}>
-      {/* Header - NEVRA style */}
+      {/* Header - NOIR AI style */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-[#1a1a1a]">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5">
@@ -77,7 +77,7 @@ const CodeSandbox: React.FC<CodeSandboxProps> = ({
             <div className="w-2.5 h-2.5 rounded-full bg-green-500"></div>
           </div>
           <span className="text-sm font-semibold text-white">
-            {language === 'python' ? 'NEVRA Python' : language === 'javascript' ? 'NEVRA JavaScript' : 'NEVRA TypeScript'}
+            {language === 'python' ? 'NOIR AI Python' : language === 'javascript' ? 'NOIR AI JavaScript' : 'NOIR AI TypeScript'}
           </span>
           {language === 'python' && (
             <span className="text-xs text-gray-400">Compiler</span>
@@ -131,7 +131,7 @@ const CodeSandbox: React.FC<CodeSandboxProps> = ({
               value={code}
               onChange={(e) => handleCodeChange(e.target.value)}
               placeholder={language === 'python'
-                ? '# NEVRA Python Compiler\n# Write Python 3 code in this online editor and run it.\n\nprint("Hello, NEVRA!")'
+                ? '# NOIR AI Python Compiler\n# Write Python 3 code in this online editor and run it.\n\nprint("Hello, NOIR AI!")'
                 : `// Enter ${language} code here...\n\nconsole.log("Hello, World!");`}
               className="w-full h-full bg-transparent text-sm font-mono text-white p-4 resize-none focus:outline-none placeholder-gray-600"
               style={{
@@ -147,7 +147,7 @@ const CodeSandbox: React.FC<CodeSandboxProps> = ({
         </div>
       </div>
 
-      {/* Output Panel - NEVRA style */}
+      {/* Output Panel - NOIR AI style */}
       <div className="border-t border-white/10 bg-[#0f0f0f] flex-shrink-0">
         <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/5 bg-[#151515]">
           <span className="text-sm font-semibold text-white">

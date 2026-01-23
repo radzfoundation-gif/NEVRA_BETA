@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  X, 
-  Globe, 
-  Plus, 
-  Trash2, 
+import {
+  X,
+  Globe,
+  Plus,
+  Trash2,
   Play,
   Check,
   AlertCircle,
@@ -12,7 +12,7 @@ import {
   Settings,
   TestTube
 } from 'lucide-react';
-import { 
+import {
   generateAPIClient,
   testAPIEndpoint,
   APIConnection,
@@ -51,7 +51,7 @@ const APIIntegrationWizard: React.FC<APIIntegrationWizardProps> = ({
 
   const loadConnections = () => {
     try {
-      const stored = localStorage.getItem('nevra_api_connections');
+      const stored = localStorage.getItem('noir_ai_api_connections');
       if (stored) {
         const data = JSON.parse(stored);
         setConnections(data.map((conn: any) => ({
@@ -66,7 +66,7 @@ const APIIntegrationWizard: React.FC<APIIntegrationWizardProps> = ({
 
   const saveConnections = (conns: APIConnection[]) => {
     try {
-      localStorage.setItem('nevra_api_connections', JSON.stringify(conns));
+      localStorage.setItem('noir_ai_api_connections', JSON.stringify(conns));
     } catch (error) {
       console.error('Failed to save API connections:', error);
     }
@@ -74,7 +74,7 @@ const APIIntegrationWizard: React.FC<APIIntegrationWizardProps> = ({
 
   const handleCreateConnection = () => {
     if (!connectionForm.name || !connectionForm.baseUrl) return;
-    
+
     const newConnection: APIConnection = {
       id: `api-${Date.now()}`,
       name: connectionForm.name,
@@ -87,7 +87,7 @@ const APIIntegrationWizard: React.FC<APIIntegrationWizardProps> = ({
       endpoints: [],
       createdAt: new Date(),
     };
-    
+
     const updated = [...connections, newConnection];
     setConnections(updated);
     saveConnections(updated);
@@ -109,19 +109,19 @@ const APIIntegrationWizard: React.FC<APIIntegrationWizardProps> = ({
 
   const handleAddEndpoint = () => {
     if (!selectedConnection) return;
-    
+
     const newEndpoint: APIEndpoint = {
       method: 'GET',
       path: '/api/endpoint',
       description: '',
     };
-    
-    const updated = connections.map(conn => 
+
+    const updated = connections.map(conn =>
       conn.id === selectedConnection.id
         ? { ...conn, endpoints: [...conn.endpoints, newEndpoint] }
         : conn
     );
-    
+
     setConnections(updated);
     saveConnections(updated);
     setSelectedConnection(updated.find(c => c.id === selectedConnection.id) || null);
@@ -129,10 +129,10 @@ const APIIntegrationWizard: React.FC<APIIntegrationWizardProps> = ({
 
   const handleTestEndpoint = async (endpoint: APIEndpoint) => {
     if (!selectedConnection) return;
-    
+
     setTestingEndpoint(endpoint.path);
     setTestResult(null);
-    
+
     const result = await testAPIEndpoint(selectedConnection, endpoint);
     setTestResult(result);
     setTestingEndpoint(null);
@@ -140,7 +140,7 @@ const APIIntegrationWizard: React.FC<APIIntegrationWizardProps> = ({
 
   const handleGenerateClient = () => {
     if (!selectedConnection) return;
-    
+
     const clientCode = generateAPIClient(selectedConnection);
     if (onGenerateCode) {
       onGenerateCode(clientCode);
@@ -263,10 +263,10 @@ const APIIntegrationWizard: React.FC<APIIntegrationWizardProps> = ({
                               <span className={clsx(
                                 "px-2 py-0.5 rounded text-xs font-medium",
                                 endpoint.method === 'GET' ? "bg-blue-500/20 text-blue-400" :
-                                endpoint.method === 'POST' ? "bg-green-500/20 text-green-400" :
-                                endpoint.method === 'PUT' ? "bg-yellow-500/20 text-yellow-400" :
-                                endpoint.method === 'DELETE' ? "bg-red-500/20 text-red-400" :
-                                "bg-gray-500/20 text-gray-400"
+                                  endpoint.method === 'POST' ? "bg-green-500/20 text-green-400" :
+                                    endpoint.method === 'PUT' ? "bg-yellow-500/20 text-yellow-400" :
+                                      endpoint.method === 'DELETE' ? "bg-red-500/20 text-red-400" :
+                                        "bg-gray-500/20 text-gray-400"
                               )}>
                                 {endpoint.method}
                               </span>

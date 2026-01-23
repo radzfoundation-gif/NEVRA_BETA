@@ -1,7 +1,7 @@
 #!/bin/bash
 # Environment Variables Validator for Vercel Deployment
 
-echo "🔍 Nevra AI - Environment Variables Checker"
+echo "🔍 Noir AI - Environment Variables Checker"
 echo "==========================================="
 
 # Load .env if exists

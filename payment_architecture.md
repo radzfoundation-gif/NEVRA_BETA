@@ -60,7 +60,7 @@ app.post('/api/payment/notification', async (req, res) => {
 
     // 4. Update Database
     if (isPaid) {
-      // Extract userId from order_id (Format: NEVRA-PRO-TIMESTAMP-USERIDPART)
+      // Extract userId from order_id (Format: NOIR-AI-PRO-TIMESTAMP-USERIDPART)
       // Note: Typically you should store metadata in custom_field1, but extracting from order_id works if you formatted it that way.
       // Better approach: Pass userId as custom_field_1 during separate create transaction
       
@@ -86,7 +86,7 @@ app.post('/api/payment/notification', async (req, res) => {
     - `MIDTRANS_SERVER_KEY`: Production Server Key (starts with `Mid-server-`).
     - `VITE_MIDTRANS_CLIENT_KEY`: Production Client Key (starts with `Mid-client-`).
     - `MIDTRANS_IS_PRODUCTION`: `true`.
-    - `VITE_APP_URL`: Your Vercel Domain (e.g., `https://nevra.app`).
+    - `VITE_APP_URL`: Your Vercel Domain (e.g., `https://noir-ai.com`).
     - `VITE_SUPABASE_URL` & `SUPABASE_SERVICE_KEY`: Your Supabase credentials.
 
 - [ ] **Midtrans Dashboard Configuration**:

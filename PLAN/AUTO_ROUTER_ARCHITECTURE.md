@@ -1,8 +1,8 @@
-# AUTO ROUTER ARCHITECTURE --- NEVRA
+# AUTO ROUTER ARCHITECTURE --- NOIR AI
 
 ## Overview
 
-Nevra Auto Router bertugas memilih model AI terbaik secara otomatis
+Noir AI Auto Router bertugas memilih model AI terbaik secara otomatis
 berdasarkan:
 
 -   User plan

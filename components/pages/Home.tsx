@@ -108,14 +108,14 @@ const Home: React.FC<HomeProps> = ({ defaultMode = 'chat' }) => {
   }, []);
 
   useEffect(() => {
-    const savedPrompt = localStorage.getItem('nevra_pending_prompt');
+    const savedPrompt = localStorage.getItem('noir_ai_pending_prompt');
     if (savedPrompt) {
       setPrompt(savedPrompt);
     }
   }, []);
 
   useEffect(() => {
-    const savedPrompt = localStorage.getItem('nevra_pending_prompt');
+    const savedPrompt = localStorage.getItem('noir_ai_pending_prompt');
     if (savedPrompt) {
       setPrompt(savedPrompt);
     }
@@ -218,7 +218,7 @@ const Home: React.FC<HomeProps> = ({ defaultMode = 'chat' }) => {
     if ((!prompt.trim() || isUploading) && attachedImages.length === 0 && !attachedDoc) return;
 
     if (!isSignedIn) {
-      localStorage.setItem('nevra_pending_prompt', prompt);
+      localStorage.setItem('noir_ai_pending_prompt', prompt);
       navigate('/sign-in');
       return;
     }
@@ -286,7 +286,7 @@ const Home: React.FC<HomeProps> = ({ defaultMode = 'chat' }) => {
       }
     }
 
-    localStorage.removeItem('nevra_pending_prompt');
+    localStorage.removeItem('noir_ai_pending_prompt');
     const detectedMode = detectMode(finalPrompt);
 
     // Silent Canvas Activation: if prompt is just "orak orek" or similar, don't auto-send
@@ -310,7 +310,7 @@ const Home: React.FC<HomeProps> = ({ defaultMode = 'chat' }) => {
   };
 
   return (
-    <div className="flex h-dvh bg-transparent selection:bg-purple-100 overflow-hidden font-sans text-zinc-900 dark:text-white">
+    <div className="flex h-dvh bg-transparent selection:bg-primary/20 overflow-hidden font-sans text-foreground">
 
       {/* Mobile Sidebar Overlay */}
       {isSignedIn && isSidebarOpen && (
@@ -326,7 +326,7 @@ const Home: React.FC<HomeProps> = ({ defaultMode = 'chat' }) => {
           {/* Desktop Sidebar Panel */}
           <div
             className={cn(
-              "hidden md:block border-r border-zinc-200 bg-white/60 backdrop-blur-md transition-all duration-300 ease-in-out shrink-0",
+              "hidden md:block border-r border-border bg-card/60 backdrop-blur-md transition-all duration-300 ease-in-out shrink-0",
               isSidebarCollapsed ? "w-[60px]" : "w-[260px]" // Fixed width matching ChatInterface
             )}
           >
@@ -346,7 +346,7 @@ const Home: React.FC<HomeProps> = ({ defaultMode = 'chat' }) => {
           <div className={`
           fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out md:hidden
           ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-          w-[280px] h-full border-r border-zinc-200 bg-white/90 backdrop-blur-md
+          w-[280px] h-full border-r border-border bg-card/90 backdrop-blur-md
         `}>
             <Sidebar
               onNewChat={() => {
@@ -371,11 +371,11 @@ const Home: React.FC<HomeProps> = ({ defaultMode = 'chat' }) => {
         {/* Mobile Header */}
         {/* Mobile Header */}
         <div className="md:hidden flex items-center justify-between p-4 z-30 bg-transparent">
-          <button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-2 text-zinc-800 dark:text-white hover:bg-white/10 rounded-lg transition-colors">
+          <button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-2 text-foreground hover:bg-foreground/10 rounded-lg transition-colors">
             <LayoutGrid size={24} strokeWidth={1.5} />
           </button>
           <div className="flex items-center justify-center">
-            <span className="font-mono text-lg font-medium text-zinc-800 dark:text-zinc-100 tracking-wide">{wibTime}</span>
+            <span className="font-mono text-lg font-medium text-foreground tracking-wide">{wibTime}</span>
           </div>
           <div className="w-8" /> {/* Spacer */}
         </div>
@@ -392,14 +392,14 @@ const Home: React.FC<HomeProps> = ({ defaultMode = 'chat' }) => {
 
           {/* Mode Tabs */}
           <div className="relative z-20 flex justify-center pt-4 md:pt-8">
-            <div className="flex items-center gap-1 p-1 rounded-xl bg-zinc-100/80 backdrop-blur-sm border border-zinc-200/50 shadow-sm">
+            <div className="flex items-center gap-1 p-1 rounded-xl bg-muted/80 backdrop-blur-sm border border-border/50 shadow-sm">
               <button
                 onClick={() => setActiveMode('chat')}
                 className={cn(
                   "flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all",
                   activeMode === 'chat'
-                    ? "bg-white text-zinc-900 shadow-sm"
-                    : "text-zinc-500 hover:text-zinc-700 hover:bg-white/50"
+                    ? "bg-card text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground hover:bg-foreground/5"
                 )}
               >
                 <MessageSquare size={16} />
@@ -411,7 +411,7 @@ const Home: React.FC<HomeProps> = ({ defaultMode = 'chat' }) => {
                   "flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all",
                   activeMode === 'redesign'
                     ? "bg-gradient-to-r from-pink-500 to-violet-500 text-white shadow-lg shadow-pink-500/25"
-                    : "text-zinc-500 hover:text-zinc-700 hover:bg-white/50"
+                    : "text-muted-foreground hover:text-foreground hover:bg-foreground/5"
                 )}
               >
                 <Paintbrush size={16} />
@@ -424,7 +424,7 @@ const Home: React.FC<HomeProps> = ({ defaultMode = 'chat' }) => {
           {activeMode === 'chat' ? (
             <ResearchWelcome
               onSearch={(query, attachments, model, reasoning) => {
-                localStorage.removeItem('nevra_pending_prompt');
+                localStorage.removeItem('noir_ai_pending_prompt');
                 const detectedMode = detectMode(query);
 
                 // Silent Canvas Activation: if prompt is just "orak orek" or similar, don't auto-send

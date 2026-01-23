@@ -1,5 +1,5 @@
 /**
- * Mobile App Generation for NEVRA Builder
+ * Mobile App Generation for NOIR AI Builder
  * Generate React Native and Flutter code from web components
  */
 
@@ -19,7 +19,7 @@ export interface MobileAppConfig {
 export function convertToReactNative(webCode: string, config: MobileAppConfig): string {
   // Basic conversion - replace HTML elements with React Native components
   let rnCode = webCode;
-  
+
   // Replace common HTML elements
   const replacements: Array<[RegExp, string]> = [
     [/<div/g, '<View'],
@@ -40,20 +40,20 @@ export function convertToReactNative(webCode: string, config: MobileAppConfig): 
     [/<\/img>/g, '</Image>'],
     [/className=/g, 'style='],
   ];
-  
+
   replacements.forEach(([pattern, replacement]) => {
     rnCode = rnCode.replace(pattern, replacement);
   });
-  
+
   // Add React Native imports
   const imports = `
 import React from 'react';
 import { View, Text, TouchableOpacity, TextInput, Image, StyleSheet, ScrollView } from 'react-native';
 `;
-  
+
   // Convert Tailwind classes to StyleSheet
   rnCode = convertTailwindToStyleSheet(rnCode);
-  
+
   return `${imports}\n\n${rnCode}`;
 }
 
@@ -95,7 +95,7 @@ class HomePage extends StatelessWidget {
   }
 }
 `;
-  
+
   return flutterCode;
 }
 
@@ -105,7 +105,7 @@ class HomePage extends StatelessWidget {
 function convertTailwindToStyleSheet(code: string): string {
   // This is a simplified conversion
   // In production, you'd want a more comprehensive Tailwind to React Native converter
-  
+
   const styleMap: Record<string, string> = {
     'bg-black': 'backgroundColor: "#000000"',
     'bg-white': 'backgroundColor: "#ffffff"',
@@ -120,18 +120,18 @@ function convertTailwindToStyleSheet(code: string): string {
     'items-center': 'alignItems: "center"',
     'justify-center': 'justifyContent: "center"',
   };
-  
+
   // Add StyleSheet creation
   const styles = Object.entries(styleMap)
     .map(([key, value]) => `  ${key.replace(/-/g, '_')}: { ${value} },`)
     .join('\n');
-  
+
   const styleSheet = `
 const styles = StyleSheet.create({
 ${styles}
 });
 `;
-  
+
   return code + styleSheet;
 }
 
@@ -143,7 +143,7 @@ export function generateMobileProject(
   config: MobileAppConfig
 ): { files: Array<{ path: string; content: string }> } {
   const files: Array<{ path: string; content: string }> = [];
-  
+
   if (config.framework === 'react-native') {
     const rnCode = convertToReactNative(webCode, config);
     files.push({
@@ -182,6 +182,6 @@ dependencies:
 `,
     });
   }
-  
+
   return { files };
 }

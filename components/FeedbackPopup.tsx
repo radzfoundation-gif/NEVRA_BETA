@@ -31,7 +31,7 @@ const FeedbackPopup: React.FC<FeedbackPopupProps> = ({ isOpen, onClose }) => {
             // 1. Construct WhatsApp URL
             const phoneNumber = '6285155031983';
             const text = encodeURIComponent(
-                `*New Feedback for NEVRA*\n\n` +
+                `*New Feedback for NOIR AI*\n\n` +
                 `Rating: ${'⭐'.repeat(rating)}\n` +
                 `User: ${user?.fullName || 'Anonymous'}\n` +
                 `Feedback: ${feedback || 'No text feedback provided.'}`
@@ -70,7 +70,7 @@ const FeedbackPopup: React.FC<FeedbackPopupProps> = ({ isOpen, onClose }) => {
                         <MessageSquare className="text-purple-400" size={24} />
                     </div>
                     <h3 className="text-xl font-bold text-white mb-1">We value your feedback!</h3>
-                    <p className="text-gray-400 text-sm">How is your experience with Nevra so far?</p>
+                    <p className="text-gray-400 text-sm">How is your experience with Noir AI so far?</p>
                 </div>
 
                 {/* Content */}

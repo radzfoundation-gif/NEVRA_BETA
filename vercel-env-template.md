@@ -29,7 +29,7 @@ SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 ```
 CORS_ORIGIN=https://your-domain.vercel.app
 OPENROUTER_SITE_URL=https://your-domain.vercel.app
-OPENROUTER_SITE_NAME=NEVRA
+OPENROUTER_SITE_NAME=NOIR AI
 FRONTEND_URL=https://your-domain.vercel.app
 ```
 

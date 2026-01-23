@@ -70,7 +70,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         {
             type: 'plan' as const,
             icon: Sparkles,
-            label: 'Nevra Pro',
+            label: 'Noir Pro',
             description: 'Our smartest model & more',
             action: () => setShowPricing(true),
             isPro: true,
@@ -79,7 +79,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         {
             type: 'plan' as const,
             icon: Zap,
-            label: 'Nevra Free',
+            label: 'Noir Free',
             description: 'Great for everyday tasks',
             action: () => { },
             isActive: !isSubscribed
@@ -269,7 +269,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                             <Logo size={18} className="text-white" />
                         </div>
                         <span className="text-base font-bold tracking-tight text-zinc-900 font-display">
-                            Nevra {isSubscribed && <span className="text-purple-600">Pro</span>}
+                            Noir {isSubscribed && <span className="text-blue-600">Pro</span>}
                         </span>
                         <ChevronDown size={14} className={`text-zinc-400 transition-transform duration-200 ${showDropdown ? 'rotate-180' : ''}`} />
                     </button>

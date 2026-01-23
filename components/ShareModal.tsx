@@ -12,7 +12,7 @@ interface ShareModalProps {
 const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, shareUrl, title }) => {
     const [copied, setCopied] = useState(false);
     // Use provided shareUrl or default to referral link (or current page if suitable)
-    const linkToShare = shareUrl || 'https://nevra.ai/invite/u/radzfoundation';
+    const linkToShare = shareUrl || 'https://noir-ai.com/invite/u/radzfoundation';
     const isReferral = !shareUrl; // If no specific URL provided, assume it's the referral/invite mode
 
     const handleCopy = () => {

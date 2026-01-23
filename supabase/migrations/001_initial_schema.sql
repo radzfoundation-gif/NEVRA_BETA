@@ -1,5 +1,5 @@
 -- =====================================================
--- NEVRA Production Database Schema
+-- NOIR AI Production Database Schema
 -- Version: 1.0.0
 -- Purpose: SaaS multi-tenant architecture with RLS
 -- =====================================================
@@ -49,7 +49,7 @@ CREATE TRIGGER on_auth_user_created
 CREATE TABLE IF NOT EXISTS public.canvas_sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    room_id TEXT NOT NULL UNIQUE, -- Format: nevra-{uuid}
+    room_id TEXT NOT NULL UNIQUE, -- Format: noir-{uuid}
     canvas_json JSONB NOT NULL DEFAULT '{}'::jsonb,
     title TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

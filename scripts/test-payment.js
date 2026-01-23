@@ -79,7 +79,7 @@ async function testTokenLimitEnforcement() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 prompt: 'Create a simple Hello World React component',
-                systemPrompt: 'You are NEVRA BUILDER',
+                systemPrompt: 'You are NOIR AI BUILDER',
                 mode: 'builder',
                 provider: 'groq',
                 userId: TEST_USER_ID

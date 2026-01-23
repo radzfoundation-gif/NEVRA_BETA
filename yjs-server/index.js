@@ -1,9 +1,9 @@
 /**
- * NEVRA YJS WebSocket Server
+ * NOIR AI YJS WebSocket Server
  * Provides realtime collaboration for Excalidraw canvases
  * 
  * Features:
- * - Room-based architecture (nevra-{canvasId})
+ * - Room-based architecture (noir-{canvasId})
  * - JWT authentication via Supabase
  * - Auto cleanup of inactive rooms
  * - Health check endpoint
@@ -81,8 +81,8 @@ function verifyToken(token) {
  * Validate room ID format
  */
 function isValidRoomId(roomId) {
-    // Format: nevra-{uuid} or nevra-{alphanumeric}
-    return /^nevra-[a-zA-Z0-9_-]+$/.test(roomId);
+    // Format: noir-{uuid} or noir-{alphanumeric}
+    return /^noir-[a-zA-Z0-9_-]+$/.test(roomId);
 }
 
 // HTTP server for health checks
@@ -145,7 +145,7 @@ wss.on('connection', (conn, req) => {
     // Validate room ID format
     if (!roomId || !isValidRoomId(roomId)) {
         console.warn(`⚠️ Invalid room ID: ${roomId}`);
-        conn.close(1008, 'Invalid room ID format. Must be: nevra-{id}');
+        conn.close(1008, 'Invalid room ID format. Must be: noir-{id}');
         return;
     }
 
@@ -241,9 +241,9 @@ process.on('SIGINT', shutdown);
 // Start server
 server.listen(PORT, () => {
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('🚀 NEVRA YJS Collaboration Server');
+    console.log('🚀 NOIR AI YJS Collaboration Server');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log(`📡 WebSocket: ws://localhost:${PORT}?room=nevra-{id}&token={jwt}`);
+    console.log(`📡 WebSocket: ws://localhost:${PORT}?room=noir-{id}&token={jwt}`);
     console.log(`💚 Health check: http://localhost:${PORT}/health`);
     console.log(`🌍 Environment: ${NODE_ENV}`);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');

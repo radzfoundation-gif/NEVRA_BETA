@@ -79,7 +79,7 @@ export const SplashScreen: React.FC<{ onComplete: () => void }> = ({ onComplete 
                                             transition={{ duration: 1.5 }}
                                         >
                                             <h1 className="text-5xl md:text-7xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-pink-200 via-purple-200 to-indigo-200 tracking-tight drop-shadow-lg">
-                                                NEVRA
+                                                NOIR AI
                                             </h1>
                                         </motion.div>
                                     )}
@@ -167,7 +167,7 @@ export const SplashScreen: React.FC<{ onComplete: () => void }> = ({ onComplete 
                                 <div className="flex-1 overflow-y-auto pr-2 space-y-8 text-purple-100/80 font-light leading-relaxed custom-scrollbar">
                                     <section>
                                         <h3 className="text-xl font-medium text-pink-200 mb-3">Project Overview</h3>
-                                        <p className="opacity-80">Nevra is a next-generation SaaS workspace designed to harmonize human creativity with artificial intelligence.</p>
+                                        <p className="opacity-80">Noir AI is a next-generation SaaS workspace designed to harmonize human creativity with artificial intelligence.</p>
                                     </section>
 
                                     <section>

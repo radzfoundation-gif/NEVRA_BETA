@@ -47,7 +47,7 @@ export async function deployToVercel(
   try {
     // Check if it's multi-file or single-file
     const isMultiFile = Array.isArray(code);
-    
+
     let payload: any;
     if (isMultiFile) {
       // Multi-file: create zip and send
@@ -56,7 +56,7 @@ export async function deployToVercel(
         files: code,
         zipBase64,
         platform: 'vercel',
-        projectName: projectName || `nevra-${Date.now()}`,
+        projectName: projectName || `noir-${Date.now()}`,
         apiToken,
         isMultiFile: true,
       };
@@ -65,7 +65,7 @@ export async function deployToVercel(
       payload = {
         code,
         platform: 'vercel',
-        projectName: projectName || `nevra-${Date.now()}`,
+        projectName: projectName || `noir-${Date.now()}`,
         apiToken,
         isMultiFile: false,
       };
@@ -112,7 +112,7 @@ export async function deployToNetlify(
   try {
     // Check if it's multi-file or single-file
     const isMultiFile = Array.isArray(code);
-    
+
     let payload: any;
     if (isMultiFile) {
       // Multi-file: create zip and send
@@ -121,7 +121,7 @@ export async function deployToNetlify(
         files: code,
         zipBase64,
         platform: 'netlify',
-        projectName: siteName || `nevra-${Date.now()}`,
+        projectName: siteName || `noir-${Date.now()}`,
         apiToken,
         isMultiFile: true,
       };
@@ -130,7 +130,7 @@ export async function deployToNetlify(
       payload = {
         code,
         platform: 'netlify',
-        projectName: siteName || `nevra-${Date.now()}`,
+        projectName: siteName || `noir-${Date.now()}`,
         apiToken,
         isMultiFile: false,
       };

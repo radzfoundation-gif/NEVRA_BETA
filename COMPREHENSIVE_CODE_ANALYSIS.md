@@ -1,8 +1,8 @@
-# 📚 Analisis Komprehensif Codebase NEVRA
+# 📚 Analisis Komprehensif Codebase NOIR AI
 
 ## 🎯 Executive Summary
 
-**NEVRA (Neural Automation)** adalah platform AI-powered full-stack untuk:
+**NOIR AI (Intelligent Workspace)** adalah platform AI-powered full-stack untuk:
 - **Code Generation** (Builder Mode) - Generate aplikasi web React/Next.js dari natural language
 - **AI Tutoring** (Tutor Mode) - Asisten pembelajaran dengan web search, document analysis, code execution
 - **Enterprise Features** - Database integration, API wizard, mobile generator, design system manager
@@ -48,7 +48,7 @@
 ## 📁 Struktur Direktori Detail
 
 ```
-NEVRA/
+NOIR AI/
 ├── components/              # React Components (40+ files)
 │   ├── auth/                # Authentication
 │   │   ├── ProtectedRoute.tsx
@@ -1012,7 +1012,7 @@ Project ini memiliki dokumentasi lengkap:
 
 ## 🎯 Conclusion
 
-**NEVRA** adalah platform yang sangat lengkap dengan:
+**NOIR AI** adalah platform yang sangat lengkap dengan:
 
 ✅ **Modern Tech Stack**
 - React 19, TypeScript, Vite

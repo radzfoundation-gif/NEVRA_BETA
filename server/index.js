@@ -21,6 +21,7 @@ import midtransClient from 'midtrans-client';
 import { YoutubeTranscript } from 'youtube-transcript';
 import nodemailer from 'nodemailer';
 import { createClient } from '@supabase/supabase-js';
+import { mcpManager } from './mcpManager.js';
 
 
 // Feature Limits handled by new configuration below
@@ -116,8 +117,8 @@ if (openrouterApiKey) {
     apiKey: openrouterApiKey,
     baseURL: openrouterBaseUrl,
     defaultHeaders: {
-      'HTTP-Referer': 'https://nevra.ai',
-      'X-Title': 'Nevra AI'
+      'HTTP-Referer': 'https://noir-ai.com',
+      'X-Title': 'Noir AI'
     }
   });
   console.log('✅ OpenRouter AI client initialized');
@@ -736,7 +737,7 @@ app.post('/api/redesign', async (req, res) => {
       }
     }
 
-    // Nevra Labs Model Routing
+    // Noir Labs Model Routing
     let targetModelId = process.env.SUMOPOD_REDESIGN_MODEL_ID || process.env.SUMOPOD_MODEL_ID || 'gemini/gemini-3-pro-preview';
 
     // Explicit model selection from frontend
@@ -812,14 +813,14 @@ OUTPUT REQUIREMENTS:
       systemPrompt += `\n\nCONTEXT FROM URL: ${scrapedContext}`;
     }
 
-    console.log(`[NevraLabs] Processing request: "${prompt.substring(0, 50)}..." via ${targetModelId} (Mode: ${designMode})`);
+    console.log(`[NoirLabs] Processing request: "${prompt.substring(0, 50)}..." via ${targetModelId} (Mode: ${designMode})`);
 
     let htmlContent = '';
     const suggestions = [];
 
     // BRANCH: Image Generation (GPT Image 1) vs Code Generation (Gemini/GPT-4)
     if (targetModelId === 'gpt-image-1') {
-      console.log(`[NevraLabs] Generating IMAGE via ${targetModelId}...`);
+      console.log(`[NoirLabs] Generating IMAGE via ${targetModelId}...`);
 
       try {
         const imageResponse = await sumopodClient.images.generate({
@@ -852,7 +853,7 @@ OUTPUT REQUIREMENTS:
         suggestions.push("Generated DALL-E 3 / GPU Image");
 
       } catch (imgError) {
-        console.error('[NevraLabs] Image Gen Error:', imgError);
+        console.error('[NoirLabs] Image Gen Error:', imgError);
         // Fallback to text error in HTML
         throw imgError;
       }
@@ -924,12 +925,12 @@ OUTPUT REQUIREMENTS:
     });
 
   } catch (error) {
-    console.error('[NevraLabs] CRITICAL ERROR:', error);
+    console.error('[NoirLabs] CRITICAL ERROR:', error);
 
     // Detailed error logging for API provider errors
     if (error.response) {
-      console.error('[NevraLabs] Provider Response Status:', error.response.status);
-      console.error('[NevraLabs] Provider Response Data:', JSON.stringify(error.response.data, null, 2));
+      console.error('[NoirLabs] Provider Response Status:', error.response.status);
+      console.error('[NoirLabs] Provider Response Data:', JSON.stringify(error.response.data, null, 2));
     }
 
     const errorMessage = error.response?.data?.error?.message || error.message || 'Unknown error occurred during generation';
@@ -985,7 +986,7 @@ app.post('/api/generate-legacy-unused', async (req, res) => {
       let startIndex = 0;
 
       // Enforce clean formatting and prevent [1] citations unless grounded
-      const defaultSystemPrompt = `You are Nevra, a helpful AI assistant.
+      const defaultSystemPrompt = `You are Noir AI, a helpful AI assistant.
 FORMATTING RULES:
 - Use standard Markdown formatting.
 - Use **Bold** for emphasis and headers.
@@ -1052,14 +1053,75 @@ FORMATTING RULES:
 
     console.log(`[Generate] Processing request for model: ${targetModel}`);
 
-    const completion = await client.chat.completions.create({
-      model: targetModel,
-      messages: chatMessages,
-      temperature: 0.7,
-      max_tokens: 1000,
-    });
+    // --- MCP TOOL INTEGRATION ---
+    const allMcpTools = await mcpManager.listAllTools();
+    const tools = allMcpTools.map(tool => ({
+      type: 'function',
+      function: {
+        name: `mcp__${tool.serverId}__${tool.name}`,
+        description: `[From ${tool.serverName}] ${tool.description}`,
+        parameters: tool.inputSchema
+      }
+    }));
 
-    const responseText = completion.choices[0].message.content;
+    let currentMessages = [...chatMessages];
+    let responseText = '';
+    let iterations = 0;
+    const MAX_ITERATIONS = 5;
+
+    while (iterations < MAX_ITERATIONS) {
+      iterations++;
+
+      const completion = await client.chat.completions.create({
+        model: targetModel,
+        messages: currentMessages,
+        temperature: 0.7,
+        max_tokens: 2000,
+        tools: tools.length > 0 ? tools : undefined,
+      });
+
+      const message = completion.choices[0].message;
+      currentMessages.push(message);
+
+      if (message.tool_calls && message.tool_calls.length > 0) {
+        console.log(`[Generate] Model requested ${message.tool_calls.length} tool calls`);
+
+        for (const toolCall of message.tool_calls) {
+          const fullToolName = toolCall.function.name;
+
+          if (fullToolName.startsWith('mcp__')) {
+            const parts = fullToolName.split('__');
+            const serverId = parts[1];
+            const actualToolName = parts.slice(2).join('__');
+            const args = JSON.parse(toolCall.function.arguments);
+
+            console.log(`[Generate] Executing MCP tool: ${actualToolName} on server ${serverId}`);
+
+            try {
+              const result = await mcpManager.executeTool(serverId, actualToolName, args);
+              currentMessages.push({
+                role: 'tool',
+                tool_call_id: toolCall.id,
+                content: JSON.stringify(result)
+              });
+            } catch (toolError) {
+              console.error(`[Generate] Tool execution error:`, toolError.message);
+              currentMessages.push({
+                role: 'tool',
+                tool_call_id: toolCall.id,
+                content: JSON.stringify({ error: toolError.message })
+              });
+            }
+          }
+        }
+        // Continue to next iteration to let model see tool results
+        continue;
+      }
+
+      // No more tool calls, we have final response
+      responseText = message.content;
+      break;
+    }
 
     res.json({
       text: responseText,
@@ -1068,7 +1130,6 @@ FORMATTING RULES:
 
   } catch (error) {
     console.error('[Generate] Error:', error);
-    // CRITICAL: Always return JSON, never HTML
     res.status(500).json({
       error: 'Failed to generate response',
       details: error.message || 'Creating chat completion failed',
@@ -1281,6 +1342,37 @@ app.post('/api/transcribe-audio', upload.single('file'), async (req, res) => {
   }
 });
 
+// =====================================================
+// MCP (Model Context Protocol) ENDPOINTS
+// =====================================================
+
+// List MCP Servers
+app.get('/api/mcp/servers', (req, res) => {
+  res.json(mcpManager.getServers());
+});
+
+// Add MCP Server
+app.post('/api/mcp/servers', async (req, res) => {
+  const { name, url } = req.body;
+  if (!name || !url) {
+    return res.status(400).json({ error: 'Name and URL are required' });
+  }
+  const result = await mcpManager.addServer(name, url);
+  res.json(result);
+});
+
+// Remove MCP Server
+app.delete('/api/mcp/servers/:id', async (req, res) => {
+  await mcpManager.removeServer(req.params.id);
+  res.json({ success: true });
+});
+
+// List All MCP Tools
+app.get('/api/mcp/tools', async (req, res) => {
+  const tools = await mcpManager.listAllTools();
+  res.json(tools);
+});
+
 // Create Midtrans transaction
 app.post('/api/payment/create-transaction', async (req, res) => {
   try {
@@ -1294,7 +1386,7 @@ app.post('/api/payment/create-transaction', async (req, res) => {
       return res.status(400).json({ error: 'User ID required' });
     }
 
-    const orderId = `NEVRA-PRO-${Date.now()}-${userId.slice(-6)}`;
+    const orderId = `NOIR-PRO-${Date.now()}-${userId.slice(-6)}`;
 
     const parameter = {
       transaction_details: {
@@ -1306,10 +1398,10 @@ app.post('/api/payment/create-transaction', async (req, res) => {
         email: userEmail || 'user@example.com',
       },
       item_details: [{
-        id: 'nevra-pro-monthly',
+        id: 'noir-pro-monthly',
         price: amount || 50000,
         quantity: 1,
-        name: 'Nevra Pro - Monthly Subscription',
+        name: 'Noir Pro - Monthly Subscription',
       }],
       callbacks: {
         finish: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/`,
@@ -1368,7 +1460,7 @@ app.post('/api/payment/webhook', async (req, res) => {
 
     console.log(`📬 Midtrans webhook: ${orderId} - ${transactionStatus}`);
 
-    // Extract userId from orderId (format: NEVRA-PRO-timestamp-userId)
+    // Extract userId from orderId (format: NOIR-PRO-timestamp-userId)
     const parts = orderId.split('-');
     const userId = parts.length >= 4 ? parts[3] : null;
 
@@ -1664,6 +1756,209 @@ const buildOpenAIUserContent = (prompt, images = []) => {
 };
 
 
+// =====================================================
+// STREAMING CHAT ENDPOINT (SSE - Server-Sent Events)
+// =====================================================
+/**
+ * POST /api/chat/stream
+ * Real-time streaming endpoint for OpenRouter LLM responses
+ * 
+ * SSE Format Notes:
+ * - OpenRouter sends SSE with "data: {JSON}" lines
+ * - Comment lines start with ":" (e.g., ": OPENROUTER PROCESSING") - MUST ignore
+ * - Token content is at choices[0].delta.content
+ * - Stream ends with "data: [DONE]"
+ * - Mid-stream errors have top-level "error" field and finish_reason: "error"
+ * 
+ * Cancel Support:
+ * - Client can close connection to abort
+ * - Server detects 'close' event and aborts upstream fetch
+ */
+const OPENROUTER_STREAM_MODEL_MAPPING = {
+  'sonar': 'perplexity/sonar',
+  'gemini-pro': 'google/gemini-2.0-flash-exp:free',
+  'gpt-5': 'openai/gpt-4o-mini',
+  'claude-sonnet': 'anthropic/claude-3.5-sonnet',
+  'claude-opus': 'anthropic/claude-3-opus',
+  'grok': 'x-ai/grok-2-1212',
+  'nevrasync': 'thedrummer/rocinante-12b:free',
+};
+
+app.post('/api/chat/stream', async (req, res) => {
+  console.log('[Stream] Streaming endpoint called');
+
+  // 1. Validate API Key
+  if (!openrouterApiKey) {
+    console.error('[Stream] Missing OPENROUTER_API_KEY');
+    return res.status(500).json({ error: 'Server configuration error: OPENROUTER_API_KEY not set' });
+  }
+
+  const { model, messages } = req.body || {};
+
+  // 2. Validate request
+  if (!messages || !Array.isArray(messages) || messages.length === 0) {
+    return res.status(400).json({ error: 'Messages array is required' });
+  }
+
+  // 3. Map model to OpenRouter model ID
+  const openRouterModel = OPENROUTER_STREAM_MODEL_MAPPING[model] || model || 'openai/gpt-4o-mini';
+  console.log(`[Stream] Starting stream for model: ${openRouterModel}`);
+
+  // 4. Set SSE headers
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
+  res.flushHeaders();
+
+  // 5. Create AbortController for upstream request
+  const controller = new AbortController();
+
+  // Handle client disconnect
+  req.on('close', () => {
+    console.log('[Stream] Client disconnected, aborting upstream');
+    controller.abort();
+  });
+
+  try {
+    // 6. Fetch from OpenRouter with streaming
+    const upstreamResponse = await fetch(`${openrouterBaseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openrouterApiKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': process.env.OPENROUTER_SITE_URL || 'https://noir.ai',
+        'X-Title': process.env.OPENROUTER_SITE_NAME || 'Noir AI',
+      },
+      body: JSON.stringify({
+        model: openRouterModel,
+        messages,
+        stream: true,
+      }),
+      signal: controller.signal,
+    });
+
+    // 7. Handle upstream errors before streaming starts
+    if (!upstreamResponse.ok) {
+      const contentType = upstreamResponse.headers.get('content-type');
+      if (contentType?.includes('application/json')) {
+        const errorData = await upstreamResponse.json();
+        console.error('[Stream] OpenRouter error:', errorData);
+        res.write(`event: error\ndata: ${JSON.stringify({ message: errorData.error?.message || 'OpenRouter API error' })}\n\n`);
+      } else {
+        console.error('[Stream] OpenRouter non-JSON error');
+        res.write(`event: error\ndata: ${JSON.stringify({ message: 'OpenRouter service error' })}\n\n`);
+      }
+      res.end();
+      return;
+    }
+
+    if (!upstreamResponse.body) {
+      res.write(`event: error\ndata: ${JSON.stringify({ message: 'No response body from OpenRouter' })}\n\n`);
+      res.end();
+      return;
+    }
+
+    // 8. Process the stream
+    const reader = upstreamResponse.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+
+      if (done) {
+        res.write('event: done\ndata: {}\n\n');
+        break;
+      }
+
+      // Decode and add to buffer
+      buffer += decoder.decode(value, { stream: true });
+
+      // Process complete lines
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+      for (const line of lines) {
+        const trimmedLine = line.trim();
+
+        // Skip empty lines
+        if (!trimmedLine) continue;
+
+        // Skip comment lines (e.g., ": OPENROUTER PROCESSING")
+        if (trimmedLine.startsWith(':')) {
+          console.log('[Stream] Skipping comment:', trimmedLine.substring(0, 50));
+          continue;
+        }
+
+        // Handle data lines
+        if (trimmedLine.startsWith('data:')) {
+          const dataContent = trimmedLine.slice(5).trim();
+
+          // Handle [DONE] signal
+          if (dataContent === '[DONE]') {
+            res.write('event: done\ndata: {}\n\n');
+            continue;
+          }
+
+          // Parse JSON payload
+          try {
+            const parsed = JSON.parse(dataContent);
+
+            // Check for mid-stream error
+            if (parsed.error) {
+              console.error('[Stream] Mid-stream error:', parsed.error);
+              res.write(`event: error\ndata: ${JSON.stringify({ message: parsed.error.message || 'Stream error' })}\n\n`);
+              continue;
+            }
+
+            // Check for finish_reason error
+            const finishReason = parsed.choices?.[0]?.finish_reason;
+            if (finishReason === 'error') {
+              console.error('[Stream] Finish reason error');
+              res.write(`event: error\ndata: ${JSON.stringify({ message: 'Generation stopped due to error' })}\n\n`);
+              continue;
+            }
+
+            // Extract delta content
+            const deltaContent = parsed.choices?.[0]?.delta?.content;
+            if (deltaContent) {
+              res.write(`event: delta\ndata: ${JSON.stringify({ content: deltaContent })}\n\n`);
+            }
+
+            // Handle usage chunk (choices empty but has usage) - just skip
+            if (parsed.usage && (!parsed.choices || parsed.choices.length === 0)) {
+              console.log('[Stream] Usage chunk received');
+              continue;
+            }
+
+          } catch (parseError) {
+            // JSON parse failed - skip this line
+            console.warn('[Stream] Failed to parse JSON:', dataContent.substring(0, 100));
+          }
+        }
+      }
+    }
+
+    res.end();
+
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      console.log('[Stream] Request aborted by client');
+      // Don't send response if already disconnected
+      if (!res.writableEnded) {
+        res.end();
+      }
+      return;
+    }
+
+    console.error('[Stream] Unexpected error:', error);
+    if (!res.writableEnded) {
+      res.write(`event: error\ndata: ${JSON.stringify({ message: 'Internal server error' })}\n\n`);
+      res.end();
+    }
+  }
+});
 
 // Web Search Endpoint
 app.post('/api/search', async (req, res) => {
@@ -1819,7 +2114,7 @@ Always provide information based on your training data AND the current date cont
       enhancedSystemPrompt = systemPrompt + `
 
 ⚠️ IMPORTANT FOR SUMOPOD IN TUTOR MODE:
-- You are NEVRA TUTOR, a world-class AI Educator and Mentor
+- You are NOIR AI TUTOR, a world-class AI Educator and Mentor
 - Be patient, encouraging, and clear in your explanations
 - Use Socratic questions, analogies, and step-by-step reasoning
 - Help users achieve deep understanding, not just rote answers
@@ -1831,7 +2126,7 @@ Always provide information based on your training data AND the current date cont
       enhancedSystemPrompt = systemPrompt + `
 
 ⚠️ IMPORTANT FOR SUMOPOD:
-- You MUST follow all NEVRA guidelines exactly as specified above
+- You MUST follow all NOIR AI guidelines exactly as specified above
 - Generate code that matches the exact format and structure required
 - Use the same component patterns, styling approach, and architecture
 - Ensure your output is production-ready and follows all design system requirements
@@ -1868,10 +2163,10 @@ Always provide information based on your training data AND the current date cont
 
       // Smart Model Routing based on frontend selection
       // SumoPod: gemini-flash (free tier)
-      // OpenRouter: All Pro models (sonar/NevraSync, gemini-pro, gpt-5, claude, grok)
+      // OpenRouter: All Pro models (sonar/NoirSync, gemini-pro, gpt-5, claude, grok)
 
       const OPENROUTER_MODEL_MAPPING = {
-        'sonar': 'perplexity/sonar', // NevraSync - Perplexity Sonar (reliable online model)
+        'sonar': 'perplexity/sonar', // NoirSync - Perplexity Sonar (reliable online model)
         'gemini-pro': 'google/gemini-2.0-flash-exp:free',
         'gpt-5': 'openai/gpt-4o-mini',
         'claude-sonnet': 'anthropic/claude-3.5-sonnet',
@@ -1880,7 +2175,7 @@ Always provide information based on your training data AND the current date cont
       };
 
       const isDeepDive = body.deepDive === true || mode === 'deep_dive';
-      const selectedModel = body.model || 'sonar'; // Default to sonar (NevraSync)
+      const selectedModel = body.model || 'sonar'; // Default to sonar (NoirSync)
 
       // Determine which client to use based on selected model
       const useOpenRouter = selectedModel !== 'gemini-flash' && OPENROUTER_MODEL_MAPPING[selectedModel];
@@ -1987,7 +2282,7 @@ Always provide information based on your training data AND the current date cont
 
 // Health check endpoints
 app.get('/', (_req, res) => {
-  res.type('text/html').send('<h1>Nevra API OK</h1>');
+  res.type('text/html').send('<h1>Noir AI API OK</h1>');
 });
 
 app.get('/api/health', (_req, res) => {
@@ -2021,7 +2316,7 @@ app.post('/api/deploy', async (req, res) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          name: projectName || `nevra-${Date.now()}`,
+          name: projectName || `noir-${Date.now()}`,
           files: [
             {
               file: '/index.html',
@@ -2061,7 +2356,7 @@ app.post('/api/deploy', async (req, res) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          name: projectName || `nevra-${Date.now()}`,
+          name: projectName || `noir-${Date.now()}`,
         }),
       });
 
@@ -2317,7 +2612,7 @@ app.post('/api/github/push', async (req, res) => {
   try {
     const repoFullName = typeof repo === 'string' ? repo : repo.fullName;
     const targetBranch = branch || 'main';
-    const message = commitMessage || 'Update from NEVRA';
+    const message = commitMessage || 'Update from NOIR AI';
 
     // Get current tree SHA
     const refResponse = await fetch(`https://api.github.com/repos/${repoFullName}/git/ref/heads/${targetBranch}`, {
@@ -2768,12 +3063,12 @@ app.post('/api/waitlist', async (req, res) => {
   if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
     try {
       await transporter.sendMail({
-        from: '"Nevra AI" <noreply@nevra.ai>',
+        from: '"Noir AI" <noreply@noir-ai.com>',
         to: email,
-        subject: 'Your Nevra Verification Code',
-        text: `Hello ${name || 'User'},\n\nYour verification code for Nevra is: ${code}\n\nThis code will expire in 10 minutes.\n\nWelcome to the future of neural automation.`,
+        subject: 'Your Noir AI Verification Code',
+        text: `Hello ${name || 'User'},\n\nYour verification code for Noir AI is: ${code}\n\nThis code will expire in 10 minutes.\n\nWelcome to the future of intelligence.`,
         html: `<div style="font-family: sans-serif; padding: 20px;">
-                      <h1>Welcome to Nevra</h1>
+                      <h1>Welcome to Noir AI</h1>
                       <p>Hello ${name || 'User'},</p>
                       <p>Your verification code is:</p>
                       <h2 style="background: #eee; padding: 10px; display: inline-block; letter-spacing: 5px;">${code}</h2>
@@ -3193,7 +3488,7 @@ app.post('/api/payment/checkout', async (req, res) => {
 
   try {
     // Generate unique order ID
-    const orderId = `NEVRA-${userId.substring(0, 8)}-${Date.now()}`;
+    const orderId = `NOIR-${userId.substring(0, 8)}-${Date.now()}`;
 
     // Midtrans Snap parameter
     const parameter = {
@@ -3208,10 +3503,10 @@ app.post('/api/payment/checkout', async (req, res) => {
         // Add customer details if available from userId
       },
       item_details: [{
-        id: 'nevra-premium',
+        id: 'noir-premium',
         price: Math.round(amount),
         quantity: 1,
-        name: 'Nevra Premium Subscription - Monthly'
+        name: 'Noir Premium Subscription - Monthly'
       }],
       callbacks: {
         finish: `${process.env.FRONTEND_URL || req.headers.origin || 'http://localhost:5173'}/pricing?success=true`,
@@ -3280,7 +3575,7 @@ app.post('/api/payment/webhook', async (req, res) => {
     }
 
     if (isSuccess) {
-      // Extract userId from orderId (format: NEVRA-{userId}-{timestamp})
+      // Extract userId from orderId (format: NOIR-{userId}-{timestamp})
       const userId = orderId.split('-')[1];
 
       // Calculate expiry (30 days from now for monthly subscription)
@@ -3509,8 +3804,8 @@ app.post('/api/workflow', async (req, res) => {
         provider,
         images,
         systemPrompt: mode === 'builder'
-          ? 'You are NEVRA BUILDER, an elite Frontend Engineer.'
-          : 'You are NEVRA TUTOR, a world-class AI Educator.',
+          ? 'You are NOIR BUILDER, an elite Frontend Engineer.'
+          : 'You are NOIR TUTOR, a world-class AI Educator.',
       }),
     });
 
@@ -3707,7 +4002,7 @@ if (process.env.VERCEL !== '1' && !process.env.VERCEL_ENV) {
         return res.status(500).json({ error: 'Payment service not configured' });
       }
 
-      const orderId = `NEVRA-PRO-${Date.now()}-${userId.slice(-6)}`;
+      const orderId = `NOIR-PRO-${Date.now()}-${userId.slice(-6)}`;
 
       const parameter = {
         transaction_details: {
@@ -3715,14 +4010,14 @@ if (process.env.VERCEL !== '1' && !process.env.VERCEL_ENV) {
           gross_amount: amount
         },
         customer_details: {
-          email: userEmail || 'user@nevra.app',
-          first_name: userName || 'Nevra User'
+          email: userEmail || 'user@noir-ai.com',
+          first_name: userName || 'Noir User'
         },
         item_details: [{
-          id: 'nevra-pro-monthly',
+          id: 'noir-pro-monthly',
           price: amount,
           quantity: 1,
-          name: 'Nevra Pro Monthly Subscription'
+          name: 'Noir Pro Monthly Subscription'
         }],
         custom_field1: userId,
         callbacks: {

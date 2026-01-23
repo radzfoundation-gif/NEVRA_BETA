@@ -57,7 +57,7 @@ const SignInPage: React.FC = () => {
                             </div>
                         </Link>
                         <h1 className="text-2xl font-bold text-zinc-900 mb-2">Welcome Back</h1>
-                        <p className="text-zinc-500">Sign in to continue to Nevra</p>
+                        <p className="text-zinc-500">Sign in to continue to Noir AI</p>
                     </div>
 
                     {/* Social Login */}
@@ -166,7 +166,7 @@ const SignInPage: React.FC = () => {
 
                 <div className="mt-8 text-center">
                     <p className="text-xs text-zinc-400">
-                        Protected by reCAPTCHA and Subject to the Nevra{' '}
+                        Protected by reCAPTCHA and Subject to the Noir AI{' '}
                         <a href="#" className="underline hover:text-zinc-500">Privacy Policy</a>
                         {' '}and{' '}
                         <a href="#" className="underline hover:text-zinc-500">Terms of Service</a>.

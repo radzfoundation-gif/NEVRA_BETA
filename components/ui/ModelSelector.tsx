@@ -16,7 +16,7 @@ interface ModelOption {
 const MODEL_OPTIONS: ModelOption[] = [
     {
         id: 'sonar',
-        name: 'NevraSync',
+        name: 'NoirSync',
         provider: 'Perplexity',
         icon: <Search size={16} className="text-teal-500" />,
     },

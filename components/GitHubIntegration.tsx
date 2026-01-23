@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Github, 
-  X, 
-  Plus, 
-  Loader2, 
-  Check, 
+import {
+  Github,
+  X,
+  Plus,
+  Loader2,
+  Check,
   ExternalLink,
   RefreshCw,
   AlertCircle
@@ -49,7 +49,7 @@ const GitHubIntegration: React.FC<GitHubIntegrationProps> = ({
   const [newRepoName, setNewRepoName] = useState('');
   const [newRepoDescription, setNewRepoDescription] = useState('');
   const [showCreateRepo, setShowCreateRepo] = useState(false);
-  const [commitMessage, setCommitMessage] = useState('Update from NEVRA');
+  const [commitMessage, setCommitMessage] = useState('Update from NOIR AI');
   const [branch, setBranch] = useState('main');
   const [autoSyncEnabled, setAutoSyncEnabled] = useState(false);
   const [autoSyncStatus, setAutoSyncStatus] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle');
@@ -64,7 +64,7 @@ const GitHubIntegration: React.FC<GitHubIntegrationProps> = ({
         loadRepositories(storedToken);
       }
     }
-    
+
     // Cleanup auto-sync on unmount
     return () => {
       if (autoSyncRef.current) {
@@ -106,7 +106,7 @@ const GitHubIntegration: React.FC<GitHubIntegrationProps> = ({
 
   const handleCreateRepo = async () => {
     if (!newRepoName || !token) return;
-    
+
     setIsLoading(true);
     try {
       const newRepo = await createRepository(
@@ -130,22 +130,22 @@ const GitHubIntegration: React.FC<GitHubIntegrationProps> = ({
 
   const handlePush = async () => {
     if (!selectedRepo || !token || files.length === 0) return;
-    
+
     setIsPushing(true);
     setPushResult(null);
-    
+
     try {
       // Export files for GitHub
       const exportedFiles = exportProjectForGitHub(files, framework);
-      
+
       const result = await pushToRepository(
         token,
         selectedRepo,
         exportedFiles,
-        commitMessage || `Update from NEVRA - ${new Date().toLocaleDateString()}`,
+        commitMessage || `Update from NOIR AI - ${new Date().toLocaleDateString()}`,
         branch
       );
-      
+
       setPushResult({
         success: true,
         url: result.url,
@@ -339,7 +339,7 @@ const GitHubIntegration: React.FC<GitHubIntegrationProps> = ({
                     onChange={(e) => setBranch(e.target.value)}
                     className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500/50"
                   />
-                  
+
                   {/* Auto-Sync Toggle */}
                   <div className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/10">
                     <div>
@@ -385,15 +385,15 @@ const GitHubIntegration: React.FC<GitHubIntegrationProps> = ({
                       )} />
                     </button>
                   </div>
-                  
+
                   {/* Auto-Sync Status */}
                   {autoSyncEnabled && (
                     <div className={clsx(
                       "p-3 rounded-lg border text-xs",
                       autoSyncStatus === 'syncing' ? "bg-blue-500/10 border-blue-500/30 text-blue-400" :
-                      autoSyncStatus === 'success' ? "bg-green-500/10 border-green-500/30 text-green-400" :
-                      autoSyncStatus === 'error' ? "bg-red-500/10 border-red-500/30 text-red-400" :
-                      "bg-white/5 border-white/10 text-gray-400"
+                        autoSyncStatus === 'success' ? "bg-green-500/10 border-green-500/30 text-green-400" :
+                          autoSyncStatus === 'error' ? "bg-red-500/10 border-red-500/30 text-red-400" :
+                            "bg-white/5 border-white/10 text-gray-400"
                     )}>
                       {autoSyncStatus === 'syncing' && <span>⏳ Syncing...</span>}
                       {autoSyncStatus === 'success' && <span>✅ {autoSyncMessage || 'Synced successfully'}</span>}

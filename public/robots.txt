@@ -5,4 +5,4 @@ Disallow: /chat/
 Disallow: /sign-in
 Disallow: /sign-up
 
-Sitemap: https://nevra.ai/sitemap.xml
+Sitemap: https://noir-ai.com/sitemap.xml

@@ -1,5 +1,5 @@
 -- =====================================================
--- NEVRA Database Schema (Bolt.new Style)
+-- NOIR AI Database Schema (Bolt.new Style)
 -- Enhanced schema for full AI code generation tracking
 -- =====================================================
 

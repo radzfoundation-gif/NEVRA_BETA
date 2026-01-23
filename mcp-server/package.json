@@ -1,7 +1,7 @@
 {
-    "name": "@nevra/mcp-server",
+    "name": "@noir-ai/mcp-server",
     "version": "1.0.0",
-    "description": "MCP Server for Nevra AI - Provides standardized access to Firebase, File System, and other resources",
+    "description": "MCP Server for Noir AI - Provides standardized access to Firebase, File System, and other resources",
     "type": "module",
     "main": "index.js",
     "scripts": {

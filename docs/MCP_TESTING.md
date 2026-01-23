@@ -13,11 +13,11 @@ npm run mcp:dev
 Anda akan lihat:
 ```
 Firebase Admin initialized for MCP server
-Nevra MCP Server running on stdio
+Noir AI MCP Server running on stdio
 ```
 
 #### 2. **Test Otomatis via Chat**
-Karena MCP sudah enabled, setiap kali Nevra AI memproses chat, ia akan:
+Karena MCP sudah enabled, setiap kali Noir AI memproses chat, ia akan:
 - ✅ Coba save memory via MCP
 - ✅ Coba retrieve memory via MCP  
 - ⚠️ Fallback ke direct Firebase jika MCP gagal
@@ -36,7 +36,7 @@ npm run test:mcp
 ## Verification Steps
 
 ### A. Real-time Test via Chat Interface
-1. Login ke Nevra
+1. Login ke Noir AI
 2. Kirim chat: "Hello, test MCP"
 3. Check terminal `npm run api`, harusnya ada log MCP
 4. Logout dan login lagi
@@ -90,7 +90,7 @@ MemoryEngine.saveWorkflowResult()
 
 ## Next Steps
 
-1. Chat dengan Nevra untuk generate memories
+1. Chat dengan Noir AI untuk generate memories
 2. Check logs untuk confirm MCP usage
 3. Test persistence dengan logout/login
 4. Monitor performance vs direct Firebase

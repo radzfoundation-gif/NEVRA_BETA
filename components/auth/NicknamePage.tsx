@@ -69,7 +69,7 @@ const NicknamePage: React.FC = () => {
                     </div>
 
                     <div className="text-center mb-8">
-                        <h1 className="text-2xl font-bold text-zinc-900 mb-2">Selamat Datang di Nevra!</h1>
+                        <h1 className="text-2xl font-bold text-zinc-900 mb-2">Selamat Datang di Noir AI!</h1>
                         <p className="text-zinc-500">
                             Sebelum mulai, mau dipanggil apa nih?
                         </p>
@@ -99,7 +99,7 @@ const NicknamePage: React.FC = () => {
                                 />
                             </div>
                             <p className="mt-2 text-xs text-zinc-400">
-                                Nama ini akan digunakan Nevra saat menyapamu.
+                                Nama ini akan digunakan Noir AI saat menyapamu.
                             </p>
                         </div>
 

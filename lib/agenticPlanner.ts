@@ -1,5 +1,5 @@
 /**
- * Agentic Planning for NEVRA Builder
+ * Agentic Planning for NOIR AI Builder
  * AI creates a plan before generating code, similar to v0.app
  */
 

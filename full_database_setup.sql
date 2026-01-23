@@ -1,7 +1,7 @@
 -- =====================================================================================
--- NEVRA FULL DATABASE SETUP SCRIPT
+-- NOIR AI FULL DATABASE SETUP SCRIPT
 -- =====================================================================================
--- This script sets up the entire database schema for Nevra, including:
+-- This script sets up the entire database schema for Noir AI, including:
 -- 1. Extensions (UUID)
 -- 2. Tables (Users, Subscriptions, Chat, Redesigns, etc.)
 -- 3. Indexes for performance

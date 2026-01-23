@@ -1,5 +1,5 @@
 /**
- * Document Parser for NEVRA Tutor
+ * Document Parser for NOIR AI Tutor
  * Handles PDF, DOCX, TXT, and Markdown file parsing
  */
 

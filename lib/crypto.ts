@@ -8,7 +8,7 @@
  */
 async function deriveKeyFromUserId(userId: string): Promise<CryptoKey> {
   const encoder = new TextEncoder();
-  const salt = encoder.encode('NEVRA_API_KEY_SALT'); // Fixed salt for deterministic key derivation
+  const salt = encoder.encode('NOIR_AI_KEY_SALT'); // Fixed salt for deterministic key derivation
 
   // Import user ID as key material
   const keyMaterial = await crypto.subtle.importKey(
@@ -71,10 +71,10 @@ export async function encryptApiKey(userId: string, apiKey: string): Promise<str
 export async function decryptApiKey(userId: string, encryptedKey: string): Promise<string> {
   try {
     const key = await deriveKeyFromUserId(userId);
-    
+
     // Decode from base64
     const combined = Uint8Array.from(atob(encryptedKey), c => c.charCodeAt(0));
-    
+
     // Extract IV and encrypted data
     const iv = combined.slice(0, 12);
     const encrypted = combined.slice(12);

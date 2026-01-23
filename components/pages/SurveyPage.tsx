@@ -63,7 +63,7 @@ const SurveyPage = () => {
             >
                 <div className="text-center mb-8">
                     <h2 className="text-2xl font-bold text-zinc-900 mb-2">One last thing...</h2>
-                    <p className="text-zinc-500">Where did you hear about Nevra?</p>
+                    <p className="text-zinc-500">Where did you hear about Noir AI?</p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 mb-8">

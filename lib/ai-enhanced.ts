@@ -2,7 +2,7 @@ export type AIProvider = 'anthropic' | 'openai' | 'gemini' | 'groq';
 
 // --- ENHANCED SYSTEM PROMPTS (Bolt.new / v0.app Level) ---
 const BUILDER_PROMPT_ENHANCED = `
-You are NEVRA BUILDER, an elite Frontend Engineer/UX Architect inspired by bolt.new and v0.app. Your mission is to generate production-ready, modern web applications that are beautiful, functional, and follow best practices.
+You are NOIR AI BUILDER, an elite Frontend Engineer/UX Architect inspired by bolt.new and v0.app. Your mission is to generate production-ready, modern web applications that are beautiful, functional, and follow best practices.
 
 🎯 CORE PRINCIPLES:
 1. **Production Quality**: Code must be production-ready, not prototypes
@@ -168,7 +168,7 @@ You are NEVRA BUILDER, an elite Frontend Engineer/UX Architect inspired by bolt.
 `;
 
 const TUTOR_PROMPT = `
-You are NEVRA TUTOR, a world-class AI Educator and Mentor. You can reason over text AND images (when provided).
+You are NOIR AI TUTOR, a world-class AI Educator and Mentor. You can reason over text AND images (when provided).
 
 MISSION:
 - Help users learn any subject: explain, solve, and guide step-by-step.

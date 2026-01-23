@@ -427,7 +427,7 @@ export function ResearchWelcome({
         },
         {
             icon: <ImageIcon size={14} />, label: 'Generate Image (Beta)', description: '5 Credits (Locked)', action: () => {
-                alert("Fitur ini sedang dalam tahap BETA TEST nevra dan dikunci sementara.");
+                alert("Fitur ini sedang dalam tahap BETA TEST Noir AI dan dikunci sementara.");
             }
         },
     ];
@@ -849,7 +849,7 @@ export function ResearchWelcome({
                         }}
                         className="px-8 py-4 text-xl font-bold tracking-widest text-white"
                     >
-                        {isSubscribed ? "NEVRA PRO" : "UPGRADE TO PRO"}
+                        {isSubscribed ? "NOIR AI PRO" : "UPGRADE TO PRO"}
                     </LiquidMetal>
                 </button>
 

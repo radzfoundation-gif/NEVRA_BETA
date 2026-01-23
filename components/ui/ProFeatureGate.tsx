@@ -54,7 +54,7 @@ export function ProFeatureGate({
                             Pro Feature
                         </h3>
                         <p className="text-gray-400 text-center mb-6">
-                            Upgrade to <span className="text-purple-400 font-semibold">Nevra Pro</span> to unlock {feature}
+                            Upgrade to <span className="text-blue-400 font-semibold">Noir Pro</span> to unlock {feature}
                         </p>
                         <div className="space-y-3 mb-6 text-sm text-gray-300">
                             <div className="flex items-center gap-2">

@@ -1,5 +1,5 @@
 -- =====================================================
--- NEVRA SECURITY HARDENING SCRIPT
+-- NOIR AI SECURITY HARDENING SCRIPT
 -- RUN THIS IN SUPABASE SQL EDITOR
 -- =====================================================
 

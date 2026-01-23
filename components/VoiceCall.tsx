@@ -324,7 +324,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
       }
 
       // Initial greeting
-      const greeting = "Hello! I'm Nevra Tutor. How can I help you learn today?";
+      const greeting = "Hello! I'm Noir Tutor. How can I help you learn today?";
       const initialHistory = [{ role: 'ai' as const, content: greeting }];
       conversationHistoryRef.current = initialHistory;
       setConversationHistory(initialHistory);
@@ -433,7 +433,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
               <GraduationCap className="text-white" size={24} />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-white">Voice Call with Nevra Tutor</h3>
+              <h3 className="text-lg font-semibold text-white">Voice Call with Noir Tutor</h3>
               <p className="text-xs text-gray-400">
                 {isCalling
                   ? (isListening ? 'Listening...' : isSpeaking ? 'Speaking...' : 'Connected')

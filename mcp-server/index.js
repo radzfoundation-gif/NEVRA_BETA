@@ -9,10 +9,10 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { FirebaseResource } from './resources/firebase.js';
 
-// MCP Server for Nevra AI
+// MCP Server for Noir AI
 const server = new Server(
     {
-        name: 'nevra-mcp-server',
+        name: 'noir-ai-mcp-server',
         version: '1.0.0',
     },
     {
@@ -127,7 +127,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 async function main() {
     const transport = new StdioServerTransport();
     await server.connect(transport);
-    console.error('Nevra MCP Server running on stdio');
+    console.error('Noir AI MCP Server running on stdio');
 }
 
 main().catch((error) => {

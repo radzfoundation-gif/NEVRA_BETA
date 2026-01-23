@@ -155,7 +155,7 @@ app.post('/api/generate', async (req, res) => {
 // HEALTH CHECK
 // =====================================================
 app.get('/', (_req, res) => {
-  res.type('text/html').send('<h1>Nevra API OK (SumoPod)</h1>');
+  res.type('text/html').send('<h1>Noir AI API OK (SumoPod)</h1>');
 });
 
 app.get('/api/health', (_req, res) => {
@@ -171,7 +171,7 @@ app.get('/api/health', (_req, res) => {
 // START SERVER
 // =====================================================
 app.listen(PORT, () => {
-  console.log(`\n🚀 Nevra API Server (SumoPod Only)`);
+  console.log(`\n🚀 Noir AI API Server (SumoPod Only)`);
   console.log(`   Port: ${PORT}`);
   console.log(`   Model: ${SUMOPOD_MODEL_ID}`);
   console.log(`   Status: ${sumopodClient ? '✅ Ready' : '❌ API Key Required'}\n`);

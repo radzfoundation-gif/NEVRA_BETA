@@ -13,7 +13,7 @@ interface AILoadingProps {
 }
 
 const DEFAULT_MESSAGES = [
-  "Nevra is thinking...",
+  "Noir is thinking...",
   "Analyzing request...",
   "Connecting to knowledge base...",
   "Formulating response...",

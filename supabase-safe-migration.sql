@@ -1,5 +1,5 @@
 -- =====================================================
--- NEVRA SAFE MIGRATION (Non-Destructive)
+-- NOIR AI SAFE MIGRATION (Non-Destructive)
 -- Adds Projects and Documents tables
 -- Adapts to existing TEXT user_id from Clerk
 -- =====================================================

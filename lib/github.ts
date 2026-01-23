@@ -49,7 +49,7 @@ export function getGitHubToken(): string | null {
     window.history.replaceState({}, '', window.location.pathname);
     return token;
   }
-  
+
   // Check localStorage
   return localStorage.getItem('github_token');
 }
@@ -80,12 +80,12 @@ export async function listRepositories(token: string): Promise<GitHubRepo[]> {
       },
       body: JSON.stringify({ token }),
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.error || 'Failed to fetch repositories');
     }
-    
+
     const data = await response.json();
     return data.repos || [];
   } catch (error: any) {
@@ -115,12 +115,12 @@ export async function createRepository(
         isPrivate,
       }),
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.error || 'Failed to create repository');
     }
-    
+
     return await response.json();
   } catch (error: any) {
     throw new Error(error.message || 'Failed to create repository');
@@ -147,16 +147,16 @@ export async function pushToRepository(
         token,
         repo,
         files,
-        commitMessage: commitMessage || 'Update from NEVRA',
+        commitMessage: commitMessage || 'Update from NOIR AI',
         branch: branch || 'main',
       }),
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.error || 'Failed to push to repository');
     }
-    
+
     return await response.json();
   } catch (error: any) {
     throw new Error(error.message || 'Failed to push to repository');
@@ -192,7 +192,7 @@ export class GitHubAutoSync {
    */
   start(intervalSeconds: number = 30): void {
     if (this.syncInterval) return; // Already running
-    
+
     this.syncInterval = window.setInterval(async () => {
       if (!this.isSyncing) {
         await this.sync();
@@ -215,10 +215,10 @@ export class GitHubAutoSync {
    */
   async sync(files?: Array<{ path: string; content: string; type: string }>): Promise<boolean> {
     if (this.isSyncing) return false;
-    
+
     this.isSyncing = true;
     this.onSyncStatus?.('syncing', 'Syncing to GitHub...');
-    
+
     try {
       if (!files) {
         // Get files from current project state
@@ -269,7 +269,7 @@ export function exportProjectForGitHub(
   framework?: string
 ): Array<{ path: string; content: string }> {
   const exported: Array<{ path: string; content: string }> = [];
-  
+
   // Add all project files
   files.forEach(file => {
     exported.push({
@@ -277,7 +277,7 @@ export function exportProjectForGitHub(
       content: file.content,
     });
   });
-  
+
   // Add framework-specific files
   if (framework === 'react' || framework === 'next') {
     // Add package.json if not exists
@@ -285,7 +285,7 @@ export function exportProjectForGitHub(
       exported.push({
         path: 'package.json',
         content: JSON.stringify({
-          name: 'nevra-project',
+          name: 'noir-ai-project',
           version: '1.0.0',
           private: true,
           scripts: {
@@ -304,15 +304,15 @@ export function exportProjectForGitHub(
         }, null, 2),
       });
     }
-    
+
     // Add README.md if not exists
     if (!files.some(f => f.path.includes('README.md'))) {
       exported.push({
         path: 'README.md',
-        content: '# NEVRA Project\n\nGenerated with NEVRA AI Builder.\n',
+        content: '# NOIR AI Project\n\nGenerated with NOIR AI Builder.\n',
       });
     }
-    
+
     // Add .gitignore if not exists
     if (!files.some(f => f.path.includes('.gitignore'))) {
       exported.push({
@@ -321,6 +321,6 @@ export function exportProjectForGitHub(
       });
     }
   }
-  
+
   return exported;
 }

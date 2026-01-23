@@ -23,7 +23,7 @@ export class ComponentLibrary {
   saveComponent(component: Omit<Component, 'id' | 'createdAt' | 'updatedAt' | 'usageCount'>): Component {
     const id = `comp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const now = new Date();
-    
+
     const newComponent: Component = {
       ...component,
       id,
@@ -137,7 +137,7 @@ export class ComponentLibrary {
    */
   load(): void {
     try {
-      const stored = localStorage.getItem('nevra_component_library');
+      const stored = localStorage.getItem('noir_ai_component_library');
       if (stored) {
         const components: Component[] = JSON.parse(stored);
         components.forEach(comp => {
@@ -159,7 +159,7 @@ export class ComponentLibrary {
   save(): void {
     try {
       const components = Array.from(this.components.values());
-      localStorage.setItem('nevra_component_library', JSON.stringify(components));
+      localStorage.setItem('noir_ai_component_library', JSON.stringify(components));
     } catch (error) {
       console.error('Error saving component library:', error);
     }

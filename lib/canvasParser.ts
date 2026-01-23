@@ -161,7 +161,7 @@ export function buildAIPrompt(
     analysis: CanvasAnalysis,
     userQuestion?: string
 ): { system: string; user: string } {
-    const systemPrompt = `You are Nevra Tutor AI, an expert educator and problem solver.
+    const systemPrompt = `You are Noir Tutor AI, an expert educator and problem solver.
 
 Your role is to analyze student whiteboard/canvas input and provide:
 1. **Step-by-step solution** - Break down the problem clearly

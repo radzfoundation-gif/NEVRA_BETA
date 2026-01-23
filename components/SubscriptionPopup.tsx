@@ -171,7 +171,7 @@ const SubscriptionPopup: React.FC<SubscriptionPopupProps> = ({
                                     <Crown className="w-8 h-8 sm:w-10 sm:h-10 text-purple-600" />
                                 </div>
 
-                                <h2 className="text-2xl sm:text-3xl font-bold text-zinc-900 mb-2">Welcome to Nevra Pro!</h2>
+                                <h2 className="text-2xl sm:text-3xl font-bold text-zinc-900 mb-2">Welcome to Noir Pro!</h2>
                                 <p className="text-sm sm:text-base text-zinc-500 mb-6 sm:mb-8">Your account has been successfully upgraded. You now have access to:</p>
 
                                 <div className="space-y-3 mb-8 text-left max-w-[280px] mx-auto">

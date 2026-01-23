@@ -371,7 +371,7 @@ const ChatInterface: React.FC = () => {
     // Check if it's 12:00 WIB or later
     if (hour > 12 || (hour === 12 && minute >= 0)) {
       const today = wibTime.toISOString().split('T')[0]; // YYYY-MM-DD
-      const lastReset = localStorage.getItem('nevra_ai_memory_last_reset');
+      const lastReset = localStorage.getItem('noir_ai_memory_last_reset');
 
       // Reset if we haven't reset today yet
       if (lastReset !== today) {
@@ -391,7 +391,7 @@ const ChatInterface: React.FC = () => {
         console.log('🔄 Resetting AI memory - Daily reset at 12:00 WIB');
         setAiMemoryHistory([]);
         setLastResetTime(new Date());
-        localStorage.setItem('nevra_ai_memory_last_reset', today);
+        localStorage.setItem('noir_ai_memory_last_reset', today);
       }
     };
 
@@ -1064,7 +1064,7 @@ const ChatInterface: React.FC = () => {
     if (!user) return;
 
     const userId = user.id;
-    const STORAGE_PREFIX = `nevra_feedback_${userId}`;
+    const STORAGE_PREFIX = `noir_ai_feedback_${userId}`;
 
     // Get stored data
     const chatCount = parseInt(localStorage.getItem(`${STORAGE_PREFIX}_count`) || '0');
@@ -1101,7 +1101,7 @@ const ChatInterface: React.FC = () => {
 
     // Update tracking when closed (assumed seen/interacted)
     const userId = user.id;
-    const STORAGE_PREFIX = `nevra_feedback_${userId}`;
+    const STORAGE_PREFIX = `noir_ai_feedback_${userId}`;
 
     localStorage.setItem(`${STORAGE_PREFIX}_first_given`, 'true');
     localStorage.setItem(`${STORAGE_PREFIX}_last_date`, Date.now().toString());
@@ -1320,7 +1320,7 @@ const ChatInterface: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = url;
-    anchor.download = 'nevra-app.html';
+    anchor.download = 'noir-ai-app.html';
     anchor.click();
     URL.revokeObjectURL(url);
   };
@@ -2955,7 +2955,7 @@ const ChatInterface: React.FC = () => {
                         e.target.style.height = `${Math.min(e.target.scrollHeight, 150)}px`;
                       }}
                       onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSend())}
-                      placeholder="Message Nevra..."
+                      placeholder="Message Noir AI..."
                       className="w-full rounded-2xl border border-zinc-200 shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-4 pr-12 text-zinc-900 focus:outline-none focus:ring-2 focus:ring-black/5 resize-none min-h-[60px]"
                       autoFocus
                     />
@@ -3000,7 +3000,7 @@ const ChatInterface: React.FC = () => {
                     <div className="w-6 h-6 rounded-full bg-zinc-100 border border-zinc-200 flex items-center justify-center">
                       <Bot size={14} className="text-zinc-500" />
                     </div>
-                    <span className="text-xs text-zinc-400">NEVRA Builder</span>
+                    <span className="text-xs text-zinc-400">NOIR BUILDER</span>
                   </div>
                   <div className="max-w-[85%] bg-white border border-zinc-200 rounded-xl p-4 shadow-sm">
                     <CodebaseExplorer
@@ -3019,7 +3019,7 @@ const ChatInterface: React.FC = () => {
                         <Bot size={14} className="text-zinc-500" />
                       </div>
                       <span className="text-xs text-zinc-500 font-medium">
-                        Nevra
+                        Noir AI
                       </span>
                     </div>
                   )}
@@ -4530,7 +4530,7 @@ const ChatInterface: React.FC = () => {
         onClose={() => setShowGitHubIntegration(false)}
         files={fileManager.getAllFiles()}
         framework={fileManager.exportAsProject().framework}
-        projectName={`nevra-${sessionId || Date.now()}`}
+        projectName={`noir-ai-${sessionId || Date.now()}`}
       />
 
       {/* Version History Modal */}

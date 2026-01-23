@@ -1,8 +1,8 @@
 {
-    "name": "nevra-yjs-server",
+    "name": "noir-ai-yjs-server",
     "version": "1.0.0",
     "type": "module",
-    "description": "Realtime collaboration server for Nevra using YJS WebSocket",
+    "description": "Realtime collaboration server for Noir AI using YJS WebSocket",
     "main": "index.js",
     "scripts": {
         "start": "node index.js",

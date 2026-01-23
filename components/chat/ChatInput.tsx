@@ -303,7 +303,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
 
                 {/* Footer Disclaimer */}
                 <div className="text-center mt-2">
-                    <p className="text-[11px] text-zinc-400">Nevra is AI and can make mistakes. Please double-check responses.</p>
+                    <p className="text-[11px] text-zinc-400">Noir is AI and can make mistakes. Please double-check responses.</p>
                 </div>
             </div>
         </div>

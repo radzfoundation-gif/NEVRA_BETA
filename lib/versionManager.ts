@@ -134,7 +134,7 @@ export class VersionManager {
         ...v,
         timestamp: v.timestamp.toISOString(),
       })));
-      localStorage.setItem('nevra_versions', data);
+      localStorage.setItem('noir_ai_versions', data);
     } catch (error) {
       console.error('Error persisting versions:', error);
     }
@@ -145,7 +145,7 @@ export class VersionManager {
    */
   load(): void {
     try {
-      const data = localStorage.getItem('nevra_versions');
+      const data = localStorage.getItem('noir_ai_versions');
       if (data) {
         const parsed = JSON.parse(data);
         this.versions = parsed.map((v: any) => ({

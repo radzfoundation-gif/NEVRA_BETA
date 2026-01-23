@@ -6,7 +6,7 @@
   
   <!-- Homepage -->
   <url>
-    <loc>https://nevra.ai/</loc>
+    <loc>https://noir-ai.com/</loc>
     <lastmod>2024-12-19</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
@@ -14,7 +14,7 @@
   
   <!-- Agents Page -->
   <url>
-    <loc>https://nevra.ai/agents</loc>
+    <loc>https://noir-ai.com/agents</loc>
     <lastmod>2024-12-19</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
@@ -22,7 +22,7 @@
   
   <!-- Workflows Page -->
   <url>
-    <loc>https://nevra.ai/workflows</loc>
+    <loc>https://noir-ai.com/workflows</loc>
     <lastmod>2024-12-19</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
@@ -30,7 +30,7 @@
   
   <!-- Enterprise Page -->
   <url>
-    <loc>https://nevra.ai/enterprise</loc>
+    <loc>https://noir-ai.com/enterprise</loc>
     <lastmod>2024-12-19</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
@@ -38,7 +38,7 @@
   
   <!-- Pricing Page -->
   <url>
-    <loc>https://nevra.ai/pricing</loc>
+    <loc>https://noir-ai.com/pricing</loc>
     <lastmod>2024-12-19</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>

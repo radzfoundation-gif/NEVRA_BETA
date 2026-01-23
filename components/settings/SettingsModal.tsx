@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { X, Moon, Sun, Monitor, Check, CreditCard, Zap, Layout, Database, Github, Figma, Cloud, Book, Beaker } from 'lucide-react';
+import { X, Moon, Sun, Monitor, Check, CreditCard, Zap, Layout, Database, Github, Figma, Cloud, Book, Beaker, Link } from 'lucide-react';
 import { useTokenLimit } from '@/hooks/useTokenLimit';
+import McpSettings from './McpSettings';
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -9,22 +10,23 @@ interface SettingsModalProps {
     tokensUsed?: number;
 }
 
-type SettingsTab = 'general' | 'subscription' | 'applications' | 'cloud' | 'knowledge' | 'experimental';
+type SettingsTab = 'general' | 'subscription' | 'applications' | 'connectors' | 'cloud' | 'knowledge' | 'experimental';
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, isSubscribed: propIsSubscribed, tokensUsed: propTokensUsed }) => {
     const [activeTab, setActiveTab] = useState<SettingsTab>('general');
-    const { tokensUsed: hookTokensUsed, tokensRemaining: hookTokensRemaining, isSubscribed: hookIsSubscribed } = useTokenLimit();
+    const { tokensUsed: hookTokensUsed, credits: hookCredits, isSubscribed: hookIsSubscribed } = useTokenLimit();
 
     // Use props if available (source of truth from Home), otherwise fallback to hook
     const isSubscribed = propIsSubscribed !== undefined ? propIsSubscribed : hookIsSubscribed;
     const tokensUsed = propTokensUsed !== undefined ? propTokensUsed : hookTokensUsed;
-    const tokensRemaining = Math.max(0, 150 - tokensUsed); // FREE_TOKEN_LIMIT is 150
+    const tokensRemaining = typeof hookCredits === 'number' ? hookCredits : 999999;
 
     if (!isOpen) return null;
 
     const tabs = [
         { id: 'general', label: 'General', icon: Layout },
         { id: 'subscription', label: 'Subscription & Tokens', icon: CreditCard },
+        { id: 'connectors', label: 'Connectors (MCP)', icon: Link },
         { id: 'applications', label: 'Applications', icon: Layout }, // Using Layout as placeholder for Grid/Apps icon
         { id: 'cloud', label: 'Cloud', icon: Cloud },
         { id: 'knowledge', label: 'Knowledge', icon: Book },
@@ -135,14 +137,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, isSubscr
                             {/* Subscription & Tokens Tab */}
                             {activeTab === 'subscription' && (
                                 <div className="space-y-8">
-                                    {/* Join Nevra Pro Banner - Top Center */}
+                                    {/* Join NOIR AI Pro Banner - Top Center */}
                                     {!isSubscribed && (
                                         <div className="bg-gradient-to-r from-purple-600 to-blue-600 rounded-xl p-8 text-center shadow-xl">
                                             <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-semibold text-white mb-4">
                                                 <Zap size={14} className="text-yellow-300" />
                                                 PREMIUM PLAN
                                             </div>
-                                            <h2 className="text-3xl font-bold text-white mb-2">Join Nevra Pro</h2>
+                                            <h2 className="text-3xl font-bold text-white mb-2">Join Noir Pro</h2>
                                             <p className="text-white/90 mb-6 max-w-xl mx-auto">
                                                 Unlock unlimited AI tokens, access to all premium models, priority support, and exclusive features
                                             </p>
@@ -197,7 +199,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, isSubscr
                                     {!isSubscribed && (
                                         <div className="bg-zinc-50 border border-zinc-200 rounded-xl overflow-hidden">
                                             <div className="p-6 border-b border-zinc-200">
-                                                <h3 className="text-xl font-bold text-zinc-900 mb-1">Upgrade to Nevra Pro</h3>
+                                                <h3 className="text-xl font-bold text-zinc-900 mb-1">Upgrade to Noir Pro</h3>
                                                 <div className="flex items-baseline gap-1">
                                                     <span className="text-3xl font-bold text-zinc-900">Rp 45,000</span>
                                                     <span className="text-zinc-500">per month</span>
@@ -266,6 +268,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, isSubscr
                                         description="To revoke the GitHub Authorization visit github.com/settings/apps/authorizations, look for the 'Bolt (by StackBlitz)' application, and click 'Revoke'."
                                     />
                                 </div>
+                            )}
+
+                            {/* Connectors (MCP) Tab */}
+                            {activeTab === 'connectors' && (
+                                <McpSettings />
                             )}
 
                         </div>
