@@ -1,13 +1,14 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Globe, ArrowUp, Link as LinkIcon, Layers, Paperclip, ChevronDown, Check, Sparkles, LayoutGrid, Mic, Youtube, FileText, X, Loader2, Wrench, AlertTriangle, Image as ImageIcon } from 'lucide-react';
+import { Search, Globe, ArrowUp, Link as LinkIcon, Layers, Paperclip, ChevronDown, Check, Sparkles, LayoutGrid, Mic, Youtube, FileText, X, Loader2, Wrench, AlertTriangle, Image as ImageIcon, PenTool, Grid3X3, BarChart3 } from 'lucide-react';
+import ModelSelector, { ModelType } from './ui/ModelSelector';
 import { cn, getApiUrl } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import LiquidMetal from './ui/liquid-metal';
 import { useTokenLimit } from '@/hooks/useTokenLimit';
 import SubscriptionPopup from './SubscriptionPopup';
 interface ResearchWelcomeProps {
-    onSearch: (query: string, attachments?: AttachmentData[]) => void;
+    onSearch: (query: string, attachments?: AttachmentData[], model?: ModelType, reasoning?: boolean) => void;
     initialQuery?: string;
     className?: string;
     hasApiKey?: boolean;
@@ -44,6 +45,10 @@ export function ResearchWelcome({
     const [processingMessage, setProcessingMessage] = useState('');
     const [previewData, setPreviewData] = useState<{ title: string; content: string; type: 'file' | 'audio' | 'youtube' | 'url'; mimeType?: string } | null>(null);
     const [showSubscriptionPopup, setShowSubscriptionPopup] = useState(false);
+
+    // Model Selector State
+    const [selectedModel, setSelectedModel] = useState<ModelType>('gemini-flash');
+    const [withReasoning, setWithReasoning] = useState(false);
 
     // Usage limits hook
     const { checkFeatureLimit, incrementFeatureUsage, isSubscribed, credits, softLimitReached, featureUsage } = useTokenLimit();
@@ -101,7 +106,7 @@ export function ResearchWelcome({
 
             // Close modal and immediately send to ChatInterface
             setPreviewData(null);
-            onSearch(prompt, [attachment]);
+            onSearch(prompt, [attachment], selectedModel, withReasoning);
         }
     };
 
@@ -176,7 +181,7 @@ export function ResearchWelcome({
                 if (isImageRequest(query)) {
                     handleImageGeneration(query);
                 } else {
-                    onSearch(query, attachments);
+                    onSearch(query, attachments, selectedModel, withReasoning);
                 }
             }
         }
@@ -868,8 +873,10 @@ export function ResearchWelcome({
 
                 {/* Main Input Card */}
                 <div className={cn(
-                    "w-full max-w-3xl bg-white dark:bg-black/40 dark:border-white/10 dark:backdrop-blur-md rounded-2xl border border-zinc-200/80 transition-all duration-300 relative",
-                    isFocused ? "shadow-2xl shadow-purple-900/5 ring-1 ring-purple-500/10 border-purple-500/20" : "shadow-xl shadow-zinc-200/50"
+                    "w-full max-w-3xl bg-white dark:bg-black/40 dark:border-white/10 dark:backdrop-blur-md rounded-2xl border transition-all duration-300 relative",
+                    isFocused
+                        ? "shadow-[0_8px_40px_-8px_rgba(0,0,0,0.15)] ring-1 ring-zinc-300 border-zinc-300"
+                        : "shadow-[0_4px_24px_-4px_rgba(0,0,0,0.1)] border-zinc-200"
                 )}>
                     {/* Deep Dive Indicator */}
                     <AnimatePresence mode="wait">
@@ -927,111 +934,108 @@ export function ResearchWelcome({
                         />
                     </div>
 
-                    {/* Bottom Action Bar */}
-                    <div className="flex items-center justify-between px-3 pb-3 pt-1">
-                        {/* Left Actions: Attach, Tools */}
-                        <div className="flex items-center gap-2">
+                    {/* Bottom Actions Row */}
+                    <div className="w-full flex items-center justify-between px-3 pb-3">
+                        {/* Left Actions */}
+                        <div className="flex items-center gap-0.5">
+                            {/* Search / Focus Mode */}
                             <button
-                                onClick={() => fileInputRef.current?.click()}
-                                className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg bg-zinc-50 hover:bg-zinc-100 text-xs font-medium text-zinc-600 transition-colors border border-zinc-200"
+                                onClick={() => onToggleWebSearch && onToggleWebSearch(!isWebSearchEnabled)}
+                                className={cn(
+                                    "p-2 rounded-lg transition-all",
+                                    isWebSearchEnabled
+                                        ? "bg-teal-50 text-teal-600"
+                                        : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                                )}
+                                title="Web Search"
                             >
-                                <Paperclip size={14} className="text-zinc-500" />
-                                <span className="hidden sm:inline">Attach</span>
+                                <Search size={18} strokeWidth={2} />
                             </button>
 
+                            {/* Pen / Edit (Dummy) */}
                             <button
-                                onClick={() => {
-                                    // Feature locked for Beta Test
-                                    alert("Fitur ini sedang dalam tahap BETA TEST nevra dan dikunci sementara.");
-                                }}
-                                className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg bg-zinc-50 text-xs font-medium text-zinc-400 cursor-not-allowed border border-zinc-200 opacity-60"
-                                title="BETA TEST nevra - Locked"
+                                className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all"
+                                title="Edit"
                             >
-                                <ImageIcon size={14} className="text-zinc-400" />
-                                <span className="hidden sm:inline">Image (Beta)</span>
+                                <PenTool size={18} strokeWidth={2} />
                             </button>
 
-                            {/* Tools Dropdown */}
-                            <div className="relative">
-                                <button
-                                    onClick={() => setShowToolsMenu(!showToolsMenu)}
-                                    className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg bg-zinc-50 hover:bg-zinc-100 text-xs font-medium text-zinc-600 transition-colors border border-zinc-200"
-                                >
-                                    <Wrench size={14} className="text-zinc-500" />
-                                    <span className="hidden sm:inline">Tools</span>
-                                    <ChevronDown size={12} className={cn("text-zinc-400 transition-transform", showToolsMenu && "rotate-180")} />
-                                </button>
-
-                                <AnimatePresence>
-                                    {showToolsMenu && (
-                                        <>
-                                            {/* Backdrop to close dropdown */}
-                                            <div
-                                                className="fixed inset-0 z-40"
-                                                onClick={() => setShowToolsMenu(false)}
-                                            />
-                                            <motion.div
-                                                initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                                                animate={{ opacity: 1, y: 0, scale: 1 }}
-                                                exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                                                transition={{ duration: 0.15 }}
-                                                className="absolute bottom-full left-0 mb-2 w-60 bg-white rounded-xl shadow-2xl border border-zinc-200 z-50"
-                                            >
-                                                <div className="p-1.5">
-                                                    {tools.map((tool, i) => (
-                                                        <button
-                                                            key={i}
-                                                            onClick={() => { tool.action(); setShowToolsMenu(false); }}
-                                                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-zinc-50 transition-colors text-left"
-                                                        >
-                                                            <div className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center text-purple-600">
-                                                                {tool.icon}
-                                                            </div>
-                                                            <div>
-                                                                <div className="text-sm font-medium text-zinc-800">{tool.label}</div>
-                                                                <div className="text-xs text-zinc-400">{tool.description}</div>
-                                                            </div>
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            </motion.div>
-                                        </>
-                                    )}
-                                </AnimatePresence>
-                            </div>
+                            {/* Canvas / Grid (Dummy) */}
+                            <button
+                                className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all"
+                                title="Canvas"
+                            >
+                                <Grid3X3 size={18} strokeWidth={2} />
+                            </button>
                         </div>
 
-                        {/* Right Actions: Web Search Toggle & Submit */}
-                        <div className="flex items-center gap-3">
-                            <div className="flex items-center gap-2 px-2 py-1 rounded-full bg-zinc-50 border border-zinc-100">
-                                <span className={cn("text-[10px] font-semibold uppercase tracking-wider", isWebSearchEnabled ? "text-blue-600" : "text-zinc-400")}>
-                                    {isWebSearchEnabled ? "Deep Dive" : "Citation"}
-                                </span>
-                                <button
-                                    onClick={() => onToggleWebSearch && onToggleWebSearch(!isWebSearchEnabled)}
-                                    className={cn(
-                                        "w-9 h-5 rounded-full relative transition-colors duration-300",
-                                        isWebSearchEnabled ? "bg-blue-600" : "bg-zinc-300"
-                                    )}
-                                >
-                                    <div className={cn(
-                                        "absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-300",
-                                        isWebSearchEnabled ? "translate-x-4" : "translate-x-0"
-                                    )} />
-                                </button>
-                            </div>
-
+                        {/* Right Actions */}
+                        <div className="flex items-center gap-1">
+                            {/* Globe / Web */}
                             <button
-                                onClick={() => query.trim() && onSearch(query, attachments)}
-                                disabled={!query.trim()}
+                                onClick={() => onToggleWebSearch && onToggleWebSearch(!isWebSearchEnabled)}
                                 className={cn(
-                                    "w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200",
-                                    query.trim()
-                                        ? "bg-black text-white shadow-lg hover:scale-105 active:scale-95"
-                                        : "bg-zinc-100 text-zinc-300 cursor-not-allowed"
+                                    "p-2 rounded-lg transition-all hidden sm:flex",
+                                    isWebSearchEnabled
+                                        ? "bg-blue-50 text-blue-600"
+                                        : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                                )}
+                                title="Web Search"
+                            >
+                                <Globe size={18} strokeWidth={2} />
+                            </button>
+
+                            {/* Model Selector */}
+                            <ModelSelector
+                                selectedModel={selectedModel}
+                                onModelChange={setSelectedModel}
+                                disabled={isProcessing}
+                                withReasoning={withReasoning}
+                                onReasoningToggle={() => setWithReasoning(!withReasoning)}
+                            />
+
+                            {/* Attach */}
+                            <button
+                                onClick={() => fileInputRef.current?.click()}
+                                className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all"
+                                title="Attach file"
+                            >
+                                <Paperclip size={18} strokeWidth={2} />
+                            </button>
+
+                            {/* Mic / Voice (Audio Input) */}
+                            <button
+                                onClick={() => audioInputRef.current?.click()}
+                                className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all hidden sm:flex"
+                                title="Audio Input"
+                            >
+                                <Mic size={18} strokeWidth={2} />
+                            </button>
+
+                            {/* Send Button */}
+                            <button
+                                onClick={() => {
+                                    if (query.trim() || attachments.length > 0) {
+                                        if (isImageRequest(query)) {
+                                            handleImageGeneration(query);
+                                        } else {
+                                            // Pass model info via onSearch if possible, or just standard search
+                                            // Note: ResearchWelcomeProps.onSearch currently only accepts query and attachments
+                                            // For now we assume ChatInterface will pick up default or we need to update onSearch signature
+                                            // But since we are only redesigning layout, standard onSearch is fine
+                                            onSearch(query, attachments);
+                                        }
+                                    }
+                                }}
+                                disabled={(!query.trim() && attachments.length === 0) || isProcessing}
+                                className={cn(
+                                    "w-9 h-9 flex items-center justify-center rounded-lg transition-all duration-200 ml-1",
+                                    (!query.trim() && attachments.length === 0) || isProcessing
+                                        ? "bg-gray-100 text-gray-300 cursor-not-allowed"
+                                        : "bg-teal-600 text-white hover:bg-teal-700 shadow-md"
                                 )}
                             >
-                                <ArrowUp size={16} />
+                                <BarChart3 size={18} className={cn(isProcessing && "animate-pulse", "rotate-90")} strokeWidth={2.5} />
                             </button>
                         </div>
                     </div>

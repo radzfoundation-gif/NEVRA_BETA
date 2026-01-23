@@ -1844,29 +1844,36 @@ Always provide information based on your training data AND the current date cont
       // Verify Sumopod configuration
       const baseUrl = process.env.SUMOPOD_BASE_URL?.trim() || 'https://api.sumopod.com';
 
-      // Smart Model Routing per Tech Spec
-      // - Deep Dive: gpt-5 (advanced reasoning)
-      // - Tutor: gpt-5-mini (complex reasoning)
-      // - Default: gemini-2.5-flash-lite (fast, cost-effective)
+      // Smart Model Routing based on frontend selection
+      // Mapping frontend model IDs to actual API model IDs
+      const MODEL_MAPPING = {
+        'sonar': 'perplexity/sonar-pro',
+        'gemini-flash': 'gemini/gemini-2.5-flash-lite',
+        'gemini-pro': 'gemini/gemini-3-pro',
+        'gpt-5': 'gpt-5.2',
+        'claude-sonnet': 'claude-sonnet-4-5',
+        'claude-opus': 'claude-opus-4-5',
+        'grok': 'grok-4.1',
+      };
+
       const isDeepDive = body.deepDive === true || mode === 'deep_dive';
+      const selectedModel = body.model || 'gemini-flash'; // Default to gemini-flash
       let modelId;
 
-      if (isDeepDive) {
-        modelId = 'gpt-5'; // Deep Dive uses GPT-5 for advanced reasoning
-        console.log(`[DeepDive] 🧠 Using GPT-5 for deep reasoning`);
-      } else if (mode === 'tutor') {
-        modelId = SUMOPOD_MODELS.tutor || 'gpt-5-mini';
+      // Priority: User-selected model > Deep Dive default > Normal default
+      if (selectedModel && MODEL_MAPPING[selectedModel]) {
+        modelId = MODEL_MAPPING[selectedModel];
+        console.log(`[AI] 🎯 Using user-selected model: ${modelId}`);
+      } else if (isDeepDive) {
+        modelId = 'claude-sonnet-4-5'; // Deep Dive default
+        console.log(`[DeepDive] 🧠 Using Claude Sonnet 4.5 for deep reasoning`);
       } else {
-        modelId = process.env.SUMOPOD_MODEL_ID?.trim() || 'gemini-2.5-flash-lite';
+        modelId = 'gemini/gemini-2.5-flash-lite'; // Default fast model
+        console.log(`[Citation] ⚡ Using Gemini 2.5 Flash Lite`);
       }
 
-      // Re-initialize client if needed or ensure it uses the correct base URL
-      // Note: defined globally, but let's ensure we use the right config here if we were properly re-instantiating.
-      // For now, we trust the global client but we should have initialized it with api.sumopod.com if that was the intent.
-      // Since we are editing this file, we should fix the global initialization too (done in next step). 
-
-      // GPT-5 models only support temperature=1
-      const temperature = modelId.includes('gpt-5') ? 1 : (mode === 'tutor' ? 0.7 : 0.5);
+      // Model-specific temperature settings
+      const temperature = modelId.includes('gpt-5') || modelId.includes('grok') ? 1 : 0.5;
 
       const completion = await sumopodClient.chat.completions.create({
         model: modelId,

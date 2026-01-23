@@ -1,29 +1,71 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Zap, Brain } from 'lucide-react';
+import { ChevronDown, Check, Search, Brain, Sparkles, Zap, Lock } from 'lucide-react';
 
-export type ModelType = 'flash' | 'deep_dive';
+export type ModelType = 'gemini-flash' | 'gemini-pro' | 'claude-sonnet' | 'claude-opus' | 'gpt-5' | 'grok' | 'sonar';
 
 interface ModelOption {
     id: ModelType;
     name: string;
-    description: string;
+    provider: string;
     icon: React.ReactNode;
     badge?: string;
+    isNew?: boolean;
+    locked?: boolean;
 }
 
 const MODEL_OPTIONS: ModelOption[] = [
     {
-        id: 'flash',
-        name: 'Flash',
-        description: 'Fast & efficient',
-        icon: <Zap size={16} className="text-yellow-500" />,
+        id: 'sonar',
+        name: 'NevraSync',
+        provider: 'Perplexity',
+        icon: <Search size={16} className="text-teal-500" />,
     },
     {
-        id: 'deep_dive',
-        name: 'Deep Dive',
-        description: 'GPT-5 • Advanced reasoning',
-        icon: <Brain size={16} className="text-purple-500" />,
-        badge: '2/day',
+        id: 'gemini-flash',
+        name: 'Gemini 2.5 Flash',
+        provider: 'Google',
+        icon: <span className="text-base font-bold text-blue-500">G</span>,
+    },
+    {
+        id: 'gemini-pro',
+        name: 'Gemini 3 Pro',
+        provider: 'Google',
+        icon: <span className="text-base font-bold text-blue-500">G</span>,
+        isNew: true,
+        locked: true,
+        badge: 'pro',
+    },
+    {
+        id: 'gpt-5',
+        name: 'GPT-5.2',
+        provider: 'OpenAI',
+        icon: <Sparkles size={16} className="text-emerald-500" />,
+        locked: true,
+        badge: 'pro',
+    },
+    {
+        id: 'claude-sonnet',
+        name: 'Claude Sonnet 4.5',
+        provider: 'Anthropic',
+        icon: <span className="text-base font-bold text-orange-500">A</span>,
+        locked: true,
+        badge: 'pro',
+    },
+    {
+        id: 'claude-opus',
+        name: 'Claude Opus 4.5',
+        provider: 'Anthropic',
+        icon: <span className="text-base font-bold text-orange-500">A</span>,
+        badge: 'max',
+        locked: true,
+    },
+    {
+        id: 'grok',
+        name: 'Grok 4.1',
+        provider: 'xAI',
+        icon: <span className="text-base font-bold text-zinc-700">𝕏</span>,
+        locked: true,
+        badge: 'pro',
     },
 ];
 
@@ -31,23 +73,21 @@ export interface ModelSelectorProps {
     selectedModel: ModelType;
     onModelChange: (model: ModelType) => void;
     disabled?: boolean;
-    deepDiveRemaining?: number;
-    enableWebSearch?: boolean;
-    onWebSearchToggle?: () => void;
+    withReasoning?: boolean;
+    onReasoningToggle?: () => void;
 }
 
 export const ModelSelector: React.FC<ModelSelectorProps> = ({
     selectedModel,
     onModelChange,
     disabled = false,
-    deepDiveRemaining = 2,
-    enableWebSearch = false,
-    onWebSearchToggle
+    withReasoning = false,
+    onReasoningToggle
 }) => {
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
-    const selectedOption = MODEL_OPTIONS.find(m => m.id === selectedModel) || MODEL_OPTIONS[0];
+    const selectedOption = MODEL_OPTIONS.find(m => m.id === selectedModel) || MODEL_OPTIONS[1];
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -61,103 +101,104 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 
     return (
         <div className="relative" ref={dropdownRef}>
+            {/* Model Button */}
             <button
                 onClick={() => !disabled && setIsOpen(!isOpen)}
                 disabled={disabled}
                 className={`
-          flex items-center justify-center w-8 h-8 rounded-full
-          transition-all duration-200 border shadow-sm
-          ${disabled
+                    flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium
+                    transition-all duration-200 border
+                    ${disabled
                         ? 'bg-gray-50 text-gray-400 cursor-not-allowed border-gray-100'
-                        : 'bg-white/50 hover:bg-white text-gray-700 border-white/20 hover:border-gray-200'
+                        : 'bg-white hover:bg-gray-50 text-gray-700 border-gray-200 hover:border-gray-300 shadow-sm'
                     }
-        `}
-                title={selectedOption.name}
+                `}
             >
-                {/* Show Globe icon if Web Search is active, otherwise Model Icon */}
-                {enableWebSearch ? (
-                    <div className="relative">
-                        <div className="text-blue-500">
-                            {/* Small indicator dot for active web search */}
-                            <div className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse border border-white" />
-                            {selectedOption.icon}
-                        </div>
-                    </div>
-                ) : (
-                    <div className="text-gray-500">
-                        {selectedOption.icon}
-                    </div>
-                )}
+                <span className="w-4 h-4 flex items-center justify-center">{selectedOption.icon}</span>
+                <span className="hidden sm:inline text-xs">{selectedOption.name}</span>
+                <ChevronDown size={14} className={`text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
             </button>
 
+            {/* Dropdown Menu */}
             {isOpen && (
-                <div className="absolute bottom-full right-0 mb-2 w-48 bg-white/90 backdrop-blur-xl border border-white/20 shadow-2xl rounded-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
-                    {/* Web Search Toggle Section */}
-                    {onWebSearchToggle && (
-                        <div className="p-1 border-b border-gray-100/50">
-                            <button
-                                onClick={() => {
-                                    onWebSearchToggle();
-                                    // Don't close dropdown immediately to allow checking
-                                }}
-                                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition-all ${enableWebSearch ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-50 text-gray-600'}`}
-                            >
-                                <div className="flex items-center gap-2">
-                                    {/* Globe Icon */}
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={enableWebSearch ? "text-blue-500" : "text-gray-400"}>
-                                        <circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-                                    </svg>
-                                    <span>Web Search</span>
-                                </div>
-                                <div className={`w-8 h-4 rounded-full relative transition-colors ${enableWebSearch ? 'bg-blue-500' : 'bg-gray-200'}`}>
-                                    <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full shadow-sm transition-all ${enableWebSearch ? 'left-4.5 translate-x-3.5' : 'left-0.5'}`} />
-                                </div>
-                            </button>
-                        </div>
-                    )}
+                <div className="absolute bottom-full right-0 mb-2 w-64 bg-white border border-gray-200 shadow-2xl rounded-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                    {/* Header */}
+                    <div className="px-4 py-2.5 border-b border-gray-100">
+                        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Best</span>
+                    </div>
 
-                    <div className="p-1 space-y-0.5">
+                    {/* Model List */}
+                    <div className="py-1 max-h-[320px] overflow-y-auto">
                         {MODEL_OPTIONS.map((option) => {
-                            const isDeepDive = option.id === 'deep_dive';
-                            const isDisabled = isDeepDive && deepDiveRemaining <= 0;
+                            const isSelected = selectedModel === option.id;
 
                             return (
                                 <button
                                     key={option.id}
                                     onClick={() => {
-                                        if (!isDisabled) {
+                                        if (!option.locked) {
                                             onModelChange(option.id);
                                             setIsOpen(false);
                                         }
                                     }}
-                                    disabled={isDisabled}
+                                    disabled={option.locked}
                                     className={`
-                                      w-full flex items-center gap-2 px-3 py-2 text-left rounded-xl transition-all
-                                      ${selectedModel === option.id ? 'bg-gray-100' : 'hover:bg-gray-50'}
-                                      ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}
+                                        w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all
+                                        ${isSelected ? 'bg-teal-50' : 'hover:bg-gray-50'}
+                                        ${option.locked ? 'opacity-50 cursor-not-allowed group' : ''}
                                     `}
                                 >
-                                    <div className="shrink-0 scale-90">{option.icon}</div>
+                                    <span className="w-5 h-5 flex items-center justify-center shrink-0">
+                                        {option.icon}
+                                    </span>
                                     <div className="flex-1 min-w-0">
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-xs font-medium text-gray-800">{option.name}</span>
+                                        <div className="flex items-center gap-2">
+                                            <span className={`text-sm ${isSelected ? 'font-semibold text-teal-700' : 'font-medium text-gray-800'}`}>
+                                                {option.name}
+                                            </span>
                                             {option.badge && (
-                                                <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${isDeepDive
-                                                    ? `bg-purple-100 ${deepDiveRemaining > 0 ? 'text-purple-600' : 'text-purple-400'}`
-                                                    : 'bg-zinc-100 text-zinc-500'
+                                                <span className={`px-1.5 py-0.5 text-[9px] font-bold uppercase rounded ${option.badge === 'pro'
+                                                    ? 'bg-zinc-800 text-zinc-100'
+                                                    : 'bg-amber-100 text-amber-700'
                                                     }`}>
-                                                    {isDeepDive ? `${deepDiveRemaining}/2` : option.badge}
+                                                    {option.badge}
+                                                </span>
+                                            )}
+                                            {option.isNew && (
+                                                <span className="px-1.5 py-0.5 text-[9px] font-bold uppercase rounded bg-green-100 text-green-700">
+                                                    new
                                                 </span>
                                             )}
                                         </div>
                                     </div>
-                                    {selectedModel === option.id && (
-                                        <div className="shrink-0 w-1.5 h-1.5 rounded-full bg-black ml-1" />
+                                    {isSelected && (
+                                        <Check size={16} className="text-teal-600 shrink-0" />
+                                    )}
+                                    {option.locked && !isSelected && (
+                                        <Lock size={14} className="text-gray-400 shrink-0" />
                                     )}
                                 </button>
                             );
                         })}
                     </div>
+
+                    {/* Reasoning Toggle */}
+                    {onReasoningToggle && (
+                        <div className="px-4 py-3 border-t border-gray-100 bg-gray-50/50">
+                            <button
+                                onClick={onReasoningToggle}
+                                className="w-full flex items-center justify-between"
+                            >
+                                <div className="flex items-center gap-2">
+                                    <Brain size={14} className="text-purple-500" />
+                                    <span className="text-sm font-medium text-gray-700">With reasoning</span>
+                                </div>
+                                <div className={`w-10 h-5 rounded-full relative transition-colors ${withReasoning ? 'bg-teal-500' : 'bg-gray-300'}`}>
+                                    <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-all ${withReasoning ? 'left-5' : 'left-0.5'}`} />
+                                </div>
+                            </button>
+                        </div>
+                    )}
                 </div>
             )}
         </div>

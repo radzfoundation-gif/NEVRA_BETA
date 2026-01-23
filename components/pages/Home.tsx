@@ -24,6 +24,7 @@ import { Template } from '@/lib/templates';
 import VoiceCall from '../VoiceCall';
 import { ResearchWelcome } from '../ResearchWelcome';
 import { RedesignWelcome } from '../RedesignWelcome';
+import { ModelType } from '../ui/ModelSelector';
 
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -422,7 +423,7 @@ const Home: React.FC<HomeProps> = ({ defaultMode = 'chat' }) => {
           {/* Conditional Content */}
           {activeMode === 'chat' ? (
             <ResearchWelcome
-              onSearch={(query, attachments) => {
+              onSearch={(query, attachments, model, reasoning) => {
                 localStorage.removeItem('nevra_pending_prompt');
                 const detectedMode = detectMode(query);
 
@@ -461,6 +462,8 @@ const Home: React.FC<HomeProps> = ({ defaultMode = 'chat' }) => {
                     enableWebSearch: isWebSearchEnabled,
                     mode: detectedMode,
                     autoSend: true, // Auto-send when coming from ResearchWelcome
+                    model: model,
+                    reasoning: reasoning,
                     ...(detectedMode === 'builder' ? {
                       mode: 'codebase',
                       framework: 'react'

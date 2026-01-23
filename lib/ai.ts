@@ -670,7 +670,8 @@ export const generateCode = async (
   userName?: string, // User's display name from Clerk
   userEmail?: string, // User's email from Clerk
   userTier: 'free' | 'normal' | 'pro' = 'free', // User subscription tier for token limits
-  deepDive: boolean = false // Deep Dive mode - uses GPT-5, limited 2/day
+  deepDive: boolean = false, // Deep Dive mode - uses GPT-5, limited 2/day
+  model?: string // Generic model ID (e.g. 'gemini-flash', 'claude-sonnet')
 ): Promise<CodeResponse> => {
   // Smart Model Routing
   const effectiveProvider = smartRouteModel(prompt, provider, userTier);
@@ -823,6 +824,7 @@ Always be thorough and helpful in your analysis.`;
         systemPrompt,
         userTier, // Send user tier for token limit calculation
         deepDive, // Deep Dive mode flag - uses GPT-5 on backend
+        model, // NEW: Specific model selection
       }),
     });
 

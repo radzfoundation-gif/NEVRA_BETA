@@ -81,6 +81,7 @@ import ChatTerminal from '@/components/chat/ChatTerminal';
 import PreviewContainer from '@/components/chat/PreviewContainer';
 import { SourcesIndicator } from '@/components/chat/SourcesIndicator';
 import CanvasBoard from '@/components/canvas/CanvasBoard';
+import { ModelType } from '@/components/ui/ModelSelector';
 
 // --- Types ---
 
@@ -207,7 +208,7 @@ const ChatInterface: React.FC = () => {
         initialImages: initialImages || [],
         targetFile: targetFile,
         codebaseMode: codebaseMode || false,
-        enableWebSearch: enableWebSearch || true
+        enableWebSearch: enableWebSearch ?? false
       };
     }
 
@@ -221,11 +222,11 @@ const ChatInterface: React.FC = () => {
         initialImages: [],
         targetFile: undefined,
         codebaseMode: false,
-        enableWebSearch: enableWebSearch || true
+        enableWebSearch: enableWebSearch ?? false
       };
     }
     // Default to tutor mode if no prompt (auto-detect from Home.tsx)
-    return { mode: 'tutor' as AppMode, messages: [], shouldAutoSend: false, initialProvider: 'groq' as AIProvider, initialImages: [], targetFile: undefined, codebaseMode: false, enableWebSearch: enableWebSearch || true };
+    return { mode: 'tutor' as AppMode, messages: [], shouldAutoSend: false, initialProvider: 'groq' as AIProvider, initialImages: [], targetFile: undefined, codebaseMode: false, enableWebSearch: enableWebSearch ?? false };
   };
 
   const initialState = getInitialState();
@@ -339,11 +340,18 @@ const ChatInterface: React.FC = () => {
   const [workflowStatus, setWorkflowStatus] = useState<{ status: string; message: string } | null>(null);
   const [attachedImages, setAttachedImages] = useState<string[]>(initialState.initialImages || []);
   const MAX_IMAGES = 3;
-  const MAX_SIZE_MB = 2;
-
   // AI Memory State - History yang akan dikirim ke AI
   const [aiMemoryHistory, setAiMemoryHistory] = useState<Message[]>([]);
   const [lastResetTime, setLastResetTime] = useState<Date | null>(null);
+
+  // Model Selection State (Controlled from here)
+  const [selectedModel, setSelectedModel] = useState<ModelType>(
+    (location.state?.model as ModelType) || 'gemini-flash'
+  );
+  const [withReasoning, setWithReasoning] = useState<boolean>(
+    (location.state?.reasoning as boolean) || false
+  );
+
 
 
   // Helper: Get current WIB time
@@ -1752,7 +1760,9 @@ const ChatInterface: React.FC = () => {
           user?.id,
           user?.fullName || 'User',
           user?.primaryEmailAddress?.emailAddress,
-          isSubscribed ? 'pro' : 'free'
+          isSubscribed ? 'pro' : 'free',
+          deepDive || withReasoning, // Combine deep dive param with reasoning state
+          selectedModel // NEW: Include selected model
         );
 
         // Handle multi-file or single-file response (BUILDER MODE ONLY)
@@ -1979,7 +1989,9 @@ const ChatInterface: React.FC = () => {
             user?.id,
             user?.fullName || 'User',
             user?.primaryEmailAddress?.emailAddress,
-            isSubscribed ? 'pro' : 'free'
+            isSubscribed ? 'pro' : 'free',
+            deepDive || withReasoning,
+            selectedModel // NEW: Include selected model
           );
         } catch (error) {
           console.error('❌ Error calling generateCode in tutor mode:', error);
@@ -2411,7 +2423,9 @@ const ChatInterface: React.FC = () => {
             user?.id,
             user?.fullName || 'User',
             user?.primaryEmailAddress?.emailAddress,
-            isSubscribed ? 'pro' : 'free'
+            isSubscribed ? 'pro' : 'free',
+            deepDive || withReasoning,
+            selectedModel // NEW: Include selected model
           );
 
           // Handle response (same logic as above)
@@ -2577,7 +2591,9 @@ const ChatInterface: React.FC = () => {
             user?.id,
             user?.fullName || 'User',
             user?.primaryEmailAddress?.emailAddress,
-            isSubscribed ? 'pro' : 'free'
+            isSubscribed ? 'pro' : 'free',
+            deepDive || withReasoning,
+            selectedModel // NEW: Include selected model
           );
 
           // Handle response (same logic as above)
@@ -3054,23 +3070,25 @@ const ChatInterface: React.FC = () => {
                     )}
                     {msg.role === 'ai' ? (
                       <div className="prose prose-sm sm:prose-base max-w-none w-full break-words overflow-hidden
-                        prose-p:text-gray-700 prose-p:leading-[1.75] prose-p:my-3 prose-p:text-[15px] sm:prose-p:text-base
-                        prose-headings:text-gray-900 prose-headings:font-semibold prose-headings:tracking-tight prose-headings:mt-5 prose-headings:mb-3
-                        prose-h1:text-xl prose-h1:font-bold prose-h2:text-lg prose-h2:font-bold prose-h3:text-base prose-h3:font-bold
-                        prose-strong:text-gray-900 prose-strong:font-semibold
-                        prose-em:text-gray-800 prose-em:italic
+                        prose-p:text-zinc-700 prose-p:leading-[1.8] prose-p:my-3 prose-p:text-[15px] sm:prose-p:text-base
+                        prose-headings:text-zinc-900 prose-headings:font-bold prose-headings:tracking-tight prose-headings:mt-6 prose-headings:mb-3
+                        prose-h1:text-xl sm:prose-h1:text-2xl prose-h1:border-b prose-h1:border-zinc-200 prose-h1:pb-2
+                        prose-h2:text-lg sm:prose-h2:text-xl
+                        prose-h3:text-base sm:prose-h3:text-lg
+                        prose-strong:text-zinc-900 prose-strong:font-semibold
+                        prose-em:text-zinc-600 prose-em:italic
                         prose-code:text-[13px] prose-code:text-indigo-700 prose-code:bg-indigo-50/80 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:font-mono prose-code:font-medium prose-code:before:content-none prose-code:after:content-none prose-code:border prose-code:border-indigo-100
                         prose-pre:bg-[#1a1a1a] prose-pre:border prose-pre:border-zinc-700/50 prose-pre:rounded-xl prose-pre:shadow-md prose-pre:my-4
-                        prose-li:text-gray-700 prose-li:leading-relaxed prose-li:my-1
-                        prose-ul:text-gray-700 prose-ul:pl-4 prose-ul:my-3
-                        prose-ol:text-gray-700 prose-ol:pl-4 prose-ol:my-3
+                        prose-ul:my-3 prose-ul:pl-5 prose-ul:space-y-1.5
+                        prose-ol:my-3 prose-ol:pl-5 prose-ol:space-y-1.5
+                        prose-li:text-zinc-700 prose-li:leading-relaxed prose-li:my-0 prose-li:marker:text-zinc-400
                         prose-blockquote:border-l-[3px] prose-blockquote:border-amber-400 prose-blockquote:bg-amber-50/60 prose-blockquote:py-3 prose-blockquote:px-4 prose-blockquote:rounded-r-lg prose-blockquote:text-amber-900 prose-blockquote:not-italic prose-blockquote:my-4 prose-blockquote:font-medium
-                        prose-th:text-gray-900 prose-th:font-semibold prose-th:text-left prose-th:border-b prose-th:border-gray-200 prose-th:py-2 prose-th:px-3
-                        prose-td:text-gray-700 prose-td:py-2 prose-td:px-3 prose-td:border-b prose-td:border-gray-100
-                        prose-table:my-4 prose-table:w-full prose-table:border-collapse
+                        prose-table:my-4 prose-table:w-full prose-table:border-collapse prose-table:text-sm
+                        prose-th:text-left prose-th:font-semibold prose-th:text-zinc-900 prose-th:bg-zinc-50 prose-th:border prose-th:border-zinc-200 prose-th:px-3 prose-th:py-2
+                        prose-td:text-zinc-700 prose-td:border prose-td:border-zinc-200 prose-td:px-3 prose-td:py-2
                         prose-a:text-indigo-600 prose-a:font-medium prose-a:no-underline hover:prose-a:underline
                         prose-img:rounded-xl prose-img:shadow-lg prose-img:my-4
-                        prose-hr:border-gray-200 prose-hr:my-6
+                        prose-hr:border-zinc-200 prose-hr:my-6
                       ">
                         {/* Parse and render sources if available (at top of message like ChatGPT) */}
                         {(() => {
@@ -4408,8 +4426,8 @@ const ChatInterface: React.FC = () => {
           ) : (
             /* DESKTOP LAYOUT */
             <PanelGroup direction="horizontal" className="h-full">
-              {/* Sidebar (Tutor Mode Only) */}
-              {appMode === 'tutor' && isSidebarOpen && (
+              {/* Sidebar - Always visible on desktop */}
+              {isSidebarOpen && (
                 <>
                   <Panel
                     defaultSize={isSidebarCollapsed ? 4 : 18}
@@ -4441,14 +4459,14 @@ const ChatInterface: React.FC = () => {
               {/* Panel 1: Chat - Increased default size for better UX */}
               <Panel
                 defaultSize={
-                  appMode === 'builder'
-                    ? 45 // builder: buat chat lebih ramping
-                    : appMode === 'tutor' && isSidebarOpen
+                  appMode === 'builder' && isCanvasOpen
+                    ? 45 // builder with canvas: chat lebih ramping
+                    : isSidebarOpen
                       ? 82
-                      : 90
+                      : 100
                 }
-                minSize={appMode === 'builder' ? 30 : 70}
-                maxSize={appMode === 'builder' ? 60 : 90}
+                minSize={appMode === 'builder' && isCanvasOpen ? 30 : 50}
+                maxSize={appMode === 'builder' && isCanvasOpen ? 60 : 100}
                 className="flex flex-col bg-transparent"
               >
                 {chatContent}
