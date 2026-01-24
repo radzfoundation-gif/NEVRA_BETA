@@ -208,28 +208,25 @@ const ChatInput: React.FC<ChatInputProps> = ({
                     <div className="w-full flex items-center justify-between px-3 pb-3">
                         {/* Left Actions: Deeper Research, Image, Idea */}
                         <div className="flex items-center gap-2">
-                            {/* Deeper Research Pill */}
-                            <button
-                                onClick={() => setWithReasoning(!withReasoning)}
-                                className={cn(
-                                    "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border",
-                                    withReasoning
-                                        ? "bg-orange-50 text-orange-600 border-orange-200 ring-1 ring-orange-200"
-                                        : "bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-100"
-                                )}
-                            >
-                                <Atom size={14} className={cn(withReasoning ? "animate-spin-slow" : "")} />
-                                Deeper Research
-                            </button>
+
 
                             {/* Image Gen Trigger (Placeholder since prop missing) */}
-                            <button onClick={() => alert("Image Generation is available in the Tools menu.")} className="p-2 bg-zinc-50 hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700 rounded-lg transition-colors border border-transparent hover:border-zinc-200" title="Generate Image">
+                            <button onClick={() => alert("Image Generation is available in the Tools menu.")} className="p-2 bg-zinc-50 hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700 rounded-lg transition-colors border border-transparent hover:border-zinc-200 hidden sm:flex" title="Generate Image">
                                 <ImageIcon size={18} strokeWidth={1.5} />
                             </button>
 
                             {/* Ideas / Surprise Me (Placeholder) */}
                             <button onClick={() => setInput("Explain AI to a 5 year old")} className="p-2 bg-zinc-50 hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700 rounded-lg transition-colors border border-transparent hover:border-zinc-200" title="Generate Idea">
                                 <Lightbulb size={18} strokeWidth={1.5} />
+                            </button>
+
+                            {/* Voice (Moved to Left) */}
+                            <button
+                                onClick={() => setShowVoiceCall(true)}
+                                className="p-2 bg-zinc-50 hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700 rounded-lg transition-colors border border-transparent hover:border-zinc-200"
+                                title="Voice to Text"
+                            >
+                                <AudioLines size={18} strokeWidth={1.5} />
                             </button>
                         </div>
 
@@ -270,14 +267,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
                                 <Paperclip size={20} strokeWidth={1.5} />
                             </button>
 
-                            {/* Voice */}
-                            <button
-                                onClick={() => setShowVoiceCall(true)}
-                                className="p-2 text-zinc-400 hover:text-zinc-600 transition-all hidden sm:flex"
-                                title="Voice to Text"
-                            >
-                                <AudioLines size={20} strokeWidth={1.5} />
-                            </button>
+
 
                             {/* Send Button */}
                             <button
