@@ -3114,92 +3114,88 @@ const ChatInterface: React.FC = () => {
                           return null;
                         })()}
 
-                        {msg.id === animatingMessageId ? (
-                          <TypewriterText
-                            content={msg.content}
-                            onComplete={() => setAnimatingMessageId(null)}
-                            speed={10}
-                          />
-                        ) : (
-                          <ReactMarkdown
-                            remarkPlugins={[remarkGfm, remarkMath]}
-                            rehypePlugins={[rehypeRaw, rehypeKatex]}
-                            components={{
-                              code({ node, inline, className, children, ...props }: any) {
-                                const match = /language-(\w+)/.exec(className || '');
-                                return !inline && match ? (
-                                  <div className="overflow-hidden border border-zinc-200 rounded-xl bg-zinc-50 my-4 font-mono text-sm shadow-sm group">
-                                    <div className="flex items-center justify-between px-4 py-2 bg-zinc-100/50 border-b border-zinc-200">
-                                      <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">{match[1]}</span>
-                                      <button
-                                        onClick={() => {
-                                          copyToClipboard(String(children).replace(/\n$/, ''));
-                                        }}
-                                        className="text-xs text-zinc-500 hover:text-zinc-800 px-2 py-1 rounded hover:bg-zinc-200 transition-colors opacity-0 group-hover:opacity-100"
-                                      >
-                                        Copy
-                                      </button>
-                                    </div>
-                                    <div className="overflow-x-auto">
-                                      <SyntaxHighlighter
-                                        style={oneLight}
-                                        language={match[1]}
-                                        PreTag="div"
-                                        customStyle={{
-                                          margin: 0,
-                                          padding: '1.25rem',
-                                          background: 'transparent',
-                                          fontSize: '13px',
-                                          lineHeight: '1.6'
-                                        }}
-                                        {...props}
-                                      >
-                                        {String(children).replace(/\n$/, '')}
-                                      </SyntaxHighlighter>
-                                    </div>
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm, remarkMath]}
+                          rehypePlugins={[rehypeRaw, rehypeKatex]}
+                          components={{
+                            code({ node, inline, className, children, ...props }: any) {
+                              const match = /language-(\w+)/.exec(className || '');
+                              return !inline && match ? (
+                                <div className="overflow-hidden border border-zinc-200 rounded-xl bg-zinc-50 my-4 font-mono text-sm shadow-sm group">
+                                  <div className="flex items-center justify-between px-4 py-2 bg-zinc-100/50 border-b border-zinc-200">
+                                    <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">{match[1]}</span>
+                                    <button
+                                      onClick={() => {
+                                        copyToClipboard(String(children).replace(/\n$/, ''));
+                                      }}
+                                      className="text-xs text-zinc-500 hover:text-zinc-800 px-2 py-1 rounded hover:bg-zinc-200 transition-colors opacity-0 group-hover:opacity-100"
+                                    >
+                                      Copy
+                                    </button>
                                   </div>
-                                ) : (
-                                  <code className="rounded px-1.5 py-0.5 text-xs font-medium bg-purple-50 text-purple-600 border border-purple-200" {...props}>
-                                    {children}
-                                  </code>
-                                );
-                              }
-                            }}
-                          >
-                            {(() => {
-                              // Transform citation numbers [1, 2] into styled superscript badges
-                              const content = msg.content.replace(/<!-- SOURCES_JSON:.*? -->/g, '');
+                                  <div className="overflow-x-auto">
+                                    <SyntaxHighlighter
+                                      style={oneLight}
+                                      language={match[1]}
+                                      PreTag="div"
+                                      customStyle={{
+                                        margin: 0,
+                                        padding: '1.25rem',
+                                        background: 'transparent',
+                                        fontSize: '13px',
+                                        lineHeight: '1.6'
+                                      }}
+                                      {...props}
+                                    >
+                                      {String(children).replace(/\n$/, '')}
+                                    </SyntaxHighlighter>
+                                  </div>
+                                </div>
+                              ) : (
+                                <code className="rounded px-1.5 py-0.5 text-xs font-medium bg-purple-50 text-purple-600 border border-purple-200" {...props}>
+                                  {children}
+                                </code>
+                              );
+                            }
+                          }}
+                        >
+                          {(() => {
+                            // Transform citation numbers [1, 2] into styled superscript badges
+                            const content = msg.content.replace(/<!-- SOURCES_JSON:.*? -->/g, '');
 
-                              // Split content by citation pattern and rebuild with styled citations
-                              const citationPattern = /\[(\d+(?:,\s*\d+)*)\]/g;
-                              const parts = content.split(citationPattern);
+                            // Split content by citation pattern and rebuild with styled citations
+                            const citationPattern = /\[(\d+(?:,\s*\d+)*)\]/g;
+                            const parts = content.split(citationPattern);
 
-                              // If no citations found, just return the content
-                              if (parts.length === 1) {
-                                return content;
-                              }
+                            // If no citations found, just return the content
+                            if (parts.length === 1) {
+                              return content;
+                            }
 
-                              // Rebuild content with HTML citation badges
-                              let result = '';
-                              let lastIndex = 0;
-                              let match;
-                              const tempContent = content;
-                              citationPattern.lastIndex = 0;
+                            // Rebuild content with HTML citation badges
+                            let result = '';
+                            let lastIndex = 0;
+                            let match;
+                            const tempContent = content;
+                            citationPattern.lastIndex = 0;
 
-                              while ((match = citationPattern.exec(tempContent)) !== null) {
-                                result += tempContent.slice(lastIndex, match.index);
-                                const nums = match[1].split(',').map(n => n.trim());
-                                // Add onclick handler that dispatches custom event with message ID and source index
-                                result += nums.map(n =>
-                                  `<sup class="citation-badge" onclick="window.dispatchEvent(new CustomEvent('citation-click', { detail: { messageId: '${msg.id}', sourceIndex: ${n} } }))" title="Click to view source ${n}">${n}</sup>`
-                                ).join('');
-                                lastIndex = citationPattern.lastIndex;
-                              }
-                              result += tempContent.slice(lastIndex);
+                            while ((match = citationPattern.exec(tempContent)) !== null) {
+                              result += tempContent.slice(lastIndex, match.index);
+                              const nums = match[1].split(',').map(n => n.trim());
+                              // Add onclick handler that dispatches custom event with message ID and source index
+                              result += nums.map(n =>
+                                `<sup class="citation-badge" onclick="window.dispatchEvent(new CustomEvent('citation-click', { detail: { messageId: '${msg.id}', sourceIndex: ${n} } }))" title="Click to view source ${n}">${n}</sup>`
+                              ).join('');
+                              lastIndex = citationPattern.lastIndex;
+                            }
+                            result += tempContent.slice(lastIndex);
 
-                              return result;
-                            })()}
-                          </ReactMarkdown>
+                            return result;
+                          })()}
+                        </ReactMarkdown>
+                        {/* Blinking Cursor for latest message when typing */}
+                        {isTyping && idx === messages.length - 1 && (
+                          <span className="inline-block w-1.5 h-4 bg-teal-500 ml-1 animate-pulse align-middle rounded-sm" />
                         )}
                       </div>
                     ) : (
