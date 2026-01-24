@@ -589,10 +589,13 @@ const ChatInterface: React.FC = () => {
   const copyToClipboard = async (text: string, onSuccess?: () => void) => {
     console.log('🔄 Attempting to copy text:', text.substring(0, 50) + '...');
 
+    // Add watermark
+    const watermarkedText = `${text}\n\nCopied from Noir AI`;
+
     try {
       // Method 1: Modern Clipboard API (works in secure contexts)
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(text);
+        await navigator.clipboard.writeText(watermarkedText);
         console.log('✅ Successfully copied using Clipboard API');
         if (onSuccess) onSuccess();
         return;
@@ -604,7 +607,7 @@ const ChatInterface: React.FC = () => {
     // Method 2: Fallback using execCommand
     try {
       const textArea = document.createElement('textarea');
-      textArea.value = text;
+      textArea.value = watermarkedText;
 
       // Make it invisible but accessible
       textArea.style.position = 'fixed';
@@ -3216,6 +3219,15 @@ const ChatInterface: React.FC = () => {
                                     {children}
                                   </code>
                                 );
+                              },
+                              table({ children, ...props }: any) {
+                                return (
+                                  <div className="overflow-x-auto my-4 border border-zinc-200 rounded-lg">
+                                    <table className="min-w-full divide-y divide-zinc-200 text-sm" {...props}>
+                                      {children}
+                                    </table>
+                                  </div>
+                                );
                               }
                             }}
                           >
@@ -3432,8 +3444,9 @@ const ChatInterface: React.FC = () => {
               )}
               <div ref={messagesEndRef} />
             </motion.div>
-          )}
-        </AnimatePresence>
+          )
+          }
+        </AnimatePresence >
       </div >
 
       {/* Soft Limit Warning Banner */}
