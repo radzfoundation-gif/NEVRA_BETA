@@ -55,7 +55,8 @@ export default function VoiceDictationModal({
             const recognition = new SpeechRecognition();
             recognition.continuous = true;
             recognition.interimResults = true;
-            recognition.lang = 'en-US'; // Default (could be dynamic)
+            // Prioritize Indonesian as requested, fallback to browser default or English
+            recognition.lang = 'id-ID';
 
             recognition.onresult = (event: any) => {
                 let final = '';

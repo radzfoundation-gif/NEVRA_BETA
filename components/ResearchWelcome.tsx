@@ -7,6 +7,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import LiquidMetal from './ui/liquid-metal';
 import { useTokenLimit } from '@/hooks/useTokenLimit';
 import SubscriptionPopup from './SubscriptionPopup';
+import VoiceDictationModal from './chat/VoiceDictationModal';
+
 interface ResearchWelcomeProps {
     onSearch: (query: string, attachments?: AttachmentData[], model?: ModelType, reasoning?: boolean) => void;
     initialQuery?: string;
@@ -45,6 +47,7 @@ export function ResearchWelcome({
     const [processingMessage, setProcessingMessage] = useState('');
     const [previewData, setPreviewData] = useState<{ title: string; content: string; type: 'file' | 'audio' | 'youtube' | 'url'; mimeType?: string } | null>(null);
     const [showSubscriptionPopup, setShowSubscriptionPopup] = useState(false);
+    const [showDictation, setShowDictation] = useState(false);
 
     // Model Selector State
     const [selectedModel, setSelectedModel] = useState<ModelType>('sonar');
@@ -950,13 +953,13 @@ export function ResearchWelcome({
                                 <Lightbulb size={18} strokeWidth={1.5} />
                             </button>
 
-                            {/* Mic / Voice (Moved to Left) */}
+                            {/* Dictation / Voice (Moved to Left) */}
                             <button
-                                onClick={() => audioInputRef.current?.click()}
+                                onClick={() => setShowDictation(true)}
                                 className="p-2 bg-zinc-50 hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700 rounded-lg transition-colors border border-transparent hover:border-zinc-200"
-                                title="Voice to Text"
+                                title="Voice Dictation"
                             >
-                                <AudioLines size={18} strokeWidth={1.5} />
+                                <Mic size={18} strokeWidth={1.5} />
                             </button>
                         </div>
 
@@ -1058,6 +1061,14 @@ export function ResearchWelcome({
                 onClose={() => setShowSubscriptionPopup(false)}
                 tokensUsed={featureUsage.convert.used}
                 tokensLimit={featureUsage.convert.limit}
+            />
+
+            <VoiceDictationModal
+                isOpen={showDictation}
+                onClose={() => setShowDictation(false)}
+                onInsert={(text) => {
+                    setQuery((prev) => prev ? prev + ' ' + text : text);
+                }}
             />
         </div>
     );
