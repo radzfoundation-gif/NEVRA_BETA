@@ -12,6 +12,7 @@ import { FREE_TOKEN_LIMIT } from '@/lib/tokenLimit';
 import { ParsedDocument } from '@/lib/documentParser';
 import { AppMode } from '@/lib/modeDetector';
 import ModelSelector, { ModelType } from '@/components/ui/ModelSelector';
+import VoiceDictationModal from './VoiceDictationModal';
 
 function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs));
@@ -19,8 +20,7 @@ function cn(...inputs: ClassValue[]) {
 
 interface ChatInputProps {
     input: string;
-    setInput: (value: string) => void;
-    // Updated handleSend signature to allow passing model info if needed, or rely on parent state
+    setInput: (value: string | ((prev: string) => string)) => void;
     handleSend: (deepDive?: boolean) => void;
     isTyping: boolean;
     attachedImages: string[];
@@ -84,9 +84,10 @@ const ChatInput: React.FC<ChatInputProps> = ({
     selectedModel,
     onModelChange,
     withReasoning,
-    setWithReasoning
+    setWithReasoning,
 }) => {
     const { credits } = useTokenLimit();
+    const [showDictation, setShowDictation] = useState(false);
 
     // Removed local state for selectedModel and withReasoning
     const [isFocused, setIsFocused] = useState(false);
@@ -220,13 +221,15 @@ const ChatInput: React.FC<ChatInputProps> = ({
                                 <Lightbulb size={18} strokeWidth={1.5} />
                             </button>
 
-                            {/* Voice (Moved to Left) */}
+                            {/* Voice Dictation Trigger */}
                             <button
-                                onClick={() => setShowVoiceCall(true)}
-                                className="p-2 bg-zinc-50 hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700 rounded-lg transition-colors border border-transparent hover:border-zinc-200"
-                                title="Voice to Text"
+                                onClick={() => setShowDictation(true)}
+                                className={cn(
+                                    "p-2 rounded-lg transition-all border border-transparent bg-zinc-50 hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700 hover:border-zinc-200"
+                                )}
+                                title="Voice Dictation"
                             >
-                                <AudioLines size={18} strokeWidth={1.5} />
+                                <Mic size={18} strokeWidth={2} />
                             </button>
                         </div>
 
@@ -291,6 +294,14 @@ const ChatInput: React.FC<ChatInputProps> = ({
                     <p className="text-[11px] text-zinc-400">Noir is AI and can make mistakes. Please double-check responses.</p>
                 </div>
             </div>
+
+            <VoiceDictationModal
+                isOpen={showDictation}
+                onClose={() => setShowDictation(false)}
+                onInsert={(text) => {
+                    setInput((prev) => prev ? prev + ' ' + text : text);
+                }}
+            />
         </div >
     );
 };
