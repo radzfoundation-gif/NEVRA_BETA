@@ -7,11 +7,12 @@ import {
     Sparkles, User, Zap, History,
     Calendar, Box, RefreshCw,
     Share2, Database, FolderOpen, Bot,
-    Home, HelpCircle, Clock, Check, PanelLeft, LayoutGrid
+    Home, HelpCircle, Clock, Check, PanelLeft, LayoutGrid, Keyboard
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useUser, useAuth } from '@/lib/authContext';
 import { useChatSessions, useSubscription } from '@/hooks/useSupabase';
+import { usePWAInstall } from '@/hooks/usePWAInstall';
 import Logo from './Logo';
 import { groupSessionsByDate, DateGroup } from '@/lib/utils/dateGrouping';
 import SubscriptionPopup from './SubscriptionPopup';
@@ -22,6 +23,7 @@ interface SidebarProps {
     onNewChat: () => void;
     onSelectSession: (sessionId: string) => void;
     onOpenSettings: () => void;
+    onOpenShortcuts?: () => void;
     onClose?: () => void;
     onCollapse?: () => void;
     isSubscribed?: boolean;
@@ -33,6 +35,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     onNewChat,
     onSelectSession,
     onOpenSettings,
+    onOpenShortcuts,
     onClose,
     onCollapse,
     isSubscribed = false,
@@ -43,6 +46,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     const navigate = useNavigate();
     const { sessions, loading, error, deleteSession, refreshSessions } = useChatSessions();
     const { isPro, tier } = useSubscription();
+    const { isInstallable, installApp } = usePWAInstall(); // PWA Install Hook
 
     // Override isSubscribed prop with actual tier from backend
     const actuallySubscribed = isPro || isSubscribed;
@@ -88,7 +92,10 @@ const Sidebar: React.FC<SidebarProps> = ({
         { type: 'button' as const, icon: Home, label: 'Home', action: () => navigate('/') },
         { type: 'button' as const, icon: LayoutGrid, label: 'Gallery', action: () => navigate('/gallery') },
         { type: 'button' as const, icon: Share2, label: 'Share with Friend', action: () => setShowShare(true) },
+        // Add Install App button if installable
+        ...(isInstallable ? [{ type: 'button' as const, icon: Box, label: 'Install App', action: installApp }] : []),
         { type: 'button' as const, icon: CreditCard, label: 'Pricing', action: () => setShowPricing(true) },
+        { type: 'button' as const, icon: Keyboard, label: 'Keyboard Shortcuts', action: () => onOpenShortcuts?.() },
         { type: 'button' as const, icon: Settings, label: 'Settings', action: onOpenSettings },
         { type: 'button' as const, icon: LogOut, label: 'Sign Out', action: () => signOut() },
     ];
@@ -176,6 +183,16 @@ const Sidebar: React.FC<SidebarProps> = ({
                         <Share2 size={20} strokeWidth={1.5} />
                     </button>
 
+                    {isInstallable && (
+                        <button
+                            onClick={installApp}
+                            className="p-2 hover:bg-zinc-200 rounded-lg text-zinc-500 hover:text-zinc-900 transition-colors"
+                            title="Install App"
+                        >
+                            <Box size={20} strokeWidth={1.5} />
+                        </button>
+                    )}
+
                     <button
                         onClick={() => setShowPricing(true)}
                         className="p-2 hover:bg-zinc-200 rounded-lg text-zinc-500 hover:text-zinc-900 transition-colors"
@@ -197,8 +214,12 @@ const Sidebar: React.FC<SidebarProps> = ({
 
                 {/* Footer Icons */}
                 <div className="flex flex-col gap-4 w-full items-center mb-2">
-                    <button className="p-2 hover:bg-zinc-200 rounded-lg text-zinc-500 hover:text-zinc-900 transition-colors" title="Help">
-                        <div className="w-5 h-5 rounded-full border border-zinc-400 flex items-center justify-center font-serif italic text-xs">?</div>
+                    <button
+                        onClick={() => onOpenShortcuts?.()}
+                        className="p-2 hover:bg-zinc-200 rounded-lg text-zinc-500 hover:text-zinc-900 transition-colors"
+                        title="Keyboard Shortcuts"
+                    >
+                        <Keyboard size={20} strokeWidth={1.5} />
                     </button>
 
                     <button onClick={onOpenSettings} className="p-2 hover:bg-zinc-200 rounded-lg text-zinc-500 hover:text-zinc-900 transition-colors" title="Settings">

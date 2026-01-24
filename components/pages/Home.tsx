@@ -20,6 +20,7 @@ import { getApiUrl } from '@/lib/utils'; // Import getApiUrl
 import Sidebar from '../Sidebar';
 import SettingsModal from '../settings/SettingsModal';
 import TemplateBrowser from '../TemplateBrowser';
+import ShortcutBrowser from '../ShortcutBrowser';
 import { Template } from '@/lib/templates';
 import VoiceCall from '../VoiceCall';
 import { ResearchWelcome } from '../ResearchWelcome';
@@ -45,6 +46,7 @@ const Home: React.FC<HomeProps> = ({ defaultMode = 'chat' }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [showTemplateBrowser, setShowTemplateBrowser] = useState(false);
+  const [showShortcutBrowser, setShowShortcutBrowser] = useState(false);
   const [showVoiceCall, setShowVoiceCall] = useState(false);
   const [activeMode, setActiveMode] = useState<'chat' | 'redesign'>(defaultMode);
 
@@ -107,11 +109,17 @@ const Home: React.FC<HomeProps> = ({ defaultMode = 'chat' }) => {
     return () => observer.disconnect();
   }, []);
 
+  // Keyboard Shortcut Listener for Shortcut Browser
   useEffect(() => {
-    const savedPrompt = localStorage.getItem('noir_ai_pending_prompt');
-    if (savedPrompt) {
-      setPrompt(savedPrompt);
-    }
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Check for Ctrl+/ or Cmd+/ (Mac)
+      if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+        e.preventDefault();
+        setShowShortcutBrowser(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   useEffect(() => {
@@ -339,6 +347,7 @@ const Home: React.FC<HomeProps> = ({ defaultMode = 'chat' }) => {
               onCollapse={toggleSidebarCollapse}
               onClose={() => setIsSidebarCollapsed(false)}
               isCollapsed={isSidebarCollapsed}
+              onOpenShortcuts={() => setShowShortcutBrowser(true)}
             />
           </div>
 
@@ -358,6 +367,7 @@ const Home: React.FC<HomeProps> = ({ defaultMode = 'chat' }) => {
               onOpenSettings={() => setIsSettingsOpen(true)}
               isSubscribed={isSubscribed || false}
               onClose={() => setIsSidebarOpen(false)}
+              onOpenShortcuts={() => setShowShortcutBrowser(true)}
             />
 
 
@@ -501,6 +511,11 @@ const Home: React.FC<HomeProps> = ({ defaultMode = 'chat' }) => {
         onClose={() => setIsSettingsOpen(false)}
         isSubscribed={isSubscribed || false}
         tokensUsed={tokensUsed}
+      />
+
+      <ShortcutBrowser
+        isOpen={showShortcutBrowser}
+        onClose={() => setShowShortcutBrowser(false)}
       />
     </div>
   );

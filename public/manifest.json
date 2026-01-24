@@ -1,0 +1,21 @@
+{
+    "name": "Noir AI",
+    "short_name": "Noir",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#ffffff",
+    "theme_color": "#000000",
+    "orientation": "portrait-primary",
+    "icons": [
+        {
+            "src": "/noir-logo-v2.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "/noir-logo-v2.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}
