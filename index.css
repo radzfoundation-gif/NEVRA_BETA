@@ -205,13 +205,13 @@
 }
 
 .prose pre {
-  background-color: #18181b;
-  /* Keep code blocks dark for contrast */
-  color: #f4f4f5;
+  background-color: transparent;
+  /* Transparent for light theme */
+  color: #18181b;
   border-radius: 0.5rem;
   overflow-x: auto;
-  padding: 1rem;
-  margin: 1.5rem 0;
+  padding: 0;
+  margin: 1rem 0;
 }
 
 .prose pre code {

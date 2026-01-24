@@ -16,9 +16,9 @@ interface ModelOption {
 const MODEL_OPTIONS: ModelOption[] = [
     {
         id: 'sonar',
-        name: 'NoirSync',
-        provider: 'Perplexity',
-        icon: <Search size={16} className="text-teal-500" />,
+        name: 'Noir Beta',
+        provider: 'DeepSeek',
+        icon: <img src="/noir-beta-logo.jpg" alt="Noir Beta" className="w-5 h-5 object-contain rounded-sm" />,
     },
     {
         id: 'gemini-flash',
@@ -75,7 +75,8 @@ export interface ModelSelectorProps {
     disabled?: boolean;
     withReasoning?: boolean;
     onReasoningToggle?: () => void;
-    isSubscribed?: boolean; // NEW: Unlock Pro models for subscribers
+    isSubscribed?: boolean;
+    children?: React.ReactNode;
 }
 
 export const ModelSelector: React.FC<ModelSelectorProps> = ({
@@ -84,7 +85,8 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     disabled = false,
     withReasoning = false,
     onReasoningToggle,
-    isSubscribed = false
+    isSubscribed = false,
+    children
 }) => {
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -104,22 +106,28 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     return (
         <div className="relative" ref={dropdownRef}>
             {/* Model Button */}
-            <button
-                onClick={() => !disabled && setIsOpen(!isOpen)}
-                disabled={disabled}
-                className={`
-                    flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium
-                    transition-all duration-200 border
-                    ${disabled
-                        ? 'bg-gray-50 text-gray-400 cursor-not-allowed border-gray-100'
-                        : 'bg-white hover:bg-gray-50 text-gray-700 border-gray-200 hover:border-gray-300 shadow-sm'
-                    }
-                `}
-            >
-                <span className="w-4 h-4 flex items-center justify-center">{selectedOption.icon}</span>
-                <span className="hidden sm:inline text-xs">{selectedOption.name}</span>
-                <ChevronDown size={14} className={`text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-            </button>
+            {children ? (
+                <div onClick={() => !disabled && setIsOpen(!isOpen)} className={disabled ? 'opacity-50 pointer-events-none' : 'cursor-pointer'}>
+                    {children}
+                </div>
+            ) : (
+                <button
+                    onClick={() => !disabled && setIsOpen(!isOpen)}
+                    disabled={disabled}
+                    className={`
+                        flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium
+                        transition-all duration-200 border
+                        ${disabled
+                            ? 'bg-gray-50 text-gray-400 cursor-not-allowed border-gray-100'
+                            : 'bg-white hover:bg-gray-50 text-gray-700 border-gray-200 hover:border-gray-300 shadow-sm'
+                        }
+                    `}
+                >
+                    <span className="w-4 h-4 flex items-center justify-center">{selectedOption.icon}</span>
+                    <span className="hidden sm:inline text-xs">{selectedOption.name}</span>
+                    <ChevronDown size={14} className={`text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                </button>
+            )}
 
             {/* Dropdown Menu */}
             {isOpen && (

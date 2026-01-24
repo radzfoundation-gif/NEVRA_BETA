@@ -3,7 +3,7 @@ import {
     Plus, Search, Image as ImageIcon, X, FileText, Camera,
     GraduationCap, BarChart3, Zap, Phone, MoreVertical, Layout,
     ArrowUp, Globe, Paperclip, ChevronDown, Check, Sparkles,
-    Mic, Grid3X3, PenTool
+    Mic, Grid3X3, PenTool, Atom, Lightbulb, Cpu, AudioLines
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -156,7 +156,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
                 <div className={cn(
                     "w-full bg-white rounded-2xl flex flex-col transition-all duration-200 relative shadow-[0_4px_24px_-4px_rgba(0,0,0,0.1)] border",
                     isFocused
-                        ? "shadow-[0_8px_40px_-8px_rgba(0,0,0,0.15)] border-teal-300"
+                        ? "shadow-[0_8px_40px_-8px_rgba(0,0,0,0.15)] border-lime-500"
                         : "border-gray-200"
                 )}>
 
@@ -206,57 +206,36 @@ const ChatInput: React.FC<ChatInputProps> = ({
 
                     {/* Bottom Actions Row */}
                     <div className="w-full flex items-center justify-between px-3 pb-3">
-                        {/* Left Actions */}
-                        <div className="flex items-center gap-0.5">
-                            {/* Search / Focus Mode */}
+                        {/* Left Actions: Deeper Research, Image, Idea */}
+                        <div className="flex items-center gap-2">
+                            {/* Deeper Research Pill */}
                             <button
-                                onClick={() => setEnableWebSearch(!enableWebSearch)}
+                                onClick={() => setWithReasoning(!withReasoning)}
                                 className={cn(
-                                    "p-2 rounded-lg transition-all",
-                                    enableWebSearch
-                                        ? "bg-teal-50 text-teal-600"
-                                        : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                                    "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border",
+                                    withReasoning
+                                        ? "bg-orange-50 text-orange-600 border-orange-200 ring-1 ring-orange-200"
+                                        : "bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-100"
                                 )}
-                                title="Web Search"
                             >
-                                <Search size={18} strokeWidth={2} />
+                                <Atom size={14} className={cn(withReasoning ? "animate-spin-slow" : "")} />
+                                Deeper Research
                             </button>
 
-                            {/* Pen / Edit */}
-                            <button
-                                className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all"
-                                title="Edit"
-                            >
-                                <PenTool size={18} strokeWidth={2} />
+                            {/* Image Gen Trigger (Placeholder since prop missing) */}
+                            <button onClick={() => alert("Image Generation is available in the Tools menu.")} className="p-2 bg-zinc-50 hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700 rounded-lg transition-colors border border-transparent hover:border-zinc-200" title="Generate Image">
+                                <ImageIcon size={18} strokeWidth={1.5} />
                             </button>
 
-                            {/* Canvas / Grid */}
-                            <button
-                                onClick={toggleCanvas}
-                                className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all"
-                                title="Canvas"
-                            >
-                                <Grid3X3 size={18} strokeWidth={2} />
+                            {/* Ideas / Surprise Me (Placeholder) */}
+                            <button onClick={() => setInput("Explain AI to a 5 year old")} className="p-2 bg-zinc-50 hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700 rounded-lg transition-colors border border-transparent hover:border-zinc-200" title="Generate Idea">
+                                <Lightbulb size={18} strokeWidth={1.5} />
                             </button>
                         </div>
 
-                        {/* Right Actions */}
-                        <div className="flex items-center gap-1">
-                            {/* Globe / Web */}
-                            <button
-                                onClick={() => setEnableWebSearch(!enableWebSearch)}
-                                className={cn(
-                                    "p-2 rounded-lg transition-all hidden sm:flex",
-                                    enableWebSearch
-                                        ? "bg-blue-50 text-blue-600"
-                                        : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
-                                )}
-                                title="Web Search"
-                            >
-                                <Globe size={18} strokeWidth={2} />
-                            </button>
-
-                            {/* Model Selector */}
+                        {/* Right Actions: Cpu, Globe, Attach, Voice, Send */}
+                        <div className="flex items-center gap-2">
+                            {/* Model / Cpu */}
                             <ModelSelector
                                 selectedModel={selectedModel}
                                 onModelChange={onModelChange}
@@ -264,24 +243,40 @@ const ChatInput: React.FC<ChatInputProps> = ({
                                 withReasoning={withReasoning}
                                 onReasoningToggle={() => setWithReasoning(!withReasoning)}
                                 isSubscribed={isSubscribed}
-                            />
+                            >
+                                <button className="p-2 text-zinc-400 hover:text-zinc-600 transition-colors" title="Select Model">
+                                    <Cpu size={20} strokeWidth={1.5} />
+                                </button>
+                            </ModelSelector>
+
+                            {/* Globe / Web */}
+                            <button
+                                onClick={() => setEnableWebSearch(!enableWebSearch)}
+                                className={cn(
+                                    "p-2 text-zinc-400 hover:text-zinc-600 transition-colors",
+                                    enableWebSearch && "text-blue-600"
+                                )}
+                                title="Web Search"
+                            >
+                                <Globe size={20} strokeWidth={1.5} />
+                            </button>
 
                             {/* Attach */}
                             <button
                                 onClick={() => fileInputRef.current?.click()}
-                                className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all"
+                                className="p-2 text-zinc-400 hover:text-zinc-600 transition-all"
                                 title="Attach file"
                             >
-                                <Paperclip size={18} strokeWidth={2} />
+                                <Paperclip size={20} strokeWidth={1.5} />
                             </button>
 
                             {/* Voice */}
                             <button
                                 onClick={() => setShowVoiceCall(true)}
-                                className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all hidden sm:flex"
-                                title="Voice"
+                                className="p-2 text-zinc-400 hover:text-zinc-600 transition-all hidden sm:flex"
+                                title="Voice to Text"
                             >
-                                <Mic size={18} strokeWidth={2} />
+                                <AudioLines size={20} strokeWidth={1.5} />
                             </button>
 
                             {/* Send Button */}
@@ -289,13 +284,13 @@ const ChatInput: React.FC<ChatInputProps> = ({
                                 onClick={() => handleSend(isDeepDiveModel && withReasoning)}
                                 disabled={(!input.trim() && attachedImages.length === 0) || isTyping}
                                 className={cn(
-                                    "w-9 h-9 flex items-center justify-center rounded-lg transition-all duration-200 ml-1",
+                                    "w-10 h-10 flex items-center justify-center rounded-full transition-all duration-200 ml-1 shadow-lg",
                                     (!input.trim() && attachedImages.length === 0) || isTyping
-                                        ? "bg-gray-100 text-gray-300 cursor-not-allowed"
-                                        : "bg-teal-600 text-white hover:bg-teal-700 shadow-md"
+                                        ? "bg-gray-100 text-gray-300 cursor-not-allowed shadow-none"
+                                        : "bg-lime-500 hover:bg-lime-600 text-white shadow-lime-200 transform hover:scale-105"
                                 )}
                             >
-                                <BarChart3 size={18} className={cn(isTyping && "animate-pulse", "rotate-90")} strokeWidth={2.5} />
+                                <ArrowUp size={20} strokeWidth={2.5} />
                             </button>
                         </div>
                     </div>
@@ -306,7 +301,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
                     <p className="text-[11px] text-zinc-400">Noir is AI and can make mistakes. Please double-check responses.</p>
                 </div>
             </div>
-        </div>
+        </div >
     );
 };
 

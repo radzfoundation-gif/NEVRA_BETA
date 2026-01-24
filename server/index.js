@@ -1775,7 +1775,7 @@ const buildOpenAIUserContent = (prompt, images = []) => {
  * - Server detects 'close' event and aborts upstream fetch
  */
 const OPENROUTER_STREAM_MODEL_MAPPING = {
-  'sonar': 'perplexity/sonar',
+  'sonar': 'tngtech/deepseek-r1t2-chimera:free',
   'gemini-pro': 'google/gemini-2.0-flash-exp:free',
   'gpt-5': 'openai/gpt-4o-mini',
   'claude-sonnet': 'anthropic/claude-3.5-sonnet',
@@ -2166,7 +2166,7 @@ Always provide information based on your training data AND the current date cont
       // OpenRouter: All Pro models (sonar/NoirSync, gemini-pro, gpt-5, claude, grok)
 
       const OPENROUTER_MODEL_MAPPING = {
-        'sonar': 'perplexity/sonar', // NoirSync - Perplexity Sonar (reliable online model)
+        'sonar': 'tngtech/deepseek-r1t2-chimera:free', // DeepSeek R1T2 Chimera (Free)
         'gemini-pro': 'google/gemini-2.0-flash-exp:free',
         'gpt-5': 'openai/gpt-4o-mini',
         'claude-sonnet': 'anthropic/claude-3.5-sonnet',

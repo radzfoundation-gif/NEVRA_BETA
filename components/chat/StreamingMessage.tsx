@@ -18,7 +18,7 @@ import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 import SlidingCubeLoader from '../ui/SlidingCubeLoader';
 
@@ -112,7 +112,7 @@ export default function StreamingMessage({
                 {/* Message Bubble */}
                 <motion.div
                     layout
-                    className="relative rounded-2xl rounded-tl-md px-4 py-3 md:px-5 md:py-4 bg-white border border-zinc-200 shadow-sm"
+                    className="relative px-0 py-0"
                 >
                     <AnimatePresence mode="wait">
                         {showSkeleton ? (
@@ -134,26 +134,26 @@ export default function StreamingMessage({
                                 initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ duration: 0.3 }}
-                                className="prose prose-sm md:prose-base max-w-none text-zinc-700
-                        prose-p:my-3 prose-p:leading-[1.8] prose-p:text-[15px] md:prose-p:text-base prose-p:text-zinc-700
-                        prose-headings:text-zinc-900 prose-headings:font-bold prose-headings:tracking-tight prose-headings:mt-6 prose-headings:mb-3
+                                className="prose prose-sm md:prose-base max-w-none text-zinc-800
+                        prose-p:my-4 prose-p:leading-7 prose-p:text-[15px] md:prose-p:text-base prose-p:text-zinc-800
+                        prose-headings:text-zinc-900 prose-headings:font-bold prose-headings:tracking-tight prose-headings:mt-6 prose-headings:mb-4
                         prose-h1:text-xl md:prose-h1:text-2xl prose-h1:border-b prose-h1:border-zinc-200 prose-h1:pb-2
                         prose-h2:text-lg md:prose-h2:text-xl
                         prose-h3:text-base md:prose-h3:text-lg
                         prose-strong:text-zinc-900 prose-strong:font-semibold
                         prose-em:text-zinc-600 prose-em:italic
-                        prose-code:text-[#0164FF] prose-code:bg-blue-50/80 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:text-[13px] prose-code:font-medium prose-code:before:content-none prose-code:after:content-none prose-code:border prose-code:border-blue-100
-                        prose-pre:bg-[#1e1e1e] prose-pre:rounded-xl prose-pre:border prose-pre:border-zinc-700/50 prose-pre:shadow-md prose-pre:my-4
-                        prose-ul:my-3 prose-ul:pl-5 prose-ul:space-y-1.5
-                        prose-ol:my-3 prose-ol:pl-5 prose-ol:space-y-1.5
-                        prose-li:text-zinc-700 prose-li:leading-relaxed prose-li:my-0 prose-li:marker:text-zinc-400
-                        prose-blockquote:border-l-[3px] prose-blockquote:border-blue-400 prose-blockquote:bg-blue-50/50 prose-blockquote:py-3 prose-blockquote:px-4 prose-blockquote:rounded-r-lg prose-blockquote:text-zinc-600 prose-blockquote:not-italic prose-blockquote:my-4
-                        prose-table:my-4 prose-table:w-full prose-table:border-collapse prose-table:text-sm
-                        prose-th:text-left prose-th:font-semibold prose-th:text-zinc-900 prose-th:bg-zinc-50 prose-th:border prose-th:border-zinc-200 prose-th:px-3 prose-th:py-2
-                        prose-td:text-zinc-700 prose-td:border prose-td:border-zinc-200 prose-td:px-3 prose-td:py-2
+                        prose-code:text-[#0164FF] prose-code:bg-blue-50/50 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:text-[13px] prose-code:font-medium prose-code:before:content-none prose-code:after:content-none prose-code:border prose-code:border-blue-100
+                        prose-pre:bg-transparent prose-pre:p-0 prose-pre:m-0 prose-pre:border-0 prose-pre:shadow-none
+                        prose-ul:my-4 prose-ul:pl-6 prose-ul:space-y-2
+                        prose-ol:my-4 prose-ol:pl-6 prose-ol:space-y-2
+                        prose-li:text-zinc-800 prose-li:leading-7 prose-li:my-0 prose-li:marker:text-zinc-400
+                        prose-blockquote:border-l-4 prose-blockquote:border-zinc-200 prose-blockquote:bg-transparent prose-blockquote:pl-4 prose-blockquote:text-zinc-600 prose-blockquote:italic prose-blockquote:my-4
+                        prose-table:my-6 prose-table:w-full prose-table:border-collapse prose-table:text-sm
+                        prose-th:text-left prose-th:font-semibold prose-th:text-zinc-900 prose-th:bg-zinc-50 prose-th:border prose-th:border-zinc-200 prose-th:px-4 prose-th:py-2
+                        prose-td:text-zinc-700 prose-td:border prose-td:border-zinc-200 prose-td:px-4 prose-td:py-2
                         prose-a:text-[#0164FF] prose-a:font-medium prose-a:no-underline hover:prose-a:underline
-                        prose-hr:border-zinc-200 prose-hr:my-6
-                        prose-img:rounded-xl prose-img:shadow-lg prose-img:my-4"
+                        prose-hr:border-zinc-200 prose-hr:my-8
+                        prose-img:rounded-xl prose-img:shadow-sm prose-img:my-6"
                             >
                                 <ReactMarkdown
                                     remarkPlugins={[remarkGfm, remarkMath]}
@@ -162,18 +162,18 @@ export default function StreamingMessage({
                                         code({ node, inline, className, children, ...props }: any) {
                                             const match = /language-(\w+)/.exec(className || '');
                                             return !inline && match ? (
-                                                <div className="overflow-hidden rounded-lg my-3">
-                                                    <div className="flex items-center justify-between px-4 py-2 bg-zinc-800 border-b border-zinc-700">
-                                                        <span className="text-xs font-medium text-zinc-400 uppercase">{match[1]}</span>
+                                                <div className="overflow-hidden border border-zinc-200 rounded-xl bg-zinc-50 my-4 font-mono text-sm shadow-sm">
+                                                    <div className="flex items-center justify-between px-4 py-2 bg-zinc-100/50 border-b border-zinc-200">
+                                                        <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">{match[1]}</span>
                                                     </div>
                                                     <SyntaxHighlighter
-                                                        style={vscDarkPlus}
+                                                        style={oneLight}
                                                         language={match[1]}
                                                         PreTag="div"
                                                         customStyle={{
                                                             margin: 0,
-                                                            padding: '1rem',
-                                                            background: '#1e1e1e',
+                                                            padding: '1.25rem',
+                                                            background: 'transparent', // Transparent to show light container
                                                             fontSize: '13px'
                                                         }}
                                                         {...props}

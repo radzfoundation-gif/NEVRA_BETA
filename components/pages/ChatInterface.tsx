@@ -9,11 +9,12 @@ import {
 } from 'lucide-react';
 import { Link, useLocation, useParams, useNavigate } from 'react-router-dom';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { generateCode, AIProvider, Framework } from '@/lib/ai';
 import { CodebaseExplorer as CodebaseExplorerClass, CodebaseAnalysis } from '@/lib/codebaseExplorer';
 import CodebaseExplorer from '@/components/CodebaseExplorer';
 import BuildingAnimation from '@/components/BuildingAnimation';
+import TypewriterText from '@/components/ui/TypewriterText';
 import AILoading from '@/components/ui/AILoading';
 import DynamicBackground from '@/components/ui/DynamicBackground';
 // ProviderSelector removed - orchestrator now manages models automatically
@@ -335,6 +336,7 @@ const ChatInterface: React.FC = () => {
 
   // Chat State
   const [messages, setMessages] = useState<Message[]>(initialState.messages);
+  const [animatingMessageId, setAnimatingMessageId] = useState<string | null>(null);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [workflowStatus, setWorkflowStatus] = useState<{ status: string; message: string } | null>(null);
@@ -2266,8 +2268,9 @@ const ChatInterface: React.FC = () => {
         finalResponseText = (responseText || finalResponseText) + `\n\n<!-- SOURCES_JSON:${sourcesJson} -->`;
       }
 
+      const newMessageId = (Date.now() + 1).toString();
       const aiResponse: Message = {
-        id: (Date.now() + 1).toString(),
+        id: newMessageId,
         role: 'ai',
         content: finalResponseText,
         code: code || undefined,
@@ -2275,6 +2278,7 @@ const ChatInterface: React.FC = () => {
       };
 
       setMessages(prev => [...prev, aiResponse]);
+      setAnimatingMessageId(newMessageId);
 
       // Track learning progress in tutor mode
       if (mode === 'tutor' && user && sessionStartTime) {
@@ -2507,13 +2511,15 @@ const ChatInterface: React.FC = () => {
             finalResponseText = combineSearchAndResponse(searchResults, responseText);
           }
 
+          const newMessageId = (Date.now() + 1).toString();
           setMessages(prev => [...prev, {
-            id: (Date.now() + 1).toString(),
+            id: newMessageId,
             role: 'ai',
             content: finalResponseText,
             code: code || undefined,
             timestamp: new Date()
           }]);
+          setAnimatingMessageId(newMessageId);
 
           if (code && mode === 'builder') {
             setLogs(prev => [...prev, '> Code generation complete (with shortened history).', '> Bundling assets...', '> Starting development server...']);
@@ -3026,8 +3032,8 @@ const ChatInterface: React.FC = () => {
                   <div className={cn(
                     "relative leading-relaxed transition-all duration-200",
                     msg.role === 'user'
-                      ? "rounded-[20px] rounded-br-[4px] px-5 py-3 bg-gradient-to-r from-[#F0ABFC]/20 to-[#A78BFA]/20 text-indigo-950 font-medium max-w-[85%] sm:max-w-[70%] ml-auto shadow-sm backdrop-blur-sm border border-white/30"
-                      : "rounded-[24px] px-6 py-5 bg-white/60 backdrop-blur-md border border-white/60 text-gray-800 max-w-[95%] sm:max-w-[90%] shadow-lg shadow-purple-900/5 group-hover:shadow-purple-900/10 transition-shadow"
+                      ? "rounded-[18px] px-5 py-2.5 bg-[#F4F1EB] text-zinc-800 font-normal max-w-[85%] sm:max-w-[70%] ml-auto"
+                      : "px-0 py-0 bg-transparent text-gray-800 max-w-full"
                   )}>
                     {msg.images && msg.images.length > 0 && (
                       <div className="flex gap-3 mb-4 flex-wrap">
@@ -3070,25 +3076,25 @@ const ChatInterface: React.FC = () => {
                     )}
                     {msg.role === 'ai' ? (
                       <div className="prose prose-sm sm:prose-base max-w-none w-full break-words overflow-hidden
-                        prose-p:text-zinc-700 prose-p:leading-[1.8] prose-p:my-3 prose-p:text-[15px] sm:prose-p:text-base
-                        prose-headings:text-zinc-900 prose-headings:font-bold prose-headings:tracking-tight prose-headings:mt-6 prose-headings:mb-3
+                        prose-p:text-zinc-800 prose-p:leading-7 prose-p:my-4 prose-p:text-[15px] sm:prose-p:text-base
+                        prose-headings:text-zinc-900 prose-headings:font-bold prose-headings:tracking-tight prose-headings:mt-6 prose-headings:mb-4
                         prose-h1:text-xl sm:prose-h1:text-2xl prose-h1:border-b prose-h1:border-zinc-200 prose-h1:pb-2
                         prose-h2:text-lg sm:prose-h2:text-xl
                         prose-h3:text-base sm:prose-h3:text-lg
                         prose-strong:text-zinc-900 prose-strong:font-semibold
                         prose-em:text-zinc-600 prose-em:italic
-                        prose-code:text-[13px] prose-code:text-indigo-700 prose-code:bg-indigo-50/80 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:font-mono prose-code:font-medium prose-code:before:content-none prose-code:after:content-none prose-code:border prose-code:border-indigo-100
-                        prose-pre:bg-[#1a1a1a] prose-pre:border prose-pre:border-zinc-700/50 prose-pre:rounded-xl prose-pre:shadow-md prose-pre:my-4
-                        prose-ul:my-3 prose-ul:pl-5 prose-ul:space-y-1.5
-                        prose-ol:my-3 prose-ol:pl-5 prose-ol:space-y-1.5
-                        prose-li:text-zinc-700 prose-li:leading-relaxed prose-li:my-0 prose-li:marker:text-zinc-400
-                        prose-blockquote:border-l-[3px] prose-blockquote:border-amber-400 prose-blockquote:bg-amber-50/60 prose-blockquote:py-3 prose-blockquote:px-4 prose-blockquote:rounded-r-lg prose-blockquote:text-amber-900 prose-blockquote:not-italic prose-blockquote:my-4 prose-blockquote:font-medium
-                        prose-table:my-4 prose-table:w-full prose-table:border-collapse prose-table:text-sm
-                        prose-th:text-left prose-th:font-semibold prose-th:text-zinc-900 prose-th:bg-zinc-50 prose-th:border prose-th:border-zinc-200 prose-th:px-3 prose-th:py-2
-                        prose-td:text-zinc-700 prose-td:border prose-td:border-zinc-200 prose-td:px-3 prose-td:py-2
-                        prose-a:text-indigo-600 prose-a:font-medium prose-a:no-underline hover:prose-a:underline
-                        prose-img:rounded-xl prose-img:shadow-lg prose-img:my-4
-                        prose-hr:border-zinc-200 prose-hr:my-6
+                        prose-code:text-[13px] prose-code:text-[#0164FF] prose-code:bg-blue-50/50 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:font-mono prose-code:font-medium prose-code:before:content-none prose-code:after:content-none prose-code:border prose-code:border-blue-100
+                        prose-pre:bg-transparent prose-pre:p-0 prose-pre:m-0 prose-pre:border-0 prose-pre:shadow-none
+                        prose-ul:my-4 prose-ul:pl-6 prose-ul:space-y-2
+                        prose-ol:my-4 prose-ol:pl-6 prose-ol:space-y-2
+                        prose-li:text-zinc-800 prose-li:leading-7 prose-li:my-0 prose-li:marker:text-zinc-400
+                        prose-blockquote:border-l-4 prose-blockquote:border-zinc-200 prose-blockquote:bg-transparent prose-blockquote:pl-4 prose-blockquote:text-zinc-600 prose-blockquote:italic prose-blockquote:my-4
+                        prose-table:my-6 prose-table:w-full prose-table:border-collapse prose-table:text-sm
+                        prose-th:text-left prose-th:font-semibold prose-th:text-zinc-900 prose-th:bg-zinc-50 prose-th:border prose-th:border-zinc-200 prose-th:px-4 prose-th:py-2
+                        prose-td:text-zinc-700 prose-td:border prose-td:border-zinc-200 prose-td:px-4 prose-td:py-2
+                        prose-a:text-[#0164FF] prose-a:font-medium prose-a:no-underline hover:prose-a:underline
+                        prose-img:rounded-xl prose-img:shadow-sm prose-img:my-6
+                        prose-hr:border-zinc-200 prose-hr:my-8
                       ">
                         {/* Parse and render sources if available (at top of message like ChatGPT) */}
                         {(() => {
@@ -3108,85 +3114,93 @@ const ChatInterface: React.FC = () => {
                           return null;
                         })()}
 
-                        <ReactMarkdown
-                          remarkPlugins={[remarkGfm, remarkMath]}
-                          rehypePlugins={[rehypeRaw, rehypeKatex]}
-                          components={{
-                            code({ node, inline, className, children, ...props }: any) {
-                              const match = /language-(\w+)/.exec(className || '');
-                              return !inline && match ? (
-                                <div className="overflow-hidden border border-zinc-200 rounded-lg bg-zinc-900 my-3">
-                                  <div className="flex items-center justify-between border-b border-zinc-700 px-4 py-2 bg-zinc-800">
-                                    <span className="text-xs font-medium text-gray-300 uppercase">{match[1]}</span>
-                                    <button
-                                      onClick={() => {
-                                        copyToClipboard(String(children).replace(/\n$/, ''));
-                                      }}
-                                      className="text-xs text-gray-400 hover:text-gray-200 px-2 py-1 rounded hover:bg-white/5 transition-colors"
-                                    >
-                                      Copy
-                                    </button>
+                        {msg.id === animatingMessageId ? (
+                          <TypewriterText
+                            content={msg.content}
+                            onComplete={() => setAnimatingMessageId(null)}
+                            speed={10}
+                          />
+                        ) : (
+                          <ReactMarkdown
+                            remarkPlugins={[remarkGfm, remarkMath]}
+                            rehypePlugins={[rehypeRaw, rehypeKatex]}
+                            components={{
+                              code({ node, inline, className, children, ...props }: any) {
+                                const match = /language-(\w+)/.exec(className || '');
+                                return !inline && match ? (
+                                  <div className="overflow-hidden border border-zinc-200 rounded-xl bg-zinc-50 my-4 font-mono text-sm shadow-sm group">
+                                    <div className="flex items-center justify-between px-4 py-2 bg-zinc-100/50 border-b border-zinc-200">
+                                      <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">{match[1]}</span>
+                                      <button
+                                        onClick={() => {
+                                          copyToClipboard(String(children).replace(/\n$/, ''));
+                                        }}
+                                        className="text-xs text-zinc-500 hover:text-zinc-800 px-2 py-1 rounded hover:bg-zinc-200 transition-colors opacity-0 group-hover:opacity-100"
+                                      >
+                                        Copy
+                                      </button>
+                                    </div>
+                                    <div className="overflow-x-auto">
+                                      <SyntaxHighlighter
+                                        style={oneLight}
+                                        language={match[1]}
+                                        PreTag="div"
+                                        customStyle={{
+                                          margin: 0,
+                                          padding: '1.25rem',
+                                          background: 'transparent',
+                                          fontSize: '13px',
+                                          lineHeight: '1.6'
+                                        }}
+                                        {...props}
+                                      >
+                                        {String(children).replace(/\n$/, '')}
+                                      </SyntaxHighlighter>
+                                    </div>
                                   </div>
-                                  <div className="overflow-x-auto">
-                                    <SyntaxHighlighter
-                                      style={vscDarkPlus}
-                                      language={match[1]}
-                                      PreTag="div"
-                                      customStyle={{
-                                        margin: 0,
-                                        padding: '1rem',
-                                        background: 'transparent',
-                                        fontSize: '13px',
-                                        lineHeight: '1.6'
-                                      }}
-                                      {...props}
-                                    >
-                                      {String(children).replace(/\n$/, '')}
-                                    </SyntaxHighlighter>
-                                  </div>
-                                </div>
-                              ) : (
-                                <code className="rounded px-1.5 py-0.5 text-xs font-medium bg-purple-50 text-purple-600 border border-purple-200" {...props}>
-                                  {children}
-                                </code>
-                              );
-                            }
-                          }}
-                        >
-                          {(() => {
-                            // Transform citation numbers [1, 2] into styled superscript badges
-                            const content = msg.content.replace(/<!-- SOURCES_JSON:.*? -->/g, '');
+                                ) : (
+                                  <code className="rounded px-1.5 py-0.5 text-xs font-medium bg-purple-50 text-purple-600 border border-purple-200" {...props}>
+                                    {children}
+                                  </code>
+                                );
+                              }
+                            }}
+                          >
+                            {(() => {
+                              // Transform citation numbers [1, 2] into styled superscript badges
+                              const content = msg.content.replace(/<!-- SOURCES_JSON:.*? -->/g, '');
 
-                            // Split content by citation pattern and rebuild with styled citations
-                            const citationPattern = /\[(\d+(?:,\s*\d+)*)\]/g;
-                            const parts = content.split(citationPattern);
+                              // Split content by citation pattern and rebuild with styled citations
+                              const citationPattern = /\[(\d+(?:,\s*\d+)*)\]/g;
+                              const parts = content.split(citationPattern);
 
-                            // If no citations found, just return the content
-                            if (parts.length === 1) {
-                              return content;
-                            }
+                              // If no citations found, just return the content
+                              if (parts.length === 1) {
+                                return content;
+                              }
 
-                            // Rebuild content with HTML citation badges
-                            let result = '';
-                            let lastIndex = 0;
-                            let match;
-                            const tempContent = content;
-                            citationPattern.lastIndex = 0;
+                              // Rebuild content with HTML citation badges
+                              let result = '';
+                              let lastIndex = 0;
+                              let match;
+                              const tempContent = content;
+                              citationPattern.lastIndex = 0;
 
-                            while ((match = citationPattern.exec(tempContent)) !== null) {
-                              result += tempContent.slice(lastIndex, match.index);
-                              const nums = match[1].split(',').map(n => n.trim());
-                              // Add onclick handler that dispatches custom event with message ID and source index
-                              result += nums.map(n =>
-                                `<sup class="citation-badge" onclick="window.dispatchEvent(new CustomEvent('citation-click', { detail: { messageId: '${msg.id}', sourceIndex: ${n} } }))" title="Click to view source ${n}">${n}</sup>`
-                              ).join('');
-                              lastIndex = citationPattern.lastIndex;
-                            }
-                            result += tempContent.slice(lastIndex);
+                              while ((match = citationPattern.exec(tempContent)) !== null) {
+                                result += tempContent.slice(lastIndex, match.index);
+                                const nums = match[1].split(',').map(n => n.trim());
+                                // Add onclick handler that dispatches custom event with message ID and source index
+                                result += nums.map(n =>
+                                  `<sup class="citation-badge" onclick="window.dispatchEvent(new CustomEvent('citation-click', { detail: { messageId: '${msg.id}', sourceIndex: ${n} } }))" title="Click to view source ${n}">${n}</sup>`
+                                ).join('');
+                                lastIndex = citationPattern.lastIndex;
+                              }
+                              result += tempContent.slice(lastIndex);
 
-                            return result;
-                          })()}
-                        </ReactMarkdown>
+                              return result;
+                            })()}
+                          </ReactMarkdown>
+                        )}
                       </div>
                     ) : (
                       <div className="whitespace-pre-wrap text-zinc-900 dark:text-zinc-100 leading-relaxed text-sm">

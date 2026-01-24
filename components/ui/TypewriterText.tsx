@@ -5,7 +5,7 @@ import remarkMath from 'remark-math';
 import rehypeRaw from 'rehype-raw';
 import rehypeKatex from 'rehype-katex';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import 'katex/dist/katex.min.css';
 
 interface TypewriterTextProps {
@@ -70,26 +70,26 @@ const TypewriterText: React.FC<TypewriterTextProps> = ({
                 code({ node, inline, className, children, ...props }: any) {
                     const match = /language-(\w+)/.exec(className || '');
                     return !inline && match ? (
-                        <div className="overflow-hidden border border-zinc-200 rounded-lg bg-zinc-900 my-3">
-                            <div className="flex items-center justify-between border-b border-zinc-700 px-4 py-2 bg-zinc-800">
-                                <span className="text-xs font-medium text-gray-300 uppercase">{match[1]}</span>
+                        <div className="overflow-hidden border border-zinc-200 rounded-xl bg-zinc-50 my-4 font-mono text-sm shadow-sm group">
+                            <div className="flex items-center justify-between px-4 py-2 bg-zinc-100/50 border-b border-zinc-200">
+                                <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">{match[1]}</span>
                                 <button
                                     onClick={() => {
                                         copyToClipboard(String(children).replace(/\n$/, ''));
                                     }}
-                                    className="text-xs text-gray-400 hover:text-gray-200 px-2 py-1 rounded hover:bg-white/5 transition-colors"
+                                    className="text-xs text-zinc-500 hover:text-zinc-800 px-2 py-1 rounded hover:bg-zinc-200 transition-colors opacity-0 group-hover:opacity-100"
                                 >
                                     Copy
                                 </button>
                             </div>
                             <div className="overflow-x-auto">
                                 <SyntaxHighlighter
-                                    style={vscDarkPlus}
+                                    style={oneLight}
                                     language={match[1]}
                                     PreTag="div"
                                     customStyle={{
                                         margin: 0,
-                                        padding: '1rem',
+                                        padding: '1.25rem',
                                         background: 'transparent',
                                         fontSize: '13px',
                                         lineHeight: '1.6'

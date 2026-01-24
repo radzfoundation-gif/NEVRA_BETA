@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Globe, ArrowUp, Link as LinkIcon, Layers, Paperclip, ChevronDown, Check, Sparkles, LayoutGrid, Mic, Youtube, FileText, X, Loader2, Wrench, AlertTriangle, Image as ImageIcon, PenTool, Grid3X3, BarChart3 } from 'lucide-react';
+import { Search, Globe, ArrowUp, Link as LinkIcon, Layers, Paperclip, ChevronDown, Check, Sparkles, LayoutGrid, Mic, Youtube, FileText, X, Loader2, Wrench, AlertTriangle, Image as ImageIcon, PenTool, Grid3X3, BarChart3, ChevronRight, Bot, Atom, Lightbulb, Cpu, AudioLines } from 'lucide-react';
 import ModelSelector, { ModelType } from './ui/ModelSelector';
 import { cn, getApiUrl } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -446,7 +446,7 @@ export function ResearchWelcome({
         )}>
             {/* Hidden File Inputs */}
             <input ref={fileInputRef} type="file" accept=".pdf,.txt,.md,.doc,.docx,image/*" onChange={handleFileUpload} className="hidden" multiple />
-            <input ref={audioInputRef} type="file" accept="audio/*" onChange={handleAudioUpload} className="hidden" />
+            <input ref={audioInputRef} type="file" accept="audio/*" capture="user" onChange={handleAudioUpload} className="hidden" />
 
             {/* Processing Overlay */}
             <AnimatePresence>
@@ -826,31 +826,31 @@ export function ResearchWelcome({
                 transition={{ duration: 0.8, ease: "easeOut" }}
                 className="flex flex-col items-center w-full z-10"
             >
+
                 {/* 3D Orb Visual */}
                 {/* 3D Orb Visual */}
+                {/* Upgrade Pill */}
                 <button
                     onClick={() => !isSubscribed && setShowSubscriptionPopup(true)}
                     className={cn(
-                        "mb-6 md:mb-8 scale-90 md:scale-110 transition-transform active:scale-95 outline-none relative group",
-                        !isSubscribed ? "cursor-pointer hover:opacity-90" : "cursor-default"
+                        "mb-8 flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm transition-all shadow-sm active:scale-95 group",
+                        isSubscribed
+                            ? "bg-gradient-to-r from-teal-50 to-emerald-50 border border-teal-100 text-teal-700 cursor-default"
+                            : "bg-zinc-50 hover:bg-white border border-zinc-200/60 hover:border-orange-200 hover:shadow-orange-500/10 cursor-pointer"
                     )}
                 >
-                    {!isSubscribed && (
-                        <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-gradient-to-r from-pink-500 to-purple-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                            Click to Upgrade
-                        </div>
+                    {isSubscribed ? (
+                        <>
+                            <Sparkles size={16} className="text-teal-500" />
+                            <span className="font-bold">Pro Plan Active</span>
+                        </>
+                    ) : (
+                        <>
+                            <Sparkles size={16} className="text-orange-500 group-hover:animate-pulse" />
+                            <span className="font-bold text-orange-500">Upgrade</span>
+                            <span className="font-semibold text-zinc-600 group-hover:text-zinc-900">free plan to full access</span>
+                        </>
                     )}
-                    <LiquidMetal
-                        metalConfig={{
-                            colorBack: isWebSearchEnabled ? '#3B82F6' : (isSubscribed ? '#8B5CF6' : '#EC4899'),
-                            colorTint: '#FFFFFF',
-                            speed: 0.5,
-                            repetition: 4
-                        }}
-                        className="px-8 py-4 text-xl font-bold tracking-widest text-white"
-                    >
-                        {isSubscribed ? "NOIR AI PRO" : "UPGRADE TO PRO"}
-                    </LiquidMetal>
                 </button>
 
                 {/* Soft Limit Warning */}
@@ -875,7 +875,7 @@ export function ResearchWelcome({
                 <div className={cn(
                     "w-full max-w-3xl bg-white dark:bg-black/40 dark:border-white/10 dark:backdrop-blur-md rounded-2xl border transition-all duration-300 relative",
                     isFocused
-                        ? "shadow-[0_8px_40px_-8px_rgba(0,0,0,0.15)] ring-1 ring-zinc-300 border-zinc-300"
+                        ? "shadow-[0_8px_40px_-8px_rgba(0,0,0,0.15)] border-lime-500"
                         : "shadow-[0_4px_24px_-4px_rgba(0,0,0,0.1)] border-zinc-200"
                 )}>
                     {/* Deep Dive Indicator */}
@@ -936,56 +936,36 @@ export function ResearchWelcome({
 
                     {/* Bottom Actions Row */}
                     <div className="w-full flex items-center justify-between px-3 pb-3">
-                        {/* Left Actions */}
-                        <div className="flex items-center gap-0.5">
-                            {/* Search / Focus Mode */}
+                        {/* Left Actions: Deeper Research, Image, Idea */}
+                        <div className="flex items-center gap-2">
+                            {/* Deeper Research Pill */}
                             <button
-                                onClick={() => onToggleWebSearch && onToggleWebSearch(!isWebSearchEnabled)}
+                                onClick={() => setWithReasoning(!withReasoning)}
                                 className={cn(
-                                    "p-2 rounded-lg transition-all",
-                                    isWebSearchEnabled
-                                        ? "bg-teal-50 text-teal-600"
-                                        : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                                    "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border",
+                                    withReasoning
+                                        ? "bg-orange-50 text-orange-600 border-orange-200 ring-1 ring-orange-200"
+                                        : "bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-100"
                                 )}
-                                title="Web Search"
                             >
-                                <Search size={18} strokeWidth={2} />
+                                <Atom size={14} className={cn(withReasoning ? "animate-spin-slow" : "")} />
+                                Deeper Research
                             </button>
 
-                            {/* Pen / Edit (Dummy) */}
-                            <button
-                                className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all"
-                                title="Edit"
-                            >
-                                <PenTool size={18} strokeWidth={2} />
+                            {/* Image Gen Trigger */}
+                            <button onClick={() => setShowImageGenInput(true)} className="p-2 bg-zinc-50 hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700 rounded-lg transition-colors border border-transparent hover:border-zinc-200" title="Generate Image">
+                                <ImageIcon size={18} strokeWidth={1.5} />
                             </button>
 
-                            {/* Canvas / Grid (Dummy) */}
-                            <button
-                                className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all"
-                                title="Canvas"
-                            >
-                                <Grid3X3 size={18} strokeWidth={2} />
+                            {/* Ideas / Surprise Me */}
+                            <button onClick={() => setQuery(examples[Math.floor(Math.random() * examples.length)].query)} className="p-2 bg-zinc-50 hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700 rounded-lg transition-colors border border-transparent hover:border-zinc-200" title="Generate Idea">
+                                <Lightbulb size={18} strokeWidth={1.5} />
                             </button>
                         </div>
 
-                        {/* Right Actions */}
-                        <div className="flex items-center gap-1">
-                            {/* Globe / Web */}
-                            <button
-                                onClick={() => onToggleWebSearch && onToggleWebSearch(!isWebSearchEnabled)}
-                                className={cn(
-                                    "p-2 rounded-lg transition-all hidden sm:flex",
-                                    isWebSearchEnabled
-                                        ? "bg-blue-50 text-blue-600"
-                                        : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
-                                )}
-                                title="Web Search"
-                            >
-                                <Globe size={18} strokeWidth={2} />
-                            </button>
-
-                            {/* Model Selector */}
+                        {/* Right Actions: Cpu, Globe, Attach, Voice, Send */}
+                        <div className="flex items-center gap-2">
+                            {/* Model / Cpu */}
                             <ModelSelector
                                 selectedModel={selectedModel}
                                 onModelChange={setSelectedModel}
@@ -993,24 +973,40 @@ export function ResearchWelcome({
                                 withReasoning={withReasoning}
                                 onReasoningToggle={() => setWithReasoning(!withReasoning)}
                                 isSubscribed={isSubscribed}
-                            />
+                            >
+                                <button className="p-2 text-zinc-400 hover:text-zinc-600 transition-colors" title="Select Model">
+                                    <Cpu size={20} strokeWidth={1.5} />
+                                </button>
+                            </ModelSelector>
+
+                            {/* Globe / Web */}
+                            <button
+                                onClick={() => onToggleWebSearch && onToggleWebSearch(!isWebSearchEnabled)}
+                                className={cn(
+                                    "p-2 text-zinc-400 hover:text-zinc-600 transition-colors",
+                                    isWebSearchEnabled && "text-blue-600"
+                                )}
+                                title="Web Search"
+                            >
+                                <Globe size={20} strokeWidth={1.5} />
+                            </button>
 
                             {/* Attach */}
                             <button
                                 onClick={() => fileInputRef.current?.click()}
-                                className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all"
+                                className="p-2 text-zinc-400 hover:text-zinc-600 transition-all"
                                 title="Attach file"
                             >
-                                <Paperclip size={18} strokeWidth={2} />
+                                <Paperclip size={20} strokeWidth={1.5} />
                             </button>
 
-                            {/* Mic / Voice (Audio Input) */}
+                            {/* Mic / Voice */}
                             <button
                                 onClick={() => audioInputRef.current?.click()}
-                                className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all hidden sm:flex"
-                                title="Audio Input"
+                                className="p-2 text-zinc-400 hover:text-zinc-600 transition-all hidden sm:flex"
+                                title="Voice to Text"
                             >
-                                <Mic size={18} strokeWidth={2} />
+                                <AudioLines size={20} strokeWidth={1.5} />
                             </button>
 
                             {/* Send Button */}
@@ -1020,23 +1016,19 @@ export function ResearchWelcome({
                                         if (isImageRequest(query)) {
                                             handleImageGeneration(query);
                                         } else {
-                                            // Pass model info via onSearch if possible, or just standard search
-                                            // Note: ResearchWelcomeProps.onSearch currently only accepts query and attachments
-                                            // For now we assume ChatInterface will pick up default or we need to update onSearch signature
-                                            // But since we are only redesigning layout, standard onSearch is fine
-                                            onSearch(query, attachments);
+                                            onSearch(query, attachments, selectedModel, withReasoning);
                                         }
                                     }
                                 }}
                                 disabled={(!query.trim() && attachments.length === 0) || isProcessing}
                                 className={cn(
-                                    "w-9 h-9 flex items-center justify-center rounded-lg transition-all duration-200 ml-1",
+                                    "w-10 h-10 flex items-center justify-center rounded-full transition-all duration-200 ml-1 shadow-lg",
                                     (!query.trim() && attachments.length === 0) || isProcessing
-                                        ? "bg-gray-100 text-gray-300 cursor-not-allowed"
-                                        : "bg-teal-600 text-white hover:bg-teal-700 shadow-md"
+                                        ? "bg-gray-100 text-gray-300 cursor-not-allowed shadow-none"
+                                        : "bg-lime-500 hover:bg-lime-600 text-white shadow-lime-200 transform hover:scale-105"
                                 )}
                             >
-                                <BarChart3 size={18} className={cn(isProcessing && "animate-pulse", "rotate-90")} strokeWidth={2.5} />
+                                <ArrowUp size={20} strokeWidth={2.5} />
                             </button>
                         </div>
                     </div>
