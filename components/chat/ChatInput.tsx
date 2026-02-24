@@ -1,9 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-    Plus, Search, Image as ImageIcon, X, FileText, Camera,
-    GraduationCap, BarChart3, Zap, Phone, MoreVertical, Layout,
-    ArrowUp, Globe, Paperclip, ChevronDown, Check, Sparkles,
-    Mic, Grid3X3, PenTool, Atom, Lightbulb, Cpu, AudioLines
+    Plus, X, FileText, Camera, Image as ImageIcon,
+    ArrowUp, Globe, Paperclip, ChevronDown, Mic,
+    Code2, Target, Sparkles, PenLine, BookOpen, AudioLines
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -53,6 +52,36 @@ interface ChatInputProps {
     setWithReasoning: (enabled: boolean) => void;
 }
 
+// Tool items for the + dropdown
+const TOOL_ITEMS = [
+    { id: 'image', label: 'Upload Image', icon: ImageIcon },
+    { id: 'camera', label: 'Take Photo', icon: Camera },
+    { id: 'document', label: 'Upload Document', icon: FileText },
+    { id: 'web', label: 'Web Search', icon: Globe },
+    { id: 'voice', label: 'Voice Dictation', icon: Mic },
+];
+
+// Quick action pills
+const QUICK_ACTIONS = [
+    { id: 'code', label: 'Code', icon: Code2 },
+    { id: 'strategize', label: 'Strategize', icon: Target },
+    { id: 'create', label: 'Create', icon: Sparkles },
+    { id: 'write', label: 'Write', icon: PenLine },
+    { id: 'learn', label: 'Learn', icon: BookOpen },
+];
+
+// Human-readable model display names
+const MODEL_DISPLAY_NAMES: Record<string, string> = {
+    'gemini-flash': 'Gemini Flash',
+    'gemini-pro': 'Gemini Pro',
+    'claude-sonnet': 'Sonnet 4.5',
+    'claude-opus': 'Opus 4.1',
+    'gpt-5': 'GPT-5.1',
+    'grok': 'Grok 4.1',
+    'sonar': 'NoirSync',
+    'stepfun/step-3.5-flash:free': 'Step 3.5',
+};
+
 const ChatInput: React.FC<ChatInputProps> = ({
     input,
     setInput,
@@ -88,10 +117,67 @@ const ChatInput: React.FC<ChatInputProps> = ({
 }) => {
     const { credits } = useTokenLimit();
     const [showDictation, setShowDictation] = useState(false);
-
-    // Removed local state for selectedModel and withReasoning
+    const [showToolsMenu, setShowToolsMenu] = useState(false);
     const [isFocused, setIsFocused] = useState(false);
     const cameraInputRef = useRef<HTMLInputElement>(null);
+    const toolsMenuRef = useRef<HTMLDivElement>(null);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    // Check if model supports reasoning (deep dive)
+    const isDeepDiveModel = selectedModel === 'claude-sonnet' || selectedModel === 'claude-opus' || selectedModel === 'gpt-5';
+
+    // Close tools menu on click outside
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (toolsMenuRef.current && !toolsMenuRef.current.contains(event.target as Node)) {
+                setShowToolsMenu(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    // Auto-collapse when input is cleared
+    useEffect(() => {
+        if (!input && textareaRef.current) {
+            textareaRef.current.style.height = '28px';
+        }
+    }, [input]);
+
+    // Handle tool selection from + dropdown
+    const handleToolSelect = (toolId: string) => {
+        setShowToolsMenu(false);
+        switch (toolId) {
+            case 'image':
+                fileInputRef.current?.click();
+                break;
+            case 'camera':
+                cameraInputRef.current?.click();
+                break;
+            case 'document':
+                documentInputRef.current?.click();
+                break;
+            case 'web':
+                setEnableWebSearch(!enableWebSearch);
+                break;
+            case 'voice':
+                setShowDictation(true);
+                break;
+        }
+    };
+
+    // Handle quick action pills
+    const handleQuickAction = (actionId: string) => {
+        const prompts: Record<string, string> = {
+            code: 'Help me write code for ',
+            strategize: 'Help me create a strategy for ',
+            create: 'Help me create ',
+            write: 'Help me write ',
+            learn: 'Teach me about ',
+        };
+        setInput(prompts[actionId] || '');
+        textareaRef.current?.focus();
+    };
 
     // Hidden inputs for file upload
     const renderHiddenInputs = () => (
@@ -136,29 +222,19 @@ const ChatInput: React.FC<ChatInputProps> = ({
         </>
     );
 
-    const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-    // Auto-collapse when input is cleared
-    useEffect(() => {
-        if (!input && textareaRef.current) {
-            textareaRef.current.style.height = '28px';
-        }
-    }, [input]);
-
-    // Check if model supports reasoning (deep dive)
-    const isDeepDiveModel = selectedModel === 'claude-sonnet' || selectedModel === 'claude-opus' || selectedModel === 'gpt-5';
+    const modelDisplayName = MODEL_DISPLAY_NAMES[selectedModel] || selectedModel;
 
     return (
         <div className="absolute bottom-0 left-0 right-0 p-4 pb-safe md:pb-4 bg-transparent z-20">
             {renderHiddenInputs()}
 
             <div className="max-w-2xl mx-auto w-full px-4 md:px-0">
-                {/* Main Input Container */}
+                {/* Main Input Container — Claude-style */}
                 <div className={cn(
-                    "w-full bg-white rounded-2xl flex flex-col transition-all duration-200 relative shadow-[0_4px_24px_-4px_rgba(0,0,0,0.1)] border",
+                    "w-full bg-white rounded-2xl flex flex-col transition-all duration-200 relative border",
                     isFocused
-                        ? "shadow-[0_8px_40px_-8px_rgba(0,0,0,0.15)] border-lime-500"
-                        : "border-gray-200"
+                        ? "shadow-[0_8px_40px_-8px_rgba(0,0,0,0.12)] border-stone-300"
+                        : "shadow-[0_2px_12px_-2px_rgba(0,0,0,0.08)] border-stone-200"
                 )}>
 
                     {/* Attached Images Preview */}
@@ -176,6 +252,19 @@ const ChatInput: React.FC<ChatInputProps> = ({
                                         </button>
                                     </div>
                                 ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Web Search Badge */}
+                    {enableWebSearch && (
+                        <div className="px-4 pt-2">
+                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 text-blue-600 rounded-lg text-xs font-medium">
+                                <Globe size={12} />
+                                Web Search On
+                                <button onClick={() => setEnableWebSearch(false)} className="ml-1 hover:text-blue-800">
+                                    <X size={12} />
+                                </button>
                             </div>
                         </div>
                     )}
@@ -199,43 +288,59 @@ const ChatInput: React.FC<ChatInputProps> = ({
                                 }
                             }}
                             onBlur={() => setIsFocused(false)}
-                            placeholder="Ask anything. Type @ for mentions and / for shortcuts."
-                            className="w-full bg-transparent border-0 text-gray-800 placeholder-gray-400 focus:outline-none resize-none max-h-[200px] text-base leading-relaxed font-normal scrollbar-none"
+                            placeholder="How can I help you today?"
+                            className="w-full bg-transparent border-0 text-gray-800 placeholder-stone-400 focus:outline-none resize-none max-h-[200px] text-base leading-relaxed font-normal scrollbar-none"
                             style={{ height: '28px', minHeight: '28px' }}
                         />
                     </div>
 
-                    {/* Bottom Actions Row */}
+                    {/* Bottom Bar — Claude Layout */}
                     <div className="w-full flex items-center justify-between px-3 pb-3">
-                        {/* Left Actions: Deeper Research, Image, Idea */}
-                        <div className="flex items-center gap-2">
-
-
-                            {/* Image Gen Trigger (Placeholder since prop missing) */}
-                            <button onClick={() => alert("Image Generation is available in the Tools menu.")} className="p-2 bg-zinc-50 hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700 rounded-lg transition-colors border border-transparent hover:border-zinc-200 hidden sm:flex" title="Generate Image">
-                                <ImageIcon size={18} strokeWidth={1.5} />
-                            </button>
-
-                            {/* Ideas / Surprise Me (Placeholder) */}
-                            <button onClick={() => setInput("Explain AI to a 5 year old")} className="p-2 bg-zinc-50 hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700 rounded-lg transition-colors border border-transparent hover:border-zinc-200" title="Generate Idea">
-                                <Lightbulb size={18} strokeWidth={1.5} />
-                            </button>
-
-                            {/* Voice Dictation Trigger */}
+                        {/* Left: + Button with Dropdown */}
+                        <div className="flex items-center gap-2 relative" ref={toolsMenuRef}>
                             <button
-                                onClick={() => setShowDictation(true)}
+                                onClick={() => setShowToolsMenu(!showToolsMenu)}
                                 className={cn(
-                                    "p-2 rounded-lg transition-all border border-transparent bg-zinc-50 hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700 hover:border-zinc-200"
+                                    "w-8 h-8 flex items-center justify-center rounded-lg transition-all",
+                                    showToolsMenu
+                                        ? "bg-stone-200 text-stone-700"
+                                        : "text-stone-400 hover:text-stone-600 hover:bg-stone-100"
                                 )}
-                                title="Voice Dictation"
+                                title="Attach files and tools"
                             >
-                                <Mic size={18} strokeWidth={2} />
+                                <Plus size={20} strokeWidth={1.8} />
                             </button>
+
+                            {/* Tools Dropdown */}
+                            {showToolsMenu && (
+                                <div className="absolute bottom-full left-0 mb-2 w-52 bg-white border border-stone-200 rounded-xl shadow-xl overflow-hidden z-50 animate-in fade-in slide-in-from-bottom-2 duration-150">
+                                    {TOOL_ITEMS.map((tool) => {
+                                        const Icon = tool.icon;
+                                        const isActive = tool.id === 'web' && enableWebSearch;
+                                        return (
+                                            <button
+                                                key={tool.id}
+                                                onClick={() => handleToolSelect(tool.id)}
+                                                className={cn(
+                                                    "w-full flex items-center gap-3 px-4 py-2.5 text-sm text-stone-700 hover:bg-stone-50 transition-colors",
+                                                    isActive && "text-blue-600 bg-blue-50/50"
+                                                )}
+                                            >
+                                                <Icon size={16} strokeWidth={1.5} />
+                                                <span>{tool.label}</span>
+                                                {isActive && (
+                                                    <span className="ml-auto text-[10px] font-medium text-blue-500 bg-blue-100 px-1.5 py-0.5 rounded">ON</span>
+                                                )}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </div>
 
-                        {/* Right Actions: Cpu, Globe, Attach, Voice, Send */}
-                        <div className="flex items-center gap-2">
-                            {/* Model / Cpu */}
+                        {/* Right: Model Selector + Voice + Send */}
+                        <div className="flex items-center gap-1.5">
+                            {/* Model Name Button (Claude style: "Sonnet 4.6 ∨") */}
                             <ModelSelector
                                 selectedModel={selectedModel}
                                 onModelChange={onModelChange}
@@ -244,54 +349,60 @@ const ChatInput: React.FC<ChatInputProps> = ({
                                 onReasoningToggle={() => setWithReasoning(!withReasoning)}
                                 isSubscribed={isSubscribed}
                             >
-                                <button className="p-2 text-zinc-400 hover:text-zinc-600 transition-colors" title="Select Model">
-                                    <Cpu size={20} strokeWidth={1.5} />
+                                <button className="flex items-center gap-1 px-2 py-1.5 text-stone-400 hover:text-stone-600 transition-colors text-sm font-medium">
+                                    <span>{modelDisplayName}</span>
+                                    <ChevronDown size={14} strokeWidth={2} />
                                 </button>
                             </ModelSelector>
 
-                            {/* Globe / Web */}
+                            {/* Voice Button */}
                             <button
-                                onClick={() => setEnableWebSearch(!enableWebSearch)}
-                                className={cn(
-                                    "p-2 text-zinc-400 hover:text-zinc-600 transition-colors",
-                                    enableWebSearch && "text-blue-600"
-                                )}
-                                title="Web Search"
+                                onClick={() => setShowDictation(true)}
+                                className="w-8 h-8 flex items-center justify-center text-stone-400 hover:text-stone-600 rounded-lg transition-colors hover:bg-stone-100"
+                                title="Voice Input"
                             >
-                                <Globe size={20} strokeWidth={1.5} />
+                                <AudioLines size={18} strokeWidth={1.8} />
                             </button>
-
-                            {/* Attach */}
-                            <button
-                                onClick={() => fileInputRef.current?.click()}
-                                className="p-2 text-zinc-400 hover:text-zinc-600 transition-all"
-                                title="Attach file"
-                            >
-                                <Paperclip size={20} strokeWidth={1.5} />
-                            </button>
-
-
 
                             {/* Send Button */}
                             <button
                                 onClick={() => handleSend(isDeepDiveModel && withReasoning)}
                                 disabled={(!input.trim() && attachedImages.length === 0) || isTyping}
                                 className={cn(
-                                    "w-10 h-10 flex items-center justify-center rounded-full transition-all duration-200 ml-1 shadow-lg",
+                                    "w-9 h-9 flex items-center justify-center rounded-full transition-all duration-200 ml-0.5",
                                     (!input.trim() && attachedImages.length === 0) || isTyping
-                                        ? "bg-gray-100 text-gray-300 cursor-not-allowed shadow-none"
-                                        : "bg-lime-500 hover:bg-lime-600 text-white shadow-lime-200 transform hover:scale-105"
+                                        ? "bg-stone-100 text-stone-300 cursor-not-allowed"
+                                        : "bg-stone-800 hover:bg-stone-900 text-white transform hover:scale-105"
                                 )}
                             >
-                                <ArrowUp size={20} strokeWidth={2.5} />
+                                <ArrowUp size={18} strokeWidth={2.5} />
                             </button>
                         </div>
                     </div>
                 </div>
 
+                {/* Quick Action Pills — Below the input box */}
+                {messagesLength === 0 && (
+                    <div className="flex items-center justify-center gap-2 mt-3 flex-wrap">
+                        {QUICK_ACTIONS.map(action => {
+                            const Icon = action.icon;
+                            return (
+                                <button
+                                    key={action.id}
+                                    onClick={() => handleQuickAction(action.id)}
+                                    className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-stone-200 rounded-full text-sm text-stone-600 hover:bg-stone-50 hover:border-stone-300 transition-all shadow-sm hover:shadow"
+                                >
+                                    <Icon size={14} strokeWidth={1.8} />
+                                    <span>{action.label}</span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
+
                 {/* Footer Disclaimer */}
                 <div className="text-center mt-2">
-                    <p className="text-[11px] text-zinc-400">Noir is AI and can make mistakes. Please double-check responses.</p>
+                    <p className="text-[11px] text-stone-400">Noir is AI and can make mistakes. Please double-check responses.</p>
                 </div>
             </div>
 

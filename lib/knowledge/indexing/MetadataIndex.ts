@@ -112,4 +112,4 @@ export class MetadataIndexService {
 }
 
 // Export for backward compatibility
-export { MetadataIndexService as MetadataIndex };
+// export { MetadataIndexService as MetadataIndex };

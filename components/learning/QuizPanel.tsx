@@ -151,7 +151,7 @@ export default function QuizPanel({
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
-        <AILoading message="Generating quiz..." />
+        <AILoading status="generating" message="Generating quiz..." />
       </div>
     );
   }
@@ -253,13 +253,12 @@ export default function QuizPanel({
           <div className="flex items-start justify-between gap-4">
             <h3 className="text-xl font-semibold flex-1">{currentQuestion.question}</h3>
             <span
-              className={`px-2 py-1 rounded text-xs font-semibold ${
-                currentQuestion.difficulty === 'easy'
+              className={`px-2 py-1 rounded text-xs font-semibold ${currentQuestion.difficulty === 'easy'
                   ? 'bg-green-100 text-green-700'
                   : currentQuestion.difficulty === 'medium'
-                  ? 'bg-yellow-100 text-yellow-700'
-                  : 'bg-red-100 text-red-700'
-              }`}
+                    ? 'bg-yellow-100 text-yellow-700'
+                    : 'bg-red-100 text-red-700'
+                }`}
             >
               {currentQuestion.difficulty}
             </span>
@@ -278,15 +277,14 @@ export default function QuizPanel({
                     key={index}
                     onClick={() => !showExplanation && handleAnswer(index)}
                     disabled={showExplanation}
-                    className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
-                      showCorrect
+                    className={`w-full text-left p-4 rounded-lg border-2 transition-all ${showCorrect
                         ? 'border-green-500 bg-green-50'
                         : showIncorrect
-                        ? 'border-red-500 bg-red-50'
-                        : isSelected
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-200 hover:border-gray-300'
-                    } disabled:cursor-default`}
+                          ? 'border-red-500 bg-red-50'
+                          : isSelected
+                            ? 'border-blue-500 bg-blue-50'
+                            : 'border-gray-200 hover:border-gray-300'
+                      } disabled:cursor-default`}
                   >
                     <div className="flex items-center gap-3">
                       {showCorrect && <CheckCircle2 className="w-5 h-5 text-green-600" />}
@@ -312,15 +310,14 @@ export default function QuizPanel({
                     key={index}
                     onClick={() => !showExplanation && handleAnswer(value)}
                     disabled={showExplanation}
-                    className={`p-4 rounded-lg border-2 transition-all ${
-                      showCorrect
+                    className={`p-4 rounded-lg border-2 transition-all ${showCorrect
                         ? 'border-green-500 bg-green-50'
                         : showIncorrect
-                        ? 'border-red-500 bg-red-50'
-                        : isSelected
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-200 hover:border-gray-300'
-                    } disabled:cursor-default font-semibold`}
+                          ? 'border-red-500 bg-red-50'
+                          : isSelected
+                            ? 'border-blue-500 bg-blue-50'
+                            : 'border-gray-200 hover:border-gray-300'
+                      } disabled:cursor-default font-semibold`}
                   >
                     {value ? 'True' : 'False'}
                   </button>
@@ -380,9 +377,8 @@ export default function QuizPanel({
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className={`p-4 rounded-lg ${
-                isCorrect ? 'bg-green-50 border border-green-200' : 'bg-orange-50 border border-orange-200'
-              }`}
+              className={`p-4 rounded-lg ${isCorrect ? 'bg-green-50 border border-green-200' : 'bg-orange-50 border border-orange-200'
+                }`}
             >
               <div className="flex items-start gap-2 mb-2">
                 {isCorrect ? (

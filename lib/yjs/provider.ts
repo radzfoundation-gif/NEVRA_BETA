@@ -5,7 +5,7 @@
 
 import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
-import { createClient } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 
 export interface YJSConnection {
     doc: Y.Doc;
@@ -27,7 +27,6 @@ export async function createYJSConnection(
 ): Promise<YJSConnection | null> {
     try {
         // Get auth token from Supabase
-        const supabase = createClient();
         const { data: { session }, error } = await supabase.auth.getSession();
 
         if (error || !session) {
@@ -54,13 +53,14 @@ export async function createYJSConnection(
             {
                 params: { token }, // JWT token for authentication
                 connect: true,
-                awareness: {
-                    // Share user presence info
-                    name: session.user.email || 'Anonymous',
-                    color: generateUserColor(session.user.id),
-                },
             }
         );
+
+        // Share user presence info via provider awareness
+        provider.awareness.setLocalStateField('user', {
+            name: session.user.email || 'Anonymous',
+            color: generateUserColor(session.user.id),
+        });
 
         // Connection status listeners
         provider.on('status', (event: { status: string }) => {

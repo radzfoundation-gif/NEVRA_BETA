@@ -4,7 +4,7 @@ import { PreFilter } from '../filters/PreFilter';
 import { Deduplication } from '../processors/Deduplication';
 import { KnowledgeNormalizer } from '../processors/KnowledgeNormalizer';
 import { VectorStore } from '../storage/VectorStore';
-import { MetadataIndex } from '../indexing/MetadataIndex';
+import { MetadataIndexService } from '../indexing/MetadataIndex';
 import { WORKFLOW_CONFIG } from '../../workflow/config';
 
 /**
@@ -74,10 +74,10 @@ export class KnowledgeScheduler {
           const fetcher = FetcherFactory.createFetcher(source);
           const fetched = await fetcher.fetch(source);
           allFetched.push(...fetched);
-          
+
           // Update last fetched time
           SourceRegistry.updateLastFetched(source.id);
-          
+
           console.log(`✅ Fetched ${fetched.length} items from ${source.name}`);
         } catch (error) {
           console.error(`❌ Error fetching from ${source.name}:`, error);
@@ -102,12 +102,12 @@ export class KnowledgeScheduler {
       const { TechWatcherAgent } = await import('../agents/TechWatcherAgent');
       const techWatcher = new TechWatcherAgent('anthropic');
       const watcherResults = new Map<string, any>();
-      
+
       for (const content of filtered) {
         try {
           const watcherResult = await techWatcher.execute({}, { content });
           watcherResults.set(content.url, watcherResult);
-          
+
           // Only process if should curate
           if (!watcherResult.shouldCurate) {
             console.log(`⏭️ Skipping ${content.title.substring(0, 50)} - not relevant`);
@@ -165,7 +165,7 @@ export class KnowledgeScheduler {
       console.log(`💾 Stored ${normalized.length} entries in vector store`);
 
       // Step 9: METADATA INDEX
-      await MetadataIndex.indexBatch(normalized);
+      await MetadataIndexService.indexBatch(normalized);
       console.log(`📇 Indexed ${normalized.length} entries in metadata index`);
 
       const executionTime = Date.now() - startTime;
@@ -194,7 +194,7 @@ export class KnowledgeScheduler {
     const fetcher = FetcherFactory.createFetcher(source);
     const fetched = await fetcher.fetch(source);
     const filtered = PreFilter.filterBatch(fetched);
-    
+
     // Continue with watcher, curation, etc. (simplified for single source)
     console.log(`✅ Processed ${filtered.length} items from ${source.name}`);
   }

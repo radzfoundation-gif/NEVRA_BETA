@@ -374,7 +374,7 @@ const FileTree: React.FC<FileTreeProps> = ({
             {searchQuery ? 'No files found' : 'No files yet'}
           </div>
         ) : (
-          Object.values(filteredTree).map(node => renderNode(node))
+          (Object.values(filteredTree) as TreeNode[]).map(node => renderNode(node))
         )}
       </div>
 

@@ -194,9 +194,9 @@ const Sidebar: React.FC<SidebarProps> = ({
                     )}
 
                     <button
-                        onClick={() => setShowPricing(true)}
+                        onClick={() => window.open('http://localhost:5173/pricing', '_blank')}
                         className="p-2 hover:bg-zinc-200 rounded-lg text-zinc-500 hover:text-zinc-900 transition-colors"
-                        title="Pricing"
+                        title="Upgrade to Pro"
                     >
                         <CreditCard size={20} strokeWidth={1.5} />
                     </button>
@@ -400,7 +400,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                     <button onClick={() => setShowShare(true)} className="p-2 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-lg transition-colors" title="Share">
                         <Share2 size={18} strokeWidth={1.5} />
                     </button>
-                    <button onClick={() => setShowPricing(true)} className="p-2 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-lg transition-colors" title="Pro Plan">
+                    <button onClick={() => window.open('http://localhost:5173/pricing', '_blank')} className="p-2 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-lg transition-colors" title="Upgrade to Pro">
                         <Zap size={18} strokeWidth={1.5} />
                     </button>
                     <button onClick={onOpenSettings} className="p-2 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-lg transition-colors" title="Settings">

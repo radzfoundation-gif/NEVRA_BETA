@@ -9,6 +9,7 @@ import {
   query,
   where,
   orderBy,
+  limit,
   Timestamp,
 } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -40,26 +41,26 @@ const calculateNextReview = (
   success: boolean
 ): Date => {
   const now = new Date();
-  
+
   if (reviewCount === 0) {
     // First review: review again in 1 day
     return new Date(now.getTime() + 1 * 24 * 60 * 60 * 1000);
   }
-  
+
   if (!success) {
     // Reset: review again tomorrow
     return new Date(now.getTime() + 1 * 24 * 60 * 60 * 1000);
   }
-  
+
   // Calculate interval based on difficulty and review count
   // Difficulty ranges from 0-5 (ease factor in SM-2)
   const easeFactor = difficulty === 0 ? 2.5 : difficulty / 2 + 1.5; // 1.5 to 4.0
   const interval = reviewCount === 1
     ? 1 // 1 day
     : reviewCount === 2
-    ? 3 // 3 days
-    : Math.ceil((reviewCount - 1) * easeFactor);
-  
+      ? 3 // 3 days
+      : Math.ceil((reviewCount - 1) * easeFactor);
+
   return new Date(now.getTime() + interval * 24 * 60 * 60 * 1000);
 };
 
@@ -95,7 +96,7 @@ export async function createFlashcard(
   try {
     const now = new Date();
     const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-    
+
     const flashcard: Flashcard = {
       ...flashcardData,
       id: `card_${Date.now()}_${Math.random().toString(36).substring(7)}`,
@@ -193,14 +194,14 @@ export async function getUserFlashcards(
 
     const snapshot = await getDocs(q);
     return snapshot.docs.map(doc => {
-      const data = doc.data();
+      const data = doc.data() as Partial<Flashcard>;
       return {
         id: doc.id,
         ...data,
-        lastReviewed: data.lastReviewed?.toDate() || new Date(),
-        nextReview: data.nextReview?.toDate() || new Date(),
-        createdAt: data.createdAt?.toDate() || new Date(),
-        updatedAt: data.updatedAt?.toDate() || new Date(),
+        lastReviewed: data.lastReviewed instanceof Timestamp ? data.lastReviewed.toDate() : new Date(),
+        nextReview: data.nextReview instanceof Timestamp ? data.nextReview.toDate() : new Date(),
+        createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date(),
+        updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate() : new Date(),
       } as Flashcard;
     });
   } catch (error) {
@@ -226,7 +227,7 @@ export async function reviewFlashcard(
       const successCount = (flashcard as Flashcard).successCount + (success ? 1 : 0);
       const failCount = (flashcard as Flashcard).failCount + (success ? 0 : 1);
       const successRate = reviewCount > 0 ? successCount / reviewCount : 0;
-      
+
       const newDifficulty = updateDifficulty((flashcard as Flashcard).difficulty, success);
       const nextReview = calculateNextReview(
         now,
@@ -262,7 +263,7 @@ export async function reviewFlashcard(
     const successCount = (data.successCount || 0) + (success ? 1 : 0);
     const failCount = (data.failCount || 0) + (success ? 0 : 1);
     const successRate = reviewCount > 0 ? successCount / reviewCount : 0;
-    
+
     const newDifficulty = updateDifficulty(data.difficulty || 2.5, success);
     const nextReview = calculateNextReview(
       data.lastReviewed?.toDate() || now,

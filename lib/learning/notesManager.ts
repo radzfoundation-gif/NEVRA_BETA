@@ -142,12 +142,12 @@ export async function getUserNotes(userId: string, options?: {
 
     const snapshot = await getDocs(q);
     return snapshot.docs.map(doc => {
-      const data = doc.data();
+      const data = doc.data() as Partial<Note>;
       return {
         id: doc.id,
         ...data,
-        createdAt: data.createdAt?.toDate() || new Date(),
-        updatedAt: data.updatedAt?.toDate() || new Date(),
+        createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date(),
+        updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate() : new Date(),
       } as Note;
     });
   } catch (error) {
@@ -265,17 +265,17 @@ export async function searchNotes(
  */
 export function exportNoteAsMarkdown(note: Note): string {
   let markdown = `# ${note.title}\n\n`;
-  
+
   if (note.tags.length > 0) {
     markdown += `Tags: ${note.tags.map(t => `\`${t}\``).join(', ')}\n\n`;
   }
-  
+
   if (note.linkedTopics.length > 0) {
     markdown += `Topics: ${note.linkedTopics.join(', ')}\n\n`;
   }
-  
+
   markdown += `${note.content}\n\n`;
-  
+
   if (note.attachments && note.attachments.length > 0) {
     markdown += `## Attachments\n\n`;
     note.attachments.forEach(att => {
@@ -286,11 +286,11 @@ export function exportNoteAsMarkdown(note: Note): string {
       }
     });
   }
-  
+
   markdown += `---\n\n`;
   markdown += `Created: ${note.createdAt.toLocaleDateString()}\n`;
   markdown += `Updated: ${note.updatedAt.toLocaleDateString()}\n`;
-  
+
   return markdown;
 }
 

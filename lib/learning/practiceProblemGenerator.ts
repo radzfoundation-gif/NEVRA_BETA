@@ -60,18 +60,17 @@ RETURN FORMAT (JSON):
   ]
 }`;
 
-    const response = await generateCode({
+    const response = await generateCode(
       prompt,
-      mode: 'tutor',
-      provider: provider as any,
-      history: [],
-      systemPrompt: `You are an expert problem creator. Generate educational practice problems that test deep understanding and problem-solving skills.`,
-    });
+      [],
+      'tutor',
+      provider as any
+    );
 
-    if (!response || typeof response !== 'string') return null;
+    if (!response || !('content' in response) || typeof response.content !== 'string') return null;
 
     // Try to parse JSON from response
-    const jsonMatch = response.match(/```json\s*([\s\S]*?)\s*```/) || response.match(/```\s*([\s\S]*?)\s*```/);
+    const jsonMatch = response.content.match(/```json\s*([\s\S]*?)\s*```/) || response.content.match(/```\s*([\s\S]*?)\s*```/);
     if (!jsonMatch) return null;
 
     const problemData = JSON.parse(jsonMatch[1]);
@@ -111,7 +110,7 @@ export function checkSolution(
     const user = userSolution.toLowerCase().trim();
     const solution = problem.solution.toLowerCase().trim();
     const similar = calculateSimilarity(user, solution);
-    
+
     return {
       correct: similar > 0.8, // 80% similarity threshold
       feedback: similar > 0.8
@@ -166,9 +165,9 @@ interface TestResult {
 function calculateSimilarity(str1: string, str2: string): number {
   const longer = str1.length > str2.length ? str1 : str2;
   const shorter = str1.length > str2.length ? str2 : str1;
-  
+
   if (longer.length === 0) return 1.0;
-  
+
   const editDistance = levenshteinDistance(longer, shorter);
   return (longer.length - editDistance) / longer.length;
 }
@@ -178,15 +177,15 @@ function calculateSimilarity(str1: string, str2: string): number {
  */
 function levenshteinDistance(str1: string, str2: string): number {
   const matrix: number[][] = [];
-  
+
   for (let i = 0; i <= str2.length; i++) {
     matrix[i] = [i];
   }
-  
+
   for (let j = 0; j <= str1.length; j++) {
     matrix[0][j] = j;
   }
-  
+
   for (let i = 1; i <= str2.length; i++) {
     for (let j = 1; j <= str1.length; j++) {
       if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
@@ -200,7 +199,7 @@ function levenshteinDistance(str1: string, str2: string): number {
       }
     }
   }
-  
+
   return matrix[str2.length][str1.length];
 }
 
@@ -225,7 +224,7 @@ export async function generatePracticeProblems(
   provider: string = 'groq'
 ): Promise<PracticeProblem[]> {
   const problems: PracticeProblem[] = [];
-  
+
   for (let i = 0; i < count; i++) {
     const problem = await generatePracticeProblem(topic, difficulty, 'conceptual', provider);
     if (problem) {
@@ -234,7 +233,7 @@ export async function generatePracticeProblems(
     // Add delay to avoid rate limiting
     await new Promise(resolve => setTimeout(resolve, 1000));
   }
-  
+
   return problems;
 }
 

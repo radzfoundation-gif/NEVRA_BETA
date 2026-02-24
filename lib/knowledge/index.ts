@@ -23,13 +23,19 @@
  * METADATA INDEX
  */
 
-export { SourceRegistry, KnowledgeSource } from './sources/SourceRegistry';
-export { FetcherFactory, IFetcher, FetchedContent } from './fetchers/Fetcher';
+export { SourceRegistry } from './sources/SourceRegistry';
+export type { KnowledgeSource } from './sources/SourceRegistry';
+export { FetcherFactory } from './fetchers/Fetcher';
+export type { IFetcher, FetchedContent } from './fetchers/Fetcher';
 export { PreFilter } from './filters/PreFilter';
-export { TechWatcherAgent, TechWatcherResult } from './agents/TechWatcherAgent';
-export { CurationAgent, CuratedContent } from './agents/CurationAgent';
+export { TechWatcherAgent } from './agents/TechWatcherAgent';
+export type { TechWatcherResult } from './agents/TechWatcherAgent';
+export { CurationAgent } from './agents/CurationAgent';
+export type { CuratedContent } from './agents/CurationAgent';
 export { Deduplication } from './processors/Deduplication';
-export { KnowledgeNormalizer, NormalizedKnowledge } from './processors/KnowledgeNormalizer';
+export { KnowledgeNormalizer } from './processors/KnowledgeNormalizer';
+export type { NormalizedKnowledge } from './processors/KnowledgeNormalizer';
 export { VectorStore } from './storage/VectorStore';
-export { MetadataIndex } from './indexing/MetadataIndex';
+export { MetadataIndexService } from './indexing/MetadataIndex';
+export type { MetadataIndex } from './indexing/MetadataIndex';
 export { KnowledgeScheduler } from './scheduler/KnowledgeScheduler';

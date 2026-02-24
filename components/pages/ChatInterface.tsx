@@ -19,6 +19,7 @@ import AILoading from '@/components/ui/AILoading';
 import DynamicBackground from '@/components/ui/DynamicBackground';
 // ProviderSelector removed - orchestrator now manages models automatically
 import FrameworkSelector from '@/components/ui/FrameworkSelector';
+import StreamingResponse from '@/components/ui/StreamingResponse';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import clsx from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -37,15 +38,16 @@ import { useUser, useAuth } from '@/lib/authContext';
 import FeedbackPopup from '../FeedbackPopup';
 import { useUserPreferences, useChatSessions } from '@/hooks/useSupabase';
 import Logo from '../Logo';
-import VoiceCall from '../VoiceCall';
+const VoiceCall = React.lazy(() => import('../VoiceCall'));
 import Sidebar from '../Sidebar';
-import FileTree from '../FileTree';
-import CodeEditor from '../CodeEditor';
-import VisualEditor from '../VisualEditor';
-import CodeQualityPanel from '../CodeQualityPanel';
-import VersionHistory from '../VersionHistory';
-import ComponentLibrary from '../ComponentLibrary';
-import GitHubIntegration from '../GitHubIntegration';
+// Lazy load heavy components
+const FileTree = React.lazy(() => import('../FileTree'));
+const CodeEditor = React.lazy(() => import('../CodeEditor'));
+const VisualEditor = React.lazy(() => import('../VisualEditor'));
+const CodeQualityPanel = React.lazy(() => import('../CodeQualityPanel'));
+const VersionHistory = React.lazy(() => import('../VersionHistory'));
+const ComponentLibrary = React.lazy(() => import('../ComponentLibrary'));
+const GitHubIntegration = React.lazy(() => import('../GitHubIntegration'));
 import WorkspaceMenu from '../WorkspaceMenu';
 import { FileManager, ProjectFile } from '@/lib/fileManager';
 import { Component, getComponentLibrary } from '@/lib/componentLibrary';
@@ -67,7 +69,7 @@ import DesignSystemManager from '../DesignSystemManager';
 import { designSystemManager, DesignSystem } from '@/lib/designSystem';
 // DatabasePanel removed - using Firebase instead of Supabase
 import APIIntegrationWizard from '../APIIntegrationWizard';
-import MobileGenerator from '../MobileGenerator';
+const MobileGenerator = React.lazy(() => import('../MobileGenerator'));
 // Learning Features
 import { QuizPanel, NoteEditor, LearningDashboard, FlashcardReview } from '@/components/learning';
 import { useLearningProgress } from '@/hooks/useLearningProgress';
@@ -488,6 +490,7 @@ const ChatInterface: React.FC = () => {
 
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const hasAutoSent = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showImageMenu, setShowImageMenu] = useState(false);
@@ -919,6 +922,7 @@ const ChatInterface: React.FC = () => {
         [],
         'html',
         false,
+        undefined, // onChunk
         sessionId,
         user.id,
         user.fullName || 'User',
@@ -927,7 +931,7 @@ const ChatInterface: React.FC = () => {
       );
 
       // Clean up response: remove quotes, newlines, and markdown code ticks
-      let title = response.content?.trim() || "New Chat";
+      let title = (response && 'content' in response ? response.content.trim() : "New Chat") || "New Chat";
       title = title.replace(/^["']|["']$/g, '')          // Remove surrounding quotes
         .replace(/`/g, '')                     // Remove backticks
         .replace(/\*\*/g, '')                  // Remove bold markdown
@@ -1012,6 +1016,7 @@ const ChatInterface: React.FC = () => {
     }
 
     const filesArray = Array.from(files);
+    const MAX_SIZE_MB = 10;
     const validFiles = filesArray.filter(file => {
       if (file.size > MAX_SIZE_MB * 1024 * 1024) {
         alert(`File ${file.name} is too large (> ${MAX_SIZE_MB}MB).`);
@@ -1471,7 +1476,7 @@ const ChatInterface: React.FC = () => {
     }
   };
 
-  const handleSend = async (textOverride?: string | boolean, modeOverride?: AppMode, historyOverride?: Message[], deepDiveOverride?: boolean) => {
+  const handleSend = async (textOverride?: string | boolean, modeOverride?: AppMode, historyOverride?: Message[], deepDiveOverride?: boolean, attachmentsOverride?: Attachment[], imagesOverride?: string[]) => {
     // Handle case where first arg is boolean (deepDive flag from ChatInput)
     let deepDive = false;
     let text: string;
@@ -1482,9 +1487,9 @@ const ChatInterface: React.FC = () => {
       text = textOverride || input;
       deepDive = deepDiveOverride || false;
     }
-    const imagesToSend = historyOverride ? (historyOverride[historyOverride.length - 1]?.images || []) : attachedImages;
+    const imagesToSend = imagesOverride || (historyOverride ? (historyOverride[historyOverride.length - 1]?.images || []) : attachedImages);
 
-    if ((!text.trim() && imagesToSend.length === 0) || isTyping) return;
+    if ((!text.trim() && imagesToSend.length === 0 && (!attachmentsOverride || attachmentsOverride.length === 0)) || isTyping) return;
 
     // Check credit limit
     if (!checkChatLimit()) return;
@@ -1560,6 +1565,7 @@ const ChatInterface: React.FC = () => {
       role: 'user',
       content: text,
       images: imagesToSend,
+      attachments: attachmentsOverride,
       timestamp: new Date()
     };
 
@@ -1571,6 +1577,13 @@ const ChatInterface: React.FC = () => {
       // Track feedback conditions
       checkFeedbackConditions();
     }
+
+    // Abort previous generation if any
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     setIsTyping(true);
 
@@ -1616,7 +1629,7 @@ const ChatInterface: React.FC = () => {
       }
 
       // 2. Save User Message
-      if (activeSessionId && user) {
+      if (sessionId && user) {
         await saveMessage(activeSessionId, 'user', text, undefined, imagesToSend);
       }
 
@@ -1761,13 +1774,19 @@ const ChatInterface: React.FC = () => {
           imagesToSend,
           frameworkToUse,
           useWorkflow ? { onStatusUpdate } : false,
+          (chunk) => {
+            // Streaming callback for builder mode (if applicable)
+            // Currently builder mode expects JSON, so streaming raw text might break it unless we parse incrementally
+            // For now, we only stream for tutor mode or if we implement incremental JSON parsing
+          },
           activeSessionId,
           user?.id,
           user?.fullName || 'User',
           user?.primaryEmailAddress?.emailAddress,
           isSubscribed ? 'pro' : 'free',
           deepDive || withReasoning, // Combine deep dive param with reasoning state
-          selectedModel // NEW: Include selected model
+          selectedModel, // NEW: Include selected model
+          abortControllerRef.current?.signal // Support cancellation
         );
 
         // Handle multi-file or single-file response (BUILDER MODE ONLY)
@@ -1965,7 +1984,7 @@ const ChatInterface: React.FC = () => {
           console.log('🔄 Tutor mode detected build request, switching to builder mode...');
           setAppMode('builder');
           // Update session mode
-          if (activeSessionId && user) {
+          if (sessionId && user) {
             updateChatSession(activeSessionId, { mode: 'builder' })
               .catch(error => console.error('Error updating session mode:', error));
           }
@@ -1990,17 +2009,75 @@ const ChatInterface: React.FC = () => {
             imagesToSend,
             'html',
             useWorkflow ? { onStatusUpdate } : false,
+            (chunk) => {
+              // Streaming callback for tutor mode
+              setIsTyping(false); // Stop typing indicator once streaming starts
+              setMessages(prev => {
+                const lastMsg = prev[prev.length - 1];
+                if (lastMsg && lastMsg.role === 'ai' && lastMsg.id === 'streaming-temp') {
+                  return [
+                    ...prev.slice(0, -1),
+                    { ...lastMsg, content: lastMsg.content + chunk }
+                  ];
+                } else {
+                  return [
+                    ...prev,
+                    {
+                      id: 'streaming-temp',
+                      role: 'ai',
+                      content: chunk,
+                      timestamp: new Date()
+                    }
+                  ];
+                }
+              });
+            },
             activeSessionId,
             user?.id,
             user?.fullName || 'User',
             user?.primaryEmailAddress?.emailAddress,
             isSubscribed ? 'pro' : 'free',
             deepDive || withReasoning,
-            selectedModel // NEW: Include selected model
+            selectedModel, // selectedModel is the last argument (model)
+            abortControllerRef.current?.signal // Support cancellation
           );
-        } catch (error) {
+
+        } catch (error: any) {
+          // Ignore superseded requests (Fix for duplicate output/interleaved streams)
+          if (error.name === 'AbortError' && abortControllerRef.current !== controller) {
+            console.log('🛑 Request aborted/superseded, silent return.');
+            setIsTyping(false);
+            return;
+          }
+
           console.error('❌ Error calling generateCode in tutor mode:', error);
           codeResponse = null;
+
+          // Granular Error Messages
+          let userMessage = 'An unexpected error occurred.';
+          if (error.message.includes('OpenRouter API Key not configured')) {
+            userMessage = '⚠️ OpenRouter API Key Missing. Please set VITE_OPENROUTER_API_KEY in your .env file.';
+          } else if (error.message.includes('401') || error.message.includes('403')) {
+            userMessage = '⚠️ Authentication Failed. Please check your OpenRouter API Key.';
+          } else if (error.message.includes('429') || error.message.includes('Credit')) {
+            userMessage = '⏳ Rate limit or credit limit exceeded. Please check your OpenRouter credits.';
+          } else if (error.message.includes('Timeout') || error.name === 'AbortError') {
+            userMessage = '⏱️ Request timed out. The AI took too long to respond. Please try again.';
+          } else if (error.message.includes('empty response')) {
+            userMessage = '⚠️ AI returned an empty response. Please try rephrasing your prompt.';
+          }
+
+          setMessages(prev => [
+            ...prev,
+            {
+              id: 'error-' + Date.now(),
+              role: 'ai',
+              content: userMessage,
+              timestamp: new Date()
+            }
+          ]);
+          setIsTyping(false);
+          return;
         }
 
         // Extract text from response (tutor mode should not have code)
@@ -2203,10 +2280,6 @@ const ChatInterface: React.FC = () => {
       }
 
       // 3. Save AI Response
-      if (activeSessionId && user) {
-        await saveMessage(activeSessionId, 'ai', responseText, code || undefined, undefined);
-      }
-
       // Combine search results with response if available
       // For tutor mode, ensure we always have a response (never "Done.")
       let finalResponseText = responseText;
@@ -2271,6 +2344,10 @@ const ChatInterface: React.FC = () => {
         finalResponseText = (responseText || finalResponseText) + `\n\n<!-- SOURCES_JSON:${sourcesJson} -->`;
       }
 
+      if (sessionId && user) {
+        await saveMessage(activeSessionId, 'ai', finalResponseText, code || undefined, undefined);
+      }
+
       const newMessageId = (Date.now() + 1).toString();
       const aiResponse: Message = {
         id: newMessageId,
@@ -2281,59 +2358,65 @@ const ChatInterface: React.FC = () => {
       };
 
       setAnimatingMessageId(newMessageId);
-
-      // Simulate streaming for smoother animation (since API returns full text at once)
-      // This ensures TypewriterText has time to animate and looks like it's typing
       setIsTyping(true);
 
-      // Initialize message with empty content if we really want to simulate from scratch,
-      // but TypewriterText handles "catch up". 
-      // However, to keep "isTyping" true for the duration, we should control it here.
-
-      // Better approach: Set message with full content, but keep isTyping true for a calculated duration
-      // or let TypewriterText notify when done?
-      // No, we can't easily callback from child to parent state in this flow without more wiring.
-
-      // Alternative: Just update messages with full content, 
-      // and let TypewriterText animate it. 
-      // BUT we need to ensure isTyping stays true long enough!
-
-      const words = finalResponseText.split(' ');
-      let currentWordIndex = 0;
-
-      // Initial empty message to start the stream
-      setMessages(prev => [...prev, {
-        id: newMessageId,
-        role: 'ai',
-        content: '', // Start empty
-        code: code || undefined,
-        timestamp: new Date()
-      }]);
-
-      // Stream words
-      const streamInterval = setInterval(() => {
-        if (currentWordIndex >= words.length) {
-          clearInterval(streamInterval);
-          setIsTyping(false); // Only stop typing when done
-          setAnimatingMessageId(null);
-          return;
-        }
-
-        // Add next chunk of words (batching for speed)
-        const batchSize = 3;
-        const nextWords = words.slice(currentWordIndex, currentWordIndex + batchSize).join(' ');
-        currentWordIndex += batchSize;
-
+      // FIX: For tutor mode (which uses real streaming), don't simulate typing
+      // Just finalize the message to prevent duplicates (Streaming + Simulated)
+      if (mode === 'tutor') {
         setMessages(prev => {
-          const newMessages = [...prev];
-          const lastMsg = newMessages[newMessages.length - 1];
-          if (lastMsg && lastMsg.id === newMessageId) {
-            // Append content
-            lastMsg.content = lastMsg.content ? lastMsg.content + ' ' + nextWords : nextWords;
+          const lastMsg = prev[prev.length - 1];
+          // If we have a streaming placeholder, replace it with the final response
+          if (lastMsg && lastMsg.id === 'streaming-temp') {
+            return [
+              ...prev.slice(0, -1),
+              aiResponse
+            ];
           }
-          return newMessages;
+          // Fallback if no streaming happened for some reason
+          return [...prev, aiResponse];
         });
-      }, 50); // 50ms per batch update
+
+        setIsTyping(false);
+        setAnimatingMessageId(null);
+      } else {
+        // Builder mode still uses simulated streaming (or if streaming failed)
+        const words = finalResponseText.split(' ');
+        let currentWordIndex = 0;
+
+        // Initial empty message to start the stream
+        setMessages(prev => [...prev, {
+          id: newMessageId,
+          role: 'ai',
+          content: '', // Start empty
+          code: code || undefined,
+          timestamp: new Date()
+        }]);
+
+        // Stream words
+        const streamInterval = setInterval(() => {
+          if (currentWordIndex >= words.length) {
+            clearInterval(streamInterval);
+            setIsTyping(false); // Only stop typing when done
+            setAnimatingMessageId(null);
+            return;
+          }
+
+          // Add next chunk of words (batching for speed)
+          const batchSize = 3;
+          const nextWords = words.slice(currentWordIndex, currentWordIndex + batchSize).join(' ');
+          currentWordIndex += batchSize;
+
+          setMessages(prev => {
+            const newMessages = [...prev];
+            const lastMsg = newMessages[newMessages.length - 1];
+            if (lastMsg && lastMsg.id === newMessageId) {
+              // Append content
+              lastMsg.content = lastMsg.content ? lastMsg.content + ' ' + nextWords : nextWords;
+            }
+            return newMessages;
+          });
+        }, 50); // 50ms per batch update
+      }
 
       // Track learning progress in tutor mode
       if (mode === 'tutor' && user && sessionStartTime) {
@@ -2478,6 +2561,7 @@ const ChatInterface: React.FC = () => {
             imagesToSend,
             mode === 'builder' ? framework : 'html',
             useWorkflow ? { onStatusUpdate } : false,
+            undefined, // onChunk
             activeSessionId,
             user?.id,
             user?.fullName || 'User',
@@ -2551,7 +2635,7 @@ const ChatInterface: React.FC = () => {
           }
 
           // Save response
-          if (activeSessionId && user) {
+          if (sessionId && user) {
             try {
               const token = null;
               await saveMessage(activeSessionId, 'ai', responseText, code || undefined, undefined);
@@ -2648,6 +2732,7 @@ const ChatInterface: React.FC = () => {
             imagesToSend,
             mode === 'builder' ? framework : 'html',
             useWorkflow ? { onStatusUpdate } : false,
+            undefined, // onChunk
             activeSessionId,
             user?.id,
             user?.fullName || 'User',
@@ -2684,7 +2769,7 @@ const ChatInterface: React.FC = () => {
             setWorkflowStatus(null); // Clear status when done
             responseText = `Generated ${fallbackResponse.files.length} file(s) with Mistral Devstral.`;
           } else {
-            code = fallbackResponse.content;
+            code = fallbackResponse.content || '';
             const extracted = extractCode(code);
             responseText = extracted.text + ' (Generated with Mistral Devstral)';
             code = extracted.code || code;
@@ -2710,7 +2795,7 @@ const ChatInterface: React.FC = () => {
           }
 
           // Save response
-          if (activeSessionId && user) {
+          if (sessionId && user) {
             try {
               const token = null;
               await saveMessage(activeSessionId, 'ai', responseText, code || undefined, undefined);
@@ -2999,39 +3084,29 @@ const ChatInterface: React.FC = () => {
               )}
             >
               {appMode === 'tutor' ? (
-                <div className="flex flex-col items-center justify-center w-full max-w-2xl px-4 space-y-8 pt-20 mx-auto">
-                  <div className="flex flex-col items-center gap-4">
-                    <div className="w-14 h-14 rounded-2xl bg-black flex items-center justify-center shadow-lg">
-                      <span className="text-white font-bold text-2xl">N</span>
-                    </div>
-                    <h2 className="text-2xl font-semibold text-zinc-900">How can I help you today?</h2>
-                  </div>
+                <div className="w-full flex items-center justify-center h-full">
+                  <ResearchWelcome
+                    userName={user?.fullName || 'User'}
+                    initialQuery=""
+                    onSearch={(query, attachments, model, reasoning) => {
+                      // Separate images from other attachments
+                      const images = attachments?.filter(a => a.type === 'file' && a.mimeType?.startsWith('image/'))
+                        .map(a => a.content) || [];
 
-                  <div className="w-full max-w-xl relative">
-                    <textarea
-                      value={input}
-                      onChange={(e) => {
-                        setInput(e.target.value);
-                        e.target.style.height = 'auto';
-                        e.target.style.height = `${Math.min(e.target.scrollHeight, 150)}px`;
-                      }}
-                      onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSend())}
-                      placeholder="Message Noir AI..."
-                      className="w-full rounded-2xl border border-zinc-200 shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-4 pr-12 text-zinc-900 focus:outline-none focus:ring-2 focus:ring-black/5 resize-none min-h-[60px]"
-                      autoFocus
-                    />
-                    <button
-                      onClick={() => handleSend()}
-                      disabled={!input.trim() || isTyping}
-                      className="absolute right-3 bottom-3 p-2 bg-black text-white rounded-xl hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-                    >
-                      <Send size={16} />
-                    </button>
-                  </div>
+                      const otherAttachments = attachments?.filter(a => !(a.type === 'file' && a.mimeType?.startsWith('image/')))
+                        .map(a => ({
+                          type: a.type,
+                          name: a.name,
+                          content: a.content,
+                          mimeType: a.mimeType
+                        })) as Attachment[];
 
-                  <p className="text-zinc-500 text-sm max-w-xl text-center">
-                    Ask questions, research topics, or explore ideas.
-                  </p>
+                      // Send
+                      handleSend(query, 'tutor', undefined, reasoning, otherAttachments, images);
+                    }}
+                    isWebSearchEnabled={enableWebSearch}
+                    onToggleWebSearch={setEnableWebSearch}
+                  />
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center w-full max-w-2xl px-4 space-y-4 pt-20 mx-auto">
@@ -3169,103 +3244,12 @@ const ChatInterface: React.FC = () => {
                           return null;
                         })()}
 
-                        {/* Use TypewriterText ONLY for the latest message if it's still being typed/streamed */}
-                        {isTyping && idx === messages.length - 1 ? (
-                          <TypewriterText
-                            content={msg.content}
-                            isStreaming={true}
-                            speed={5} // Faster speed for better feel
-                          />
-                        ) : (
-                          <ReactMarkdown
-                            remarkPlugins={[remarkGfm, remarkMath]}
-                            rehypePlugins={[rehypeRaw, rehypeKatex]}
-                            components={{
-                              code({ node, inline, className, children, ...props }: any) {
-                                const match = /language-(\w+)/.exec(className || '');
-                                return !inline && match ? (
-                                  <div className="overflow-hidden border border-zinc-200 rounded-xl bg-zinc-50 my-4 font-mono text-sm shadow-sm group">
-                                    <div className="flex items-center justify-between px-4 py-2 bg-zinc-100/50 border-b border-zinc-200">
-                                      <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">{match[1]}</span>
-                                      <button
-                                        onClick={() => {
-                                          copyToClipboard(String(children).replace(/\n$/, ''));
-                                        }}
-                                        className="text-xs text-zinc-500 hover:text-zinc-800 px-2 py-1 rounded hover:bg-zinc-200 transition-colors opacity-0 group-hover:opacity-100"
-                                      >
-                                        Copy
-                                      </button>
-                                    </div>
-                                    <div className="overflow-x-auto">
-                                      <SyntaxHighlighter
-                                        style={oneLight}
-                                        language={match[1]}
-                                        PreTag="div"
-                                        customStyle={{
-                                          margin: 0,
-                                          padding: '1.25rem',
-                                          background: 'transparent',
-                                          fontSize: '13px',
-                                          lineHeight: '1.6'
-                                        }}
-                                        {...props}
-                                      >
-                                        {String(children).replace(/\n$/, '')}
-                                      </SyntaxHighlighter>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <code className="rounded px-1.5 py-0.5 text-xs font-medium bg-purple-50 text-purple-600 border border-purple-200" {...props}>
-                                    {children}
-                                  </code>
-                                );
-                              },
-                              table({ children, ...props }: any) {
-                                return (
-                                  <div className="overflow-x-auto my-4 border border-zinc-200 rounded-lg">
-                                    <table className="min-w-full divide-y divide-zinc-200 text-sm" {...props}>
-                                      {children}
-                                    </table>
-                                  </div>
-                                );
-                              }
-                            }}
-                          >
-                            {(() => {
-                              // Transform citation numbers [1, 2] into styled superscript badges
-                              const content = msg.content.replace(/<!-- SOURCES_JSON:.*? -->/g, '');
+                        {/* Use StreamingResponse for AI messages with hierarchical support */}
+                        <StreamingResponse
+                          content={msg.content}
+                          isStreaming={isTyping && idx === messages.length - 1}
+                        />
 
-                              // Split content by citation pattern and rebuild with styled citations
-                              const citationPattern = /\[(\d+(?:,\s*\d+)*)\]/g;
-                              const parts = content.split(citationPattern);
-
-                              // If no citations found, just return the content
-                              if (parts.length === 1) {
-                                return content;
-                              }
-
-                              // Rebuild content with HTML citation badges
-                              let result = '';
-                              let lastIndex = 0;
-                              let match;
-                              const tempContent = content;
-                              citationPattern.lastIndex = 0;
-
-                              while ((match = citationPattern.exec(tempContent)) !== null) {
-                                result += tempContent.slice(lastIndex, match.index);
-                                const nums = match[1].split(',').map(n => n.trim());
-                                // Add onclick handler that dispatches custom event with message ID and source index
-                                result += nums.map(n =>
-                                  `<sup class="citation-badge" onclick="window.dispatchEvent(new CustomEvent('citation-click', { detail: { messageId: '${msg.id}', sourceIndex: ${n} } }))" title="Click to view source ${n}">${n}</sup>`
-                                ).join('');
-                                lastIndex = citationPattern.lastIndex;
-                              }
-                              result += tempContent.slice(lastIndex);
-
-                              return result;
-                            })()}
-                          </ReactMarkdown>
-                        )}
                       </div>
                     ) : (
                       <div className="whitespace-pre-wrap text-zinc-900 dark:text-zinc-100 leading-relaxed text-sm">
@@ -3333,7 +3317,7 @@ const ChatInterface: React.FC = () => {
                               setMessageFeedback(prev => ({ ...prev, [msg.id]: newFeedback }));
 
                               // Send to Database
-                              if (activeSessionId && user) {
+                              if (sessionId && user) {
                                 try {
                                   const { supabase } = await import('@/lib/supabase');
                                   await supabase
@@ -3344,7 +3328,8 @@ const ChatInterface: React.FC = () => {
                                   console.error('Error sending feedback:', err);
                                 }
                               }
-                            }}
+                            }
+                            }
                             className={cn(
                               "flex items-center gap-1.5 px-2 py-1 text-xs text-gray-500 hover:text-zinc-800 rounded hover:bg-zinc-100 transition-colors",
                               messageFeedback[msg.id] === 'dislike' && "text-red-500 hover:text-red-600 font-medium"
@@ -3936,258 +3921,262 @@ const ChatInterface: React.FC = () => {
           </div>
         ) : activeTab === 'code' ? (
           /* Code Editor Mode with FileTree */
-          <div className="flex-1 flex h-full relative">
-            {/* FileTree Sidebar - Responsive */}
-            {fileManager.getAllFiles().length > 0 && (
-              <div className={cn(
-                "shrink-0 border-r border-white/5 bg-[#0a0a0a] transition-all duration-300 overflow-hidden",
-                // Desktop: always visible
-                !isMobile && !isTablet && "w-64",
-                // Tablet: can be toggled
-                isTablet && (fileTreeOpen ? "w-64 absolute inset-y-0 left-0 z-30 shadow-2xl" : "w-0"),
-                // Mobile: can be toggled, full overlay
-                isMobile && (fileTreeOpen ? "w-full absolute inset-0 z-30 shadow-2xl" : "w-0")
-              )}>
-                <div className="h-full flex flex-col">
-                  {/* FileTree Header with Close Button (Mobile/Tablet) */}
-                  {(isMobile || isTablet) && (
-                    <div className="flex items-center justify-between p-3 border-b border-white/5">
-                      <h3 className="text-sm font-semibold text-white">Files</h3>
-                      <button
-                        onClick={() => setFileTreeOpen(false)}
-                        className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
-                      >
-                        <X size={16} className="text-gray-400" />
-                      </button>
-                    </div>
-                  )}
-                  <div className="flex-1 overflow-y-auto">
-                    <FileTree
-                      files={fileManager.getAllFiles()}
-                      selectedFile={selectedFile}
-                      onSelectFile={(path) => {
-                        setSelectedFile(path);
-                        if (!openFiles.includes(path)) {
-                          setOpenFiles(prev => [...prev, path]);
-                        }
-                        // Close file tree on mobile/tablet after selection
-                        if (isMobile || isTablet) {
-                          setFileTreeOpen(false);
-                        }
-                      }}
-                      onNewFile={(parentPath) => {
-                        const newPath = parentPath
-                          ? `${parentPath}/new-file.tsx`
-                          : `src/components/new-file.tsx`;
-                        fileManager.addFile(newPath, '', 'component');
-                        setSelectedFile(newPath);
-                        setOpenFiles(prev => [...prev, newPath]);
-                        if (isMobile || isTablet) {
-                          setFileTreeOpen(false);
-                        }
-                      }}
-                      onDeleteFile={(path) => {
-                        fileManager.deleteFile(path);
-                        setOpenFiles(prev => prev.filter(p => p !== path));
-                        if (selectedFile === path) {
-                          const remaining = fileManager.getAllFiles();
-                          setSelectedFile(remaining.length > 0 ? remaining[0].path : null);
-                        }
-                      }}
-                      onRenameFile={(oldPath, newPath) => {
-                        const file = fileManager.getFile(oldPath);
-                        if (file) {
-                          fileManager.deleteFile(oldPath);
-                          fileManager.addFile(newPath, file.content, file.type);
-                          setOpenFiles(prev => prev.map(p => p === oldPath ? newPath : p));
-                          if (selectedFile === oldPath) {
-                            setSelectedFile(newPath);
-                          }
-                        }
-                      }}
-                      entry={fileManager.getEntry()}
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-            {/* Overlay untuk mobile ketika file tree terbuka */}
-            {(isMobile || isTablet) && fileTreeOpen && (
-              <div
-                className="absolute inset-0 bg-black/50 z-20"
-                onClick={() => setFileTreeOpen(false)}
-              />
-            )}
-
-            {/* Code Editor Area */}
-            <div className="flex-1 flex flex-col min-w-0">
-              {/* File Tabs */}
-              {openFiles.length > 0 && (
+          <React.Suspense fallback={<div className="flex h-full w-full items-center justify-center bg-zinc-900"><Loader2 className="h-8 w-8 animate-spin text-purple-500" /></div>}>
+            <div className="flex-1 flex h-full relative">
+              {/* FileTree Sidebar - Responsive */}
+              {fileManager.getAllFiles().length > 0 && (
                 <div className={cn(
-                  "flex items-center gap-1 bg-zinc-50 border-b border-zinc-200 overflow-x-auto scrollbar-thin scrollbar-thumb-purple-200",
-                  isMobile ? "px-1" : "px-2"
+                  "shrink-0 border-r border-white/5 bg-[#0a0a0a] transition-all duration-300 overflow-hidden",
+                  // Desktop: always visible
+                  !isMobile && !isTablet && "w-64",
+                  // Tablet: can be toggled
+                  isTablet && (fileTreeOpen ? "w-64 absolute inset-y-0 left-0 z-30 shadow-2xl" : "w-0"),
+                  // Mobile: can be toggled, full overlay
+                  isMobile && (fileTreeOpen ? "w-full absolute inset-0 z-30 shadow-2xl" : "w-0")
                 )}>
-                  {openFiles.map(path => {
-                    const file = fileManager.getFile(path);
-                    return (
-                      <div
-                        key={path}
-                        className={clsx(
-                          "flex items-center gap-1 md:gap-2 rounded-t-lg transition-colors whitespace-nowrap shrink-0",
-                          isMobile ? "px-2 py-1.5 text-xs" : "px-3 py-2 text-sm",
-                          selectedFile === path
-                            ? "bg-white text-zinc-900 border-t border-l border-r border-zinc-200"
-                            : "text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100"
-                        )}
-                      >
+                  <div className="h-full flex flex-col">
+                    {/* FileTree Header with Close Button (Mobile/Tablet) */}
+                    {(isMobile || isTablet) && (
+                      <div className="flex items-center justify-between p-3 border-b border-white/5">
+                        <h3 className="text-sm font-semibold text-white">Files</h3>
                         <button
-                          onClick={() => setSelectedFile(path)}
-                          className="flex items-center gap-1 md:gap-2 flex-1 min-w-0"
+                          onClick={() => setFileTreeOpen(false)}
+                          className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
                         >
-                          <FileCode size={isMobile ? 10 : 12} />
-                          <span className={cn(
-                            "truncate",
-                            isMobile ? "max-w-[80px]" : "max-w-[120px]"
-                          )}>{path.split('/').pop()}</span>
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setOpenFiles(prev => prev.filter(p => p !== path));
-                            if (selectedFile === path) {
-                              const remaining = openFiles.filter(p => p !== path);
-                              setSelectedFile(remaining.length > 0 ? remaining[0] : null);
-                            }
-                          }}
-                          className={cn(
-                            "ml-1 hover:bg-white/10 rounded shrink-0",
-                            isMobile ? "p-0.5" : "p-0.5"
-                          )}
-                          title="Close file"
-                        >
-                          <X size={isMobile ? 10 : 12} />
+                          <X size={16} className="text-gray-400" />
                         </button>
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Code Quality Panel */}
-              {(typescriptErrors.length > 0 || lintErrors.length > 0) && (
-                <div className="border-t border-white/5 p-3">
-                  <CodeQualityPanel
-                    typescriptErrors={typescriptErrors}
-                    lintErrors={lintErrors}
-                    onFixAll={() => {
-                      const file = fileManager.getFile(selectedFile);
-                      if (file) {
-                        const fixed = autoFix(file.content, lintErrors);
-                        fileManager.addFile(selectedFile, fixed, file.type);
-                        if (selectedFile === fileManager.getEntry()) {
-                          setCurrentCode(fixed);
-                        }
-                        setLintErrors([]);
-                      }
-                    }}
-                    onRefresh={() => {
-                      const file = fileManager.getFile(selectedFile);
-                      if (file) {
-                        if (selectedFile.endsWith('.ts') || selectedFile.endsWith('.tsx')) {
-                          setTypeScriptErrors(checkTypeScript(file.content));
-                        }
-                        setLintErrors(lintCode(file.content));
-                      }
-                    }}
-                  />
-                </div>
-              )}
-
-              {/* Code Editor */}
-              {selectedFile ? (
-                <CodeEditor
-                  value={(() => {
-                    const file = fileManager.getFile(selectedFile);
-                    const content = file?.content;
-                    // Ensure content is always a string
-                    return typeof content === 'string' ? content : String(content || '');
-                  })()}
-                  onChange={(newContent) => {
-                    const file = fileManager.getFile(selectedFile);
-                    if (file) {
-                      // Track undo/redo
-                      undoRedoManager.mergeConsecutiveEdits(selectedFile, newContent);
-
-                      fileManager.addFile(selectedFile, newContent, file.type);
-                      // Update currentCode if it's the entry file
-                      if (selectedFile === fileManager.getEntry()) {
-                        setCurrentCode(newContent);
-                      }
-
-                      // Run code quality checks
-                      if (selectedFile.endsWith('.ts') || selectedFile.endsWith('.tsx')) {
-                        const tsErrors = checkTypeScript(newContent);
-                        setTypeScriptErrors(tsErrors);
-                      }
-                      const lintErrs = lintCode(newContent);
-                      setLintErrors(lintErrs);
-                    }
-                  }}
-                  language={
-                    selectedFile.endsWith('.tsx') ? 'tsx' :
-                      selectedFile.endsWith('.jsx') ? 'jsx' :
-                        selectedFile.endsWith('.css') ? 'css' :
-                          selectedFile.endsWith('.html') ? 'html' :
-                            selectedFile.endsWith('.json') ? 'json' :
-                              'typescript'
-                  }
-                  filePath={selectedFile}
-                  onSave={() => {
-                    // Auto-format on save
-                    const file = fileManager.getFile(selectedFile);
-                    if (file) {
-                      const formatted = formatCode(file.content,
-                        selectedFile.endsWith('.tsx') ? 'tsx' :
-                          selectedFile.endsWith('.jsx') ? 'jsx' :
-                            selectedFile.endsWith('.ts') ? 'typescript' :
-                              selectedFile.endsWith('.css') ? 'css' :
-                                'typescript'
-                      );
-                      fileManager.addFile(selectedFile, formatted, file.type);
-                      if (selectedFile === fileManager.getEntry()) {
-                        setCurrentCode(formatted);
-                      }
-                    }
-                    setLogs(prev => [...prev, `> Saved ${selectedFile}`]);
-                  }}
-                />
-              ) : (
-                <div className="flex-1 flex items-center justify-center text-zinc-400">
-                  <div className="text-center">
-                    <FileCode size={48} className="mx-auto mb-4 opacity-50 text-zinc-300" />
-                    <p>No file selected</p>
-                    <p className="text-sm mt-2">Select a file from the tree or generate code</p>
+                    )}
+                    <div className="flex-1 overflow-y-auto">
+                      <FileTree
+                        files={fileManager.getAllFiles()}
+                        selectedFile={selectedFile}
+                        onSelectFile={(path) => {
+                          setSelectedFile(path);
+                          if (!openFiles.includes(path)) {
+                            setOpenFiles(prev => [...prev, path]);
+                          }
+                          // Close file tree on mobile/tablet after selection
+                          if (isMobile || isTablet) {
+                            setFileTreeOpen(false);
+                          }
+                        }}
+                        onNewFile={(parentPath) => {
+                          const newPath = parentPath
+                            ? `${parentPath}/new-file.tsx`
+                            : `src/components/new-file.tsx`;
+                          fileManager.addFile(newPath, '', 'component');
+                          setSelectedFile(newPath);
+                          setOpenFiles(prev => [...prev, newPath]);
+                          if (isMobile || isTablet) {
+                            setFileTreeOpen(false);
+                          }
+                        }}
+                        onDeleteFile={(path) => {
+                          fileManager.deleteFile(path);
+                          setOpenFiles(prev => prev.filter(p => p !== path));
+                          if (selectedFile === path) {
+                            const remaining = fileManager.getAllFiles();
+                            setSelectedFile(remaining.length > 0 ? remaining[0].path : null);
+                          }
+                        }}
+                        onRenameFile={(oldPath, newPath) => {
+                          const file = fileManager.getFile(oldPath);
+                          if (file) {
+                            fileManager.deleteFile(oldPath);
+                            fileManager.addFile(newPath, file.content, file.type);
+                            setOpenFiles(prev => prev.map(p => p === oldPath ? newPath : p));
+                            if (selectedFile === oldPath) {
+                              setSelectedFile(newPath);
+                            }
+                          }
+                        }}
+                        entry={fileManager.getEntry()}
+                      />
+                    </div>
                   </div>
                 </div>
               )}
+              {/* Overlay untuk mobile ketika file tree terbuka */}
+              {(isMobile || isTablet) && fileTreeOpen && (
+                <div
+                  className="absolute inset-0 bg-black/50 z-20"
+                  onClick={() => setFileTreeOpen(false)}
+                />
+              )}
+
+              {/* Code Editor Area */}
+              <div className="flex-1 flex flex-col min-w-0">
+                {/* File Tabs */}
+                {openFiles.length > 0 && (
+                  <div className={cn(
+                    "flex items-center gap-1 bg-zinc-50 border-b border-zinc-200 overflow-x-auto scrollbar-thin scrollbar-thumb-purple-200",
+                    isMobile ? "px-1" : "px-2"
+                  )}>
+                    {openFiles.map(path => {
+                      const file = fileManager.getFile(path);
+                      return (
+                        <div
+                          key={path}
+                          className={clsx(
+                            "flex items-center gap-1 md:gap-2 rounded-t-lg transition-colors whitespace-nowrap shrink-0",
+                            isMobile ? "px-2 py-1.5 text-xs" : "px-3 py-2 text-sm",
+                            selectedFile === path
+                              ? "bg-white text-zinc-900 border-t border-l border-r border-zinc-200"
+                              : "text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100"
+                          )}
+                        >
+                          <button
+                            onClick={() => setSelectedFile(path)}
+                            className="flex items-center gap-1 md:gap-2 flex-1 min-w-0"
+                          >
+                            <FileCode size={isMobile ? 10 : 12} />
+                            <span className={cn(
+                              "truncate",
+                              isMobile ? "max-w-[80px]" : "max-w-[120px]"
+                            )}>{path.split('/').pop()}</span>
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenFiles(prev => prev.filter(p => p !== path));
+                              if (selectedFile === path) {
+                                const remaining = openFiles.filter(p => p !== path);
+                                setSelectedFile(remaining.length > 0 ? remaining[0] : null);
+                              }
+                            }}
+                            className={cn(
+                              "ml-1 hover:bg-white/10 rounded shrink-0",
+                              isMobile ? "p-0.5" : "p-0.5"
+                            )}
+                            title="Close file"
+                          >
+                            <X size={isMobile ? 10 : 12} />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Code Quality Panel */}
+                {(typescriptErrors.length > 0 || lintErrors.length > 0) && (
+                  <div className="border-t border-white/5 p-3">
+                    <CodeQualityPanel
+                      typescriptErrors={typescriptErrors}
+                      lintErrors={lintErrors}
+                      onFixAll={() => {
+                        const file = fileManager.getFile(selectedFile);
+                        if (file) {
+                          const fixed = autoFix(file.content, lintErrors);
+                          fileManager.addFile(selectedFile, fixed, file.type);
+                          if (selectedFile === fileManager.getEntry()) {
+                            setCurrentCode(fixed);
+                          }
+                          setLintErrors([]);
+                        }
+                      }}
+                      onRefresh={() => {
+                        const file = fileManager.getFile(selectedFile);
+                        if (file) {
+                          if (selectedFile.endsWith('.ts') || selectedFile.endsWith('.tsx')) {
+                            setTypeScriptErrors(checkTypeScript(file.content));
+                          }
+                          setLintErrors(lintCode(file.content));
+                        }
+                      }}
+                    />
+                  </div>
+                )}
+
+                {/* Code Editor */}
+                {selectedFile ? (
+                  <CodeEditor
+                    value={(() => {
+                      const file = fileManager.getFile(selectedFile);
+                      const content = file?.content;
+                      // Ensure content is always a string
+                      return typeof content === 'string' ? content : String(content || '');
+                    })()}
+                    onChange={(newContent) => {
+                      const file = fileManager.getFile(selectedFile);
+                      if (file) {
+                        // Track undo/redo
+                        undoRedoManager.mergeConsecutiveEdits(selectedFile, newContent);
+
+                        fileManager.addFile(selectedFile, newContent, file.type);
+                        // Update currentCode if it's the entry file
+                        if (selectedFile === fileManager.getEntry()) {
+                          setCurrentCode(newContent);
+                        }
+
+                        // Run code quality checks
+                        if (selectedFile.endsWith('.ts') || selectedFile.endsWith('.tsx')) {
+                          const tsErrors = checkTypeScript(newContent);
+                          setTypeScriptErrors(tsErrors);
+                        }
+                        const lintErrs = lintCode(newContent);
+                        setLintErrors(lintErrs);
+                      }
+                    }}
+                    language={
+                      selectedFile.endsWith('.tsx') ? 'tsx' :
+                        selectedFile.endsWith('.jsx') ? 'jsx' :
+                          selectedFile.endsWith('.css') ? 'css' :
+                            selectedFile.endsWith('.html') ? 'html' :
+                              selectedFile.endsWith('.json') ? 'json' :
+                                'typescript'
+                    }
+                    filePath={selectedFile}
+                    onSave={() => {
+                      // Auto-format on save
+                      const file = fileManager.getFile(selectedFile);
+                      if (file) {
+                        const formatted = formatCode(file.content,
+                          selectedFile.endsWith('.tsx') ? 'tsx' :
+                            selectedFile.endsWith('.jsx') ? 'jsx' :
+                              selectedFile.endsWith('.ts') ? 'typescript' :
+                                selectedFile.endsWith('.css') ? 'css' :
+                                  'typescript'
+                        );
+                        fileManager.addFile(selectedFile, formatted, file.type);
+                        if (selectedFile === fileManager.getEntry()) {
+                          setCurrentCode(formatted);
+                        }
+                      }
+                      setLogs(prev => [...prev, `> Saved ${selectedFile}`]);
+                    }}
+                  />
+                ) : (
+                  <div className="flex-1 flex items-center justify-center text-zinc-400">
+                    <div className="text-center">
+                      <FileCode size={48} className="mx-auto mb-4 opacity-50 text-zinc-300" />
+                      <p>No file selected</p>
+                      <p className="text-sm mt-2">Select a file from the tree or generate code</p>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          </React.Suspense>
         ) : activeTab === 'visual' ? (
-          <div className="flex-1 flex flex-col h-full overflow-hidden relative bg-zinc-50 min-h-0">
-            <VisualEditor
-              iframeRef={previewIframeRef}
-              onUpdateCode={(updatedCode) => {
-                const entry = fileManager.getEntry();
-                if (entry) {
-                  fileManager.addFile(entry, updatedCode, 'page');
-                  setCurrentCode(updatedCode);
-                  setRefreshKey(k => k + 1);
-                }
-              }}
-              code={currentCode || fileManager.getFile(fileManager.getEntry())?.content || ''}
-              isActive={activeTab === 'visual'}
-            />
-          </div>
+          <React.Suspense fallback={<div className="flex h-full w-full items-center justify-center bg-zinc-900"><Loader2 className="h-8 w-8 animate-spin text-purple-500" /></div>}>
+            <div className="flex-1 flex flex-col h-full overflow-hidden relative bg-zinc-50 min-h-0">
+              <VisualEditor
+                iframeRef={previewIframeRef}
+                onUpdateCode={(updatedCode) => {
+                  const entry = fileManager.getEntry();
+                  if (entry) {
+                    fileManager.addFile(entry, updatedCode, 'page');
+                    setCurrentCode(updatedCode);
+                    setRefreshKey(k => k + 1);
+                  }
+                }}
+                code={currentCode || fileManager.getFile(fileManager.getEntry())?.content || ''}
+                isActive={activeTab === 'visual'}
+              />
+            </div>
+          </React.Suspense>
         ) : activeTab === 'preview' ? (
           <PreviewContainer
             isMobile={isMobile}
@@ -4239,7 +4228,7 @@ const ChatInterface: React.FC = () => {
               <div className="flex-1 overflow-auto p-6 scrollbar-thin scrollbar-thumb-purple-500/20 scrollbar-track-transparent">
                 <SyntaxHighlighter
                   language="typescript"
-                  style={vscDarkPlus}
+                  style={oneLight}
                   customStyle={{ margin: 0, padding: 0, background: 'transparent', fontSize: '13px', lineHeight: '1.6' }}
                   showLineNumbers={true}
                   wrapLines={true}

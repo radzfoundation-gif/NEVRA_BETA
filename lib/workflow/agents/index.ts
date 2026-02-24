@@ -19,9 +19,11 @@
  * FINAL RESPONSE
  */
 
-export { BaseAgent, IAgent } from './BaseAgent';
+export { BaseAgent } from './BaseAgent';
+export type { IAgent } from './BaseAgent';
 export { PlannerAgent } from './PlannerAgent';
 export { ExecutorAgent } from './ExecutorAgent';
 export { ReviewerAgent } from './ReviewerAgent';
-export { SelfReflectionAgent, SelfReflectionResult } from './SelfReflectionAgent';
+export { SelfReflectionAgent } from './SelfReflectionAgent';
+export type { SelfReflectionResult } from './SelfReflectionAgent';
 export { AgentFactory } from './AgentFactory';

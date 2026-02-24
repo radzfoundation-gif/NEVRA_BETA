@@ -74,18 +74,17 @@ RETURN FORMAT (JSON):
   ]
 }`;
 
-    const response = await generateCode({
+    const response = await generateCode(
       prompt,
-      mode: 'tutor',
-      provider: provider as any,
-      history: [],
-      systemPrompt: `You are an expert educational curriculum designer. Create structured, progressive learning paths that guide learners from beginner to advanced levels.`,
-    });
+      [],
+      'tutor',
+      provider as any
+    );
 
-    if (!response || typeof response !== 'string') return null;
+    if (!response || !('content' in response) || typeof response.content !== 'string') return null;
 
     // Try to parse JSON from response
-    const jsonMatch = response.match(/```json\s*([\s\S]*?)\s*```/) || response.match(/```\s*([\s\S]*?)\s*```/);
+    const jsonMatch = response.content.match(/```json\s*([\s\S]*?)\s*```/) || response.content.match(/```\s*([\s\S]*?)\s*```/);
     if (!jsonMatch) return null;
 
     const pathData = JSON.parse(jsonMatch[1]);
@@ -163,7 +162,7 @@ export function createLearningPath(
  */
 export function calculatePathProgress(path: LearningPath): number {
   if (path.milestones.length === 0) return 0;
-  
+
   const completed = path.milestones.filter(m => m.completed).length;
   return Math.round((completed / path.milestones.length) * 100);
 }

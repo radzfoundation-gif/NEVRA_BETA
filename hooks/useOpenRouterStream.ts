@@ -18,10 +18,20 @@ interface Message {
     content: string;
 }
 
+interface ToolEvent {
+    tool: string;
+    serverId?: string;
+    args?: Record<string, any>;
+    success?: boolean;
+    error?: string;
+}
+
 interface StreamState {
     isStreaming: boolean;
     content: string;
     error: string | null;
+    statusMessage: string | null;
+    activeTools: ToolEvent[];
 }
 
 interface UseOpenRouterStreamReturn extends StreamState {
@@ -35,6 +45,8 @@ export function useOpenRouterStream(): UseOpenRouterStreamReturn {
         isStreaming: false,
         content: '',
         error: null,
+        statusMessage: null,
+        activeTools: [],
     });
 
     const abortControllerRef = useRef<AbortController | null>(null);
@@ -55,6 +67,8 @@ export function useOpenRouterStream(): UseOpenRouterStreamReturn {
             isStreaming: true,
             content: '',
             error: null,
+            statusMessage: null,
+            activeTools: [],
         });
 
         // Create new AbortController
@@ -121,7 +135,42 @@ export function useOpenRouterStream(): UseOpenRouterStreamReturn {
                     }
 
                     // Process event based on type
-                    if (eventType === 'delta' && eventData) {
+                    if (eventType === 'status' && eventData) {
+                        // Real-time status from skill scanning
+                        try {
+                            const parsed = JSON.parse(eventData);
+                            setState(prev => ({
+                                ...prev,
+                                statusMessage: parsed.message || null,
+                            }));
+                        } catch {
+                            // ignore
+                        }
+                    } else if (eventType === 'tool_call' && eventData) {
+                        // AI is calling a skill
+                        try {
+                            const parsed = JSON.parse(eventData);
+                            setState(prev => ({
+                                ...prev,
+                                activeTools: [...prev.activeTools, { tool: parsed.tool, serverId: parsed.serverId, args: parsed.args }],
+                            }));
+                        } catch {
+                            // ignore
+                        }
+                    } else if (eventType === 'tool_result' && eventData) {
+                        // Skill execution completed
+                        try {
+                            const parsed = JSON.parse(eventData);
+                            setState(prev => ({
+                                ...prev,
+                                activeTools: prev.activeTools.map(t =>
+                                    t.tool === parsed.tool ? { ...t, success: parsed.success, error: parsed.error } : t
+                                ),
+                            }));
+                        } catch {
+                            // ignore
+                        }
+                    } else if (eventType === 'delta' && eventData) {
                         try {
                             const parsed = JSON.parse(eventData);
                             if (parsed.content) {
@@ -129,6 +178,7 @@ export function useOpenRouterStream(): UseOpenRouterStreamReturn {
                                 setState(prev => ({
                                     ...prev,
                                     content: contentRef.current,
+                                    statusMessage: null, // Clear status once content starts
                                 }));
                             }
                         } catch {
@@ -139,6 +189,7 @@ export function useOpenRouterStream(): UseOpenRouterStreamReturn {
                         setState(prev => ({
                             ...prev,
                             isStreaming: false,
+                            statusMessage: null,
                         }));
                     } else if (eventType === 'error') {
                         try {
@@ -146,14 +197,39 @@ export function useOpenRouterStream(): UseOpenRouterStreamReturn {
                             setState(prev => ({
                                 ...prev,
                                 isStreaming: false,
+                                statusMessage: null,
                                 error: parsed.message || 'Stream error',
                             }));
                         } catch {
                             setState(prev => ({
                                 ...prev,
                                 isStreaming: false,
+                                statusMessage: null,
                                 error: 'Stream error',
                             }));
+                        }
+                    } else if (!eventType && eventData) {
+                        // Data-only SSE (SumoPod format - no event: prefix)
+                        if (eventData === '[DONE]') {
+                            setState(prev => ({
+                                ...prev,
+                                isStreaming: false,
+                                statusMessage: null,
+                            }));
+                        } else {
+                            try {
+                                const parsed = JSON.parse(eventData);
+                                if (parsed.content) {
+                                    contentRef.current += parsed.content;
+                                    setState(prev => ({
+                                        ...prev,
+                                        content: contentRef.current,
+                                        statusMessage: null,
+                                    }));
+                                }
+                            } catch {
+                                // ignore unparseable data
+                            }
                         }
                     }
                 }
@@ -209,6 +285,8 @@ export function useOpenRouterStream(): UseOpenRouterStreamReturn {
             isStreaming: false,
             content: '',
             error: null,
+            statusMessage: null,
+            activeTools: [],
         });
     }, [cancelStream]);
 

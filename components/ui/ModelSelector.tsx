@@ -3,7 +3,7 @@ import { ChevronDown, Check, Search, Brain, ChevronRight, ChevronLeft, Clock, Za
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export type ModelType = 'gemini-flash' | 'gemini-pro' | 'claude-sonnet' | 'claude-opus' | 'gpt-5' | 'grok' | 'sonar';
+export type ModelType = 'gemini-flash' | 'gemini-pro' | 'claude-sonnet' | 'claude-opus' | 'gpt-5' | 'grok' | 'sonar' | 'stepfun/step-3.5-flash:free';
 
 interface ModelOption {
     id: ModelType;
@@ -18,12 +18,14 @@ interface ModelOption {
 
 const MODEL_OPTIONS: ModelOption[] = [
     {
-        id: 'sonar',
-        name: 'Noir Beta',
-        provider: 'DeepSeek',
-        icon: <img src="/noir-beta-logo.jpg" alt="Noir" className="w-5 h-5 object-contain rounded-sm" />,
-        description: 'Recommended for coding & logic'
+        id: 'stepfun/step-3.5-flash:free',
+        name: 'Stepfun 3.5 Flash',
+        provider: 'Stepfun',
+        icon: <Sparkles size={16} className="text-purple-400" />,
+        description: 'Fast & Free',
+        badge: 'free'
     },
+
     {
         id: 'gemini-flash',
         name: 'Gemini 2.5 Flash',

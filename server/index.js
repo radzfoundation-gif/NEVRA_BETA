@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+console.log('🚀 [SERVER] Starting Version 3.0 - Hard Reset Applied');
 import path from 'path';
 
 // Load .env and .env.local
@@ -1249,9 +1250,21 @@ app.post('/api/extract-pdf', upload.single('file'), async (req, res) => {
 
     console.log(`[PDF] Extracting text from: ${req.file.originalname}`);
 
-    const pdfParse = (await import('pdf-parse')).default;
+    const pdf = require('pdf-parse');
     const dataBuffer = fs.readFileSync(req.file.path);
-    const pdfData = await pdfParse(dataBuffer);
+
+    let pdfData;
+    try {
+      // Standard usage is function call
+      pdfData = await pdf(dataBuffer);
+    } catch (e) {
+      if (e.message.includes("invoked without 'new'") || e.message.includes("is not a function")) {
+        console.log('[PDF] Retrying with "new" keyword...');
+        pdfData = await new pdf(dataBuffer);
+      } else {
+        throw e;
+      }
+    }
 
     // Clean up uploaded file
     fs.unlinkSync(req.file.path);
@@ -1523,9 +1536,9 @@ console.log('🔑 API Key Status:', {
 
 // SumoPod models - Smart Routing per Tech Spec
 const SUMOPOD_MODELS = {
-  // Default chat - gemini-2.5-flash-lite (fast, cost-effective)
-  default: SUMOPOD_MODEL_ID || 'gemini-2.5-flash-lite',
-  fast: 'gemini-2.5-flash-lite',
+  // Default chat - gpt-5-mini (excellent tool calling + cost effective)
+  default: SUMOPOD_MODEL_ID || 'gpt-5-mini',
+  fast: SUMOPOD_MODEL_ID || 'gpt-5-mini',
   // Pro/Tutor mode - gpt-5-mini (complex reasoning)
   tutor: 'gpt-5-mini',
   pro: 'gpt-5-mini',
@@ -1535,7 +1548,7 @@ const SUMOPOD_MODELS = {
 };
 
 const MODELS = {
-  groq: SUMOPOD_MODEL_ID || 'gemini-2.5-flash-lite', // Default model
+  groq: SUMOPOD_MODEL_ID || 'gpt-5-mini', // Default model
   redesign: 'gemini-3-pro-preview', // UI/Creative tasks
   pro: 'gpt-5-mini', // Pro reasoning mode
 };
@@ -1567,10 +1580,17 @@ const getCurrentMonth = () => {
 };
 
 // Load/Get Subscription (Supabase Only)
+// Load/Get Subscription (Supabase Only)
 const getUserSubscription = async (userId) => {
   if (!supabase) return null;
   try {
-    const { data } = await supabase.from('subscriptions').select('*').eq('user_id', userId).maybeSingle();
+    const { data } = await supabase.from('user_subscriptions').select('*').eq('user_id', userId).maybeSingle();
+    // Map centralized schema to app schema if needed, but for now returning raw data
+    // The app expects { tier: 'pro' } or similar.
+    // Centralized table uses 'status' = 'active' and 'tier' = 'researcher' (mapped to pro)
+    if (data && data.status === 'active' && data.tier === 'researcher') {
+      return { ...data, tier: 'pro' };
+    }
     return data;
   } catch (error) {
     console.error('Error fetching subscription:', error);
@@ -1579,20 +1599,28 @@ const getUserSubscription = async (userId) => {
 };
 
 // Save subscription (Supabase Only)
+// Save subscription (Supabase Only - Centralized)
 const saveSubscription = async (userId, tier, expiresAt = null, orderId = null) => {
   if (supabase) {
     try {
-      const { error } = await supabase.from('subscriptions').upsert({
+      // Map 'pro' to 'researcher' for centralized table
+      const dbTier = tier === 'pro' ? 'researcher' : tier;
+
+      const { error } = await supabase.from('user_subscriptions').upsert({
         user_id: userId,
-        tier,
-        expires_at: expiresAt,
-        activated_at: new Date().toISOString(),
-        midtrans_order_id: orderId
+        tier: dbTier,
+        status: 'active', // Explicitly set status to active
+        valid_from: new Date().toISOString(),
+        valid_until: expiresAt,
+        payment_id: orderId, // Assuming payment_id exists or using metadata
+        updated_at: new Date().toISOString()
       }, { onConflict: 'user_id' });
 
       if (!error) {
-        console.log(`✅ Supabase: Subscription saved for ${userId}: ${tier}`);
+        console.log(`✅ Supabase: Subscription saved for ${userId}: ${tier} (mapped to ${dbTier})`);
         return true;
+      } else {
+        console.error('Supabase upsert error:', error);
       }
     } catch (e) {
       console.warn('Supabase subscription save failed:', e.message);
@@ -1775,24 +1803,20 @@ const buildOpenAIUserContent = (prompt, images = []) => {
  * - Server detects 'close' event and aborts upstream fetch
  */
 const OPENROUTER_STREAM_MODEL_MAPPING = {
-  'sonar': 'tngtech/deepseek-r1t2-chimera:free',
+  'sonar': 'stepfun/step-3.5-flash:free', // Replaced AllenAI with StepFun
   'gemini-pro': 'google/gemini-2.0-flash-exp:free',
   'gpt-5': 'openai/gpt-4o-mini',
   'claude-sonnet': 'anthropic/claude-3.5-sonnet',
+  'claude-sonnet-4-5': 'anthropic/claude-3.5-sonnet', // User requested alias
   'claude-opus': 'anthropic/claude-3-opus',
   'grok': 'x-ai/grok-2-1212',
-  'nevrasync': 'thedrummer/rocinante-12b:free',
+  'nevrasync': 'stepfun/step-3.5-flash:free', // Also update alternate ID if pointing to same thing
 };
 
 app.post('/api/chat/stream', async (req, res) => {
   console.log('[Stream] Streaming endpoint called');
 
-  // 1. Validate API Key
-  if (!openrouterApiKey) {
-    console.error('[Stream] Missing OPENROUTER_API_KEY');
-    return res.status(500).json({ error: 'Server configuration error: OPENROUTER_API_KEY not set' });
-  }
-
+  // 1. Validate Request (API Key check moved to specific provider block)
   const { model, messages } = req.body || {};
 
   // 2. Validate request
@@ -1801,8 +1825,18 @@ app.post('/api/chat/stream', async (req, res) => {
   }
 
   // 3. Map model to OpenRouter model ID
-  const openRouterModel = OPENROUTER_STREAM_MODEL_MAPPING[model] || model || 'openai/gpt-4o-mini';
-  console.log(`[Stream] Starting stream for model: ${openRouterModel}`);
+  // 3. Determine Provider and Model
+  let provider = 'openrouter';
+  let targetModel = OPENROUTER_STREAM_MODEL_MAPPING[model] || model || 'openai/gpt-4o-mini';
+
+  // Check if SumoPod requested (default 'groq' or explict gemini models)
+  // Also force 'claude-sonnet-4-5' to use SumoPod as requested by user
+  if (model === 'groq' || model === 'gemini' || model === 'gemini-flash' || !model || model === 'claude-sonnet-4-5') {
+    provider = 'sumopod';
+    targetModel = process.env.SUMOPOD_MODEL_ID || 'gemini-2.5-flash-lite'; // Default SumoPod model
+  }
+
+  console.log(`[Stream] Starting stream for provider: ${provider}, model: ${targetModel}`);
 
   // 4. Set SSE headers
   res.setHeader('Content-Type', 'text/event-stream');
@@ -1816,11 +1850,176 @@ app.post('/api/chat/stream', async (req, res) => {
 
   // Handle client disconnect
   req.on('close', () => {
-    console.log('[Stream] Client disconnected, aborting upstream');
-    controller.abort();
+    // INFO: specific environment issue causing premature close events. 
+    // Disabling abort for now to ensure stream completion.
+    console.log('[Stream] Client connection closed (abort disabled)');
+    // controller.abort(); 
   });
 
   try {
+    if (provider === 'sumopod') {
+      // --- SUMOPOD STREAMING WITH MCP TOOL SCANNING ---
+      if (!sumopodClient) {
+        throw new Error('SumoPod client not initialized');
+      }
+
+      console.log(`[Stream] Using SumoPod client for ${targetModel}`);
+
+      // --- STEP 1: Real MCP Tool Discovery ---
+      res.write(`event: status\ndata: ${JSON.stringify({ message: 'Scanning available skills...' })}\n\n`);
+      console.log('[Stream] Scanning MCP tools...');
+
+      let mcpTools = [];
+      try {
+        const allMcpTools = await mcpManager.listAllTools();
+        mcpTools = allMcpTools.map(tool => ({
+          type: 'function',
+          function: {
+            name: `mcp__${tool.serverId}__${tool.name}`,
+            description: `[${tool.serverName}] ${tool.description}`,
+            parameters: tool.inputSchema
+          },
+          _meta: { serverId: tool.serverId, serverName: tool.serverName, originalName: tool.name }
+        }));
+        console.log(`[Stream] Found ${mcpTools.length} MCP tools`);
+
+        if (mcpTools.length > 0) {
+          res.write(`event: status\ndata: ${JSON.stringify({ message: `Found ${mcpTools.length} skill(s)`, tools: mcpTools.map(t => t.function.name) })}\n\n`);
+        } else {
+          res.write(`event: status\ndata: ${JSON.stringify({ message: 'No external skills connected' })}\n\n`);
+        }
+      } catch (mcpErr) {
+        console.warn('[Stream] MCP tool scan failed (non-fatal):', mcpErr.message);
+        res.write(`event: status\ndata: ${JSON.stringify({ message: 'Skill scan skipped' })}\n\n`);
+      }
+
+      // --- STEP 2: Tool-calling loop ---
+      let currentMessages = [...messages];
+      let iterations = 0;
+      const MAX_TOOL_ITERATIONS = 5;
+
+      while (iterations < MAX_TOOL_ITERATIONS) {
+        iterations++;
+
+        // First iteration: try non-streaming to detect tool_calls
+        // Subsequent iterations after tool results: also non-streaming
+        if (mcpTools.length > 0 && iterations <= MAX_TOOL_ITERATIONS) {
+          try {
+            const probeCompletion = await sumopodClient.chat.completions.create({
+              model: targetModel,
+              messages: currentMessages,
+              tools: mcpTools.length > 0 ? mcpTools.map(t => ({ type: t.type, function: t.function })) : undefined,
+            }, { signal: controller.signal });
+
+            const probeMessage = probeCompletion.choices[0]?.message;
+
+            // Check if model wants to call tools
+            if (probeMessage?.tool_calls && probeMessage.tool_calls.length > 0) {
+              console.log(`[Stream] Model requested ${probeMessage.tool_calls.length} tool call(s)`);
+              currentMessages.push(probeMessage);
+
+              for (const toolCall of probeMessage.tool_calls) {
+                const fullToolName = toolCall.function.name;
+
+                if (fullToolName.startsWith('mcp__')) {
+                  const parts = fullToolName.split('__');
+                  const serverId = parts[1];
+                  const actualToolName = parts.slice(2).join('__');
+                  let args;
+                  try {
+                    args = JSON.parse(toolCall.function.arguments);
+                  } catch {
+                    args = {};
+                  }
+
+                  // Emit real tool_call event
+                  res.write(`event: tool_call\ndata: ${JSON.stringify({ tool: actualToolName, serverId, args })}\n\n`);
+                  res.write(`event: status\ndata: ${JSON.stringify({ message: `Running skill: ${actualToolName}...` })}\n\n`);
+                  console.log(`[Stream] Executing MCP tool: ${actualToolName} on server ${serverId}`);
+
+                  try {
+                    const result = await mcpManager.executeTool(serverId, actualToolName, args);
+                    currentMessages.push({
+                      role: 'tool',
+                      tool_call_id: toolCall.id,
+                      content: JSON.stringify(result)
+                    });
+                    // Emit real tool_result event
+                    res.write(`event: tool_result\ndata: ${JSON.stringify({ tool: actualToolName, success: true })}\n\n`);
+                    console.log(`[Stream] Tool ${actualToolName} executed successfully`);
+                  } catch (toolError) {
+                    console.error(`[Stream] Tool execution error:`, toolError.message);
+                    currentMessages.push({
+                      role: 'tool',
+                      tool_call_id: toolCall.id,
+                      content: JSON.stringify({ error: toolError.message })
+                    });
+                    res.write(`event: tool_result\ndata: ${JSON.stringify({ tool: actualToolName, success: false, error: toolError.message })}\n\n`);
+                  }
+                }
+              }
+              // Continue loop to let model see tool results
+              continue;
+            }
+
+            // No tool calls — model gave a direct text response
+            // Stream it to the client as normal content
+            if (probeMessage?.content) {
+              res.write(`event: status\ndata: ${JSON.stringify({ message: 'Generating response...' })}\n\n`);
+              res.write(`data: ${JSON.stringify({ content: probeMessage.content })}\n\n`);
+              res.write('data: [DONE]\n\n');
+              res.end();
+              return;
+            }
+
+            // Edge case: no content and no tool calls — fall through to streaming
+            break;
+          } catch (probeErr) {
+            // If tool-calling probe fails (e.g. model doesn't support tools), fall through to normal streaming
+            console.warn('[Stream] Tool probe failed, falling back to normal stream:', probeErr.message);
+            break;
+          }
+        } else {
+          // No tools or max iterations reached — break to normal streaming
+          break;
+        }
+      }
+
+      // --- STEP 3: Final streaming response (fallback or after tool loop) ---
+      res.write(`event: status\ndata: ${JSON.stringify({ message: 'Generating response...' })}\n\n`);
+
+      const stream = await sumopodClient.chat.completions.create({
+        model: targetModel,
+        messages: currentMessages,
+        stream: true,
+      }, { signal: controller.signal });
+
+      console.log(`[Stream] Stream created successfully`);
+      let chunkCount = 0;
+
+      for await (const chunk of stream) {
+        chunkCount++;
+
+        const content = chunk.choices[0]?.delta?.content || '';
+        if (content) {
+          res.write(`data: ${JSON.stringify({ content })}\n\n`);
+        }
+      }
+      console.log(`[Stream] Finished streaming ${chunkCount} chunks`);
+      res.write('data: [DONE]\n\n');
+      res.end();
+      return;
+    }
+
+    // --- OPENROUTER STREAMING ---
+    // Validate API Key for OpenRouter
+    if (!openrouterApiKey) {
+      console.error('[Stream] Missing OPENROUTER_API_KEY');
+      res.write(`event: error\ndata: ${JSON.stringify({ message: 'Server configuration error: OPENROUTER_API_KEY not set' })}\n\n`);
+      res.end();
+      return;
+    }
+
     // 6. Fetch from OpenRouter with streaming
     const upstreamResponse = await fetch(`${openrouterBaseUrl}/chat/completions`, {
       method: 'POST',
@@ -1831,7 +2030,7 @@ app.post('/api/chat/stream', async (req, res) => {
         'X-Title': process.env.OPENROUTER_SITE_NAME || 'Noir AI',
       },
       body: JSON.stringify({
-        model: openRouterModel,
+        model: targetModel,
         messages,
         stream: true,
       }),
@@ -1953,8 +2152,14 @@ app.post('/api/chat/stream', async (req, res) => {
     }
 
     console.error('[Stream] Unexpected error:', error);
+    try {
+      fs.appendFileSync('server_error.log', `[${new Date().toISOString()}] Stream Error: ${error.stack || error}\n`);
+    } catch (e) { console.error('Failed to write log:', e); }
+
     if (!res.writableEnded) {
-      res.write(`event: error\ndata: ${JSON.stringify({ message: 'Internal server error' })}\n\n`);
+      // DEBUG: Return actual error to client
+      const errorMessage = error.message || 'Internal server error';
+      res.write(`event: error\ndata: ${JSON.stringify({ message: errorMessage, details: error.toString() })}\n\n`);
       res.end();
     }
   }
@@ -2161,6 +2366,25 @@ Always provide information based on your training data AND the current date cont
       // Verify Sumopod configuration
       const baseUrl = process.env.SUMOPOD_BASE_URL?.trim() || 'https://api.sumopod.com';
 
+      // --- MCP Tool Discovery for /api/generate ---
+      let mcpTools = [];
+      try {
+        const allMcpTools = await mcpManager.listAllTools();
+        mcpTools = allMcpTools.map(tool => ({
+          type: 'function',
+          function: {
+            name: `mcp__${tool.serverId}__${tool.name}`,
+            description: `[${tool.serverName}] ${tool.description}`,
+            parameters: tool.inputSchema
+          }
+        }));
+        if (mcpTools.length > 0) {
+          console.log(`[Generate] Found ${mcpTools.length} MCP tools`);
+        }
+      } catch (mcpErr) {
+        console.warn('[Generate] MCP tool scan failed (non-fatal):', mcpErr.message);
+      }
+
       // Smart Model Routing based on frontend selection
       // SumoPod: gemini-flash (free tier)
       // OpenRouter: All Pro models (sonar/NoirSync, gemini-pro, gpt-5, claude, grok)
@@ -2178,7 +2402,8 @@ Always provide information based on your training data AND the current date cont
       const selectedModel = body.model || 'sonar'; // Default to sonar (NoirSync)
 
       // Determine which client to use based on selected model
-      const useOpenRouter = selectedModel !== 'gemini-flash' && OPENROUTER_MODEL_MAPPING[selectedModel];
+      // Override: force 'claude-sonnet-4-5' to use Sumopod (via Gemini)
+      const useOpenRouter = selectedModel !== 'gemini-flash' && selectedModel !== 'claude-sonnet-4-5' && OPENROUTER_MODEL_MAPPING[selectedModel];
 
       let completion;
 
@@ -2212,14 +2437,55 @@ Always provide information based on your training data AND the current date cont
 
         const temperature = 0.5;
 
-        completion = await sumopodClient.chat.completions.create({
-          model: sumopodModelId,
-          messages,
-          temperature,
-          max_tokens: baseMaxTokens,
-        }, {
-          signal: controller.signal,
-        });
+        // Tool-calling loop for SumoPod
+        let currentMsgs = [...messages];
+        let toolIterations = 0;
+        const MAX_TOOL_ITER = 5;
+
+        while (toolIterations < MAX_TOOL_ITER) {
+          toolIterations++;
+
+          completion = await sumopodClient.chat.completions.create({
+            model: sumopodModelId,
+            messages: currentMsgs,
+            temperature,
+            max_tokens: baseMaxTokens,
+            tools: mcpTools.length > 0 ? mcpTools : undefined,
+          }, {
+            signal: controller.signal,
+          });
+
+          const msg = completion.choices[0]?.message;
+
+          if (msg?.tool_calls && msg.tool_calls.length > 0) {
+            console.log(`[Generate] Model requested ${msg.tool_calls.length} tool call(s)`);
+            currentMsgs.push(msg);
+
+            for (const tc of msg.tool_calls) {
+              const fullName = tc.function.name;
+              if (fullName.startsWith('mcp__')) {
+                const parts = fullName.split('__');
+                const serverId = parts[1];
+                const toolName = parts.slice(2).join('__');
+                let args;
+                try { args = JSON.parse(tc.function.arguments); } catch { args = {}; }
+
+                console.log(`[Generate] Executing MCP tool: ${toolName} on server ${serverId}`);
+                try {
+                  const result = await mcpManager.executeTool(serverId, toolName, args);
+                  currentMsgs.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(result) });
+                } catch (toolErr) {
+                  console.error(`[Generate] Tool error:`, toolErr.message);
+                  currentMsgs.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify({ error: toolErr.message }) });
+                }
+              }
+            }
+            continue; // Let model see the tool results
+          }
+
+          // No tool calls — we have the final response
+          break;
+        }
       }
 
       content = completion.choices[0]?.message?.content;

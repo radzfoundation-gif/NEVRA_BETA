@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Globe, ArrowUp, Link as LinkIcon, Layers, Paperclip, ChevronDown, Check, Sparkles, LayoutGrid, Mic, Youtube, FileText, X, Loader2, Wrench, AlertTriangle, Image as ImageIcon, PenTool, Grid3X3, BarChart3, ChevronRight, Bot, Atom, Lightbulb, Cpu, AudioLines } from 'lucide-react';
+import { Search, Globe, ArrowUp, Link as LinkIcon, Layers, Plus, Paperclip, ChevronDown, Check, Sparkles, LayoutGrid, Mic, Youtube, FileText, X, Loader2, Wrench, AlertTriangle, Image as ImageIcon, PenTool, Grid3X3, BarChart3, ChevronRight, Bot, Atom, Lightbulb, Cpu, AudioLines, Presentation, Network, Target } from 'lucide-react';
 import ModelSelector, { ModelType } from './ui/ModelSelector';
 import { cn, getApiUrl } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -10,7 +10,7 @@ import SubscriptionPopup from './SubscriptionPopup';
 import VoiceDictationModal from './chat/VoiceDictationModal';
 
 interface ResearchWelcomeProps {
-    onSearch: (query: string, attachments?: AttachmentData[], model?: ModelType, reasoning?: boolean) => void;
+    onSearch: (query: string, attachments?: AttachmentData[], model?: ModelType, reasoning?: boolean, featureType?: string) => void;
     initialQuery?: string;
     className?: string;
     hasApiKey?: boolean;
@@ -39,6 +39,7 @@ export function ResearchWelcome({
     const [isFocused, setIsFocused] = useState(false);
     const [attachments, setAttachments] = useState<AttachmentData[]>([]);
     const [showToolsMenu, setShowToolsMenu] = useState(false);
+    const [showAIToolsMenu, setShowAIToolsMenu] = useState(false);
     const [showYouTubeInput, setShowYouTubeInput] = useState(false);
     const [showUrlInput, setShowUrlInput] = useState(false);
     const [youtubeUrl, setYoutubeUrl] = useState('');
@@ -129,6 +130,28 @@ export function ResearchWelcome({
     const [showKnowledgeInput, setShowKnowledgeInput] = useState(false);
     const [knowledgeText, setKnowledgeText] = useState('');
     const [knowledgeTitle, setKnowledgeTitle] = useState('');
+
+    // Feature Prompt Modal State
+    const [selectedFeature, setSelectedFeature] = useState<{ label: string; icon: React.ReactNode; query: string } | null>(null);
+    const [featurePrompt, setFeaturePrompt] = useState('');
+
+    const handleFeatureSelect = (feature: { label: string; icon: React.ReactNode; query: string }) => {
+        setSelectedFeature(feature);
+        setFeaturePrompt('');
+    };
+
+    const handleFeatureSubmit = () => {
+        if (!selectedFeature || !featurePrompt.trim()) return;
+
+        // Construct the full query based on the feature template
+        const fullQuery = `${selectedFeature.query} ${featurePrompt}`;
+
+        // Close modal
+        setSelectedFeature(null);
+
+        // Send to streaming flow
+        onSearch(fullQuery, [], undefined, undefined, selectedFeature.label);
+    };
 
     // Detect if query is an image generation request
     const isImageRequest = (text: string): boolean => {
@@ -416,6 +439,15 @@ export function ResearchWelcome({
         }
     };
 
+    // Attach tools (+ dropdown)
+    const attachTools = [
+        { icon: <ImageIcon size={14} />, label: 'Upload Image', description: 'Attach images', action: () => fileInputRef.current?.click() },
+        { icon: <FileText size={14} />, label: 'Upload Document', description: 'PDF, TXT, MD, DOCX', action: () => fileInputRef.current?.click() },
+        { icon: <Globe size={14} />, label: 'Web Search', description: 'Search the web', action: () => onToggleWebSearch && onToggleWebSearch(!isWebSearchEnabled) },
+        { icon: <Mic size={14} />, label: 'Voice Dictation', description: 'Speak to type', action: () => setShowDictation(true) },
+    ];
+
+    // AI Conversion tools (Wrench dropdown)
     const tools = [
         { icon: <Mic size={14} />, label: 'Audio to Text', description: 'Transcribe audio (2 Credits)', action: () => audioInputRef.current?.click() },
         { icon: <Youtube size={14} />, label: 'YouTube to Text', description: 'Video transcript (2 Credits)', action: () => setShowYouTubeInput(true) },
@@ -435,11 +467,11 @@ export function ResearchWelcome({
         },
     ];
 
-    const examples = [
-        { icon: <LayoutGrid size={14} />, label: "Write a to-do list", query: "Write a to-do list for a personal project" },
-        { icon: <Sparkles size={14} />, label: "Generate an email", query: "Generate an email to reply to a job offer" },
-        { icon: <Globe size={14} />, label: "Summarize article", query: "Summarize this article in one paragraph" },
-        { icon: <Layers size={14} />, label: "Explain AI", query: "How does AI work in a technical capacity" }
+    const features = [
+        { icon: <Presentation size={18} className="text-orange-500" />, label: "Slide Presentation", query: "Create a slide presentation about" },
+        { icon: <Network size={18} className="text-blue-500" />, label: "Mindmap Generator", query: "Create a comprehensive mindmap for" },
+        { icon: <PenTool size={18} className="text-purple-500" />, label: "Article Writer", query: "Write a comprehensive article about" },
+        { icon: <Target size={18} className="text-red-500" />, label: "Strategy Planner", query: "Create a comprehensive strategic plan for" }
     ];
 
     return (
@@ -769,6 +801,62 @@ export function ResearchWelcome({
                 )}
             </AnimatePresence>
 
+            {/* Feature Prompt Modal */}
+            <AnimatePresence>
+                {selectedFeature && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+                        onClick={() => setSelectedFeature(null)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.9, opacity: 0 }}
+                            onClick={e => e.stopPropagation()}
+                            className="bg-white rounded-2xl p-6 shadow-xl w-full max-w-lg"
+                        >
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="p-3 rounded-xl bg-zinc-100 flex items-center justify-center">
+                                    {selectedFeature.icon}
+                                </div>
+                                <div>
+                                    <h3 className="font-semibold text-zinc-900">{selectedFeature.label}</h3>
+                                    <p className="text-xs text-zinc-500">Enter your specific topic or requirements</p>
+                                </div>
+                            </div>
+
+                            <textarea
+                                value={featurePrompt}
+                                onChange={e => setFeaturePrompt(e.target.value)}
+                                placeholder={`e.g., "The future of renewable energy" or "Marketing strategy for a new coffee shop"`}
+                                className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none mb-4 min-h-[120px] resize-none"
+                                autoFocus
+                            />
+
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setSelectedFeature(null)}
+                                    className="flex-1 px-4 py-2.5 rounded-xl border border-zinc-200 text-zinc-600 font-medium hover:bg-zinc-50"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleFeatureSubmit}
+                                    disabled={!featurePrompt.trim()}
+                                    className="flex-1 px-4 py-2.5 rounded-xl bg-zinc-900 text-white font-medium hover:bg-zinc-800 disabled:opacity-50 flex items-center justify-center gap-2"
+                                >
+                                    <Sparkles size={16} />
+                                    Generate
+                                </button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             {/* URL Input Modal */}
             <AnimatePresence>
                 {showUrlInput && (
@@ -874,32 +962,28 @@ export function ResearchWelcome({
                     </span>
                 </h1>
 
-                {/* Main Input Card */}
+                {/* Main Input Card — Claude-style */}
                 <div className={cn(
-                    "w-full max-w-3xl bg-white dark:bg-black/40 dark:border-white/10 dark:backdrop-blur-md rounded-2xl border transition-all duration-300 relative",
+                    "w-full max-w-3xl bg-white rounded-2xl border transition-all duration-200 relative",
                     isFocused
-                        ? "shadow-[0_8px_40px_-8px_rgba(0,0,0,0.15)] border-lime-500"
-                        : "shadow-[0_4px_24px_-4px_rgba(0,0,0,0.1)] border-zinc-200"
+                        ? "shadow-[0_8px_40px_-8px_rgba(0,0,0,0.12)] border-stone-300"
+                        : "shadow-[0_2px_12px_-2px_rgba(0,0,0,0.08)] border-stone-200"
                 )}>
-                    {/* Deep Dive Indicator */}
+                    {/* Web Search Indicator */}
                     <AnimatePresence mode="wait">
                         {isWebSearchEnabled && (
                             <motion.div
                                 initial={{ height: 0, opacity: 0 }}
                                 animate={{ height: 'auto', opacity: 1 }}
                                 exit={{ height: 0, opacity: 0 }}
-                                transition={{ duration: 0.2, ease: "easeOut" }}
-                                className="bg-[#1A1A1A] text-white border-b border-white/5 rounded-t-2xl"
+                                className="px-4 pt-2"
                             >
-                                <div className="px-4 py-2 flex items-center justify-between text-xs font-medium">
-                                    <div className="flex items-center gap-2 text-cyan-400">
-                                        <Globe size={12} />
-                                        <span>Connected Sources Active</span>
-                                    </div>
-                                    <div className="flex gap-1.5">
-                                        <span className="px-1.5 py-0.5 rounded bg-white/10">Tavily</span>
-                                        <span className="px-1.5 py-0.5 rounded bg-white/10">Google</span>
-                                    </div>
+                                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 text-blue-600 rounded-lg text-xs font-medium">
+                                    <Globe size={12} />
+                                    Web Search On
+                                    <button onClick={() => onToggleWebSearch && onToggleWebSearch(false)} className="ml-1 hover:text-blue-800">
+                                        <X size={12} />
+                                    </button>
                                 </div>
                             </motion.div>
                         )}
@@ -909,13 +993,13 @@ export function ResearchWelcome({
                     {attachments.length > 0 && (
                         <div className="px-4 pt-3 flex flex-wrap gap-2">
                             {attachments.map((att, i) => (
-                                <div key={i} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-purple-50 border border-purple-200 text-sm">
+                                <div key={i} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-stone-50 border border-stone-200 text-sm">
                                     {att.type === 'youtube' && <Youtube size={14} className="text-red-500" />}
                                     {att.type === 'audio' && <Mic size={14} className="text-purple-500" />}
                                     {att.type === 'url' && <LinkIcon size={14} className="text-blue-500" />}
-                                    {att.type === 'file' && <FileText size={14} className="text-zinc-500" />}
-                                    <span className="text-zinc-700 font-medium truncate max-w-[150px]">{att.name}</span>
-                                    <button onClick={() => removeAttachment(i)} className="text-zinc-400 hover:text-red-500">
+                                    {att.type === 'file' && <FileText size={14} className="text-stone-500" />}
+                                    <span className="text-stone-700 font-medium truncate max-w-[150px]">{att.name}</span>
+                                    <button onClick={() => removeAttachment(i)} className="text-stone-400 hover:text-red-500">
                                         <X size={14} />
                                     </button>
                                 </div>
@@ -931,41 +1015,89 @@ export function ResearchWelcome({
                             onKeyDown={handleKeyDown}
                             onFocus={() => setIsFocused(true)}
                             onBlur={() => setIsFocused(false)}
-                            placeholder={attachments.length > 0 ? "Ask about the attached content..." : "Ask AI a question or make a request..."}
-                            className="w-full bg-transparent border-none text-lg text-zinc-800 dark:text-zinc-100 placeholder-zinc-400/80 focus:outline-none resize-none min-h-[40px] max-h-[200px] font-medium"
-                            style={{ padding: '0 0 10px 0' }}
+                            placeholder="How can I help you today?"
+                            className="w-full bg-transparent border-none text-base text-stone-800 placeholder-stone-400 focus:outline-none resize-none min-h-[28px] max-h-[200px] leading-relaxed font-normal"
+                            style={{ height: '28px' }}
                         />
                     </div>
 
-                    {/* Bottom Actions Row */}
+                    {/* Bottom Bar — Claude Layout */}
                     <div className="w-full flex items-center justify-between px-3 pb-3">
-                        {/* Left Actions: Deeper Research, Image, Idea */}
-                        <div className="flex items-center gap-2">
+                        {/* Left: + Button & Tools Button */}
+                        <div className="flex items-center gap-1 relative">
+                            {/* + Attach Dropdown */}
+                            <div className="relative">
+                                <button
+                                    onClick={() => { setShowToolsMenu(!showToolsMenu); setShowAIToolsMenu(false); }}
+                                    className={cn(
+                                        "w-8 h-8 flex items-center justify-center rounded-lg transition-all",
+                                        showToolsMenu
+                                            ? "bg-stone-200 text-stone-700"
+                                            : "text-stone-400 hover:text-stone-600 hover:bg-stone-100"
+                                    )}
+                                    title="Attach files"
+                                >
+                                    <Plus size={20} strokeWidth={1.8} />
+                                </button>
+                                {showToolsMenu && (
+                                    <div className="absolute bottom-full left-0 mb-2 w-52 bg-white border border-stone-200 rounded-xl shadow-xl overflow-hidden z-50">
+                                        {attachTools.map((tool, idx) => (
+                                            <button
+                                                key={idx}
+                                                onClick={() => { tool.action(); setShowToolsMenu(false); }}
+                                                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-stone-700 hover:bg-stone-50 transition-colors"
+                                            >
+                                                <span className="text-stone-500">{tool.icon}</span>
+                                                <div className="text-left">
+                                                    <div className="font-medium">{tool.label}</div>
+                                                    <div className="text-[10px] text-stone-400">{tool.description}</div>
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
 
-
-                            {/* Image Gen Trigger */}
-                            <button onClick={() => setShowImageGenInput(true)} className="p-2 bg-zinc-50 hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700 rounded-lg transition-colors border border-transparent hover:border-zinc-200 hidden sm:flex" title="Generate Image">
-                                <ImageIcon size={18} strokeWidth={1.5} />
-                            </button>
-
-                            {/* Ideas / Surprise Me */}
-                            <button onClick={() => setQuery(examples[Math.floor(Math.random() * examples.length)].query)} className="p-2 bg-zinc-50 hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700 rounded-lg transition-colors border border-transparent hover:border-zinc-200" title="Generate Idea">
-                                <Lightbulb size={18} strokeWidth={1.5} />
-                            </button>
-
-                            {/* Dictation / Voice (Moved to Left) */}
-                            <button
-                                onClick={() => setShowDictation(true)}
-                                className="p-2 bg-zinc-50 hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700 rounded-lg transition-colors border border-transparent hover:border-zinc-200"
-                                title="Voice Dictation"
-                            >
-                                <Mic size={18} strokeWidth={1.5} />
-                            </button>
+                            {/* ⚙ AI Tools Dropdown */}
+                            <div className="relative">
+                                <button
+                                    onClick={() => { setShowAIToolsMenu(!showAIToolsMenu); setShowToolsMenu(false); }}
+                                    className={cn(
+                                        "w-8 h-8 flex items-center justify-center rounded-lg transition-all",
+                                        showAIToolsMenu
+                                            ? "bg-stone-200 text-stone-700"
+                                            : "text-stone-400 hover:text-stone-600 hover:bg-stone-100"
+                                    )}
+                                    title="AI Tools"
+                                >
+                                    <Wrench size={17} strokeWidth={1.8} />
+                                </button>
+                                {showAIToolsMenu && (
+                                    <div className="absolute bottom-full left-0 mb-2 w-56 bg-white border border-stone-200 rounded-xl shadow-xl overflow-hidden z-50">
+                                        <div className="px-4 py-2 border-b border-stone-100">
+                                            <span className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider">AI Tools</span>
+                                        </div>
+                                        {tools.map((tool, idx) => (
+                                            <button
+                                                key={idx}
+                                                onClick={() => { tool.action(); setShowAIToolsMenu(false); }}
+                                                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-stone-700 hover:bg-stone-50 transition-colors"
+                                            >
+                                                <span className="text-stone-500">{tool.icon}</span>
+                                                <div className="text-left">
+                                                    <div className="font-medium">{tool.label}</div>
+                                                    <div className="text-[10px] text-stone-400">{tool.description}</div>
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
-                        {/* Right Actions: Cpu, Globe, Attach, Voice, Send */}
-                        <div className="flex items-center gap-2">
-                            {/* Model / Cpu */}
+                        {/* Right: Model Name, Voice, Send */}
+                        <div className="flex items-center gap-1.5">
+                            {/* Model Name Button (Claude style) */}
                             <ModelSelector
                                 selectedModel={selectedModel}
                                 onModelChange={setSelectedModel}
@@ -974,33 +1106,34 @@ export function ResearchWelcome({
                                 onReasoningToggle={() => setWithReasoning(!withReasoning)}
                                 isSubscribed={isSubscribed}
                             >
-                                <button className="p-2 text-zinc-400 hover:text-zinc-600 transition-colors" title="Select Model">
-                                    <Cpu size={20} strokeWidth={1.5} />
+                                <button className="flex items-center gap-1 px-2 py-1.5 text-stone-400 hover:text-stone-600 transition-colors text-sm font-medium">
+                                    <span>
+                                        {(() => {
+                                            const names: Record<string, string> = {
+                                                'gemini-flash': 'Gemini Flash',
+                                                'gemini-pro': 'Gemini Pro',
+                                                'claude-sonnet': 'Sonnet 4.5',
+                                                'claude-opus': 'Opus 4.1',
+                                                'gpt-5': 'GPT-5.1',
+                                                'grok': 'Grok 4.1',
+                                                'sonar': 'NoirSync',
+                                                'stepfun/step-3.5-flash:free': 'Step 3.5',
+                                            };
+                                            return names[selectedModel] || selectedModel;
+                                        })()}
+                                    </span>
+                                    <ChevronDown size={14} strokeWidth={2} />
                                 </button>
                             </ModelSelector>
 
-                            {/* Globe / Web */}
+                            {/* Voice Button */}
                             <button
-                                onClick={() => onToggleWebSearch && onToggleWebSearch(!isWebSearchEnabled)}
-                                className={cn(
-                                    "p-2 text-zinc-400 hover:text-zinc-600 transition-colors",
-                                    isWebSearchEnabled && "text-blue-600"
-                                )}
-                                title="Web Search"
+                                onClick={() => setShowDictation(true)}
+                                className="w-8 h-8 flex items-center justify-center text-stone-400 hover:text-stone-600 rounded-lg transition-colors hover:bg-stone-100"
+                                title="Voice Input"
                             >
-                                <Globe size={20} strokeWidth={1.5} />
+                                <AudioLines size={18} strokeWidth={1.8} />
                             </button>
-
-                            {/* Attach */}
-                            <button
-                                onClick={() => fileInputRef.current?.click()}
-                                className="p-2 text-zinc-400 hover:text-zinc-600 transition-all"
-                                title="Attach file"
-                            >
-                                <Paperclip size={20} strokeWidth={1.5} />
-                            </button>
-
-
 
                             {/* Send Button */}
                             <button
@@ -1015,36 +1148,36 @@ export function ResearchWelcome({
                                 }}
                                 disabled={(!query.trim() && attachments.length === 0) || isProcessing}
                                 className={cn(
-                                    "w-10 h-10 flex items-center justify-center rounded-full transition-all duration-200 ml-1 shadow-lg",
+                                    "w-9 h-9 flex items-center justify-center rounded-full transition-all duration-200 ml-0.5",
                                     (!query.trim() && attachments.length === 0) || isProcessing
-                                        ? "bg-gray-100 text-gray-300 cursor-not-allowed shadow-none"
-                                        : "bg-lime-500 hover:bg-lime-600 text-white shadow-lime-200 transform hover:scale-105"
+                                        ? "bg-stone-100 text-stone-300 cursor-not-allowed"
+                                        : "bg-stone-800 hover:bg-stone-900 text-white transform hover:scale-105"
                                 )}
                             >
-                                <ArrowUp size={20} strokeWidth={2.5} />
+                                <ArrowUp size={18} strokeWidth={2.5} />
                             </button>
                         </div>
                     </div>
                 </div>
 
-                {/* Example Cards */}
+                {/* Feature Cards */}
                 <div className="w-full max-w-4xl mt-12">
                     <div className="text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-4 px-1 text-center md:text-left">
-                        Get started with an example below
+                        Explore AI Features
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        {examples.map((ex, i) => (
+                        {features.map((feature, i) => (
                             <button
                                 key={i}
-                                onClick={() => onSearch(ex.query)}
-                                className="text-left p-4 rounded-xl bg-white border border-zinc-100 hover:border-zinc-200 hover:shadow-lg hover:shadow-purple-500/5 hover:-translate-y-0.5 transition-all duration-300 group h-full flex flex-col justify-between gap-4"
+                                onClick={() => handleFeatureSelect(feature)}
+                                className="text-left p-4 rounded-xl bg-white border border-zinc-100 hover:border-purple-200 hover:bg-purple-50/30 hover:shadow-lg hover:shadow-purple-500/5 hover:-translate-y-0.5 transition-all duration-300 group h-full flex flex-col justify-between gap-4"
                             >
-                                <span className="text-sm text-zinc-600 font-medium group-hover:text-zinc-900 transition-colors">
-                                    {ex.label}
-                                </span>
-                                <div className="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity text-zinc-400">
-                                    {ex.icon}
+                                <div className="p-2 rounded-lg bg-zinc-50 group-hover:bg-white transition-colors w-fit">
+                                    {feature.icon}
                                 </div>
+                                <span className="text-sm text-zinc-600 font-medium group-hover:text-zinc-900 transition-colors">
+                                    {feature.label}
+                                </span>
                             </button>
                         ))}
                     </div>

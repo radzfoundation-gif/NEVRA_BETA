@@ -108,10 +108,14 @@ export async function ensureSubscription(userId: string): Promise<Subscription |
 /**
  * Get user subscription
  */
-export async function getSubscription(userId: string): Promise<Subscription | null> {
+/**
+ * Get user subscription
+ */
+export async function getSubscription(userId: string): Promise<any | null> {
     try {
+        // CHANGED: Query centralized 'user_subscriptions' table
         const { data, error } = await supabase
-            .from('subscriptions')
+            .from('user_subscriptions')
             .select('*')
             .eq('user_id', userId)
             .maybeSingle();
@@ -132,17 +136,16 @@ export async function getUserTier(userId: string): Promise<'free' | 'pro'> {
         const subscription = await getSubscription(userId);
         if (!subscription) return 'free';
 
-        // Check if Pro has expired
-        if (subscription.tier === 'pro' && subscription.expires_at) {
-            const expiryDate = new Date(subscription.expires_at);
-            if (expiryDate < new Date()) {
-                // Expired, downgrade to free
-                await updateSubscription(userId, { tier: 'free', expires_at: null });
-                return 'free';
+        // CHANGED: Logic for centralized table
+        // Check if status is active and date is valid
+        if (subscription.status === 'active' && subscription.valid_until) {
+            const expiryDate = new Date(subscription.valid_until);
+            if (expiryDate > new Date()) {
+                return 'pro'; // Map 'researcher' or any active status to 'pro'
             }
         }
 
-        return subscription.tier;
+        return 'free';
     } catch (error) {
         console.error('Error getting user tier:', error);
         return 'free';

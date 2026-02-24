@@ -450,10 +450,18 @@ When writing mathematical formulas, ALWAYS use LaTeX notation with dollar signs:
 - Syntax: Use \\frac{}{}, ^{}, _{}, \\sqrt{}, \\cdot, Greek letters (\\alpha, \\beta, etc.)
 - Example: WRONG "v_AB = (v_A + v_B) / (1 + v_A*v_B/c²)" | RIGHT "$v_{AB} = \\frac{v_A + v_B}{1 + \\frac{v_A \\cdot v_B}{c^2}}$"
 
-RULE:
-- Do NOT generate full applications, HTML pages, or website code in tutor mode.
 - Only use code blocks when the question is specifically about programming/code.
 - ALWAYS use LaTeX for math formulas.
+
+🧠 HIERARCHICAL THINKING:
+- You should output your thinking process before your final answer.
+- Wrap your thinking in <thought> tags.
+- This allows the user to see how you arrived at the answer if they want to.
+- Example:
+<thought>
+The user is asking about quantum entanglement. I should explain the basic concept first, then provide an analogy...
+</thought>
+Quantum entanglement is...
 `;
 
 
@@ -667,13 +675,15 @@ export const generateCode = async (
   images: string[] = [],
   framework: Framework = 'html',
   useWorkflow: boolean | { onStatusUpdate?: (status: string, message?: string) => void } = false, // Feature flag or config object
+  onChunk?: (chunk: string) => void, // NEW: Streaming callback
   sessionId?: string,
   userId?: string,
   userName?: string, // User's display name from Clerk
   userEmail?: string, // User's email from Clerk
   userTier: 'free' | 'normal' | 'pro' = 'free', // User subscription tier for token limits
   deepDive: boolean = false, // Deep Dive mode - uses GPT-5, limited 2/day
-  model?: string // Generic model ID (e.g. 'gemini-flash', 'claude-sonnet')
+  model?: string, // Generic model ID (e.g. 'gemini-flash', 'claude-sonnet')
+  abortSignal?: AbortSignal // Optional signal to cancel request
 ): Promise<CodeResponse> => {
   // Smart Model Routing
   const effectiveProvider = smartRouteModel(prompt, provider, userTier);
@@ -790,27 +800,239 @@ Keep the greeting short and natural, then immediately address their question.
     const visionInstructions = `
     
 🖼️ VISION ANALYSIS MODE:
-You are now analyzing images provided by the user. When images are present:
-1. **Describe the image**: Provide a detailed, accurate description of what you see
-2. **Answer questions**: If the user asks questions about the image, answer them based on what you observe
-3. **Code from images**: If the image shows a design/mockup, generate the code to recreate it
-4. **Explain concepts**: If the image shows diagrams, charts, or educational content, explain them clearly
-5. **Be specific**: Mention colors, layout, text content, UI elements, and any other relevant details
-6. **For Builder Mode**: If the image shows a UI design, generate the complete React/Tailwind code to recreate it
-7. **For Tutor Mode**: If the image shows educational content, explain it step-by-step and help the user understand
+You are now analyzing images provided by the user. When images are present, you MUST follow this strict response hierarchy:
 
-The user may ask you to:
-- Describe what's in the image
-- Explain concepts shown in diagrams/charts
-- Generate code based on a design mockup
-- Answer questions about the image content
-- Translate or explain text in the image
+1. **IMAGE ANALYSIS** first:
+   - Start your response with "**Image Analysis:**"
+   - Descibe the image in high detail (colors, layout, text, key elements).
+   - Be objective and thorough.
 
-Always be thorough and helpful in your analysis.`;
+2. **THINKING PROCESS** second:
+   - Wrap your reasoning inside <thought> and </thought> tags.
+   - Explain how you interpret the image in relation to the user's request.
+   - Plan your code or explanation.
+
+3. **FINAL ANSWER** last:
+   - Finally, provide your actual answer/code starting with "**Answer:**"
+   - This is where you generate the React code or answer the specific question.
+
+REQUIRED FORMAT:
+**Image Analysis:**
+[Detailed description...]
+
+<thought>
+[Your reasoning steps...]
+</thought>
+
+**Answer:**
+[Final code or answer...]
+
+Always follow this structure when an image is present.`;
 
     systemPrompt = systemPrompt + visionInstructions;
   }
 
+
+  // STREAMING LOGIC REPLACEMENT: OpenRouter Direct Fetch
+  if (onChunk) {
+    console.log(`[AI] 🌊 Starting OpenRouter Streaming for model: ${model || 'anthropic/claude-3.5-sonnet'}`);
+
+    // Helper for exponential backoff
+    const fetchWithRetry = async (url: string, options: any, retries = 3, backoff = 1000) => {
+      try {
+        // Check for API Key
+        const apiKey = import.meta.env.VITE_OPENROUTER_API_KEY || import.meta.env.OPENROUTER_API_KEY;
+        if (!apiKey) {
+          throw new Error("OpenRouter API Key not configured. Please set VITE_OPENROUTER_API_KEY in your .env file.");
+        }
+
+        const response = await fetch(url, {
+          ...options,
+          headers: {
+            ...options.headers,
+            'Authorization': `Bearer ${apiKey}`,
+            'HTTP-Referer': window.location.origin,
+            'X-Title': 'Noir AI',
+          }
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          // Don't retry 401 (Auth) or 400 (Bad Request)
+          if (response.status === 401 || response.status === 400) {
+            throw new Error(`OpenRouter API Error (${response.status}): ${errorText}`);
+          }
+          if (retries > 0) {
+            console.warn(`[AI] Request failed (${response.status}), retrying in ${backoff}ms...`);
+            await new Promise(r => setTimeout(r, backoff));
+            return fetchWithRetry(url, options, retries - 1, backoff * 2);
+          }
+          throw new Error(`OpenRouter API Error (${response.status}): ${errorText}`);
+        }
+        return response;
+      } catch (error: any) {
+        if (retries > 0 && !error.message.includes('not configured')) {
+          console.warn(`[AI] Connection failed, retrying in ${backoff}ms...`, error);
+          await new Promise(r => setTimeout(r, backoff));
+          return fetchWithRetry(url, options, retries - 1, backoff * 2);
+        }
+        throw error;
+      }
+    };
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+
+      // Link external abort signal if provided
+      if (abortSignal) {
+        if (abortSignal.aborted) {
+          controller.abort();
+        } else {
+          abortSignal.addEventListener('abort', () => controller.abort());
+        }
+      }
+
+      // Map internal IDs to OpenRouter IDs
+      let targetModel = model || 'stepfun/step-3.5-flash:free';
+      if (model === 'sonar') targetModel = 'stepfun/step-3.5-flash:free';
+      if (model === 'claude-sonnet-4-5') targetModel = 'anthropic/claude-3.5-sonnet';
+
+      // Build and normalize messages
+      // Prepare user content (Text or Multimodal)
+      let userContent: any = prompt;
+      if (images && images.length > 0) {
+        userContent = [
+          { type: 'text', text: prompt },
+          ...images.map(img => ({
+            type: 'image_url',
+            image_url: { url: img }
+          }))
+        ];
+      }
+
+      const rawMessages = [
+        ...history.map(msg => ({
+          role: msg.role === 'model' ? 'assistant' : msg.role,
+          content: msg.parts?.[0]?.text || msg.content || ''
+        })).slice(-10),
+        { role: 'user', content: userContent }
+      ];
+
+      // Coalesce messages to ensure alternating roles (user -> assistant -> user)
+      // Note: Coalescing complex content (arrays) is tricky.
+      // We will perform coalescing, but if content is array, we might need to merge carefully.
+      // However, usually history is text-only from previous turns (unless we persist images in history which is rare in this app's storage).
+      // For the FINAL user message (which has images), it will be the last one and unlikely to be merged with previous USER message if we enforce alternating.
+      // BUT if we prepend "Context:", that's text.
+      // Let's implement robust coalescing that handles string vs array.
+
+      const coalescedMessages: { role: string; content: any }[] = [];
+      if (systemPrompt) {
+        coalescedMessages.push({ role: 'system', content: systemPrompt });
+      }
+
+      for (const msg of rawMessages) {
+        // Skip system messages in raw stream (already handled)
+        if (msg.role === 'system') continue;
+
+        // Ensure first message after system is user
+        if (coalescedMessages.length === (systemPrompt ? 1 : 0) && msg.role === 'assistant') {
+          coalescedMessages.push({ role: 'user', content: 'Context:' });
+        }
+
+        const currentLast = coalescedMessages[coalescedMessages.length - 1];
+
+        if (currentLast && currentLast.role === msg.role) {
+          // Merge content if same role
+          const lastContent = currentLast.content;
+          const newContent = msg.content;
+
+          if (typeof lastContent === 'string' && typeof newContent === 'string') {
+            currentLast.content += '\n\n' + newContent;
+          } else {
+            // Convert both to arrays and merge
+            const lastArray = Array.isArray(lastContent) ? lastContent : [{ type: 'text', text: lastContent }];
+            const newArray = Array.isArray(newContent) ? newContent : [{ type: 'text', text: newContent }];
+            currentLast.content = [...lastArray, ...newArray];
+          }
+        } else {
+          coalescedMessages.push(msg);
+        }
+      }
+
+      const requestBody = {
+        model: targetModel,
+        messages: coalescedMessages,
+        stream: true,
+        temperature: 0.7,
+      };
+      console.log('[AI] OpenRouter Request Body (Normalized):', JSON.stringify({ ...requestBody, messages: coalescedMessages.map(m => ({ role: m.role, length: m.content.length })) }, null, 2));
+
+      const streamResp = await fetchWithRetry('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!streamResp.body) {
+        throw new Error('No response body for stream');
+      }
+
+      const reader = streamResp.body.getReader();
+      const decoder = new TextDecoder();
+      let fullContent = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          const trimmedLine = line.trim();
+          if (!trimmedLine || trimmedLine === 'data: [DONE]') continue;
+
+          if (trimmedLine.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(trimmedLine.slice(6));
+              if (data.choices?.[0]?.delta?.content) {
+                const contentChunk = data.choices[0].delta.content;
+                fullContent += contentChunk;
+                onChunk(contentChunk);
+              }
+              if (data.error) {
+                throw new Error(data.error.message || 'Stream error');
+              }
+            } catch (e) {
+              // Ignore parse errors for partial chunks
+            }
+          }
+        }
+      }
+
+      if (!fullContent) {
+        throw new Error("Received empty response from OpenRouter.");
+      }
+
+      return {
+        type: 'single-file',
+        content: fullContent
+      };
+
+    } catch (error: any) {
+      console.error('[AI] Stream Error:', error);
+      throw error; // Propagate to ChatInterface for handling
+    }
+  }
+
+  // fallback to legacy non-streaming if no onChunk
   try {
     const resp = await fetch('/api/generate', {
       method: 'POST',
@@ -828,6 +1050,7 @@ Always be thorough and helpful in your analysis.`;
         deepDive, // Deep Dive mode flag - uses GPT-5 on backend
         model, // NEW: Specific model selection
       }),
+      signal: abortSignal, // Support cancellation
     });
 
     if (!resp.ok) {

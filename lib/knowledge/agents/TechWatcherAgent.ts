@@ -4,6 +4,7 @@ import { WORKFLOW_CONFIG } from '../../workflow/config';
 
 // Create a simple context for TechWatcherAgent
 const createSimpleContext = () => ({
+  prompt: '',
   history: [],
   mode: 'tutor' as const,
   provider: 'anthropic' as const,
@@ -133,7 +134,7 @@ Format your response clearly with sections.`;
   private parseAnalysis(analysisText: string, content: FetchedContent): TechWatcherResult {
     // Extract relevance score
     const relevanceMatch = analysisText.match(/relevance[:\s]*([0-9.]+)/i) ||
-                          analysisText.match(/score[:\s]*([0-9.]+)/i);
+      analysisText.match(/score[:\s]*([0-9.]+)/i);
     const relevance = relevanceMatch ? Math.min(1, Math.max(0, parseFloat(relevanceMatch[1]))) : 0.5;
 
     // Extract tech trends

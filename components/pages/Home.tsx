@@ -130,6 +130,8 @@ const Home: React.FC<HomeProps> = ({ defaultMode = 'chat' }) => {
   }, []);
 
   const [prompt, setPrompt] = useState('');
+  const [currentFeature, setCurrentFeature] = useState<string | undefined>(undefined);
+  const [featurePrompt, setFeaturePrompt] = useState<string>('');
   const [provider, setProvider] = useState<AIProvider>('groq');
   const [attachedImages, setAttachedImages] = useState<string[]>([]);
   const [attachedDoc, setAttachedDoc] = useState<File | null>(null);
@@ -425,7 +427,7 @@ const Home: React.FC<HomeProps> = ({ defaultMode = 'chat' }) => {
                 )}
               >
                 <Paintbrush size={16} />
-                <span>Redesign</span>
+                <span>Studio</span>
               </button>
             </div>
           </div>
@@ -433,7 +435,7 @@ const Home: React.FC<HomeProps> = ({ defaultMode = 'chat' }) => {
           {/* Conditional Content */}
           {activeMode === 'chat' ? (
             <ResearchWelcome
-              onSearch={(query, attachments, model, reasoning) => {
+              onSearch={(query, attachments, model, reasoning, featureType) => {
                 localStorage.removeItem('noir_ai_pending_prompt');
                 const detectedMode = detectMode(query);
 
@@ -457,6 +459,13 @@ const Home: React.FC<HomeProps> = ({ defaultMode = 'chat' }) => {
                   attachmentContent = textAttachments.map(att => {
                     return `\n\n--- ${att.name} (${att.type}) ---\n${att.content}`;
                   }).join('\n');
+                }
+
+                if (featureType) {
+                  setFeaturePrompt(query);
+                  setCurrentFeature(featureType);
+                  setActiveMode('redesign');
+                  return;
                 }
 
                 // Combine query with attachment content for AI processing
@@ -491,7 +500,9 @@ const Home: React.FC<HomeProps> = ({ defaultMode = 'chat' }) => {
           ) : (
             <RedesignWelcome
               className="z-10"
-              userName={user?.firstName || undefined}
+              prompt={featurePrompt}
+              featureType={currentFeature}
+              onBack={() => setActiveMode('chat')}
             />
           )}
         </main>

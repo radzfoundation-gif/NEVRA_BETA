@@ -7,6 +7,7 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { useOpenRouterStream } from '@/hooks/useOpenRouterStream';
 import SlidingCubeLoader from '@/components/ui/SlidingCubeLoader';
+import { Zap, CheckCircle, XCircle } from 'lucide-react';
 
 /**
  * StreamingChat - Modular real-time streaming chat component
@@ -52,6 +53,8 @@ export function StreamingChat({
         isStreaming,
         content: streamingContent,
         error,
+        statusMessage,
+        activeTools,
         startStream,
         cancelStream,
         resetStream,
@@ -186,9 +189,40 @@ export function StreamingChat({
                                     <span className="inline-block w-2 h-5 bg-teal-500 ml-1 animate-pulse rounded-sm" />
                                 </div>
                             ) : (
-                                <div className="flex items-center gap-2 text-gray-500">
-                                    <SlidingCubeLoader size={12} />
-                                    <span className="text-sm">Noir is thinking...</span>
+                                <div className="space-y-2">
+                                    {/* Real-time status message */}
+                                    <div className="flex items-center gap-2 text-gray-500">
+                                        <SlidingCubeLoader size={12} />
+                                        <span className="text-sm">
+                                            {statusMessage || 'Noir is thinking...'}
+                                        </span>
+                                    </div>
+
+                                    {/* Active tool execution indicators */}
+                                    {activeTools.length > 0 && (
+                                        <div className="mt-2 space-y-1">
+                                            {activeTools.map((tool, i) => (
+                                                <div
+                                                    key={`${tool.tool}-${i}`}
+                                                    className="flex items-center gap-2 text-xs px-2 py-1 rounded-lg bg-zinc-100 dark:bg-zinc-700/50"
+                                                >
+                                                    {tool.success === undefined ? (
+                                                        <Zap size={12} className="text-amber-500 animate-pulse" />
+                                                    ) : tool.success ? (
+                                                        <CheckCircle size={12} className="text-green-500" />
+                                                    ) : (
+                                                        <XCircle size={12} className="text-red-500" />
+                                                    )}
+                                                    <span className="text-gray-600 dark:text-gray-400 font-mono">
+                                                        {tool.tool}
+                                                    </span>
+                                                    {tool.success === undefined && (
+                                                        <span className="text-gray-400 text-[10px]">running...</span>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>

@@ -5,6 +5,7 @@ import { WORKFLOW_CONFIG } from '../../workflow/config';
 
 // Create a simple context for CurationAgent
 const createSimpleContext = () => ({
+  prompt: '',
   history: [],
   mode: 'tutor' as const,
   provider: 'anthropic' as const,

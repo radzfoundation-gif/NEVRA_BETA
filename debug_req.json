@@ -1,0 +1,9 @@
+{
+    "model": "groq",
+    "messages": [
+        {
+            "role": "user",
+            "content": "test"
+        }
+    ]
+}

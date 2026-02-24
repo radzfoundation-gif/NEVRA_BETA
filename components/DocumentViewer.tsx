@@ -11,7 +11,7 @@ interface DocumentViewerProps {
 }
 
 const DocumentViewer: React.FC<DocumentViewerProps> = ({
-  document,
+  document: parsedDoc,
   onClose,
   onSearch,
   className,
@@ -27,7 +27,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
       return;
     }
 
-    const results = searchInDocument(document, searchQuery);
+    const results = searchInDocument(parsedDoc, searchQuery);
     setSearchResults(results);
     onSearch?.(searchQuery);
   };
@@ -48,12 +48,12 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
           </div>
           <div className="flex-1 min-w-0">
             <h3 className="text-sm font-semibold text-white truncate">
-              {document.title}
+              {parsedDoc.title}
             </h3>
-            {document.metadata?.wordCount && (
+            {parsedDoc.metadata?.wordCount && (
               <p className="text-xs text-gray-400">
-                {document.metadata.wordCount} words
-                {document.pages && ` • ${document.pages} pages`}
+                {parsedDoc.metadata.wordCount} words
+                {parsedDoc.pages && ` • ${parsedDoc.pages} pages`}
               </p>
             )}
           </div>
@@ -104,7 +104,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
               </button>
             </div>
             <div className="text-xs text-gray-300 whitespace-pre-wrap">
-              {getDocumentSummary(document)}
+              {getDocumentSummary(parsedDoc)}
             </div>
           </div>
         )}
@@ -134,9 +134,9 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
         )}
 
         {/* Document Sections */}
-        {document.sections && document.sections.length > 0 ? (
+        {parsedDoc.sections && parsedDoc.sections.length > 0 ? (
           <div className="space-y-4">
-            {document.sections.map((section, index) => (
+            {parsedDoc.sections.map((section, index) => (
               <div
                 key={index}
                 className={clsx(
@@ -163,7 +163,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
         ) : (
           /* Full Content */
           <div className="text-sm text-gray-300 whitespace-pre-wrap leading-relaxed">
-            {document.content}
+            {parsedDoc.content}
           </div>
         )}
       </div>
@@ -172,11 +172,11 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
       <div className="flex items-center justify-between p-4 border-t border-white/10 bg-[#111] shrink-0">
         <button
           onClick={() => {
-            const blob = new Blob([document.content], { type: 'text/plain' });
+            const blob = new Blob([parsedDoc.content], { type: 'text/plain' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `${document.title}.txt`;
+            a.download = `${parsedDoc.title}.txt`;
             a.click();
             URL.revokeObjectURL(url);
           }}

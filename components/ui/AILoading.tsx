@@ -8,6 +8,7 @@ const cn = (...inputs: Parameters<typeof clsx>) => twMerge(clsx(inputs));
 interface AILoadingProps {
   mode?: 'builder' | 'tutor' | 'canvas';
   status?: string;
+  message?: string;
   loadingMessages?: string[];
   className?: string;
 }
