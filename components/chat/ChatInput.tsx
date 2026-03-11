@@ -12,6 +12,7 @@ import { ParsedDocument } from '@/lib/documentParser';
 import { AppMode } from '@/lib/modeDetector';
 import ModelSelector, { ModelType } from '@/components/ui/ModelSelector';
 import VoiceDictationModal from './VoiceDictationModal';
+import DocGenerator from '../pages/DocGenerator';
 
 function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs));
@@ -54,6 +55,7 @@ interface ChatInputProps {
 
 // Tool items for the + dropdown
 const TOOL_ITEMS = [
+    { id: 'smart_document', label: 'Smart Document', icon: Sparkles },
     { id: 'image', label: 'Upload Image', icon: ImageIcon },
     { id: 'camera', label: 'Take Photo', icon: Camera },
     { id: 'document', label: 'Upload Document', icon: FileText },
@@ -118,6 +120,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
     const { credits } = useTokenLimit();
     const [showDictation, setShowDictation] = useState(false);
     const [showToolsMenu, setShowToolsMenu] = useState(false);
+    const [showSmartDoc, setShowSmartDoc] = useState(false);
     const [isFocused, setIsFocused] = useState(false);
     const cameraInputRef = useRef<HTMLInputElement>(null);
     const toolsMenuRef = useRef<HTMLDivElement>(null);
@@ -148,6 +151,9 @@ const ChatInput: React.FC<ChatInputProps> = ({
     const handleToolSelect = (toolId: string) => {
         setShowToolsMenu(false);
         switch (toolId) {
+            case 'smart_document':
+                setShowSmartDoc(true);
+                break;
             case 'image':
                 fileInputRef.current?.click();
                 break;
@@ -413,6 +419,10 @@ const ChatInput: React.FC<ChatInputProps> = ({
                     setInput((prev) => prev ? prev + ' ' + text : text);
                 }}
             />
+
+            {showSmartDoc && (
+                <DocGenerator asModal onClose={() => setShowSmartDoc(false)} />
+            )}
         </div >
     );
 };

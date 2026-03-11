@@ -20,11 +20,31 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-    // Simple network-first strategy for dev (so changes appear instantly)
-    // Fallback to cache if offline
+    // Bypass Service Worker for non-GET requests (e.g. POST, PUT, DELETE)
+    // and for external APIs like Supabase to avoid caching/interception errors
+    if (
+        event.request.method !== 'GET' ||
+        event.request.url.includes('/api/') ||
+        event.request.url.includes('supabase.co') ||
+        !event.request.url.startsWith(self.location.origin)
+    ) {
+        return; // Let browser handle it directly
+    }
+
+    // Simple network-first strategy for local assets
     event.respondWith(
         fetch(event.request).catch(() => {
-            return caches.match(event.request);
+            return caches.match(event.request).then((response) => {
+                if (response) {
+                    return response;
+                }
+                // Return a generic 503 response if offline and not in cache
+                // to prevent "Failed to convert value to 'Response'" TypeError
+                return new Response('Offline - Not Cached', {
+                    status: 503,
+                    statusText: 'Service Unavailable'
+                });
+            });
         })
     );
 });

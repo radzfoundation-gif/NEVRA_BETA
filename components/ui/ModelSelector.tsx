@@ -25,13 +25,21 @@ const MODEL_OPTIONS: ModelOption[] = [
         description: 'Fast & Free',
         badge: 'free'
     },
-
     {
         id: 'gemini-flash',
         name: 'Gemini 2.5 Flash',
         provider: 'Google',
         icon: <img src="/gemini-logo-v2.png" alt="Gemini" className="w-5 h-5 object-contain" />,
         description: 'Fastest response time'
+    },
+    {
+        id: 'sonar',
+        name: 'NoirSync (Sonar)',
+        provider: 'Perplexity',
+        icon: <Globe size={16} className="text-blue-400" />,
+        description: 'Real-time search',
+        badge: 'pro',
+        locked: true,
     },
     {
         id: 'claude-sonnet',
@@ -96,7 +104,6 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     children
 }) => {
     const [isOpen, setIsOpen] = useState(false);
-    const [view, setView] = useState<'main' | 'more'>('main');
     const [searchQuery, setSearchQuery] = useState('');
     const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -106,33 +113,15 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
         const handleClickOutside = (event: MouseEvent) => {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
                 setIsOpen(false);
-                setView('main'); // Reset view on close
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    // Filter models for "more" view search
     const filteredModels = MODEL_OPTIONS.filter(m =>
         m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         m.provider.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-
-    // Toggle switch component
-    const Toggle = ({ checked, onChange }: { checked: boolean, onChange?: () => void }) => (
-        <button
-            onClick={onChange}
-            className={cn(
-                "w-9 h-5 rounded-full relative transition-colors duration-200",
-                checked ? "bg-blue-500" : "bg-zinc-600"
-            )}
-        >
-            <div className={cn(
-                "absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all duration-200 shadow-sm",
-                checked ? "left-4.5 translate-x-0" : "left-0.5"
-            )} style={{ left: checked ? '18px' : '2px' }} />
-        </button>
     );
 
     return (
@@ -161,153 +150,82 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                         animate={{ opacity: 1, scale: 1, y: 0, x: "-50%" }}
                         exit={{ opacity: 0, scale: 0.95, y: 10, x: "-50%" }}
                         transition={{ duration: 0.15, ease: "easeOut" }}
-                        className="fixed left-1/2 bottom-32 w-[260px] sm:transform-none sm:left-auto sm:translate-x-0 sm:absolute sm:bottom-full sm:right-0 sm:w-[280px] bg-[#1e1e1e] border border-white/10 shadow-2xl rounded-2xl overflow-hidden flex flex-col z-[100] sm:mb-2"
+                        className="fixed left-1/2 bottom-32 w-[260px] sm:transform-none sm:left-auto sm:translate-x-0 sm:absolute sm:bottom-full sm:right-0 sm:w-[280px] bg-[#1e1e1e] border border-white/10 shadow-2xl rounded-2xl overflow-hidden flex flex-col z-[100] sm:mb-2 max-h-[400px]"
                     >
-                        <AnimatePresence mode="wait">
-                            {view === 'main' ? (
-                                <motion.div
-                                    key="main"
-                                    initial={{ x: -20, opacity: 0 }}
-                                    animate={{ x: 0, opacity: 1 }}
-                                    exit={{ x: -20, opacity: 0 }}
-                                    className="flex flex-col w-full"
-                                >
-                                    {/* Search Header */}
-                                    <div className="p-2">
-                                        <div className="relative bg-zinc-800/50 rounded-lg flex items-center px-2 py-1.5 border border-white/5">
-                                            <Search size={14} className="text-zinc-400 mr-2" />
-                                            <input
-                                                type="text"
-                                                placeholder="Search models..."
-                                                className="w-full bg-transparent border-none outline-none text-xs text-zinc-200 placeholder-zinc-500"
-                                                value={searchQuery}
-                                                onChange={(e) => setSearchQuery(e.target.value)}
-                                            />
-                                        </div>
-                                    </div>
+                        <div className="flex flex-col w-full h-full">
+                            {/* Search Header */}
+                            <div className="p-2 border-b border-white/5 bg-zinc-900/40">
+                                <div className="relative bg-zinc-800/80 rounded-lg flex items-center px-2 py-1.5 border border-white/5 focus-within:border-white/10 transition-colors">
+                                    <Search size={14} className="text-zinc-400 mr-2" />
+                                    <input
+                                        type="text"
+                                        placeholder="Search models..."
+                                        className="w-full bg-transparent border-none outline-none text-xs text-zinc-200 placeholder-zinc-500"
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        autoFocus
+                                    />
+                                </div>
+                            </div>
 
-                                    {/* Optional Toggles */}
-                                    <div className="px-3 py-1.5 space-y-2 border-b border-white/5 pb-2">
-                                        <div className="text-[10px] font-medium text-zinc-500 mb-0.5">Optional</div>
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-xs text-zinc-300 font-medium">Auto</span>
-                                            <Toggle checked={false} />
-                                        </div>
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-xs text-zinc-300 font-medium">Multiple Models</span>
-                                            <Toggle checked={false} />
-                                        </div>
-                                    </div>
-
-                                    {/* Recent/Top Models */}
-                                    <div className="py-1 px-1">
-                                        <div className="px-2 text-[10px] font-medium text-zinc-500 mb-0.5">Models</div>
-
-                                        {/* "More models" Trigger */}
-                                        <button
-                                            onClick={() => setView('more')}
-                                            className="w-full flex items-center justify-between px-2 py-1.5 rounded-lg hover:bg-white/5 transition-colors group"
-                                        >
-                                            <span className="text-xs text-zinc-300 font-medium group-hover:text-white">More models</span>
-                                            <ChevronRight size={14} className="text-zinc-500 group-hover:text-zinc-300" />
-                                        </button>
-
-                                        {/* Selected / Favorites (Snippet) */}
-                                        {MODEL_OPTIONS.slice(0, 3).map(model => (
-                                            <button
-                                                key={model.id}
-                                                onClick={() => {
-                                                    onModelChange(model.id);
-                                                    setIsOpen(false);
-                                                }}
-                                                className={cn(
-                                                    "w-full flex items-center gap-2 px-2 py-1.5 rounded-lg transition-colors mt-0.5",
-                                                    selectedModel === model.id ? "bg-white/10" : "hover:bg-white/5"
-                                                )}
-                                            >
-                                                <div className="w-4 h-4 flex items-center justify-center grayscale-[0.2]">
-                                                    {model.icon}
-                                                </div>
-                                                <div className="text-left flex-1">
-                                                    <div className="text-xs text-zinc-200 font-medium">{model.name}</div>
-                                                </div>
-                                                {selectedModel === model.id && <Check size={12} className="text-blue-400" />}
-                                            </button>
-                                        ))}
-                                    </div>
-
-                                    {/* Footer: Temporary Chat */}
-                                    <div className="mt-0.5 p-2 border-t border-white/5 bg-zinc-900/30">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-2">
-                                                <Clock size={12} className="text-zinc-400" />
-                                                <span className="text-xs text-zinc-300">Temporary chat</span>
+                            {/* Options Container */}
+                            <div className="flex-1 overflow-y-auto p-1.5 hide-scrollbar">
+                                <div className="px-1 text-[10px] font-semibold tracking-wider text-zinc-500 uppercase mb-1.5 mt-1">Available Models</div>
+                                
+                                {filteredModels.map(model => (
+                                    <button
+                                        key={model.id}
+                                        disabled={model.locked && !isSubscribed}
+                                        onClick={() => {
+                                            if (!model.locked || isSubscribed) {
+                                                onModelChange(model.id);
+                                                setIsOpen(false);
+                                            }
+                                        }}
+                                        className={cn(
+                                            "w-full flex items-center justify-between gap-3 px-2 py-2 rounded-lg transition-all text-left mb-0.5 group",
+                                            selectedModel === model.id ? "bg-blue-500/10 hover:bg-blue-500/20" : "hover:bg-white/5",
+                                            model.locked && !isSubscribed && "opacity-50 hover:opacity-50 cursor-not-allowed"
+                                        )}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-6 h-6 rounded flex items-center justify-center bg-zinc-800 border border-white/5 group-hover:border-white/10 transition-colors">
+                                                {model.icon}
                                             </div>
-                                            <Toggle checked={true} />
+                                            <div className="flex flex-col">
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className={cn(
+                                                        "text-[13px] font-medium transition-colors",
+                                                        selectedModel === model.id ? "text-blue-400" : "text-zinc-200"
+                                                    )}>
+                                                        {model.name}
+                                                    </span>
+                                                    {model.badge === 'soon' && <span className="text-[9px] px-1 py-0.5 rounded-sm bg-zinc-800 text-zinc-400 leading-none">Soon</span>}
+                                                    {model.badge === 'free' && <span className="text-[9px] px-1 py-0.5 rounded-sm bg-emerald-500/10 text-emerald-400 leading-none">Free</span>}
+                                                    {model.badge === 'pro' && !isSubscribed && <span className="text-[9px] px-1 py-0.5 rounded-sm bg-amber-500/10 text-amber-500 leading-none font-semibold">PRO</span>}
+                                                    {model.badge === 'max' && !isSubscribed && <span className="text-[9px] px-1 py-0.5 rounded-sm bg-purple-500/10 text-purple-400 leading-none font-semibold">MAX</span>}
+                                                </div>
+                                                {model.description && (
+                                                    <span className="text-[10px] text-zinc-500 group-hover:text-zinc-400 transition-colors">
+                                                        {model.description}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
+                                        {selectedModel === model.id && (
+                                            <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center">
+                                                <Check size={12} className="text-white" />
+                                            </div>
+                                        )}
+                                    </button>
+                                ))}
+                                {filteredModels.length === 0 && (
+                                    <div className="py-6 text-center">
+                                        <p className="text-xs text-zinc-500">No models found</p>
                                     </div>
-                                </motion.div>
-                            ) : (
-                                <motion.div
-                                    key="more"
-                                    initial={{ x: 20, opacity: 0 }}
-                                    animate={{ x: 0, opacity: 1 }}
-                                    exit={{ x: 20, opacity: 0 }}
-                                    className="flex flex-col w-full h-full max-h-[350px]"
-                                >
-                                    {/* Back Header */}
-                                    <div className="flex items-center gap-2 p-2 border-b border-white/5">
-                                        <button
-                                            onClick={() => setView('main')}
-                                            className="p-1 hover:bg-white/10 rounded-lg text-zinc-400 hover:text-white transition-colors"
-                                        >
-                                            <ChevronLeft size={14} />
-                                        </button>
-                                        <input
-                                            type="text"
-                                            placeholder="Ask for a model..."
-                                            className="bg-transparent text-xs text-white placeholder-zinc-500 outline-none flex-1"
-                                            autoFocus
-                                            value={searchQuery}
-                                            onChange={(e) => setSearchQuery(e.target.value)}
-                                        />
-                                    </div>
-
-                                    {/* Full List */}
-                                    <div className="flex-1 overflow-y-auto p-1">
-                                        {filteredModels.map(model => (
-                                            <button
-                                                key={model.id}
-                                                disabled={model.locked && !isSubscribed}
-                                                onClick={() => {
-                                                    if (!model.locked || isSubscribed) {
-                                                        onModelChange(model.id);
-                                                        setIsOpen(false);
-                                                    }
-                                                }}
-                                                className={cn(
-                                                    "w-full flex items-center gap-2 px-2 py-2 rounded-lg transition-all text-left mb-0.5",
-                                                    selectedModel === model.id ? "bg-white/10" : "hover:bg-white/5",
-                                                    model.locked && !isSubscribed && "opacity-50 cursor-not-allowed"
-                                                )}
-                                            >
-                                                <div className="w-4 h-4 flex items-center justify-center">
-                                                    {model.icon}
-                                                </div>
-                                                <div className="flex-1">
-                                                    <div className="text-xs text-zinc-200 font-medium">{model.name}</div>
-                                                    {model.badge === 'soon' && <div className="text-[9px] text-zinc-500">Coming Soon</div>}
-                                                </div>
-                                                {selectedModel === model.id && <Check size={12} className="text-blue-400" />}
-                                                {model.badge === 'pro' && !isSubscribed && (
-                                                    <span className="text-[9px] font-bold text-amber-500 bg-amber-500/10 px-1 py-0 rounded">PRO</span>
-                                                )}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
+                                )}
+                            </div>
+                        </div>
                     </motion.div>
                 )}
             </AnimatePresence>

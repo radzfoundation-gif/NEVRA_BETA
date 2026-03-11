@@ -130,17 +130,36 @@ if (openrouterApiKey) {
 
 const app = express();
 
-// Security Headers
+// 1. CORS Configuration (MUST BE FIRST)
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin) return callback(null, true);
+      return callback(null, origin);
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
+  })
+);
+
+// 2. Security Headers
 app.use(helmet());
+
+// 3. Body Parsers with high limits
+app.use(express.json({ limit: '200mb' }));
+app.use(express.urlencoded({ limit: '200mb', extended: true }));
 
 // Rate Limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 2000, // Limit each IP to 2000 requests per windowMs
+  windowMs: 15 * 60 * 1000, 
+  max: 2000, 
   message: { error: 'Too many requests, please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
 });
+
+const PORT = process.env.PORT || 8788;
 
 // Stricter Abuse Limiter (e.g. for heavy AI endpoints)
 const abuseLimiter = rateLimit({
@@ -148,43 +167,6 @@ const abuseLimiter = rateLimit({
   max: 30, // Limit each IP to 30 requests per minute
   message: { error: 'Too many requests (abuse protection). Please slow down.' }
 });
-app.use(limiter);
-
-const PORT = process.env.PORT || 8788;
-
-// CORS configuration
-const allowedOrigins = [
-  'http://localhost:3000',
-  'http://localhost:5173',
-  'http://localhost:8788',
-  'https://www.rlabs-studio.web.id',
-  'https://rlabs-studio.web.id',
-  'https://rlabs-studio.vercel.app',
-  process.env.CORS_ORIGIN
-].filter(Boolean);
-
-// Enable pre-flight for all routes
-// app.options('*', cors()); // Removed to fix PathError with * wildcard
-
-app.use(
-  cors({
-    origin: function (origin, callback) {
-      // Allow requests with no origin (like mobile apps or curl requests)
-      if (!origin) return callback(null, true);
-
-      if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV !== 'production') {
-        callback(null, true);
-      } else {
-        console.log('Blocked by CORS:', origin);
-        callback(null, false);
-      }
-    },
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
-  }),
-);
-app.use(express.json({ limit: '50mb' }));
 // Midtrans webhook handler
 app.use('/api/payment/webhook', express.json());
 
@@ -4099,6 +4081,99 @@ app.post('/api/workflow', async (req, res) => {
       error: 'Workflow execution failed',
       message: error.message
     });
+  }
+});
+
+// =====================================================
+// AI PDF GENERATOR ENDPOINT
+// =====================================================
+app.post('/api/generate-pdf', async (req, res) => {
+  try {
+    const { images, prompt, userId } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID is required' });
+    }
+    if (!prompt) {
+      return res.status(400).json({ error: 'Instructions are required' });
+    }
+    if (!sumopodClient) {
+      return res.status(500).json({ error: 'AI service not configured.' });
+    }
+
+    // 1. Ask Gemini to generate HTML based on images and prompt
+    const systemPrompt = `You are an expert Document and UI Designer.
+Your task is to analyze the provided images (which may include a blank table/form structure and attendance/data lists) and REPLICATE the structure using HTML and Tailwind CSS.
+THEN, you must fill in that structure with the data provided in the user's instructions and the reference images.
+
+CRITICAL INSTRUCTIONS:
+1. **OUTPUT FORMAT**: Return ONLY valid, complete HTML code. Do not include markdown formatting like \`\`\`html.
+2. **STYLING**: Use Tailwind CSS (via CDN) for styling. Ensure the document looks like a professional, printable A4 page (white background, black text, clean borders).
+3. **ACCURACY**: Replicate the columns, rows, and headers exactly as seen in the structural image.
+4. **DATA INJECTION**: Fill the table/form with the specific data requested by the user from the images.
+5. **A4 FORMATTING**: Add this to your styles to ensure it prints well as a PDF:
+   <style>
+     @page { size: A4; margin: 20mm; }
+     body { background: white; color: black; font-family: sans-serif; }
+   </style>
+
+If no image is provided, just create a professional HTML document/table based solely on the user's instructions.`;
+
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      {
+        role: 'user',
+        content: images && images.length > 0
+          ? [
+              { type: 'text', text: prompt },
+              ...images.map(img => ({ type: 'image_url', image_url: { url: img } }))
+            ]
+          : prompt
+      }
+    ];
+
+    console.log(`[PDFGen] Requesting HTML generation for user ${userId}...`);
+    
+    // Use Gemini Flash or Pro for vision
+    const targetModelId = process.env.SUMOPOD_REDESIGN_MODEL_ID || process.env.SUMOPOD_MODEL_ID || 'gemini/gemini-pro';
+
+    const completion = await sumopodClient.chat.completions.create({
+      model: targetModelId,
+      messages: messages,
+      temperature: 0.2, // Low temp for more accurate structured output
+    });
+
+    let htmlContent = completion.choices[0].message.content;
+    
+    // Clean up markdown artifacts if present
+    htmlContent = htmlContent.replace(/```html\s*/g, '').replace(/```\s*$/g, '').trim();
+
+    // 2. Convert HTML to PDF using html-pdf-node
+    console.log(`[PDFGen] HTML generated (${htmlContent.length} bytes). Converting to PDF...`);
+    const htmlPdfModule = await import('html-pdf-node');
+    const generatePdf = htmlPdfModule.default?.generatePdf || htmlPdfModule.generatePdf;
+    
+    let file = { content: htmlContent };
+    let options = { format: 'A4', printBackground: true, margin: { top: '20px', right: '20px', bottom: '20px', left: '20px' } };
+
+    if (!generatePdf) {
+      throw new Error('html-pdf-node could not be loaded correctly.');
+    }
+
+    // html-pdf-node generates a buffer
+    const pdfBuffer = await generatePdf(file, options);
+    
+    console.log(`[PDFGen] PDF generated successfully (${pdfBuffer.length} bytes).`);
+
+    // 3. Send PDF back to client
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="noir-smart-document.pdf"');
+    res.setHeader('Content-Length', pdfBuffer.length);
+    res.send(pdfBuffer);
+
+  } catch (error) {
+    console.error('[PDFGen] Error:', error);
+    res.status(500).json({ error: 'Failed to generate PDF', details: error.message });
   }
 });
 

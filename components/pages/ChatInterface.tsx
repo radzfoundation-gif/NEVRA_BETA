@@ -3003,7 +3003,7 @@ const ChatInterface: React.FC = () => {
             <div className="relative group">
               <button
                 onClick={() => setIsTitleDropdownOpen(!isTitleDropdownOpen)}
-                className="flex items-center gap-2 px-2 py-1.5 -ml-1 rounded-lg hover:bg-zinc-100/80 text-zinc-800 transition-colors max-w-full"
+                className="flex items-center gap-2 px-2 py-1.5 -ml-1 rounded-lg hover:bg-black/5 text-zinc-800 transition-colors max-w-full"
               >
                 <span className="text-sm font-semibold text-zinc-800 px-1 truncate max-w-[300px] sm:max-w-xl transition-all duration-300">
                   {sessions.find(s => s.id === sessionId)?.title || "New Chat"}
