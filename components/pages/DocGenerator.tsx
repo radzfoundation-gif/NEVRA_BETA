@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Image as ImageIcon, Sparkles, Upload, FileText, Download, X, AlertCircle, Wand2, Plus, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import * as pdfjsLib from 'pdfjs-dist';
+import html2pdf from 'html2pdf.js';
 import { cn } from '@/lib/utils';
 import Sidebar from '../Sidebar';
 
@@ -111,21 +112,42 @@ export default function DocGenerator({ asModal = false, onClose }: DocGeneratorP
 
             if (!response.ok) {
                 const errData = await response.json().catch(() => ({}));
-                throw new Error(errData.error || `Server error: ${response.statusText}`);
+                const serverErrorDetail = errData.details ? `: ${errData.details}` : '';
+                throw new Error(errData.error ? `${errData.error}${serverErrorDetail}` : `Server error: ${response.statusText}`);
             }
 
-            // The response is a PDF Blob
-            const blob = await response.blob();
-            const url = URL.createObjectURL(blob);
-            setDownloadUrl(url);
+            // The response is now JSON containing the generated HTML
+            const data = await response.json();
+            
+            if (!data.html) {
+                throw new Error('Failed to generate document content. Please try a different prompt.');
+            }
 
-            // Auto-trigger download
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `noir-document-${Date.now()}.pdf`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
+            // Client-side PDF generation using html2pdf
+            const container = document.createElement('div');
+            container.innerHTML = data.html;
+            
+            // Adjust styles for rendering before printing
+            container.style.position = 'absolute';
+            container.style.left = '-9999px';
+            container.style.top = '0';
+            container.style.width = '794px'; // A4 width in pixels (~210mm)
+            container.style.background = 'white';
+            container.style.color = 'black';
+            container.style.padding = '20px';
+            document.body.appendChild(container);
+
+            const opt = {
+                margin:       10, // mm
+                filename:     `noir-smart-document-${Date.now()}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true, logging: false },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            // This triggers the download in browser directly
+            await html2pdf().set(opt).from(container).save();
+            document.body.removeChild(container);
 
         } catch (err: any) {
             console.error('PDF Generation Error:', err);

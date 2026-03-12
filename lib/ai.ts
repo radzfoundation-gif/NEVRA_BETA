@@ -835,15 +835,15 @@ Always follow this structure when an image is present.`;
 
   // STREAMING LOGIC REPLACEMENT: OpenRouter Direct Fetch
   if (onChunk) {
-    console.log(`[AI] 🌊 Starting OpenRouter Streaming for model: ${model || 'anthropic/claude-3.5-sonnet'}`);
+    console.log(`[AI] 🌊 Starting SumoPod Streaming for NoirSync routing...`);
 
     // Helper for exponential backoff
     const fetchWithRetry = async (url: string, options: any, retries = 3, backoff = 1000) => {
       try {
-        // Check for API Key
-        const apiKey = import.meta.env.VITE_OPENROUTER_API_KEY || import.meta.env.OPENROUTER_API_KEY;
+        // Check for SumoPod API Key
+        const apiKey = import.meta.env.VITE_SUMOPOD_API_KEY || import.meta.env.SUMOPOD_API_KEY;
         if (!apiKey) {
-          throw new Error("OpenRouter API Key not configured. Please set VITE_OPENROUTER_API_KEY in your .env file.");
+          throw new Error("SumoPod API Key not configured. Please set VITE_SUMOPOD_API_KEY in your .env file.");
         }
 
         const response = await fetch(url, {
@@ -860,14 +860,14 @@ Always follow this structure when an image is present.`;
           const errorText = await response.text();
           // Don't retry 401 (Auth) or 400 (Bad Request)
           if (response.status === 401 || response.status === 400) {
-            throw new Error(`OpenRouter API Error (${response.status}): ${errorText}`);
+            throw new Error(`SumoPod API Error (${response.status}): ${errorText}`);
           }
           if (retries > 0) {
             console.warn(`[AI] Request failed (${response.status}), retrying in ${backoff}ms...`);
             await new Promise(r => setTimeout(r, backoff));
             return fetchWithRetry(url, options, retries - 1, backoff * 2);
           }
-          throw new Error(`OpenRouter API Error (${response.status}): ${errorText}`);
+          throw new Error(`SumoPod API Error (${response.status}): ${errorText}`);
         }
         return response;
       } catch (error: any) {
@@ -893,10 +893,65 @@ Always follow this structure when an image is present.`;
         }
       }
 
-      // Map internal IDs to OpenRouter IDs
-      let targetModel = model || 'stepfun/step-3.5-flash:free';
-      if (model === 'sonar') targetModel = 'stepfun/step-3.5-flash:free';
-      if (model === 'claude-sonnet-4-5') targetModel = 'anthropic/claude-3.5-sonnet';
+      // =====================================================
+      // NOIRSYNC — Context-Aware Smart Model Routing
+      // =====================================================
+      const routeNoirSync = (promptText: string, webSearchEnabled: boolean = false): string => {
+        const lower = promptText.toLowerCase();
+
+        // 1. PDF / Document generation
+        const pdfPatterns = [
+          /\b(buatkan|buat|generate|create|bikin)\b.*\b(pdf|dokumen|document)\b/i,
+          /\b(pdf|dokumen|document)\b.*\b(buatkan|buat|generate|create|bikin)\b/i,
+          /\b(edit|ubah|modify)\b.*\bpdf\b/i,
+          /\b(export|download|unduh)\b.*\b(pdf|dokumen)\b/i,
+        ];
+        if (pdfPatterns.some(p => p.test(promptText))) {
+          console.log('📄 [NoirSync] Routed to Claude Opus 4 (PDF/Document)');
+          return 'claude-opus-4-6';
+        }
+
+        // 2. Visual / Design
+        const designKeywords = [
+          'design', 'desain', 'ui', 'ux', 'landing page', 'mockup', 'wireframe',
+          'visual', 'layout', 'template', 'figma', 'prototype', 'website design',
+          'web design', 'buatkan website', 'buat website', 'buat halaman',
+          'redesign', 'tata letak',
+        ];
+        if (designKeywords.some(kw => lower.includes(kw))) {
+          console.log('🎨 [NoirSync] Routed to Gemini 3 Pro (Visual/Design)');
+          return 'gemini/gemini-3-pro-preview';
+        }
+
+        // 3. Coding
+        const codingKeywords = [
+          'code', 'coding', 'program', 'function', 'class', 'component',
+          'debug', 'error', 'syntax', 'algorithm', 'api', 'database',
+          'react', 'javascript', 'typescript', 'python', 'java', 'html', 'css',
+          'node', 'express', 'next.js', 'vue', 'angular', 'flutter', 'swift',
+          'kode', 'buat kode', 'buatkan kode', 'perbaiki kode', 'fix bug',
+          'implement', 'refactor', 'deploy', 'server', 'backend', 'frontend',
+          'npm', 'git', 'docker', 'sql', 'mongodb', 'firebase', 'supabase',
+        ];
+        if (codingKeywords.some(kw => lower.includes(kw))) {
+          console.log('💻 [NoirSync] Routed to Kimi K2 Thinking (Coding)');
+          return 'kimi-k2-thinking';
+        }
+
+        // 4. Web Search active
+        if (webSearchEnabled) {
+          console.log('🔍 [NoirSync] Routed to Gemini 2.5 Flash Lite (Web Search)');
+          return 'gemini/gemini-2.5-flash-lite';
+        }
+
+        // 5. Default — normal chat
+        console.log('💬 [NoirSync] Routed to Seed 2.0 Mini (Default Chat)');
+        return 'seed-2-0-mini-free';
+      };
+
+      // Determine if web search is active from prompt markers
+      const hasWebSearchContext = prompt.includes('[Web Search Results]');
+      let targetModel = routeNoirSync(prompt, hasWebSearchContext);
 
       // Build and normalize messages
       // Prepare user content (Text or Multimodal)
@@ -967,9 +1022,10 @@ Always follow this structure when an image is present.`;
         stream: true,
         temperature: 0.7,
       };
-      console.log('[AI] OpenRouter Request Body (Normalized):', JSON.stringify({ ...requestBody, messages: coalescedMessages.map(m => ({ role: m.role, length: m.content.length })) }, null, 2));
+      const sumopodBaseUrl = import.meta.env.VITE_SUMOPOD_BASE_URL || 'https://ai.sumopod.com';
+      console.log(`[AI] SumoPod Request: model=${targetModel}`, JSON.stringify({ ...requestBody, messages: coalescedMessages.map(m => ({ role: m.role, length: typeof m.content === 'string' ? m.content.length : 'multimodal' })) }, null, 2));
 
-      const streamResp = await fetchWithRetry('https://openrouter.ai/api/v1/chat/completions', {
+      const streamResp = await fetchWithRetry(`${sumopodBaseUrl}/v1/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1018,7 +1074,7 @@ Always follow this structure when an image is present.`;
       }
 
       if (!fullContent) {
-        throw new Error("Received empty response from OpenRouter.");
+        throw new Error("Received empty response from SumoPod.");
       }
 
       return {

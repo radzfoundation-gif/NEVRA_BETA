@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Copy, Check } from 'lucide-react';
 import clsx from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -11,85 +12,152 @@ interface AILoadingProps {
   message?: string;
   loadingMessages?: string[];
   className?: string;
+  userPrompt?: string; // The user's prompt to allow copying
 }
 
 const DEFAULT_MESSAGES = [
   "Noir is thinking...",
-  "Analyzing request...",
-  "Connecting to knowledge base...",
+  "Analyzing your question...",
+  "Processing with AI...",
   "Formulating response...",
-  "Writing code...",
+  "Preparing answer...",
   "Almost there..."
 ];
 
-export default function AILoading({ mode = 'tutor', status, loadingMessages, className }: AILoadingProps) {
-  // Use provided messages or defaults, but if status is provided, prioritize it as a fixed message initially
+export default function AILoading({ mode = 'tutor', status, loadingMessages, className, userPrompt }: AILoadingProps) {
   const messages = loadingMessages && loadingMessages.length > 0 ? loadingMessages : DEFAULT_MESSAGES;
 
-  // If status is provided, we can optionally just show that, OR we can start with it.
-  // For this design, let's behave as follows:
-  // If status is specific (passed from outside irrelevant to cycling), we might want to respect it.
-  // BUT the requirement is to cycle. Let's assume 'status' might be the initial state.
-
   const [msgIndex, setMsgIndex] = useState(0);
+  const [elapsed, setElapsed] = useState(0);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    // Change text every 4 seconds
     const interval = setInterval(() => {
       setMsgIndex((prev) => (prev + 1) % messages.length);
     }, 4000);
-
     return () => clearInterval(interval);
   }, [messages.length]);
 
+  // Elapsed timer
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setElapsed(prev => prev + 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Estimate remaining time based on prompt length
+  const estimateTotal = useCallback(() => {
+    if (!userPrompt) return 15; // default 15s
+    const len = userPrompt.length;
+    if (len < 50) return 8;
+    if (len < 200) return 15;
+    if (len < 500) return 25;
+    return 35;
+  }, [userPrompt]);
+
+  const totalEstimate = estimateTotal();
+  const remaining = Math.max(0, totalEstimate - elapsed);
+
+  const handleCopy = async () => {
+    if (!userPrompt) return;
+    try {
+      await navigator.clipboard.writeText(userPrompt);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // fallback
+    }
+  };
+
   const currentText = status && !loadingMessages ? status : messages[msgIndex];
 
+  // Format time
+  const formatTime = (s: number) => {
+    if (s <= 0) return 'any moment now';
+    if (s < 60) return `~${s}s`;
+    return `~${Math.floor(s / 60)}m ${s % 60}s`;
+  };
+
   return (
-    <div className={cn("flex items-center gap-3 py-2 select-none", className)}>
-      {/* Abstract Breathing Logo (Claude-style) */}
-      <div className="relative flex items-center justify-center w-5 h-5">
-        <motion.div
-          className="w-3.5 h-3.5 bg-[#da7756] rounded-[4px]"
-          animate={{
-            scale: [0.85, 1.1, 0.85],
-            opacity: [0.6, 1, 0.6],
-            rotate: [0, 45, 0]
-          }}
-          transition={{
-            duration: 2.5,
-            repeat: Infinity,
-            ease: "easeInOut"
-          }}
-        />
-        <motion.div
-          className="absolute inset-0 bg-[#da7756] rounded-full opacity-20"
-          animate={{
-            scale: [1, 1.4],
-            opacity: [0.2, 0]
-          }}
-          transition={{
-            duration: 2,
-            repeat: Infinity,
-            ease: "easeOut"
-          }}
-        />
+    <div className={cn("flex flex-col gap-1.5 py-2 select-none", className)}>
+      {/* Main loading row */}
+      <div className="flex items-center gap-3">
+        {/* Breathing Logo */}
+        <div className="relative flex items-center justify-center w-5 h-5">
+          <motion.div
+            className="w-3.5 h-3.5 bg-[#da7756] rounded-[4px]"
+            animate={{
+              scale: [0.85, 1.1, 0.85],
+              opacity: [0.6, 1, 0.6],
+              rotate: [0, 45, 0]
+            }}
+            transition={{
+              duration: 2.5,
+              repeat: Infinity,
+              ease: "easeInOut"
+            }}
+          />
+          <motion.div
+            className="absolute inset-0 bg-[#da7756] rounded-full opacity-20"
+            animate={{
+              scale: [1, 1.4],
+              opacity: [0.2, 0]
+            }}
+            transition={{
+              duration: 2,
+              repeat: Infinity,
+              ease: "easeOut"
+            }}
+          />
+        </div>
+
+        {/* Text + ETA */}
+        <div className="flex items-center gap-2 min-w-0">
+          <AnimatePresence mode="wait">
+            <motion.span
+              key={currentText}
+              initial={{ opacity: 0, clipPath: 'inset(0 100% 0 0)' }}
+              animate={{ opacity: 1, clipPath: 'inset(0 0 0 0)' }}
+              exit={{ opacity: 0, clipPath: 'inset(0 0 0 100%)' }}
+              transition={{ duration: 1.5, ease: "linear" }}
+              className="text-xs font-medium text-zinc-500 tracking-wide whitespace-nowrap"
+            >
+              {currentText}
+            </motion.span>
+          </AnimatePresence>
+
+          <span className="text-[10px] text-zinc-600 tabular-nums whitespace-nowrap">
+            {remaining > 0 ? formatTime(remaining) : '✨'}
+          </span>
+        </div>
       </div>
 
-      {/* Elegant Text Label with Typing Effect */}
-      <div className="flex flex-col justify-center h-full min-w-[150px]">
-        <AnimatePresence mode="wait">
-          <motion.span
-            key={currentText} // Trigger animation on text change
-            initial={{ opacity: 0, clipPath: 'inset(0 100% 0 0)' }}
-            animate={{ opacity: 1, clipPath: 'inset(0 0 0 0)' }}
-            exit={{ opacity: 0, clipPath: 'inset(0 0 0 100%)' }} // Optional exit
-            transition={{ duration: 1.5, ease: "linear" }}
-            className="text-xs font-medium text-zinc-500 tracking-wide whitespace-nowrap"
+      {/* Copy prompt row */}
+      {userPrompt && (
+        <div className="flex items-center gap-2 pl-8">
+          <div className="max-w-[220px] truncate text-[10px] text-zinc-600 italic">
+            "{userPrompt.length > 60 ? userPrompt.substring(0, 60) + '...' : userPrompt}"
+          </div>
+          <button
+            onClick={handleCopy}
+            className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] text-zinc-500 hover:text-zinc-300 hover:bg-white/5 transition-colors"
+            title="Copy prompt"
           >
-            {currentText}
-          </motion.span>
-        </AnimatePresence>
-      </div>
+            {copied ? (
+              <>
+                <Check size={10} className="text-green-400" />
+                <span className="text-green-400">Copied</span>
+              </>
+            ) : (
+              <>
+                <Copy size={10} />
+                <span>Copy</span>
+              </>
+            )}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -12,7 +12,6 @@ import { ParsedDocument } from '@/lib/documentParser';
 import { AppMode } from '@/lib/modeDetector';
 import ModelSelector, { ModelType } from '@/components/ui/ModelSelector';
 import VoiceDictationModal from './VoiceDictationModal';
-import DocGenerator from '../pages/DocGenerator';
 
 function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs));
@@ -55,7 +54,7 @@ interface ChatInputProps {
 
 // Tool items for the + dropdown
 const TOOL_ITEMS = [
-    { id: 'smart_document', label: 'Smart Document', icon: Sparkles },
+    { id: 'smart_document', label: 'Generate PDF', icon: Sparkles },
     { id: 'image', label: 'Upload Image', icon: ImageIcon },
     { id: 'camera', label: 'Take Photo', icon: Camera },
     { id: 'document', label: 'Upload Document', icon: FileText },
@@ -74,14 +73,7 @@ const QUICK_ACTIONS = [
 
 // Human-readable model display names
 const MODEL_DISPLAY_NAMES: Record<string, string> = {
-    'gemini-flash': 'Gemini Flash',
-    'gemini-pro': 'Gemini Pro',
-    'claude-sonnet': 'Sonnet 4.5',
-    'claude-opus': 'Opus 4.1',
-    'gpt-5': 'GPT-5.1',
-    'grok': 'Grok 4.1',
     'sonar': 'NoirSync',
-    'stepfun/step-3.5-flash:free': 'Step 3.5',
 };
 
 const ChatInput: React.FC<ChatInputProps> = ({
@@ -120,14 +112,14 @@ const ChatInput: React.FC<ChatInputProps> = ({
     const { credits } = useTokenLimit();
     const [showDictation, setShowDictation] = useState(false);
     const [showToolsMenu, setShowToolsMenu] = useState(false);
-    const [showSmartDoc, setShowSmartDoc] = useState(false);
+
     const [isFocused, setIsFocused] = useState(false);
     const cameraInputRef = useRef<HTMLInputElement>(null);
     const toolsMenuRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-    // Check if model supports reasoning (deep dive)
-    const isDeepDiveModel = selectedModel === 'claude-sonnet' || selectedModel === 'claude-opus' || selectedModel === 'gpt-5';
+    // NoirSync handles model routing automatically - no manual deep dive model check needed
+    const isDeepDiveModel = false;
 
     // Close tools menu on click outside
     useEffect(() => {
@@ -152,7 +144,8 @@ const ChatInput: React.FC<ChatInputProps> = ({
         setShowToolsMenu(false);
         switch (toolId) {
             case 'smart_document':
-                setShowSmartDoc(true);
+                setInput('Buatkan PDF dokumen: ');
+                textareaRef.current?.focus();
                 break;
             case 'image':
                 fileInputRef.current?.click();
@@ -420,9 +413,6 @@ const ChatInput: React.FC<ChatInputProps> = ({
                 }}
             />
 
-            {showSmartDoc && (
-                <DocGenerator asModal onClose={() => setShowSmartDoc(false)} />
-            )}
         </div >
     );
 };

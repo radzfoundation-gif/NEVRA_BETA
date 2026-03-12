@@ -93,7 +93,7 @@ if (midtransServerKey) {
 // SUMOPOD AI CLIENT (Gemini 3 Pro for Redesign/Design)
 // =====================================================
 const sumopodApiKey = process.env.SUMOPOD_API_KEY?.trim();
-const sumopodBaseUrl = process.env.SUMOPOD_BASE_URL?.trim() || 'https://api.sumopod.com';
+const sumopodBaseUrl = process.env.SUMOPOD_BASE_URL?.trim() || 'https://ai.sumopod.com';
 
 let sumopodClient = null;
 if (sumopodApiKey) {
@@ -4148,31 +4148,22 @@ If no image is provided, just create a professional HTML document/table based so
     // Clean up markdown artifacts if present
     htmlContent = htmlContent.replace(/```html\s*/g, '').replace(/```\s*$/g, '').trim();
 
-    // 2. Convert HTML to PDF using html-pdf-node
-    console.log(`[PDFGen] HTML generated (${htmlContent.length} bytes). Converting to PDF...`);
-    const htmlPdfModule = await import('html-pdf-node');
-    const generatePdf = htmlPdfModule.default?.generatePdf || htmlPdfModule.generatePdf;
+    // 2. Send generated HTML back to the client for client-side PDF rendering
+    console.log(`[PDFGen] HTML generated (${htmlContent.length} bytes). Sending to client...`);
     
-    let file = { content: htmlContent };
-    let options = { format: 'A4', printBackground: true, margin: { top: '20px', right: '20px', bottom: '20px', left: '20px' } };
-
-    if (!generatePdf) {
-      throw new Error('html-pdf-node could not be loaded correctly.');
-    }
-
-    // html-pdf-node generates a buffer
-    const pdfBuffer = await generatePdf(file, options);
-    
-    console.log(`[PDFGen] PDF generated successfully (${pdfBuffer.length} bytes).`);
-
-    // 3. Send PDF back to client
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', 'attachment; filename="noir-smart-document.pdf"');
-    res.setHeader('Content-Length', pdfBuffer.length);
-    res.send(pdfBuffer);
+    res.json({ success: true, html: htmlContent });
 
   } catch (error) {
     console.error('[PDFGen] Error:', error);
+    
+    // Check if it's an API Error from OpenAI SDK (budget limit or invalid key)
+    if (error.status === 400 || error.status === 401 || error.status === 429) {
+       return res.status(error.status).json({ 
+         error: 'AI Service Error', 
+         details: error.message || 'API Limit reached or invalid API key. Please check your SumoPod balance.' 
+       });
+    }
+
     res.status(500).json({ error: 'Failed to generate PDF', details: error.message });
   }
 });

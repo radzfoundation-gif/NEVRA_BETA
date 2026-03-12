@@ -353,7 +353,7 @@ const ChatInterface: React.FC = () => {
     (location.state?.model as ModelType) || 'sonar'
   );
   const [withReasoning, setWithReasoning] = useState<boolean>(
-    (location.state?.reasoning as boolean) || false
+    (location.state?.reasoning as boolean) ?? true
   );
 
 
@@ -792,10 +792,14 @@ const ChatInterface: React.FC = () => {
     };
   }, [previewDevice]);
 
-  // Auto-scroll
+  // Auto-scroll only when a NEW message is added (not on tab switch/re-render)
+  const prevMessageCountRef = useRef(messages.length);
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    if (messages.length > prevMessageCountRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+    prevMessageCountRef.current = messages.length;
+  }, [messages.length]);
 
   // Load session messages when sessionId is in URL
   useEffect(() => {
@@ -1587,11 +1591,106 @@ const ChatInterface: React.FC = () => {
 
     setIsTyping(true);
 
+    // =====================================================
+    // PDF GENERATION DETECTION - Intercepts before normal AI flow
+    // =====================================================
+    const pdfPatterns = [
+      /\b(buatkan|buat|generate|create|bikin)\b.*\b(pdf|dokumen|document)\b/i,
+      /\b(pdf|dokumen|document)\b.*\b(buatkan|buat|generate|create|bikin)\b/i,
+      /\b(edit|ubah|modify)\b.*\bpdf\b/i,
+      /\bpdf\b.*\b(edit|ubah|modify)\b/i,
+      /\b(export|download|unduh)\b.*\b(pdf|dokumen)\b/i,
+      /\b(smart\s*doc|smart\s*document)\b/i,
+    ];
+
+    const isPdfRequest = pdfPatterns.some(pattern => pattern.test(text));
+
+    if (isPdfRequest) {
+      console.log('📄 [PDFGen] PDF generation request detected in chat!');
+
+      try {
+        // Call the /api/generate-pdf endpoint
+        const pdfResponse = await fetch('/api/generate-pdf', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: user?.id || 'local-user',
+            prompt: text,
+            images: imagesToSend.length > 0 ? imagesToSend : undefined,
+          }),
+        });
+
+        if (!pdfResponse.ok) {
+          const errData = await pdfResponse.json().catch(() => ({}));
+          throw new Error(errData.details || errData.error || `Server error: ${pdfResponse.statusText}`);
+        }
+
+        const pdfData = await pdfResponse.json();
+
+        if (!pdfData.html) {
+          throw new Error('AI did not return document content. Please try rephrasing your request.');
+        }
+
+        // Client-side PDF generation using html2pdf.js
+        const html2pdf = (await import('html2pdf.js')).default;
+        const container = document.createElement('div');
+        container.innerHTML = pdfData.html;
+        container.style.position = 'absolute';
+        container.style.left = '-9999px';
+        container.style.top = '0';
+        container.style.width = '794px';
+        container.style.background = 'white';
+        container.style.color = 'black';
+        container.style.padding = '20px';
+        document.body.appendChild(container);
+
+        const opt = {
+          margin: 10,
+          filename: `noir-document-${Date.now()}.pdf`,
+          image: { type: 'jpeg', quality: 0.98 },
+          html2canvas: { scale: 2, useCORS: true, logging: false },
+          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const },
+        };
+
+        await html2pdf().set(opt).from(container).save();
+        document.body.removeChild(container);
+
+        // Add success message to chat
+        const aiSuccessMsg: Message = {
+          id: (Date.now() + 1).toString(),
+          role: 'ai',
+          content: '✅ **PDF berhasil di-generate dan di-download!**\n\nDokumen PDF telah dibuat berdasarkan permintaan Anda dan otomatis ter-download. Silakan cek folder download Anda.\n\nJika Anda ingin membuat perubahan, cukup kirim pesan baru dengan instruksi yang lebih spesifik.',
+          timestamp: new Date(),
+        };
+        setMessages(prev => [...prev, aiSuccessMsg]);
+
+        // Save AI message to session
+        if (activeSessionId && user) {
+          await saveMessage(activeSessionId, 'ai', aiSuccessMsg.content);
+        }
+      } catch (pdfError: any) {
+        console.error('📄 [PDFGen] Error:', pdfError);
+        const aiErrorMsg: Message = {
+          id: (Date.now() + 1).toString(),
+          role: 'ai',
+          content: `❌ **Gagal membuat PDF.**\n\n${pdfError.message || 'Terjadi kesalahan saat membuat dokumen. Silakan coba lagi.'}\n\n💡 *Tips: Pastikan prompt Anda menjelaskan isi dokumen yang ingin dibuat dengan jelas.*`,
+          timestamp: new Date(),
+        };
+        setMessages(prev => [...prev, aiErrorMsg]);
+      } finally {
+        setIsTyping(false);
+      }
+      return; // Stop here — don't continue to normal AI flow
+    }
+    // =====================================================
+    // END PDF GENERATION DETECTION
+    // =====================================================
+
+    incrementFeatureUsage('chat');
+
     if (mode === 'builder') {
       setLogs(prev => [...prev, `> Processing request: "${text.substring(0, 20)}..."`]);
     }
-
-    incrementFeatureUsage('chat');
 
     // Initialize variables
     let historyForAI: any[] = [];
@@ -3419,14 +3518,53 @@ const ChatInterface: React.FC = () => {
                   }
                 </div>
               ))}
-              {isTyping && (
-                <div className="pl-2">
-                  <AILoading
-                    mode={appMode || 'tutor'}
-                    status={workflowStatus?.message}
-                  />
-                </div>
-              )}
+              {isTyping && (() => {
+                // Context-aware loading messages based on last user prompt
+                const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
+                const promptLower = (lastUserMsg?.content || '').toLowerCase();
+
+                const codingKw = ['code', 'coding', 'function', 'component', 'debug', 'error', 'react', 'javascript', 'typescript', 'python', 'html', 'css', 'api', 'kode', 'program', 'algorithm', 'server', 'backend', 'frontend', 'database', 'sql', 'deploy'];
+                const pdfKw = ['pdf', 'dokumen', 'document', 'export'];
+                const designKw = ['design', 'desain', 'ui', 'ux', 'layout', 'landing page', 'website', 'visual', 'mockup', 'template'];
+
+                let contextMessages: string[] | undefined;
+                if (codingKw.some(kw => promptLower.includes(kw))) {
+                  contextMessages = [
+                    "Noir is writing code...",
+                    "Analyzing your request...",
+                    "Generating solution...",
+                    "Building components...",
+                    "Almost done..."
+                  ];
+                } else if (pdfKw.some(kw => promptLower.includes(kw))) {
+                  contextMessages = [
+                    "Noir is creating document...",
+                    "Structuring content...",
+                    "Formatting layout...",
+                    "Generating PDF...",
+                    "Almost done..."
+                  ];
+                } else if (designKw.some(kw => promptLower.includes(kw))) {
+                  contextMessages = [
+                    "Noir is designing...",
+                    "Crafting visual layout...",
+                    "Building interface...",
+                    "Polishing design...",
+                    "Almost done..."
+                  ];
+                }
+
+                return (
+                  <div className="pl-2">
+                    <AILoading
+                      mode={appMode || 'tutor'}
+                      status={workflowStatus?.message}
+                      loadingMessages={contextMessages}
+                      userPrompt={lastUserMsg?.content}
+                    />
+                  </div>
+                );
+              })()}
               <div ref={messagesEndRef} />
             </motion.div>
           )

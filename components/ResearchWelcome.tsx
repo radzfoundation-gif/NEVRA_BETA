@@ -8,7 +8,6 @@ import LiquidMetal from './ui/liquid-metal';
 import { useTokenLimit } from '@/hooks/useTokenLimit';
 import SubscriptionPopup from './SubscriptionPopup';
 import VoiceDictationModal from './chat/VoiceDictationModal';
-import DocGenerator from './pages/DocGenerator';
 
 interface ResearchWelcomeProps {
     onSearch: (query: string, attachments?: AttachmentData[], model?: ModelType, reasoning?: boolean, featureType?: string) => void;
@@ -50,11 +49,11 @@ export function ResearchWelcome({
     const [previewData, setPreviewData] = useState<{ title: string; content: string; type: 'file' | 'audio' | 'youtube' | 'url'; mimeType?: string } | null>(null);
     const [showSubscriptionPopup, setShowSubscriptionPopup] = useState(false);
     const [showDictation, setShowDictation] = useState(false);
-    const [showSmartDoc, setShowSmartDoc] = useState(false);
+
 
     // Model Selector State
     const [selectedModel, setSelectedModel] = useState<ModelType>('sonar');
-    const [withReasoning, setWithReasoning] = useState(false);
+    const [withReasoning, setWithReasoning] = useState(true);
 
     // Usage limits hook
     const { checkFeatureLimit, incrementFeatureUsage, isSubscribed, credits, softLimitReached, featureUsage } = useTokenLimit();
@@ -443,7 +442,7 @@ export function ResearchWelcome({
 
     // Attach tools (+ dropdown)
     const attachTools = [
-        { icon: <Sparkles size={14} />, label: 'Smart Document', description: 'AI Form Filler', action: () => setShowSmartDoc(true) },
+        { icon: <Sparkles size={14} />, label: 'Generate PDF', description: 'Type a PDF request', action: () => { setQuery('Buatkan PDF dokumen: '); } },
         { icon: <ImageIcon size={14} />, label: 'Upload Image', description: 'Attach images', action: () => fileInputRef.current?.click() },
         { icon: <FileText size={14} />, label: 'Upload Document', description: 'PDF, TXT, MD, DOCX', action: () => fileInputRef.current?.click() },
         { icon: <Globe size={14} />, label: 'Web Search', description: 'Search the web', action: () => onToggleWebSearch && onToggleWebSearch(!isWebSearchEnabled) },
@@ -1207,9 +1206,7 @@ export function ResearchWelcome({
                 }}
             />
 
-            {showSmartDoc && (
-                <DocGenerator asModal onClose={() => setShowSmartDoc(false)} />
-            )}
+
         </div>
     );
 }
