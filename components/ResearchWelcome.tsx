@@ -955,6 +955,20 @@ export function ResearchWelcome({
                 )}
 
                 {/* Greeting & Title */}
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 1, delay: 0.2 }}
+                    className="mb-6 relative"
+                >
+                    <div className="absolute inset-0 bg-gradient-to-r from-purple-500/20 to-blue-500/20 blur-3xl rounded-full" />
+                    <img
+                        src="/noir-x-openclaw.png"
+                        alt="Noir X OpenClaw"
+                        className="relative w-32 md:w-40 h-auto drop-shadow-[0_0_20px_rgba(168,85,247,0.35)] hover:scale-105 transition-transform duration-500"
+                    />
+                </motion.div>
+
                 <h1 className="text-center mb-10 space-y-1">
                     <span className="block text-3xl md:text-4xl font-semibold text-zinc-900 dark:text-white tracking-tight">
                         {getGreeting()}{userName ? `, ${userName}` : ''}

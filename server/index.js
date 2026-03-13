@@ -4514,6 +4514,169 @@ if (process.env.VERCEL !== '1' && !process.env.VERCEL_ENV) {
     }
   });
 
+  // =====================================================
+  // OPENCLAW INTEGRATION — OpenAI-Compatible API Bridge
+  // =====================================================
+  const OPENCLAW_API_KEY = process.env.OPENCLAW_API_KEY?.trim();
+
+  // Model mapping: OpenClaw model name → { provider, modelId }
+  const OPENCLAW_MODEL_MAP = {
+    'noir-default':  { provider: 'sumopod',     modelId: process.env.SUMOPOD_MODEL_ID || 'gpt-5-mini' },
+    'noir-search':   { provider: 'sumopod',     modelId: 'gemini/gemini-2.5-flash-lite' },
+    'noir-coder':    { provider: 'openrouter',  modelId: 'moonshotai/kimi-k2' },
+    'noir-docs':     { provider: 'openrouter',  modelId: 'anthropic/claude-sonnet-4' },
+    'noir-vision':   { provider: 'sumopod',     modelId: process.env.SUMOPOD_REDESIGN_MODEL_ID || 'gemini/gemini-3-pro-preview' },
+  };
+
+  // Auth middleware for OpenClaw
+  const openclawAuth = (req, res, next) => {
+    if (!OPENCLAW_API_KEY) {
+      return res.status(500).json({ error: { message: 'OPENCLAW_API_KEY not configured on server.', type: 'server_error' } });
+    }
+    const authHeader = req.headers['authorization'];
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: { message: 'Missing or invalid Authorization header. Use: Bearer <your-key>', type: 'authentication_error' } });
+    }
+    const token = authHeader.slice(7);
+    if (token !== OPENCLAW_API_KEY) {
+      return res.status(401).json({ error: { message: 'Invalid API key.', type: 'authentication_error' } });
+    }
+    next();
+  };
+
+  // GET /v1/models — List available models (OpenAI-compatible)
+  app.get('/v1/models', openclawAuth, (req, res) => {
+    const models = Object.keys(OPENCLAW_MODEL_MAP).map(id => ({
+      id,
+      object: 'model',
+      created: Math.floor(Date.now() / 1000),
+      owned_by: 'noir-ai',
+    }));
+    res.json({ object: 'list', data: models });
+  });
+
+  // POST /v1/chat/completions — OpenAI-compatible chat completion
+  app.post('/v1/chat/completions', openclawAuth, async (req, res) => {
+    const {
+      model = 'noir-default',
+      messages = [],
+      temperature = 0.7,
+      max_tokens = 2048,
+      stream = false,
+    } = req.body;
+
+    if (!messages || messages.length === 0) {
+      return res.status(400).json({ error: { message: 'messages array is required', type: 'invalid_request_error' } });
+    }
+
+    // Resolve model
+    const mapping = OPENCLAW_MODEL_MAP[model] || OPENCLAW_MODEL_MAP['noir-default'];
+    const { provider, modelId } = mapping;
+
+    console.log(`[OpenClaw] Request: model=${model} → provider=${provider}, modelId=${modelId}, stream=${stream}`);
+
+    // Select the right client
+    const client = provider === 'sumopod' ? sumopodClient : openrouterClient;
+    if (!client) {
+      return res.status(500).json({ error: { message: `Provider "${provider}" is not configured.`, type: 'server_error' } });
+    }
+
+    const completionId = `chatcmpl-noir-${Date.now().toString(36)}`;
+
+    try {
+      if (stream) {
+        // === STREAMING MODE (SSE) ===
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache, no-transform');
+        res.setHeader('Connection', 'keep-alive');
+        res.setHeader('X-Accel-Buffering', 'no');
+        res.flushHeaders();
+
+        const completion = await client.chat.completions.create({
+          model: modelId,
+          messages,
+          temperature,
+          max_tokens,
+          stream: true,
+        });
+
+        for await (const chunk of completion) {
+          const delta = chunk.choices?.[0]?.delta;
+          const finishReason = chunk.choices?.[0]?.finish_reason;
+
+          const ssePayload = {
+            id: completionId,
+            object: 'chat.completion.chunk',
+            created: Math.floor(Date.now() / 1000),
+            model: model,
+            choices: [{
+              index: 0,
+              delta: delta || {},
+              finish_reason: finishReason || null,
+            }],
+          };
+          res.write(`data: ${JSON.stringify(ssePayload)}\n\n`);
+        }
+
+        res.write('data: [DONE]\n\n');
+        res.end();
+        console.log(`[OpenClaw] ✅ Stream completed for ${model}`);
+
+      } else {
+        // === NON-STREAMING MODE ===
+        const completion = await client.chat.completions.create({
+          model: modelId,
+          messages,
+          temperature,
+          max_tokens,
+        });
+
+        const content = completion.choices?.[0]?.message?.content || '';
+
+        const response = {
+          id: completionId,
+          object: 'chat.completion',
+          created: Math.floor(Date.now() / 1000),
+          model: model,
+          choices: [{
+            index: 0,
+            message: { role: 'assistant', content },
+            finish_reason: completion.choices?.[0]?.finish_reason || 'stop',
+          }],
+          usage: completion.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+        };
+
+        res.json(response);
+        console.log(`[OpenClaw] ✅ Response sent for ${model} (${content.length} chars)`);
+      }
+
+    } catch (err) {
+      const errorMsg = err?.error?.message || err?.message || String(err);
+      console.error(`[OpenClaw] ❌ Error:`, errorMsg);
+
+      // If headers already sent (mid-stream error), send error as SSE
+      if (res.headersSent) {
+        const errorPayload = {
+          id: completionId,
+          object: 'chat.completion.chunk',
+          created: Math.floor(Date.now() / 1000),
+          model: model,
+          choices: [{ index: 0, delta: {}, finish_reason: 'error' }],
+          error: { message: errorMsg },
+        };
+        res.write(`data: ${JSON.stringify(errorPayload)}\n\n`);
+        res.write('data: [DONE]\n\n');
+        res.end();
+      } else {
+        res.status(err?.status || 500).json({
+          error: { message: errorMsg, type: 'api_error' },
+        });
+      }
+    }
+  });
+
+  console.log(`🔗 [OpenClaw] Bridge ${OPENCLAW_API_KEY ? '✅ Enabled' : '❌ No API Key'} → /v1/chat/completions`);
+
   // Start server locally (not on Vercel)
   if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
     app.listen(PORT, () => {
