@@ -946,7 +946,7 @@ Always follow this structure when an image is present.`;
 
         // 5. Default — normal chat
         console.log('💬 [NoirSync] Routed to Seed 2.0 Mini (Default Chat)');
-        return 'seed-2-0-mini-free';
+        return 'seed-2-0-lite-free';
       };
 
       // Determine if web search is active from prompt markers

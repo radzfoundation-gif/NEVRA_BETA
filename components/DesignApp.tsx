@@ -27,13 +27,13 @@ const DesignDashboard = () => (
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {/* Web Generator Card */}
-                <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl hover:border-purple-500/50 transition-colors group cursor-pointer">
+                <Link to="/redesign" className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl hover:border-purple-500/50 transition-colors group cursor-pointer">
                     <div className="w-12 h-12 bg-zinc-800 rounded-lg flex items-center justify-center mb-4 group-hover:bg-purple-500/10 group-hover:text-purple-400 transition-colors">
                         <Layout size={24} />
                     </div>
                     <h3 className="text-lg font-semibold mb-2">Web Generator</h3>
                     <p className="text-zinc-400 text-sm">Generate complete landing pages and web apps with AI.</p>
-                </div>
+                </Link>
 
                 {/* Code Editor Card */}
                 <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl hover:border-blue-500/50 transition-colors group cursor-pointer">

@@ -85,6 +85,7 @@ import PreviewContainer from '@/components/chat/PreviewContainer';
 import { SourcesIndicator } from '@/components/chat/SourcesIndicator';
 import CanvasBoard from '@/components/canvas/CanvasBoard';
 import { ModelType } from '@/components/ui/ModelSelector';
+import { useDualStream } from '@/hooks/useDualStream';
 
 // --- Types ---
 
@@ -105,6 +106,12 @@ type Message = {
   images?: string[]; // Array of base64 strings
   attachments?: Attachment[];
   timestamp: Date;
+  isComparison?: boolean;
+  contentA?: string;
+  contentB?: string;
+  modelA?: string;
+  modelB?: string;
+  selectedVersion?: 'a' | 'b';
 };
 
 type FileNode = {
@@ -296,6 +303,8 @@ const ChatInterface: React.FC = () => {
   };
 
   // Global State
+  const [comparisonMode, setComparisonMode] = useState(false);
+  const dualStream = useDualStream();
   const [appMode, setAppMode] = useState<AppMode>(initialState.mode);
   // Always use React framework (not HTML) - auto-explore codebase
   const initialFramework = (initialState as any).framework || 'react';
@@ -356,6 +365,24 @@ const ChatInterface: React.FC = () => {
     (location.state?.reasoning as boolean) ?? true
   );
 
+  // Sync Dual Stream content with message state
+  useEffect(() => {
+    if (dualStream.isStreaming) {
+      setMessages(prev => {
+        const lastMsg = prev[prev.length - 1];
+        if (lastMsg && lastMsg.isComparison) {
+          const newMessages = [...prev];
+          newMessages[prev.length - 1] = { 
+            ...lastMsg, 
+            contentA: dualStream.streamA.content, 
+            contentB: dualStream.streamB.content 
+          };
+          return newMessages;
+        }
+        return prev;
+      });
+    }
+  }, [dualStream.streamA.content, dualStream.streamB.content, dualStream.isStreaming]);
 
 
   // Helper: Get current WIB time
@@ -1480,6 +1507,32 @@ const ChatInterface: React.FC = () => {
     }
   };
 
+  const saveComparison = async (messageId: string, version: 'a' | 'b') => {
+    const msg = messages.find(m => m.id === messageId);
+    if (!msg || !msg.isComparison || !sessionId || !user) return;
+
+    try {
+      setMessages(prev => prev.map(m => 
+        m.id === messageId ? { ...m, selectedVersion: version } : m
+      ));
+
+      await import('@/lib/supabaseDatabase').then(db => 
+        db.saveComparisonChoice(
+          user.id,
+          sessionId,
+          messages[messages.indexOf(msg) - 1]?.content || '',
+          msg.contentA || '',
+          msg.contentB || '',
+          msg.modelA || 'noir-1',
+          msg.modelB || 'noir-2',
+          version
+        )
+      );
+    } catch (error) {
+      console.error('Error saving comparison:', error);
+    }
+  };
+
   const handleSend = async (textOverride?: string | boolean, modeOverride?: AppMode, historyOverride?: Message[], deepDiveOverride?: boolean, attachmentsOverride?: Attachment[], imagesOverride?: string[]) => {
     // Handle case where first arg is boolean (deepDive flag from ChatInput)
     let deepDive = false;
@@ -1647,10 +1700,10 @@ const ChatInterface: React.FC = () => {
         const opt = {
           margin: 10,
           filename: `noir-document-${Date.now()}.pdf`,
-          image: { type: 'jpeg', quality: 0.98 },
+          image: { type: 'jpeg' as const, quality: 0.98 },
           html2canvas: { scale: 2, useCORS: true, logging: false },
           jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const },
-        };
+        } as any;
 
         await html2pdf().set(opt).from(container).save();
         document.body.removeChild(container);
@@ -1665,8 +1718,9 @@ const ChatInterface: React.FC = () => {
         setMessages(prev => [...prev, aiSuccessMsg]);
 
         // Save AI message to session
-        if (activeSessionId && user) {
-          await saveMessage(activeSessionId, 'ai', aiSuccessMsg.content);
+        const pdfSessionId = currentSessionId;
+        if (pdfSessionId && user) {
+          await saveMessage(pdfSessionId, 'ai', aiSuccessMsg.content);
         }
       } catch (pdfError: any) {
         console.error('📄 [PDFGen] Error:', pdfError);
@@ -1764,6 +1818,50 @@ const ChatInterface: React.FC = () => {
         if (shouldUseMemory && historyToUse.length > 0) {
           console.log(`🧠 AI Memory: Using ${historyForAI.length} previous messages for context`);
         }
+      }
+
+      // Handle Dual Response Flow
+      if (comparisonMode && !modeOverride && mode !== 'builder') {
+        const messageId = Date.now().toString();
+        const aiMsg: Message = {
+          id: messageId,
+          role: 'ai',
+          content: '',
+          isComparison: true,
+          contentA: '',
+          contentB: '',
+          modelA: 'kimi-k2-thinking', // Placeholder models, will be handled by NoirSync
+          modelB: 'seed-2-0-lite-free',
+          timestamp: new Date()
+        };
+        
+        setMessages(prev => [...prev, aiMsg]);
+        setAnimatingMessageId(messageId);
+
+        try {
+          // Prepare messages format for hook
+          const hookMessages = [
+            { role: 'system' as const, content: 'You are Noir AI, a helpful assistant.' },
+            ...historyForAI.map(m => ({
+              role: (m.role === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
+              content: m.parts[0].text
+            })),
+            { role: 'user' as const, content: promptToSend }
+          ];
+
+          // Trigger parallel streams
+          await dualStream.startDualStream(
+            'kimi-k2-thinking',
+            'seed-2-0-lite-free',
+            hookMessages
+          );
+        } catch (err) {
+          console.error("Dual Stream Error:", err);
+        } finally {
+          setIsTyping(false);
+          setAnimatingMessageId(null);
+        }
+        return;
       }
 
       // Perform web search if enabled (Allowed in all modes if explicitly enabled)
@@ -3303,7 +3401,86 @@ const ChatInterface: React.FC = () => {
                         ))}
                       </div>
                     )}
-                    {msg.role === 'ai' ? (
+                    {msg.isComparison ? (
+                      <div className="flex flex-col gap-4 w-full mt-2">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {/* Option A */}
+                          <div className={cn(
+                            "flex flex-col gap-3 p-4 md:p-5 rounded-[22px] border-2 transition-all duration-300",
+                            msg.selectedVersion === 'a' 
+                              ? "bg-purple-50/40 border-purple-500/30 shadow-lg shadow-purple-500/5 ring-1 ring-purple-500/20" 
+                              : "bg-white/80 backdrop-blur-sm border-zinc-100/80 shadow-sm hover:border-zinc-200"
+                          )}>
+                            <div className="flex items-center justify-between mb-1">
+                              <div className="flex items-center gap-2">
+                                <div className="w-6 h-6 rounded-full bg-purple-100 flex items-center justify-center">
+                                  <Sparkles size={12} className="text-purple-600" />
+                                </div>
+                                <span className="text-[11px] font-bold uppercase tracking-wider text-purple-900/40">Versi Alpha</span>
+                              </div>
+                              {msg.selectedVersion === 'a' && (
+                                <div className="flex items-center gap-1.5 px-2 py-1 bg-purple-100 rounded-full">
+                                  <Check size={12} className="text-purple-600" strokeWidth={3} />
+                                  <span className="text-[10px] font-bold text-purple-600">SELECTED</span>
+                                </div>
+                              )}
+                            </div>
+                            <div className="prose prose-sm max-w-none text-zinc-800 leading-relaxed font-normal">
+                              {/* Sync from hook or use msg.contentA */}
+                              <StreamingResponse 
+                                content={msg.contentA || ''} 
+                                isStreaming={isTyping && idx === messages.length - 1 && !msg.contentA && dualStream.streamA.isStreaming} 
+                              />
+                            </div>
+                            {!msg.selectedVersion && (
+                              <button 
+                                onClick={() => saveComparison(msg.id, 'a')}
+                                className="mt-4 w-full py-2.5 px-4 rounded-xl bg-purple-600 text-white text-[11px] font-bold hover:bg-purple-700 transition-all shadow-md shadow-purple-200 flex items-center justify-center gap-2 hover:translate-y-[-1px] active:translate-y-[0px]"
+                              >
+                                Gunakan Jawaban Ini
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Option B */}
+                          <div className={cn(
+                            "flex flex-col gap-3 p-4 md:p-5 rounded-[22px] border-2 transition-all duration-300",
+                            msg.selectedVersion === 'b' 
+                              ? "bg-blue-50/40 border-blue-500/30 shadow-lg shadow-blue-500/5 ring-1 ring-blue-500/20" 
+                              : "bg-white/80 backdrop-blur-sm border-zinc-100/80 shadow-sm hover:border-zinc-200"
+                          )}>
+                            <div className="flex items-center justify-between mb-1">
+                              <div className="flex items-center gap-2">
+                                <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center">
+                                  <Sparkles size={12} className="text-blue-600" />
+                                </div>
+                                <span className="text-[11px] font-bold uppercase tracking-wider text-blue-900/40">Versi Beta</span>
+                              </div>
+                              {msg.selectedVersion === 'b' && (
+                                <div className="flex items-center gap-1.5 px-2 py-1 bg-blue-100 rounded-full">
+                                  <Check size={12} className="text-blue-600" strokeWidth={3} />
+                                  <span className="text-[10px] font-bold text-blue-600">SELECTED</span>
+                                </div>
+                              )}
+                            </div>
+                            <div className="prose prose-sm max-w-none text-zinc-800 leading-relaxed font-normal">
+                              <StreamingResponse 
+                                content={msg.contentB || ''} 
+                                isStreaming={isTyping && idx === messages.length - 1 && !msg.contentB && dualStream.streamB.isStreaming} 
+                              />
+                            </div>
+                            {!msg.selectedVersion && (
+                              <button 
+                                onClick={() => saveComparison(msg.id, 'b')}
+                                className="mt-4 w-full py-2.5 px-4 rounded-xl bg-white border-2 border-zinc-100 text-zinc-900 text-[11px] font-bold hover:bg-zinc-50 transition-all shadow-sm flex items-center justify-center gap-2 hover:translate-y-[-1px] active:translate-y-[0px]"
+                              >
+                                Gunakan Jawaban Ini
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ) : msg.role === 'ai' ? (
                       <div className="prose prose-sm sm:prose-base max-w-none w-full break-words overflow-hidden
                         prose-p:text-zinc-800 prose-p:leading-7 prose-p:my-4 prose-p:text-[15px] sm:prose-p:text-base
                         prose-headings:text-zinc-900 prose-headings:font-bold prose-headings:tracking-tight prose-headings:mt-6 prose-headings:mb-4
@@ -3610,6 +3787,8 @@ const ChatInterface: React.FC = () => {
             setShowDashboard={setShowDashboard}
             setShowFlashcards={setShowFlashcards}
             setShowVoiceCall={setShowVoiceCall}
+            comparisonMode={comparisonMode}
+            onComparisonModeToggle={setComparisonMode}
             toggleCanvas={() => {
               // Toggle canvas panel
               if (appMode === 'builder') {
