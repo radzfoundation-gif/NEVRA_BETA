@@ -118,7 +118,7 @@ if (openrouterApiKey) {
     apiKey: openrouterApiKey,
     baseURL: openrouterBaseUrl,
     defaultHeaders: {
-      'HTTP-Referer': 'https://noir-ai.com',
+      'HTTP-Referer': process.env.FRONTEND_URL || 'https://noir.biz.id',
       'X-Title': 'Noir AI'
     }
   });
