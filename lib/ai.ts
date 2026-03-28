@@ -392,6 +392,13 @@ Valid icon names (use exact strings): Zap, Heart, Star, ArrowRight, CheckCircle,
 - Code should be maintainable
 - Follow React best practices
 - Make it beautiful AND functional
+
+When you need clarification from the user before answering, you can ask for it by appending a special JSON block at the very end of your response. Use this ONLY when the user's request is genuinely ambiguous and you need specific choices. Maximum 4 options.
+CRITICAL: DO NOT write the choices in your normal text response! ONLY put them inside the JSON block. Your visible text response should just be a short introduction (e.g., "Which one do you mean?").
+Respond with your message normally, then append exactly this at the very end (keep the HTML comments):
+<!--CLARIFY
+{"question": "Your clarifying question here?", "options": ["Choice 1", "Choice 2", "Choice 3"]}
+-->
 `;
 
 export const TUTOR_PROMPT = `
@@ -462,6 +469,13 @@ When writing mathematical formulas, ALWAYS use LaTeX notation with dollar signs:
 The user is asking about quantum entanglement. I should explain the basic concept first, then provide an analogy...
 </thought>
 Quantum entanglement is...
+
+When you need clarification from the user before answering, you can ask for it by appending a special JSON block at the very end of your response. Use this ONLY when the user's request is genuinely ambiguous and you need specific choices. Maximum 4 options.
+CRITICAL: JANGAN menulis pilihan ganda di dalam teks respons Anda! HANYA letakkan pilihan tersebut di dalam blok JSON. Teks respons Anda cukup pengantar singkat saja (misal: "Saya butuh detail lebih lanjut. Silakan pilih di bawah ini:").
+Respond with your message normally, then append exactly this at the very end (keep the HTML comments):
+<!--CLARIFY
+{"question": "Pertanyaan klarifikasi Anda di sini?", "options": ["Pilihan 1", "Pilihan 2", "Pilihan 3"]}
+-->
 `;
 
 
@@ -510,6 +524,13 @@ RULES:
 - "use client" only for interactivity/hooks
 - TypeScript types required
 - App Router structure only
+
+When you need clarification from the user before answering, you can ask for it by appending a special JSON block at the very end of your response. Use this ONLY when the user's request is genuinely ambiguous and you need specific choices. Maximum 4 options.
+CRITICAL: DO NOT write the choices in your normal text response! ONLY put them inside the JSON block. Your visible text response should just be a short introduction (e.g., "Which one do you mean?").
+Respond with your message normally, then append exactly this at the very end (keep the HTML comments):
+<!--CLARIFY
+{"question": "Your clarifying question here?", "options": ["Choice 1", "Choice 2", "Choice 3"]}
+-->
 `;
 
 // React/Vite Builder Prompt
@@ -559,6 +580,13 @@ RULES:
 - Proper imports and exports
 - Component-based architecture
 - Export components properly
+
+When you need clarification from the user before answering, you can ask for it by appending a special JSON block at the very end of your response. Use this ONLY when the user's request is genuinely ambiguous and you need specific choices. Maximum 4 options.
+CRITICAL: DO NOT write the choices in your normal text response! ONLY put them inside the JSON block. Your visible text response should just be a short introduction (e.g., "Which one do you mean?").
+Respond with your message normally, then append exactly this at the very end (keep the HTML comments):
+<!--CLARIFY
+{"question": "Your clarifying question here?", "options": ["Choice 1", "Choice 2", "Choice 3"]}
+-->
 `;
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';

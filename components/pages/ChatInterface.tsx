@@ -84,6 +84,8 @@ import ChatTerminal from '@/components/chat/ChatTerminal';
 import PreviewContainer from '@/components/chat/PreviewContainer';
 import { SourcesIndicator } from '@/components/chat/SourcesIndicator';
 import CanvasBoard from '@/components/canvas/CanvasBoard';
+import InteractiveQAWidget from '@/components/ui/InteractiveQAWidget';
+import { parseClarificationFromAIResponse } from '@/lib/clarificationParser';
 import { ModelType } from '@/components/ui/ModelSelector';
 import { useDualStream } from '@/hooks/useDualStream';
 
@@ -244,6 +246,7 @@ const ChatInterface: React.FC = () => {
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [shareUrl, setShareUrl] = useState('');
   const [isTitleDropdownOpen, setIsTitleDropdownOpen] = useState(false);
+  const [answeredClarifications, setAnsweredClarifications] = useState<Record<string, boolean>>({});
 
   // Hydrate state from navigation (Fix for Image Generation output)
   useEffect(() => {
@@ -3207,6 +3210,13 @@ const ChatInterface: React.FC = () => {
     }
   };
 
+  // Find active clarification for the bottom widget
+  const lastMessage = messages[messages.length - 1];
+  const activeClarification = lastMessage?.role === 'ai' && !answeredClarifications[lastMessage.id]
+    ? { id: lastMessage.id, ...parseClarificationFromAIResponse(lastMessage.content) }
+    : null;
+  const showBottomClarification = activeClarification?.hasClarification && !isTyping;
+
   // --- Render Content ---
   const chatContent = (
     <div className="flex flex-col h-full bg-transparent relative overflow-hidden transition-colors duration-500">
@@ -3296,7 +3306,8 @@ const ChatInterface: React.FC = () => {
       {/* Chat List - Clean v0.app Style */}
       <div className={
         cn(
-          "relative flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain px-3 sm:px-4 md:px-5 lg:px-6 pt-20 pb-64 sm:pb-72 md:pt-24 md:pb-80 scroll-smooth",
+          "relative flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain px-3 sm:px-4 md:px-5 lg:px-6 pt-20 md:pt-24 scroll-smooth",
+          showBottomClarification ? "pb-[350px] md:pb-[400px]" : "pb-64 sm:pb-72 md:pb-80",
           messages.length === 0 ? "flex flex-col items-center justify-center text-center pb-0" : "block"
         )
       } >
@@ -3377,7 +3388,11 @@ const ChatInterface: React.FC = () => {
                 </div>
               )}
 
-              {messages.map((msg, idx) => (
+              {messages.map((msg, idx) => {
+                const clarification = msg.role === 'ai' ? parseClarificationFromAIResponse(msg.content) : null;
+                const showClarification = clarification?.hasClarification && !answeredClarifications[msg.id];
+                
+                return (
                 <div key={msg.id} className={cn("flex flex-col gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300", msg.role === 'user' ? 'items-end' : 'items-start')}>
                   {msg.role === 'ai' && (
                     <div className="flex items-center gap-2 mb-1">
@@ -3393,7 +3408,7 @@ const ChatInterface: React.FC = () => {
                     "relative leading-relaxed transition-all duration-200",
                     msg.role === 'user'
                       ? "rounded-[18px] px-5 py-2.5 bg-[#F4F1EB] text-zinc-800 font-normal max-w-[85%] sm:max-w-[70%] ml-auto"
-                      : "px-0 py-0 bg-transparent text-gray-800 max-w-full"
+                      : "px-0 py-0 bg-transparent text-gray-800 max-w-full w-full"
                   )}>
                     {msg.images && msg.images.length > 0 && (
                       <div className="flex gap-3 mb-4 flex-wrap">
@@ -3555,7 +3570,7 @@ const ChatInterface: React.FC = () => {
 
                         {/* Use StreamingResponse for AI messages with hierarchical support */}
                         <StreamingResponse
-                          content={msg.content}
+                          content={clarification?.hasClarification ? clarification.cleanText : msg.content}
                           isStreaming={isTyping && idx === messages.length - 1}
                         />
 
@@ -3566,6 +3581,7 @@ const ChatInterface: React.FC = () => {
                       </div>
                     )}
                   </div>
+                  
                   {/* Action Buttons - Different for Tutor vs Builder */}
                   {
                     msg.role === 'ai' && (
@@ -3727,7 +3743,8 @@ const ChatInterface: React.FC = () => {
                     )
                   }
                 </div>
-              ))}
+                );
+              })}
               {isTyping && (() => {
                 // Context-aware loading messages based on last user prompt
                 const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
@@ -3800,9 +3817,35 @@ const ChatInterface: React.FC = () => {
         )
       }
 
+      {/* Clarification Widget Area (Claude Style) */}
+      <AnimatePresence>
+        {showBottomClarification && activeClarification?.question && activeClarification?.options && (
+          <motion.div 
+            initial={{ opacity: 0, y: 20, x: "-50%" }}
+            animate={{ opacity: 1, y: 0, x: "-50%" }}
+            exit={{ opacity: 0, scale: 0.95, y: 10, x: "-50%" }}
+            className="absolute bottom-4 left-1/2 z-40 w-full max-w-2xl px-4"
+          >
+            <InteractiveQAWidget
+              question={activeClarification.question}
+              options={activeClarification.options}
+              allowCustomInput={true}
+              onSelect={(selectedOption) => {
+                setAnsweredClarifications(prev => ({ ...prev, [activeClarification.id]: true }));
+                const responseText = `Q: ${activeClarification.question}\nA: ${selectedOption}`;
+                handleSend(responseText, appMode);
+              }}
+              onSkip={() => {
+                setAnsweredClarifications(prev => ({ ...prev, [activeClarification.id]: true }));
+              }}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Input Area - ChatGPT Style - Show after first message or always for tutor mode */}
       {
-        true && (
+        !showBottomClarification && (
           <ChatInput
             input={input}
             setInput={setInput}
