@@ -7,7 +7,8 @@ import {
     Sparkles, User, Zap, History,
     Calendar, Box, RefreshCw,
     Share2, Database, FolderOpen, Bot,
-    Home, HelpCircle, Clock, Check, PanelLeft, LayoutGrid, Keyboard, FileText
+    Home, HelpCircle, Clock, Check, PanelLeft, LayoutGrid, Keyboard, FileText,
+    Plus, Code
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useUser, useAuth } from '@/lib/authContext';
@@ -288,157 +289,83 @@ const Sidebar: React.FC<SidebarProps> = ({
     return (
         <div className="flex flex-col h-full bg-[#FAFAFA] border-r border-zinc-200 w-full font-sans">
             {/* 1. Header Section */}
-            <div className="px-4 py-3 space-y-4">
-                {/* Brand / Logo Area with Dropdown */}
-                <div className="flex items-center justify-between px-1 mb-2 relative" ref={dropdownRef}>
+            <div className="px-3 pt-3 pb-2 space-y-4">
+                {/* Brand & Collapse */}
+                <div className="flex items-center justify-between pl-2 pr-1 mb-2 mt-1">
+                    <span className="text-lg font-semibold tracking-tight text-zinc-900 font-serif flex items-center gap-2">
+                        Noir
+                    </span>
                     <button
-                        onClick={() => setShowDropdown(!showDropdown)}
-                        className="flex items-center gap-2 hover:bg-zinc-100 -ml-2 p-2 rounded-lg transition-colors group"
+                        onClick={onCollapse}
+                        className="hidden md:flex p-1.5 hover:bg-zinc-100 rounded-md text-zinc-500 hover:text-zinc-900 transition-colors"
+                        title="Collapse Sidebar"
                     >
-                        <div className="w-8 h-8 flex items-center justify-center bg-black rounded-xl shadow-lg shadow-black/20 group-hover:scale-105 transition-transform">
-                            <Logo size={18} className="text-white" />
-                        </div>
-                        <span className="text-base font-bold tracking-tight text-zinc-900 font-display">
-                            Noir {isSubscribed && <span className="text-blue-600">Pro</span>}
-                        </span>
-                        <ChevronDown size={14} className={`text-zinc-400 transition-transform duration-200 ${showDropdown ? 'rotate-180' : ''}`} />
+                        <PanelLeft size={16} strokeWidth={1.5} />
                     </button>
+                    <button
+                        onClick={onClose}
+                        className="md:hidden p-1.5 text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 rounded-md transition-colors"
+                        title="Close Sidebar"
+                    >
+                        <X size={16} />
+                    </button>
+                </div>
 
-                    <div className="flex items-center gap-1">
-                        <button
-                            onClick={onCollapse}
-                            className="hidden md:flex p-2 hover:bg-zinc-100 rounded-lg text-zinc-500 hover:text-zinc-900 transition-colors"
-                            title="Collapse Sidebar"
-                        >
-                            <PanelLeft size={18} strokeWidth={1.5} />
-                        </button>
-                        <button
-                            onClick={onClose}
-                            className="md:hidden p-2 text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 rounded-lg transition-colors"
-                            title="Close Sidebar"
-                        >
-                            <X size={18} />
-                        </button>
-
-                        <button onClick={onNewChat} className="p-2 hover:bg-zinc-100 rounded-lg text-zinc-500 hover:text-zinc-900 transition-colors" title="New Chat">
-                            <SquarePen size={18} strokeWidth={1.5} />
-                        </button>
+                {/* Main Actions */}
+                <div className="space-y-0.5">
+                    <button onClick={onNewChat} className="w-full flex items-center gap-3 px-2 py-2 text-sm hover:bg-zinc-100 rounded-md text-zinc-700 transition-colors font-medium">
+                        <Plus size={16} strokeWidth={2} className="text-zinc-500" />
+                        New chat
+                    </button>
+                    
+                    <div className="relative group">
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-zinc-700 transition-colors pointer-events-none" size={16} strokeWidth={2} />
+                        <input
+                            type="text"
+                            placeholder="Search"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full pl-9 pr-3 py-2 bg-transparent hover:bg-zinc-100 focus:bg-white focus:ring-1 focus:ring-zinc-200 focus:border-transparent rounded-md text-sm text-zinc-700 placeholder-zinc-600 outline-none transition-all duration-200 font-medium"
+                        />
                     </div>
 
-                    {/* Dropdown Menu - ChatGPT Style */}
-                    {showDropdown && (
-                        <div className="absolute top-full left-0 mt-2 w-80 bg-white border border-zinc-200 rounded-2xl shadow-2xl z-50 overflow-hidden transform origin-top-left transition-all duration-200 animation-fade-in">
-                            <div className="p-2 space-y-0.5">
-                                {menuItems.map((item, index) => {
-                                    if (item.type === 'divider') {
-                                        return <div key={index} className="h-px bg-zinc-100 my-1 mx-2" />;
-                                    }
-
-                                    if (item.type === 'plan') {
-                                        const Icon = item.icon;
-                                        return (
-                                            <button
-                                                key={index}
-                                                onClick={() => {
-                                                    if (item.action) item.action();
-                                                    setShowDropdown(false);
-                                                }}
-                                                className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all border ${item.isActive
-                                                    ? 'bg-white border-zinc-200 shadow-sm'
-                                                    : 'border-transparent hover:bg-zinc-50'
-                                                    }`}
-                                            >
-                                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${item.isPro
-                                                    ? 'bg-zinc-900 border-zinc-800 text-white'
-                                                    : 'bg-white border-zinc-200 text-zinc-900'
-                                                    }`}>
-                                                    <Icon size={16} strokeWidth={2} />
-                                                </div>
-                                                <div className="flex-1 text-left min-w-0">
-                                                    <div className="flex items-center justify-between gap-2">
-                                                        <span className="text-sm font-semibold text-zinc-900">{item.label}</span>
-                                                        {item.showUpgrade && (
-                                                            <span className="text-xs px-2.5 py-1 bg-white border border-zinc-200 text-zinc-900 rounded-full font-medium shadow-sm hover:bg-zinc-50">
-                                                                Upgrade
-                                                            </span>
-                                                        )}
-                                                        {item.isActive && (
-                                                            <Check size={16} className="text-zinc-900" strokeWidth={2.5} />
-                                                        )}
-                                                    </div>
-                                                    <div className="text-xs text-zinc-500 truncate">{item.description}</div>
-                                                </div>
-                                            </button>
-                                        );
-                                    }
-
-                                    // Regular Menu Item
-                                    if (item.type === 'button') {
-                                        const Icon = item.icon;
-                                        return (
-                                            <button
-                                                key={index}
-                                                onClick={() => {
-                                                    if (item.action) item.action();
-                                                    setShowDropdown(false);
-                                                }}
-                                                className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-zinc-600 hover:text-zinc-900 hover:bg-zinc-50 rounded-lg transition-colors"
-                                            >
-                                                <Icon size={16} strokeWidth={1.5} />
-                                                {item.label}
-                                            </button>
-                                        );
-                                    }
-                                    return null;
-                                })}
-                            </div>
-                        </div>
-                    )}
-
-
-                </div>
-
-                {/* Mobile Navigation Toolbar */}
-                <div className="flex md:hidden items-center justify-between px-2 mb-3 pb-2 border-b border-zinc-50">
-                    <button onClick={() => navigate('/')} className="p-2 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-lg transition-colors" title="Home">
-                        <Home size={18} strokeWidth={1.5} />
-                    </button>
-                    <button onClick={() => navigate('/gallery')} className="p-2 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-lg transition-colors" title="Gallery">
-                        <LayoutGrid size={18} strokeWidth={1.5} />
-                    </button>
-                    <button onClick={() => navigate('/document')} className="p-2 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-lg transition-colors" title="Smart Document">
-                        <FileText size={18} strokeWidth={1.5} />
-                    </button>
-                    <button onClick={() => setShowShare(true)} className="p-2 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-lg transition-colors" title="Share">
-                        <Share2 size={18} strokeWidth={1.5} />
-                    </button>
-                    <button onClick={() => window.open('http://localhost:5173/pricing', '_blank')} className="p-2 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-lg transition-colors" title="Upgrade to Pro">
-                        <Zap size={18} strokeWidth={1.5} />
-                    </button>
-                    <button onClick={onOpenSettings} className="p-2 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-lg transition-colors" title="Settings">
-                        <Settings size={18} strokeWidth={1.5} />
+                    <button onClick={onOpenSettings} className="w-full flex items-center gap-3 px-2 py-2 text-sm hover:bg-zinc-100 rounded-md text-zinc-700 transition-colors font-medium">
+                        <Box size={16} strokeWidth={1.5} className="text-zinc-500" />
+                        Customize
                     </button>
                 </div>
 
-                {/* Search Input (Minimalist) */}
-                <div className="relative group">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-zinc-600 transition-colors" size={15} strokeWidth={1.5} />
-                    <input
-                        type="text"
-                        placeholder="Search..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full pl-9 pr-4 py-2 bg-transparent border border-transparent hover:border-zinc-200 focus:border-zinc-300 focus:bg-white rounded-lg text-sm text-zinc-700 placeholder-zinc-400 outline-none transition-all duration-200"
-                    />
+                <div className="h-2"></div>
+
+                {/* Sub-Navigation */}
+                <div className="space-y-0.5">
+                    <button onClick={() => navigate('/')} className="w-full flex items-center gap-3 px-2 py-2 text-[13px] hover:bg-zinc-100 rounded-md text-zinc-700 transition-colors">
+                        <MessageSquare size={16} strokeWidth={1.5} className="text-zinc-500" />
+                        Chats
+                    </button>
+                    <button onClick={() => navigate('/document')} className="w-full flex items-center gap-3 px-2 py-2 text-[13px] hover:bg-zinc-100 rounded-md text-zinc-700 transition-colors">
+                        <FolderOpen size={16} strokeWidth={1.5} className="text-zinc-500" />
+                        Projects
+                    </button>
+                    <button onClick={() => navigate('/gallery')} className="w-full flex items-center gap-3 px-2 py-2 text-[13px] hover:bg-zinc-100 rounded-md text-zinc-700 transition-colors">
+                        <LayoutGrid size={16} strokeWidth={1.5} className="text-zinc-500" />
+                        Artifacts
+                    </button>
+                    <button onClick={() => window.open('http://localhost:5173/pricing', '_blank')} className="w-full flex items-center gap-3 px-2 py-2 text-[13px] hover:bg-zinc-100 rounded-md text-zinc-700 transition-colors">
+                        <Code size={16} strokeWidth={1.5} className="text-zinc-500" />
+                        Code
+                    </button>
                 </div>
             </div>
 
             {/* 2. Scrollable Sessions List */}
-            <div className="flex-1 overflow-y-auto px-3 pb-4 space-y-6">
-                {/* ... (Previous session list code remains the same) ... */}
+            <div className="flex-1 overflow-y-auto px-2 pb-4 space-y-4 mt-1">
+                <div className="px-3 pt-2 pb-1 text-[11px] font-medium text-zinc-400">
+                    Recents
+                </div>
                 {Object.entries(groupedSessions).map(([groupName, groupMessages]) => (
                     groupMessages.length > 0 && (
-                        <div key={groupName} className="space-y-1">
+                        <div key={groupName} className="space-y-0.5">
                             <h3 className="px-3 text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2">
                                 {groupName}
                             </h3>

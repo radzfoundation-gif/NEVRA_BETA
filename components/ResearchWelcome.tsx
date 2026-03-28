@@ -1,10 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Globe, ArrowUp, Link as LinkIcon, Layers, Plus, Paperclip, ChevronDown, Check, Sparkles, LayoutGrid, Mic, Youtube, FileText, X, Loader2, Wrench, AlertTriangle, Image as ImageIcon, PenTool, Grid3X3, BarChart3, ChevronRight, Bot, Atom, Lightbulb, Cpu, AudioLines, Presentation, Network, Target } from 'lucide-react';
+import { Search, Globe, ArrowUp, Link as LinkIcon, Layers, Plus, Paperclip, ChevronDown, Check, Sparkles, LayoutGrid, Mic, Youtube, FileText, X, Loader2, Wrench, AlertTriangle, Image as ImageIcon, PenTool, Code, LineChart, Hammer, GraduationCap, AudioLines, Lightbulb, ChevronRight } from 'lucide-react';
 import ModelSelector, { ModelType } from './ui/ModelSelector';
 import { cn, getApiUrl } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
-import LiquidMetal from './ui/liquid-metal';
 import { useTokenLimit } from '@/hooks/useTokenLimit';
 import SubscriptionPopup from './SubscriptionPopup';
 import VoiceDictationModal from './chat/VoiceDictationModal';
@@ -141,10 +140,25 @@ export function ResearchWelcome({
     const [knowledgeTitle, setKnowledgeTitle] = useState('');
 
     // Feature Prompt Modal State
-    const [selectedFeature, setSelectedFeature] = useState<{ label: string; icon: React.ReactNode; query: string } | null>(null);
+    const [selectedFeature, setSelectedFeature] = useState<{ label: string; icon: React.ReactNode; query: string; options?: {title: string; prompt: string}[] } | null>(null);
     const [featurePrompt, setFeaturePrompt] = useState('');
 
-    const handleFeatureSelect = (feature: { label: string; icon: React.ReactNode; query: string }) => {
+    const [greeting, setGreeting] = useState("What shall we think through?");
+
+    useEffect(() => {
+        const phrases = [
+            "What shall we think through?",
+            "How can I help you today?",
+            "What's on your mind?",
+            "Let's explore something new.",
+            "Ready to brainstorm?",
+            "What are we working on?",
+            "Let's build something great."
+        ];
+        setGreeting(phrases[Math.floor(Math.random() * phrases.length)]);
+    }, []);
+
+    const handleFeatureSelect = (feature: any) => {
         setSelectedFeature(feature);
         setFeaturePrompt('');
     };
@@ -554,16 +568,67 @@ export function ResearchWelcome({
         },
     ];
 
-    const features = [
-        { icon: <Presentation size={18} className="text-orange-500" />, label: "Slide Presentation", query: "Create a slide presentation about" },
-        { icon: <Network size={18} className="text-blue-500" />, label: "Mindmap Generator", query: "Create a comprehensive mindmap for" },
-        { icon: <PenTool size={18} className="text-purple-500" />, label: "Article Writer", query: "Write a comprehensive article about" },
-        { icon: <Target size={18} className="text-red-500" />, label: "Strategy Planner", query: "Create a comprehensive strategic plan for" }
+    const suggestions = [
+        { 
+            icon: <Search size={16} className="text-stone-400" />, 
+            label: "Research", 
+            query: "Can you research about ",
+            options: [
+                { title: "Explore latest AI trends", prompt: "Can you research and summarize the latest trends in Artificial Intelligence?" },
+                { title: "Understand a new concept", prompt: "Help me understand the basics and key concepts of [Topic]: " },
+                { title: "Compare technologies", prompt: "Can you compare the pros and cons of [Option A] and [Option B]?" },
+                { title: "Market research", prompt: "Provide a market research overview for [Industry/Product]: " }
+            ]
+        },
+        { 
+            icon: <FileText size={16} className="text-stone-400" />, 
+            label: "Summarize", 
+            query: "Please summarize ",
+            options: [
+                { title: "Summarize an article", prompt: "Can you summarize the following article, highlighting the main points? " },
+                { title: "Extract action items", prompt: "Please extract the key action items from this text: " },
+                { title: "Explain like I'm 5", prompt: "Summarize this complex topic as if you were explaining it to a 5-year-old: " },
+                { title: "Executive summary", prompt: "Create a brief executive summary for the following document: " }
+            ]
+        },
+        { 
+            icon: <Lightbulb size={16} className="text-stone-400" />, 
+            label: "Brainstorm", 
+            query: "Help me brainstorm ideas for ",
+            options: [
+                { title: "Startup ideas", prompt: "Brainstorm 5 innovative startup ideas in the field of " },
+                { title: "Content creation", prompt: "Give me 10 engaging blog post topics about " },
+                { title: "Problem solving", prompt: "I'm facing this problem: [describe]. Can you brainstorm potential creative solutions?" },
+                { title: "Marketing campaign", prompt: "Brainstorm a creative marketing campaign for " }
+            ]
+        },
+        { 
+            icon: <Globe size={16} className="text-stone-400" />, 
+            label: "Translate", 
+            query: "Translate this text into ",
+            options: [
+                { title: "Translate to English", prompt: "Translate the following text to professional English: " },
+                { title: "Translate to Indonesian", prompt: "Tolong terjemahkan teks berikut ke dalam bahasa Indonesia yang natural: " },
+                { title: "Translate to Japanese", prompt: "Translate the following text to Japanese (formal): " },
+                { title: "Improve translation", prompt: "Please review and improve this translation to sound more native: " }
+            ]
+        },
+        { 
+            icon: <LineChart size={16} className="text-stone-400" />, 
+            label: "Analyze", 
+            query: "Can you analyze ",
+            options: [
+                { title: "Analyze text sentiment", prompt: "Analyze the tone and sentiment of the following text: " },
+                { title: "Code review", prompt: "Can you analyze this code snippet and suggest improvements or highlight bugs? " },
+                { title: "Business strategy", prompt: "Analyze the potential risks and benefits of this strategic decision: " },
+                { title: "Data interpretation", prompt: "Help me interpret this data and identify key trends: " }
+            ]
+        }
     ];
 
     return (
         <div className={cn(
-            "w-full min-h-full flex flex-col items-center justify-start md:justify-center p-4 md:p-6 relative max-w-4xl mx-auto pb-24 md:pb-6 pt-20 md:pt-6",
+            "w-full min-h-full flex flex-col items-center justify-center p-4 md:p-6 relative max-w-3xl mx-auto",
             className
         )}>
             {/* Hidden File Inputs */}
@@ -888,61 +953,7 @@ export function ResearchWelcome({
                 )}
             </AnimatePresence>
 
-            {/* Feature Prompt Modal */}
-            <AnimatePresence>
-                {selectedFeature && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-                        onClick={() => setSelectedFeature(null)}
-                    >
-                        <motion.div
-                            initial={{ scale: 0.9, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0.9, opacity: 0 }}
-                            onClick={e => e.stopPropagation()}
-                            className="bg-white rounded-2xl p-6 shadow-xl w-full max-w-lg"
-                        >
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="p-3 rounded-xl bg-zinc-100 flex items-center justify-center">
-                                    {selectedFeature.icon}
-                                </div>
-                                <div>
-                                    <h3 className="font-semibold text-zinc-900">{selectedFeature.label}</h3>
-                                    <p className="text-xs text-zinc-500">Enter your specific topic or requirements</p>
-                                </div>
-                            </div>
-
-                            <textarea
-                                value={featurePrompt}
-                                onChange={e => setFeaturePrompt(e.target.value)}
-                                placeholder={`e.g., "The future of renewable energy" or "Marketing strategy for a new coffee shop"`}
-                                className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none mb-4 min-h-[120px] resize-none"
-                                autoFocus
-                            />
-
-                            <div className="flex gap-2">
-                                <button
-                                    onClick={() => setSelectedFeature(null)}
-                                    className="flex-1 px-4 py-2.5 rounded-xl border border-zinc-200 text-zinc-600 font-medium hover:bg-zinc-50"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={handleFeatureSubmit}
-                                    disabled={!featurePrompt.trim()}
-                                    className="flex-1 px-4 py-2.5 rounded-xl bg-zinc-900 text-white font-medium hover:bg-zinc-800 disabled:opacity-50 flex items-center justify-center gap-2"
-                                >
-                                    <Sparkles size={16} />
-                                    Generate
-                                </button>
-                            </div>
-                        </motion.div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+            {/* Feature Prompt Modal Removed - Replaced with Inline Dropdown */}
 
             {/* URL Input Modal */}
             <AnimatePresence>
@@ -999,37 +1010,26 @@ export function ResearchWelcome({
 
             {/* Center Content Group */}
             <motion.div
-                initial={{ opacity: 0, y: 30 }}
+                initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.8, ease: "easeOut" }}
-                className="flex flex-col items-center w-full z-10"
+                className="flex flex-col items-center w-full z-10 font-sans"
             >
-
-                {/* 3D Orb Visual */}
-                {/* 3D Orb Visual */}
                 {/* Upgrade Pill */}
-                <button
-                    onClick={() => !isSubscribed && setShowSubscriptionPopup(true)}
-                    className={cn(
-                        "mb-8 flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm transition-all shadow-sm active:scale-95 group",
-                        isSubscribed
-                            ? "bg-gradient-to-r from-teal-50 to-emerald-50 border border-teal-100 text-teal-700 cursor-default"
-                            : "bg-zinc-50 hover:bg-white border border-zinc-200/60 hover:border-orange-200 hover:shadow-orange-500/10 cursor-pointer"
-                    )}
-                >
-                    {isSubscribed ? (
-                        <>
-                            <Sparkles size={16} className="text-teal-500" />
-                            <span className="font-bold">Pro Plan Active</span>
-                        </>
+                <div className="mb-12 flex justify-center">
+                    {!isSubscribed ? (
+                        <button 
+                            onClick={() => setShowSubscriptionPopup(true)}
+                            className="text-xs font-medium text-stone-500 hover:text-stone-800 bg-stone-100 hover:bg-stone-200 px-3 py-1 rounded-full transition-colors"
+                        >
+                            Free plan · <span className="text-stone-700">Upgrade</span>
+                        </button>
                     ) : (
-                        <>
-                            <Sparkles size={16} className="text-orange-500 group-hover:animate-pulse" />
-                            <span className="font-bold text-orange-500">Upgrade</span>
-                            <span className="font-semibold text-zinc-600 group-hover:text-zinc-900">free plan to full access</span>
-                        </>
+                        <span className="text-xs font-medium text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full">
+                            Pro Plan Active
+                        </span>
                     )}
-                </button>
+                </div>
 
                 {/* Soft Limit Warning */}
                 {softLimitReached && (
@@ -1040,35 +1040,16 @@ export function ResearchWelcome({
                 )}
 
                 {/* Greeting & Title */}
-                <motion.div
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ duration: 1, delay: 0.2 }}
-                    className="mb-6 relative"
-                >
-                    <div className="absolute inset-0 bg-gradient-to-r from-purple-500/20 to-blue-500/20 blur-3xl rounded-full" />
-                    <img
-                        src="/noir-x-openclaw.png"
-                        alt="Noir X OpenClaw"
-                        className="relative w-32 md:w-40 h-auto drop-shadow-[0_0_20px_rgba(168,85,247,0.35)] hover:scale-105 transition-transform duration-500"
-                    />
-                </motion.div>
-
-                <h1 className="text-center mb-10 space-y-1">
-                    <span className="block text-3xl md:text-4xl font-semibold text-zinc-900 dark:text-white tracking-tight">
-                        {getGreeting()}{userName ? `, ${userName}` : ''}
-                    </span>
-                    <span className="block text-3xl md:text-4xl font-semibold text-zinc-400 tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-purple-500 to-blue-500">
-                        What's on your mind?
-                    </span>
+                <h1 className="flex items-center text-center gap-3 text-4xl md:text-[44px] text-stone-800 tracking-tight font-serif mb-8 md:mb-12" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
+                    <span>{userName ? `${greeting.replace('?', `, ${userName}?`).replace('.', `, ${userName}.`)}` : greeting}</span>
                 </h1>
 
-                {/* Main Input Card — Claude-style */}
+                {/* Main Input Card — Clean Layout */}
                 <div className={cn(
                     "w-full max-w-3xl bg-white rounded-2xl border transition-all duration-200 relative",
                     isFocused
-                        ? "shadow-[0_8px_40px_-8px_rgba(0,0,0,0.12)] border-stone-300"
-                        : "shadow-[0_2px_12px_-2px_rgba(0,0,0,0.08)] border-stone-200"
+                        ? "shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] border-stone-300"
+                        : "shadow-[0_2px_12px_-4px_rgba(0,0,0,0.05)] border-stone-200"
                 )}>
                     {/* Web Search Indicator */}
                     <AnimatePresence mode="wait">
@@ -1079,10 +1060,10 @@ export function ResearchWelcome({
                                 exit={{ height: 0, opacity: 0 }}
                                 className="px-4 pt-2"
                             >
-                                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 text-blue-600 rounded-lg text-xs font-medium">
+                                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-stone-100 text-stone-600 rounded-md text-xs font-medium">
                                     <Globe size={12} />
                                     Web Search On
-                                    <button onClick={() => onToggleWebSearch && onToggleWebSearch(false)} className="ml-1 hover:text-blue-800">
+                                    <button onClick={() => onToggleWebSearch && onToggleWebSearch(false)} className="ml-1 hover:text-stone-800">
                                         <X size={12} />
                                     </button>
                                 </div>
@@ -1092,12 +1073,12 @@ export function ResearchWelcome({
 
                     {/* Attachments Preview */}
                     {attachments.length > 0 && (
-                        <div className="px-4 pt-3 flex flex-wrap gap-2">
+                        <div className="px-4 pt-4 flex flex-wrap gap-2">
                             {attachments.map((att, i) => (
                                 <div key={i} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-stone-50 border border-stone-200 text-sm">
-                                    {att.type === 'youtube' && <Youtube size={14} className="text-red-500" />}
-                                    {att.type === 'audio' && <Mic size={14} className="text-purple-500" />}
-                                    {att.type === 'url' && <LinkIcon size={14} className="text-blue-500" />}
+                                    {att.type === 'youtube' && <Youtube size={14} className="text-stone-500" />}
+                                    {att.type === 'audio' && <Mic size={14} className="text-stone-500" />}
+                                    {att.type === 'url' && <LinkIcon size={14} className="text-stone-500" />}
                                     {att.type === 'file' && <FileText size={14} className="text-stone-500" />}
                                     <span className="text-stone-700 font-medium truncate max-w-[150px]">{att.name}</span>
                                     <button onClick={() => removeAttachment(i)} className="text-stone-400 hover:text-red-500">
@@ -1109,7 +1090,7 @@ export function ResearchWelcome({
                     )}
 
                     {/* Text Area */}
-                    <div className="p-4">
+                    <div className="p-4 pt-4 pb-2">
                         <textarea
                             value={query}
                             onChange={handleInput}
@@ -1117,14 +1098,14 @@ export function ResearchWelcome({
                             onFocus={() => setIsFocused(true)}
                             onBlur={() => setIsFocused(false)}
                             placeholder="How can I help you today?"
-                            className="w-full bg-transparent border-none text-base text-stone-800 placeholder-stone-400 focus:outline-none resize-none min-h-[28px] max-h-[200px] leading-relaxed font-normal"
-                            style={{ height: '28px' }}
+                            className="w-full bg-transparent border-none text-[15px] text-stone-800 placeholder-stone-400 focus:outline-none resize-none min-h-[36px] max-h-[400px] leading-relaxed font-normal"
+                            style={{ height: '36px' }}
                         />
                     </div>
 
-                    {/* Bottom Bar — Claude Layout */}
+                    {/* Bottom Bar — Clean Layout */}
                     <div className="w-full flex items-center justify-between px-3 pb-3">
-                        {/* Left: + Button & Tools Button */}
+                        {/* Left: + Button */}
                         <div className="flex items-center gap-1 relative">
                             {/* + Attach Dropdown */}
                             <div className="relative">
@@ -1134,11 +1115,11 @@ export function ResearchWelcome({
                                         "w-8 h-8 flex items-center justify-center rounded-lg transition-all",
                                         showToolsMenu
                                             ? "bg-stone-200 text-stone-700"
-                                            : "text-stone-400 hover:text-stone-600 hover:bg-stone-100"
+                                            : "text-stone-400 hover:text-stone-700 hover:bg-stone-100"
                                     )}
                                     title="Attach files"
                                 >
-                                    <Plus size={20} strokeWidth={1.8} />
+                                    <Plus size={20} strokeWidth={2} />
                                 </button>
                                 {showToolsMenu && (
                                     <div className="absolute bottom-full left-0 mb-2 w-52 bg-white border border-stone-200 rounded-xl shadow-xl overflow-hidden z-50">
@@ -1159,7 +1140,7 @@ export function ResearchWelcome({
                                 )}
                             </div>
 
-                            {/* ⚙ AI Tools Dropdown */}
+                            {/* Optional: AI Tools */}
                             <div className="relative">
                                 <button
                                     onClick={() => { setShowAIToolsMenu(!showAIToolsMenu); setShowToolsMenu(false); }}
@@ -1167,11 +1148,11 @@ export function ResearchWelcome({
                                         "w-8 h-8 flex items-center justify-center rounded-lg transition-all",
                                         showAIToolsMenu
                                             ? "bg-stone-200 text-stone-700"
-                                            : "text-stone-400 hover:text-stone-600 hover:bg-stone-100"
+                                            : "text-stone-400 hover:text-stone-700 hover:bg-stone-100"
                                     )}
                                     title="AI Tools"
                                 >
-                                    <Wrench size={17} strokeWidth={1.8} />
+                                    <Wrench size={16} strokeWidth={1.8} />
                                 </button>
                                 {showAIToolsMenu && (
                                     <div className="absolute bottom-full left-0 mb-2 w-56 bg-white border border-stone-200 rounded-xl shadow-xl overflow-hidden z-50">
@@ -1198,7 +1179,7 @@ export function ResearchWelcome({
 
                         {/* Right: Model Name, Voice, Send */}
                         <div className="flex items-center gap-1.5">
-                            {/* Model Name Button (Claude style) */}
+                            {/* Model Name Label */}
                             <ModelSelector
                                 selectedModel={selectedModel}
                                 onModelChange={setSelectedModel}
@@ -1207,82 +1188,115 @@ export function ResearchWelcome({
                                 onReasoningToggle={() => setWithReasoning(!withReasoning)}
                                 isSubscribed={isSubscribed}
                             >
-                                <button className="flex items-center gap-1 px-2 py-1.5 text-stone-400 hover:text-stone-600 transition-colors text-sm font-medium">
+                                <button className="flex items-center gap-1.5 px-2 py-1.5 text-stone-500 hover:text-stone-800 transition-colors text-xs font-semibold">
                                     <span>
                                         {(() => {
                                             const names: Record<string, string> = {
-                                                'gemini-flash': 'Gemini Flash',
-                                                'gemini-pro': 'Gemini Pro',
-                                                'claude-sonnet': 'Sonnet 4.5',
+                                                'claude-sonnet': 'Sonnet 4.6',
                                                 'claude-opus': 'Opus 4.1',
-                                                'gpt-5': 'GPT-5.1',
-                                                'grok': 'Grok 4.1',
                                                 'sonar': 'NoirSync',
-                                                'stepfun/step-3.5-flash:free': 'Step 3.5',
                                             };
                                             return names[selectedModel] || selectedModel;
                                         })()}
                                     </span>
-                                    <ChevronDown size={14} strokeWidth={2} />
+                                    <ChevronDown size={12} strokeWidth={2.5} />
                                 </button>
                             </ModelSelector>
 
                             {/* Voice Button */}
                             <button
                                 onClick={() => setShowDictation(true)}
-                                className="w-8 h-8 flex items-center justify-center text-stone-400 hover:text-stone-600 rounded-lg transition-colors hover:bg-stone-100"
+                                className="w-8 h-8 flex items-center justify-center text-stone-400 hover:text-stone-700 rounded-lg transition-colors hover:bg-stone-100"
                                 title="Voice Input"
                             >
-                                <AudioLines size={18} strokeWidth={1.8} />
+                                <Mic size={16} strokeWidth={2} />
                             </button>
 
-                            {/* Send Button */}
-                            <button
-                                onClick={() => {
-                                    if (query.trim() || attachments.length > 0) {
-                                        if (isImageRequest(query)) {
-                                            handleImageGeneration(query);
-                                        } else {
-                                            onSearch(query, attachments, selectedModel, withReasoning);
-                                        }
-                                    }
-                                }}
-                                disabled={(!query.trim() && attachments.length === 0) || isProcessing}
-                                className={cn(
-                                    "w-9 h-9 flex items-center justify-center rounded-full transition-all duration-200 ml-0.5",
-                                    (!query.trim() && attachments.length === 0) || isProcessing
-                                        ? "bg-stone-100 text-stone-300 cursor-not-allowed"
-                                        : "bg-stone-800 hover:bg-stone-900 text-white transform hover:scale-105"
+                            {/* Send Button - Only visible when typing or attachments added */}
+                            <AnimatePresence>
+                                {(query.trim() || attachments.length > 0) && (
+                                    <motion.button
+                                        initial={{ scale: 0, opacity: 0 }}
+                                        animate={{ scale: 1, opacity: 1 }}
+                                        exit={{ scale: 0, opacity: 0 }}
+                                        onClick={() => {
+                                            if (isImageRequest(query)) handleImageGeneration(query);
+                                            else onSearch(query, attachments, selectedModel, withReasoning);
+                                        }}
+                                        disabled={isProcessing}
+                                        className={cn(
+                                            "w-7 h-7 flex items-center justify-center rounded-lg transition-all",
+                                            isProcessing
+                                                ? "bg-stone-100 text-stone-300 cursor-not-allowed"
+                                                : "bg-[#E5694A] hover:bg-[#D55839] text-white"
+                                        )}
+                                    >
+                                        <ArrowUp size={16} strokeWidth={2.5} />
+                                    </motion.button>
                                 )}
-                            >
-                                <ArrowUp size={18} strokeWidth={2.5} />
-                            </button>
+                            </AnimatePresence>
                         </div>
                     </div>
                 </div>
 
-                {/* Feature Cards */}
-                <div className="w-full max-w-4xl mt-12">
-                    <div className="text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-4 px-1 text-center md:text-left">
-                        Explore AI Features
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        {features.map((feature, i) => (
-                            <button
-                                key={i}
-                                onClick={() => handleFeatureSelect(feature)}
-                                className="text-left p-4 rounded-xl bg-white border border-zinc-100 hover:border-purple-200 hover:bg-purple-50/30 hover:shadow-lg hover:shadow-purple-500/5 hover:-translate-y-0.5 transition-all duration-300 group h-full flex flex-col justify-between gap-4"
-                            >
-                                <div className="p-2 rounded-lg bg-zinc-50 group-hover:bg-white transition-colors w-fit">
-                                    {feature.icon}
-                                </div>
-                                <span className="text-sm text-zinc-600 font-medium group-hover:text-zinc-900 transition-colors">
-                                    {feature.label}
-                                </span>
-                            </button>
-                        ))}
-                    </div>
+                {/* Suggestions Pills */}
+                <div className="flex flex-wrap items-center justify-center gap-2 mt-4 max-w-3xl">
+                    {suggestions.map((suggestion, i) => (
+                        <button
+                            key={i}
+                            onClick={() => {
+                                setSelectedFeature(selectedFeature?.label === suggestion.label ? null : suggestion as any);
+                                setFeaturePrompt('');
+                            }}
+                            className={cn(
+                                "flex items-center gap-2 px-3.5 py-1.5 rounded-full border text-[13px] font-medium transition-colors shadow-sm",
+                                selectedFeature?.label === suggestion.label
+                                    ? "bg-stone-100 border-stone-300 text-stone-800" 
+                                    : "bg-white border-stone-200 hover:bg-stone-50 text-stone-600"
+                            )}
+                        >
+                            {suggestion.icon}
+                            {suggestion.label}
+                        </button>
+                    ))}
                 </div>
+
+                {/* Feature Options Dropdown */}
+                <AnimatePresence>
+                    {selectedFeature && (
+                        <motion.div
+                            initial={{ opacity: 0, y: -10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            className="w-full max-w-3xl mt-3 bg-white border border-stone-200 rounded-2xl shadow-sm overflow-hidden"
+                        >
+                            <div className="flex items-center justify-between px-4 py-3 border-b border-stone-100 bg-stone-50/50">
+                                <div className="flex items-center gap-2 text-stone-700 text-sm font-medium">
+                                    {selectedFeature.icon}
+                                    {selectedFeature.label}
+                                </div>
+                                <button onClick={() => setSelectedFeature(null)} className="text-stone-400 hover:text-stone-600 transition-colors">
+                                    <X size={16} />
+                                </button>
+                            </div>
+                            <div className="flex flex-col">
+                                {selectedFeature.options?.map((opt: any, i: number) => (
+                                    <button 
+                                        key={i}
+                                        onClick={() => {
+                                            setQuery(opt.prompt);
+                                            setSelectedFeature(null);
+                                        }}
+                                        className="text-left px-4 py-3 text-[14px] text-stone-600 hover:bg-stone-50 border-b border-stone-100 last:border-0 flex items-center justify-between group transition-colors"
+                                    >
+                                        <span>{opt.title}</span>
+                                        <ChevronRight size={16} className="text-stone-300 group-hover:text-stone-400 transition-colors" />
+                                    </button>
+                                ))}
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
 
             </motion.div>
 

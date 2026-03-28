@@ -5,7 +5,7 @@ import {
   Code, Play, Layout, Smartphone, Monitor, Download,
   X, Settings, ChevronRight, ChevronDown, FileCode,
   Folder, Terminal as TerminalIcon, RefreshCw, Globe,
-  CheckCircle2, Loader2, GraduationCap, Brain, Bot, Paperclip, Image as ImageIcon, Trash2, AlertTriangle, Phone, Lock, Camera, ImagePlus, Clock, Undo2, Redo2, Github, Search, FileText, Terminal, MoreVertical, Copy, Eye, ZoomIn, ZoomOut, Type, Palette, Save, Sparkles, Zap, ThumbsUp, ThumbsDown, Check, BarChart3, Share, RefreshCcw, MoreHorizontal, Youtube, Pencil
+  CheckCircle2, Loader2, GraduationCap, Brain, Bot, Paperclip, Image as ImageIcon, Trash2, AlertTriangle, Phone, Lock, Camera, ImagePlus, Clock, Undo2, Redo2, Github, Search, FileText, Terminal, MoreVertical, Copy, Eye, ZoomIn, ZoomOut, Type, Palette, Save, Sparkles, Zap, ThumbsUp, ThumbsDown, Check, BarChart3, Share, RefreshCcw, MoreHorizontal, Youtube, Pencil, PanelLeft
 } from 'lucide-react';
 import { Link, useLocation, useParams, useNavigate } from 'react-router-dom';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -295,8 +295,12 @@ const ChatInterface: React.FC = () => {
     return true;
   };
 
-  // Sidebar Collapse State - Default to open (false)
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  // Sidebar Collapse State - default to collapsed (welcome screen shows first)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    const saved = localStorage.getItem('sidebar_collapsed');
+    if (saved !== null) return saved === 'true';
+    return true; // Default collapsed for clean welcome screen
+  });
 
   const toggleSidebarCollapse = () => {
     setIsSidebarCollapsed(prev => {
@@ -351,6 +355,20 @@ const ChatInterface: React.FC = () => {
 
   // Chat State
   const [messages, setMessages] = useState<Message[]>(initialState.messages);
+
+  // Automatically collapse sidebar on ResearchWelcome screen (empty chat)
+  // and expand it back when messages exist
+  useEffect(() => {
+    if (messages.length === 0) {
+      setIsSidebarCollapsed(true);
+    } else {
+      // Restore sidebar when user has active chat messages
+      const saved = localStorage.getItem('sidebar_collapsed');
+      if (saved !== 'true') {
+        setIsSidebarCollapsed(false);
+      }
+    }
+  }, [messages.length]);
   const [animatingMessageId, setAnimatingMessageId] = useState<string | null>(null);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -3245,6 +3263,17 @@ const ChatInterface: React.FC = () => {
             </button>
           )}
 
+          {/* Desktop Sidebar Toggle (when collapsed) */}
+          {!isMobile && isSidebarCollapsed && (
+            <button
+              onClick={toggleSidebarCollapse}
+              className="p-2 -ml-2 mr-2 rounded-lg hover:bg-black/5 text-zinc-500 hover:text-zinc-900 transition-colors"
+              title="Expand Sidebar"
+            >
+              <PanelLeft size={20} className="text-zinc-500" strokeWidth={1.5} />
+            </button>
+          )}
+
           <div className="flex items-center gap-2 min-w-0">
             {/* Title Dropdown */}
             <div className="relative group">
@@ -3310,16 +3339,17 @@ const ChatInterface: React.FC = () => {
 
 
 
-      {/* Chat List - Clean v0.app Style */}
+      {/* Chat List */}
       <div className={
         cn(
-          "relative flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain px-3 sm:px-4 md:px-5 lg:px-6 pt-20 md:pt-24 scroll-smooth",
-          showBottomClarification ? "pb-[350px] md:pb-[400px]" : "pb-64 sm:pb-72 md:pb-80",
-          messages.length === 0 ? "flex flex-col items-center justify-center text-center pb-0" : "block"
+          "relative flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain scroll-smooth",
+          messages.length === 0
+            ? "flex flex-col items-center justify-center text-center p-0"
+            : "px-3 sm:px-4 md:px-5 lg:px-6 pt-20 md:pt-24 block " + (showBottomClarification ? "pb-[350px] md:pb-[400px]" : "pb-64 sm:pb-72 md:pb-80")
         )
       } >
         <AnimatePresence mode="wait">
-          {false ? (
+          {messages.length === 0 ? (
             <motion.div
               key="welcome"
               initial={{ opacity: 0, y: 10 }}
@@ -3852,7 +3882,7 @@ const ChatInterface: React.FC = () => {
 
       {/* Input Area - ChatGPT Style - Show after first message or always for tutor mode */}
       {
-        !showBottomClarification && (
+        !showBottomClarification && messages.length > 0 && (
           <ChatInput
             input={input}
             setInput={setInput}
@@ -4911,18 +4941,15 @@ const ChatInterface: React.FC = () => {
           ) : (
             /* DESKTOP LAYOUT */
             <PanelGroup direction="horizontal" className="h-full">
-              {/* Sidebar - Always visible on desktop */}
-              {isSidebarOpen && (
+              {/* Sidebar - Hidden completely when collapsed, only toggle icon in header */}
+              {isSidebarOpen && !isSidebarCollapsed && (
                 <>
                   <Panel
-                    defaultSize={isSidebarCollapsed ? 4 : 18}
-                    minSize={isSidebarCollapsed ? 4 : 15}
-                    maxSize={isSidebarCollapsed ? 4 : 25}
+                    defaultSize={25}
+                    minSize={20}
+                    maxSize={35}
                     collapsible={false}
-                    className={cn(
-                      "hidden md:block border-r border-zinc-200 transition-all duration-300 ease-in-out",
-                      isSidebarCollapsed ? "min-w-[60px] max-w-[60px]" : ""
-                    )}
+                    className="hidden md:block border-r border-zinc-200 transition-all duration-300 ease-in-out"
                   >
                     <Sidebar
                       activeSessionId={sessionId}
@@ -4941,13 +4968,13 @@ const ChatInterface: React.FC = () => {
                 </>
               )}
 
-              {/* Panel 1: Chat - Increased default size for better UX */}
+              {/* Panel 1: Chat - Full width when sidebar collapsed */}
               <Panel
                 defaultSize={
                   appMode === 'builder' && isCanvasOpen
-                    ? 45 // builder with canvas: chat lebih ramping
-                    : isSidebarOpen
-                      ? 82
+                    ? 45
+                    : (isSidebarOpen && !isSidebarCollapsed)
+                      ? 75
                       : 100
                 }
                 minSize={appMode === 'builder' && isCanvasOpen ? 30 : 50}
