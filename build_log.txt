@@ -1,0 +1,98 @@
+﻿[36mvite v6.4.1 [32mbuilding for production...[36m[39m
+transforming...
+[32mΓ£ô[39m 112 modules transformed.
+node.exe : 
+[31mΓ£ù[39m Build 
+failed in 704ms
+At line:1 char:1
++ & "C:\Program 
+Files\nodejs/node.exe" 
+"C:\Users\radzf\AppData
+\Roaming\ ...
++ ~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+~~
+    + CategoryInfo     
+         : NotSpecifi  
+  ed: ([31mΓ£ù[39m   
+  Build failed in 7    
+04ms:String) [], R    
+emoteException
+    + FullyQualifiedEr 
+   rorId : NativeComm  
+  andError
+ 
+[31merror during 
+build:
+[31m[vite:esbuild] 
+Transform failed with 
+1 error:
+D:/NOIR AI/Nevra/compon
+ents/pages/ChatInterfac
+e.tsx:1510:8: ERROR: 
+The symbol 
+"handleShareChat" has 
+already been 
+declared[31m
+file: [36mD:/NOIR AI/N
+evra/components/pages/C
+hatInterface.tsx:1510:8
+[31m
+[33m
+[33mThe symbol 
+"handleShareChat" has 
+already been 
+declared[33m
+1508|    };
+1509|  
+1510|    const 
+handleShareChat = 
+async () => {
+   |          ^
+1511|      // ... code 
+omitted for brevity in 
+summary, but will be 
+included in full file 
+view ...
+1512|    };
+[31m
+    at 
+failureErrorWithLog 
+(D:\NOIR AI\Nevra\node_
+modules\esbuild\lib\mai
+n.js:1467:15)
+    at D:\NOIR AI\Nevra
+\node_modules\esbuild\l
+ib\main.js:736:50
+    at responseCallback
+s.<computed> (D:\NOIR A
+I\Nevra\node_modules\es
+build\lib\main.js:603:9
+)
+    at 
+handleIncomingPacket 
+(D:\NOIR AI\Nevra\node_
+modules\esbuild\lib\mai
+n.js:658:12)
+    at 
+Socket.readFromStdout 
+(D:\NOIR AI\Nevra\node_
+modules\esbuild\lib\mai
+n.js:581:7)
+    at Socket.emit 
+(node:events:508:28)
+    at addChunk (node:i
+nternal/streams/readabl
+e:559:12)
+    at readableAddChunk
+PushByteMode (node:inte
+rnal/streams/readable:5
+10:3)
+    at Readable.push (n
+ode:internal/streams/re
+adable:390:5)
+    at 
+Pipe.onStreamRead (node
+:internal/stream_base_c
+ommons:189:23)[39m

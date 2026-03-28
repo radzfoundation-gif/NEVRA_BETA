@@ -50,6 +50,8 @@ interface ChatInputProps {
     onModelChange: (model: ModelType) => void;
     withReasoning: boolean;
     setWithReasoning: (enabled: boolean) => void;
+    comparisonMode?: boolean;
+    onComparisonModeToggle?: (enabled: boolean) => void;
 }
 
 // Tool items for the + dropdown
@@ -108,6 +110,8 @@ const ChatInput: React.FC<ChatInputProps> = ({
     onModelChange,
     withReasoning,
     setWithReasoning,
+    comparisonMode,
+    onComparisonModeToggle,
 }) => {
     const { credits } = useTokenLimit();
     const [showDictation, setShowDictation] = useState(false);
@@ -347,6 +351,8 @@ const ChatInput: React.FC<ChatInputProps> = ({
                                 withReasoning={withReasoning}
                                 onReasoningToggle={() => setWithReasoning(!withReasoning)}
                                 isSubscribed={isSubscribed}
+                                comparisonMode={comparisonMode}
+                                onComparisonModeToggle={onComparisonModeToggle}
                             >
                                 <button className="flex items-center gap-1 px-2 py-1.5 text-stone-400 hover:text-stone-600 transition-colors text-sm font-medium">
                                     <span>{modelDisplayName}</span>

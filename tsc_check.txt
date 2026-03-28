@@ -1,0 +1,22 @@
+﻿components/BentoGrid.tsx(4,23): error TS2307: Cannot find module './ui/LaserFlow' or its corresponding type declarations.
+components/canvas/CollaborativeCanvas.tsx(8,46): error TS2307: Cannot find module '@excalidraw/excalidraw/types/types' or its corresponding type declarations.
+components/pages/ChatInterface.tsx(1492,9): error TS2451: Cannot redeclare block-scoped variable 'handleShareChat'.
+components/pages/ChatInterface.tsx(1510,9): error TS2451: Cannot redeclare block-scoped variable 'handleShareChat'.
+components/pages/ChatInterface.tsx(1524,12): error TS2554: Expected 8 arguments, but got 1.
+components/pages/ChatInterface.tsx(1712,30): error TS2345: Argument of type '{ margin: number; filename: string; image: { type: string; quality: number; }; html2canvas: { scale: number; useCORS: boolean; logging: boolean; }; jsPDF: { unit: string; format: string; orientation: "portrait"; }; }' is not assignable to parameter of type 'Html2PdfOptions'.
+  The types of 'image.type' are incompatible between these types.
+    Type 'string' is not assignable to type '"jpeg" | "png" | "webp"'.
+components/pages/ChatInterface.tsx(1725,13): error TS2448: Block-scoped variable 'activeSessionId' used before its declaration.
+components/pages/ChatInterface.tsx(1726,29): error TS2448: Block-scoped variable 'activeSessionId' used before its declaration.
+components/pages/DocGenerator.tsx(149,34): error TS2345: Argument of type '{ margin: number; filename: string; image: { type: string; quality: number; }; html2canvas: { scale: number; useCORS: boolean; logging: boolean; }; jsPDF: { unit: string; format: string; orientation: string; }; }' is not assignable to parameter of type 'Html2PdfOptions'.
+  The types of 'image.type' are incompatible between these types.
+    Type 'string' is not assignable to type '"jpeg" | "png" | "webp"'.
+lib/learning/index.ts(6,1): error TS2308: Module './quizGenerator' has already exported a member named 'getNextHint'. Consider explicitly re-exporting to resolve the ambiguity.
+lib/learning/quizGenerator.ts(69,28): error TS2554: Expected 2-16 arguments, but got 1.
+lib/learning/quizGenerator.ts(79,35): error TS2339: Property 'match' does not exist on type 'CodeResponse'.
+  Property 'match' does not exist on type 'MultiFileResponse'.
+lib/learning/quizGenerator.ts(79,84): error TS2339: Property 'match' does not exist on type 'CodeResponse'.
+  Property 'match' does not exist on type 'MultiFileResponse'.
+lib/previewUtils.ts(1,24): error TS2307: Cannot find module '@babel/standalone' or its corresponding type declarations.
+lib/tokenManager.ts(209,44): error TS2339: Property 'raw' does not exist on type 'SupabaseClient<any, "public", "public", any, any>'.
+lib/workflow/preprocessor.ts(1,38): error TS2459: Module '"./types"' declares 'Framework' locally, but it is not exported.

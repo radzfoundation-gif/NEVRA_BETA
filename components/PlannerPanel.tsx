@@ -119,10 +119,15 @@ const PlannerPanel: React.FC<PlannerPanelProps> = ({
             style={{ width: `${progress}%` }}
           />
         </div>
-        {isComplete && (
+        {isComplete ? (
           <div className="mt-2 flex items-center gap-2 text-xs text-green-400">
             <Check size={14} />
-            <span>Plan complete! Ready to generate.</span>
+            <span>Build complete! All tasks finished.</span>
+          </div>
+        ) : (
+          <div className="mt-2 flex items-center gap-2 text-xs text-blue-400">
+            <Check size={14} />
+            <span>Plan ready! Click Start Generation to begin.</span>
           </div>
         )}
       </div>
@@ -241,10 +246,10 @@ const PlannerPanel: React.FC<PlannerPanelProps> = ({
           {onStartGeneration && (
             <button
               onClick={onStartGeneration}
-              disabled={!isComplete}
+              disabled={isComplete}
               className={clsx(
                 "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all",
-                isComplete
+                !isComplete
                   ? "bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-400 hover:to-blue-400 text-white"
                   : "bg-white/5 text-gray-500 cursor-not-allowed"
               )}

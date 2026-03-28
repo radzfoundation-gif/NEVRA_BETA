@@ -729,3 +729,38 @@ export async function updateChatSessionMetadata(sessionId: string, metadata: Rec
         return false;
     }
 }
+
+/**
+ * Save user's preferred response from a dual-output generation
+ */
+export async function saveComparisonChoice(
+    userId: string,
+    sessionId: string,
+    prompt: string,
+    outputA: string,
+    outputB: string,
+    modelA: string,
+    modelB: string,
+    choice: 'a' | 'b'
+): Promise<boolean> {
+    try {
+        const { error } = await supabase
+            .from('prompt_comparisons')
+            .insert({
+                user_id: userId,
+                session_id: sessionId,
+                prompt,
+                output_a: outputA,
+                output_b: outputB,
+                model_a: modelA,
+                model_b: modelB,
+                selected_version: choice
+            });
+
+        if (error) throw error;
+        return true;
+    } catch (error) {
+        console.error('Error saving comparison choice:', error);
+        return false;
+    }
+}

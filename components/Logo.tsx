@@ -19,10 +19,10 @@ const Logo: React.FC<LogoProps> = ({
     <div className={`flex items-center gap-3 ${className}`}>
       <div className="relative flex-shrink-0">
         <img
-          src="/noir-logo-v2.png"
+          src="/owl-logo.png"
           alt="Noir AI"
           style={{ width: size, height: size }}
-          className="rounded-xl object-cover shadow-sm"
+          className="rounded-xl object-contain shadow-sm"
         />
       </div>
       {showText && (

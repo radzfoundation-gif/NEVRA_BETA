@@ -3,8 +3,8 @@ const CACHE_NAME = 'noir-ai-v1';
 const urlsToCache = [
     '/',
     '/index.html',
-    '/manifest.json',
-    '/noir-logo-v2.png'
+    '/index.css',
+    '/owl-logo.png'
 ];
 
 self.addEventListener('install', (event) => {

@@ -61,8 +61,8 @@ const InstallPrompt = () => {
                         </button>
 
                         <div className="flex gap-4 relative z-0">
-                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-black to-zinc-800 flex items-center justify-center shrink-0 shadow-lg">
-                                <img src="/noir-logo-v2.png" alt="App Icon" className="w-full h-full object-cover rounded-xl" />
+                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-black to-zinc-800 flex items-center justify-center shrink-0 shadow-lg p-1">
+                                <img src="/owl-logo.png" alt="App Icon" className="w-full h-full object-contain" />
                             </div>
 
                             <div className="flex-1">
