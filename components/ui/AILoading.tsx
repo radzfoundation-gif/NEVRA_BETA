@@ -13,6 +13,7 @@ interface AILoadingProps {
   loadingMessages?: string[];
   className?: string;
   userPrompt?: string; // The user's prompt to allow copying
+  hasImages?: boolean; // True if the user attached images
 }
 
 const DEFAULT_MESSAGES = [
@@ -24,7 +25,7 @@ const DEFAULT_MESSAGES = [
   "Almost there..."
 ];
 
-export default function AILoading({ mode = 'tutor', status, loadingMessages, className, userPrompt }: AILoadingProps) {
+export default function AILoading({ mode = 'tutor', status, loadingMessages, className, userPrompt, hasImages }: AILoadingProps) {
   const messages = loadingMessages && loadingMessages.length > 0 ? loadingMessages : DEFAULT_MESSAGES;
 
   const [msgIndex, setMsgIndex] = useState(0);
@@ -46,15 +47,24 @@ export default function AILoading({ mode = 'tutor', status, loadingMessages, cla
     return () => clearInterval(timer);
   }, []);
 
-  // Estimate remaining time based on prompt length
+  // Estimate remaining time based on prompt length and attachments
   const estimateTotal = useCallback(() => {
-    if (!userPrompt) return 15; // default 15s
-    const len = userPrompt.length;
-    if (len < 50) return 8;
-    if (len < 200) return 15;
-    if (len < 500) return 25;
-    return 35;
-  }, [userPrompt]);
+    let baseEstimate = 15; // default 15s
+    if (userPrompt) {
+      const len = userPrompt.length;
+      if (len < 50) baseEstimate = 8;
+      else if (len < 200) baseEstimate = 15;
+      else if (len < 500) baseEstimate = 25;
+      else baseEstimate = 35;
+    }
+    
+    // Add 10 seconds buffer for image processing/network upload
+    if (hasImages) {
+      baseEstimate += 10;
+    }
+    
+    return baseEstimate;
+  }, [userPrompt, hasImages]);
 
   const totalEstimate = estimateTotal();
   const remaining = Math.max(0, totalEstimate - elapsed);

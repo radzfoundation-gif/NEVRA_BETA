@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Globe, ArrowUp, Link as LinkIcon, Layers, Plus, Paperclip, ChevronDown, Check, Sparkles, LayoutGrid, Mic, Youtube, FileText, X, Loader2, Wrench, AlertTriangle, Image as ImageIcon, PenTool, Grid3X3, BarChart3, ChevronRight, Bot, Atom, Lightbulb, Cpu, AudioLines, Presentation, Network, Target } from 'lucide-react';
 import ModelSelector, { ModelType } from './ui/ModelSelector';
@@ -36,6 +36,14 @@ export function ResearchWelcome({
     onToggleWebSearch
 }: ResearchWelcomeProps) {
     const [query, setQuery] = useState(initialQuery);
+    
+    // Sync query if initialQuery changes (e.g., from localStorage after mount)
+    useEffect(() => {
+        if (initialQuery) {
+            setQuery(initialQuery);
+        }
+    }, [initialQuery]);
+
     const [isFocused, setIsFocused] = useState(false);
     const [attachments, setAttachments] = useState<AttachmentData[]>([]);
     const [showToolsMenu, setShowToolsMenu] = useState(false);

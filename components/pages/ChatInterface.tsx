@@ -1063,7 +1063,7 @@ const ChatInterface: React.FC = () => {
       return;
     }
 
-    // Process all files in parallel
+    // Process all files in parallel with compression
     const imagePromises = filesToProcess.map(file => {
       return new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
@@ -1073,7 +1073,40 @@ const ChatInterface: React.FC = () => {
         };
         reader.onloadend = () => {
           if (typeof reader.result === 'string') {
-            resolve(reader.result);
+            // Compress the image before uploading
+            const img = new Image();
+            img.onload = () => {
+              const canvas = document.createElement('canvas');
+              let width = img.width;
+              let height = img.height;
+              
+              const MAX_DIMENSION = 1024; // Max width/height 1024px for great AI analysis without bloat
+              
+              if (width > height && width > MAX_DIMENSION) {
+                height = Math.round((height * MAX_DIMENSION) / width);
+                width = MAX_DIMENSION;
+              } else if (height > MAX_DIMENSION) {
+                width = Math.round((width * MAX_DIMENSION) / height);
+                height = MAX_DIMENSION;
+              }
+              
+              canvas.width = width;
+              canvas.height = height;
+              const ctx = canvas.getContext('2d');
+              
+              if (ctx) {
+                ctx.drawImage(img, 0, 0, width, height);
+                // Compress as JPEG with 0.7 quality to dramatically reduce size
+                const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+                resolve(compressedBase64);
+              } else {
+                resolve(reader.result as string); // Fallback if no context
+              }
+            };
+            img.onerror = () => {
+              resolve(reader.result as string); // Fallback on error
+            };
+            img.src = reader.result;
           } else {
             reject(new Error(`Failed to read file: ${file.name}`));
           }
@@ -1782,7 +1815,7 @@ const ChatInterface: React.FC = () => {
       }
 
       // 2. Save User Message
-      if (sessionId && user) {
+      if (activeSessionId && user) {
         await saveMessage(activeSessionId, 'user', text, undefined, imagesToSend);
       }
 
@@ -2181,7 +2214,7 @@ const ChatInterface: React.FC = () => {
           console.log('🔄 Tutor mode detected build request, switching to builder mode...');
           setAppMode('builder');
           // Update session mode
-          if (sessionId && user) {
+          if (activeSessionId && user) {
             updateChatSession(activeSessionId, { mode: 'builder' })
               .catch(error => console.error('Error updating session mode:', error));
           }
@@ -2541,7 +2574,7 @@ const ChatInterface: React.FC = () => {
         finalResponseText = (responseText || finalResponseText) + `\n\n<!-- SOURCES_JSON:${sourcesJson} -->`;
       }
 
-      if (sessionId && user) {
+      if (activeSessionId && user) {
         await saveMessage(activeSessionId, 'ai', finalResponseText, code || undefined, undefined);
       }
 
@@ -2832,7 +2865,7 @@ const ChatInterface: React.FC = () => {
           }
 
           // Save response
-          if (sessionId && user) {
+          if (activeSessionId && user) {
             try {
               const token = null;
               await saveMessage(activeSessionId, 'ai', responseText, code || undefined, undefined);
@@ -2992,7 +3025,7 @@ const ChatInterface: React.FC = () => {
           }
 
           // Save response
-          if (sessionId && user) {
+          if (activeSessionId && user) {
             try {
               const token = null;
               await saveMessage(activeSessionId, 'ai', responseText, code || undefined, undefined);
@@ -3738,6 +3771,7 @@ const ChatInterface: React.FC = () => {
                       status={workflowStatus?.message}
                       loadingMessages={contextMessages}
                       userPrompt={lastUserMsg?.content}
+                      hasImages={lastUserMsg?.images && lastUserMsg.images.length > 0}
                     />
                   </div>
                 );
