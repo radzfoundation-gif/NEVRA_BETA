@@ -34,6 +34,8 @@ export interface ModelSelectorProps {
     onReasoningToggle?: () => void;
     isSubscribed?: boolean;
     children?: React.ReactNode;
+    comparisonMode?: boolean;
+    onComparisonModeToggle?: (enabled: boolean) => void;
 }
 
 export const ModelSelector: React.FC<ModelSelectorProps> = ({

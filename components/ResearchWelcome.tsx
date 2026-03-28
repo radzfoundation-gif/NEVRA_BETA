@@ -173,31 +173,46 @@ export function ResearchWelcome({
         return imageKeywords.some(keyword => lowerText.includes(keyword));
     };
 
-    // Handle image generation
+    // Handle image generation via SumoPod gpt-image-1
     const handleImageGeneration = async (prompt: string) => {
         setIsProcessing(true);
         setProcessingMessage('Generating image with AI...');
 
         try {
-            const response = await fetch(`${apiUrl}/api/generate-image`, {
+            const apiKey = import.meta.env.VITE_SUMOPOD_API_KEY;
+            if (!apiKey) throw new Error('SumoPod API Key not configured');
+
+            const response = await fetch('https://api.sumopod.com/v1/images/generations', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt }),
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`,
+                },
+                body: JSON.stringify({
+                    model: 'gpt-image-1',
+                    prompt,
+                    n: 1,
+                    size: '1024x1024',
+                }),
             });
 
             if (response.ok) {
                 const data = await response.json();
-                // Increment limit only on success (optional, already handled in hook if we moved logic there, but here we invoke API directly)
-                // Assuming we want to navigate immediately to chat with the result
-                navigate('/chat/new', {
-                    state: {
-                        initialPrompt: prompt,
-                        generatedImage: data.image
-                    }
-                });
+                const imageUrl = data.data?.[0]?.url || data.data?.[0]?.b64_json;
+                if (imageUrl) {
+                    navigate('/chat/new', {
+                        state: {
+                            initialPrompt: prompt,
+                            generatedImage: imageUrl.startsWith('http') ? imageUrl : `data:image/png;base64,${imageUrl}`
+                        }
+                    });
+                    incrementFeatureUsage('convert');
+                } else {
+                    alert('No image was generated. Please try again.');
+                }
             } else {
-                const error = await response.json();
-                alert(error.error || 'Failed to generate image');
+                const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+                alert(error.error?.message || error.error || 'Failed to generate image');
             }
         } catch (error) {
             console.error('Image generation error:', error);
@@ -244,25 +259,49 @@ export function ResearchWelcome({
 
             try {
                 if (file.type === 'application/pdf') {
-                    // Upload to backend for PDF extraction
-                    const formData = new FormData();
-                    formData.append('file', file);
+                    // Read PDF as base64 and send to SumoPod for text extraction
+                    const base64 = await new Promise<string>((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = () => resolve((reader.result as string).split(',')[1]);
+                        reader.onerror = reject;
+                        reader.readAsDataURL(file);
+                    });
 
-                    const response = await fetch(`${apiUrl}/api/extract-pdf`, {
+                    const apiKey = import.meta.env.VITE_SUMOPOD_API_KEY;
+                    if (!apiKey) throw new Error('SumoPod API Key not configured');
+
+                    const response = await fetch('https://api.sumopod.com/v1/chat/completions', {
                         method: 'POST',
-                        body: formData,
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${apiKey}`,
+                        },
+                        body: JSON.stringify({
+                            model: 'gpt-5-mini',
+                            messages: [{
+                                role: 'user',
+                                content: [
+                                    { type: 'file', file: { filename: file.name, file_data: `data:application/pdf;base64,${base64}` } },
+                                    { type: 'text', text: 'Extract all readable text content from this PDF document. Return only the extracted text, maintaining the original structure and formatting as much as possible.' }
+                                ]
+                            }],
+                            max_tokens: 4096,
+                        }),
                     });
 
                     if (response.ok) {
                         const data = await response.json();
+                        const extractedText = data.choices?.[0]?.message?.content || 'PDF content extracted';
                         setPreviewData({
                             type: 'file',
                             title: file.name,
-                            content: data.text || 'PDF content extracted',
+                            content: extractedText,
                             mimeType: 'application/pdf'
                         });
-                        // Increment convert usage on success
                         incrementFeatureUsage('convert');
+                    } else {
+                        const errData = await response.json().catch(() => ({}));
+                        alert(`PDF extraction failed: ${errData.error?.message || 'Unknown error'}`);
                     }
                 } else if (file.type.startsWith('image/')) {
                     // Convert image to base64
@@ -298,23 +337,29 @@ export function ResearchWelcome({
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
-    // Audio Upload Handler
+    // Audio Upload Handler — SumoPod whisper-1
     const handleAudioUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        // Check convert limit
         if (!checkConvertLimit()) return;
 
         const file = e.target.files?.[0];
         if (!file) return;
 
         setIsProcessing(true);
-        setProcessingMessage('Transcribing audio...');
+        setProcessingMessage('Transcribing audio with Whisper...');
 
         try {
+            const apiKey = import.meta.env.VITE_SUMOPOD_API_KEY;
+            if (!apiKey) throw new Error('SumoPod API Key not configured');
+
             const formData = new FormData();
             formData.append('file', file);
+            formData.append('model', 'whisper-1');
 
-            const response = await fetch(`${apiUrl}/api/transcribe-audio`, {
+            const response = await fetch('https://api.sumopod.com/v1/audio/transcriptions', {
                 method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`,
+                },
                 body: formData,
             });
 
@@ -323,13 +368,16 @@ export function ResearchWelcome({
                 setPreviewData({
                     type: 'audio',
                     title: file.name,
-                    content: data.transcript || 'Audio transcribed',
+                    content: data.text || 'Audio transcribed',
                 });
-                // Increment convert usage on success
                 incrementFeatureUsage('convert');
+            } else {
+                const errData = await response.json().catch(() => ({}));
+                alert(`Transcription failed: ${errData.error?.message || 'Unknown error'}`);
             }
         } catch (error) {
             console.error('Audio transcription error:', error);
+            alert('Audio transcription failed. Please try again.');
         } finally {
             setIsProcessing(false);
             setProcessingMessage('');
@@ -337,79 +385,104 @@ export function ResearchWelcome({
         }
     };
 
-    // YouTube Transcript Handler
+    // YouTube Transcript Handler — SumoPod gpt-5-mini
     const handleYouTubeSubmit = async () => {
-        // Check convert limit
         if (!checkConvertLimit()) return;
-
         if (!youtubeUrl.trim()) return;
 
         setIsProcessing(true);
-        setProcessingMessage('Extracting YouTube transcript...');
+        setProcessingMessage('Analyzing YouTube video...');
 
         try {
-            const response = await fetch(`${apiUrl}/api/youtube-transcript`, {
+            const apiKey = import.meta.env.VITE_SUMOPOD_API_KEY;
+            if (!apiKey) throw new Error('SumoPod API Key not configured');
+
+            const response = await fetch('https://api.sumopod.com/v1/chat/completions', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url: youtubeUrl }),
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`,
+                },
+                body: JSON.stringify({
+                    model: 'gpt-5-mini',
+                    messages: [{
+                        role: 'user',
+                        content: `Please analyze and summarize this YouTube video. Provide key points and a detailed transcript/summary of the content: ${youtubeUrl}`
+                    }],
+                    max_tokens: 4096,
+                }),
             });
 
-            const data = await response.json();
-
-            if (response.ok && data.transcript) {
+            if (response.ok) {
+                const data = await response.json();
+                const summary = data.choices?.[0]?.message?.content || 'Could not analyze video';
                 setPreviewData({
                     type: 'youtube',
-                    title: data.title || 'YouTube Video',
-                    content: data.transcript,
+                    title: `YouTube: ${youtubeUrl}`,
+                    content: summary,
                 });
                 setYoutubeUrl('');
                 setShowYouTubeInput(false);
-                // Increment convert usage on success
                 incrementFeatureUsage('convert');
             } else {
-                alert(data.error || 'Failed to extract transcript. Video may not have captions.');
+                const errData = await response.json().catch(() => ({}));
+                alert(`YouTube analysis failed: ${errData.error?.message || 'Unknown error'}`);
             }
         } catch (error) {
-            console.error('YouTube transcript error:', error);
-            alert('Failed to connect to server. Please check if API is running.');
+            console.error('YouTube analysis error:', error);
+            alert('Failed to analyze YouTube video. Please try again.');
         } finally {
             setIsProcessing(false);
             setProcessingMessage('');
         }
     };
 
-    // URL Content Handler
+    // URL Content Handler — SumoPod gpt-5-mini
     const handleUrlSubmit = async () => {
-        // Check convert limit
         if (!checkConvertLimit()) return;
-
         if (!urlInput.trim()) return;
 
         setIsProcessing(true);
-        setProcessingMessage('Fetching URL content...');
+        setProcessingMessage('Analyzing webpage content...');
 
         try {
-            const response = await fetch(`${apiUrl}/api/fetch-url`, {
+            const apiKey = import.meta.env.VITE_SUMOPOD_API_KEY;
+            if (!apiKey) throw new Error('SumoPod API Key not configured');
+
+            const response = await fetch('https://api.sumopod.com/v1/chat/completions', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url: urlInput }),
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`,
+                },
+                body: JSON.stringify({
+                    model: 'gpt-5-mini',
+                    messages: [{
+                        role: 'user',
+                        content: `Please fetch, read, and extract the main text content from this webpage URL. Provide a clean, well-formatted version of the page content: ${urlInput}`
+                    }],
+                    max_tokens: 4096,
+                }),
             });
 
             if (response.ok) {
                 const data = await response.json();
+                const content = data.choices?.[0]?.message?.content || 'Could not extract content';
                 setPreviewData({
                     type: 'url',
-                    title: data.title || urlInput,
-                    content: data.content || 'URL content fetched',
+                    title: urlInput,
+                    content,
                 });
                 setUrlInput('');
                 setShowUrlInput(false);
-                // Increment convert usage on success
                 incrementFeatureUsage('convert');
+            } else {
+                const errData = await response.json().catch(() => ({}));
+                alert(`URL analysis failed: ${errData.error?.message || 'Unknown error'}`);
             }
-
         } catch (error) {
             console.error('URL fetch error:', error);
+            alert('Failed to analyze webpage. Please try again.');
         } finally {
             setIsProcessing(false);
             setProcessingMessage('');
@@ -471,8 +544,12 @@ export function ResearchWelcome({
             }
         },
         {
-            icon: <ImageIcon size={14} />, label: 'Generate Image (Beta)', description: '5 Credits (Locked)', action: () => {
-                alert("Fitur ini sedang dalam tahap BETA TEST Noir AI dan dikunci sementara.");
+            icon: <ImageIcon size={14} />, label: 'Generate Image', description: 'AI Image (5 Credits)', action: () => {
+                if (!checkConvertLimit()) return;
+                const prompt = window.prompt('Describe the image you want to generate:');
+                if (prompt && prompt.trim()) {
+                    handleImageGeneration(prompt.trim());
+                }
             }
         },
     ];

@@ -60,6 +60,7 @@ import { getVersionManager } from '@/lib/versionManager';
 import { getUndoRedoManager } from '@/lib/undoRedo';
 import { performWebSearch, combineSearchAndResponse, SearchResult } from '@/lib/webSearch';
 import { parseDocument, ParsedDocument } from '@/lib/documentParser';
+import { processUploadedFile } from '@/lib/chat/processUploadedFile';
 import SearchResults from '../SearchResults';
 import CodeSandbox from '../CodeSandbox';
 import DocumentViewer from '../DocumentViewer';
@@ -355,6 +356,8 @@ const ChatInterface: React.FC = () => {
   const [isTyping, setIsTyping] = useState(false);
   const [workflowStatus, setWorkflowStatus] = useState<{ status: string; message: string } | null>(null);
   const [attachedImages, setAttachedImages] = useState<string[]>(initialState.initialImages || []);
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+  const [deepResearchMode, setDeepResearchMode] = useState(false);
   const MAX_IMAGES = 3;
   // AI Memory State - History yang akan dikirim ke AI
   const [aiMemoryHistory, setAiMemoryHistory] = useState<Message[]>([]);
@@ -1662,14 +1665,18 @@ const ChatInterface: React.FC = () => {
       timestamp: new Date()
     };
 
-    if (!textOverride) {
-      setMessages(prev => [...prev, newMessage]);
+    // Always add message to UI immediately
+    setMessages(prev => [...prev, newMessage]);
+    
+    // Only clear main input box if this wasn't an override action
+    if (!textOverride || typeof textOverride === 'boolean') {
       setInput('');
       setAttachedImages([]);
-
-      // Track feedback conditions
-      checkFeedbackConditions();
+      setAttachedFiles([]);
     }
+
+    // Track feedback conditions
+    checkFeedbackConditions();
 
     // Abort previous generation if any
     if (abortControllerRef.current) {
@@ -3901,6 +3908,15 @@ const ChatInterface: React.FC = () => {
             onModelChange={setSelectedModel}
             withReasoning={withReasoning}
             setWithReasoning={setWithReasoning}
+
+            // File Upload Props
+            attachedFiles={attachedFiles}
+            onFilesSelected={(files) => setAttachedFiles(prev => [...prev, ...files])}
+            removeFile={(index) => setAttachedFiles(prev => prev.filter((_, i) => i !== index))}
+
+            // Deep Research Props
+            deepResearchMode={deepResearchMode}
+            onToggleDeepResearch={setDeepResearchMode}
           />
         )
       }

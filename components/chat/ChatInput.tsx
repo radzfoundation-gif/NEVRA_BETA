@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
     Plus, X, FileText, Camera, Image as ImageIcon,
     ArrowUp, Globe, Paperclip, ChevronDown, Mic,
-    Code2, Target, Sparkles, PenLine, BookOpen, AudioLines
+    Code2, Target, Sparkles, PenLine, BookOpen, AudioLines, Search
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -12,6 +12,7 @@ import { ParsedDocument } from '@/lib/documentParser';
 import { AppMode } from '@/lib/modeDetector';
 import ModelSelector, { ModelType } from '@/components/ui/ModelSelector';
 import VoiceDictationModal from './VoiceDictationModal';
+import FileUploadButton from './FileUploadButton';
 
 function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs));
@@ -52,6 +53,13 @@ interface ChatInputProps {
     setWithReasoning: (enabled: boolean) => void;
     comparisonMode?: boolean;
     onComparisonModeToggle?: (enabled: boolean) => void;
+    // New Props for File Upload
+    attachedFiles?: File[];
+    onFilesSelected?: (files: File[]) => void;
+    removeFile?: (index: number) => void;
+    // Deep Research
+    deepResearchMode?: boolean;
+    onToggleDeepResearch?: (enabled: boolean) => void;
 }
 
 // Tool items for the + dropdown
@@ -61,6 +69,7 @@ const TOOL_ITEMS = [
     { id: 'camera', label: 'Take Photo', icon: Camera },
     { id: 'document', label: 'Upload Document', icon: FileText },
     { id: 'web', label: 'Web Search', icon: Globe },
+    { id: 'deep_research', label: 'Deep Research', icon: Search },
     { id: 'voice', label: 'Voice Dictation', icon: Mic },
 ];
 
@@ -112,6 +121,11 @@ const ChatInput: React.FC<ChatInputProps> = ({
     setWithReasoning,
     comparisonMode,
     onComparisonModeToggle,
+    attachedFiles = [],
+    onFilesSelected,
+    removeFile,
+    deepResearchMode = false,
+    onToggleDeepResearch,
 }) => {
     const { credits } = useTokenLimit();
     const [showDictation, setShowDictation] = useState(false);
@@ -162,6 +176,9 @@ const ChatInput: React.FC<ChatInputProps> = ({
                 break;
             case 'web':
                 setEnableWebSearch(!enableWebSearch);
+                break;
+            case 'deep_research':
+                onToggleDeepResearch?.(!deepResearchMode);
                 break;
             case 'voice':
                 setShowDictation(true);
@@ -259,16 +276,47 @@ const ChatInput: React.FC<ChatInputProps> = ({
                         </div>
                     )}
 
-                    {/* Web Search Badge */}
-                    {enableWebSearch && (
-                        <div className="px-4 pt-2">
-                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 text-blue-600 rounded-lg text-xs font-medium">
-                                <Globe size={12} />
-                                Web Search On
-                                <button onClick={() => setEnableWebSearch(false)} className="ml-1 hover:text-blue-800">
-                                    <X size={12} />
-                                </button>
+                    {/* Attached Files Preview */}
+                    {attachedFiles.length > 0 && (
+                        <div className="w-full px-4 pt-3">
+                            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
+                                {attachedFiles.map((file, idx) => (
+                                    <div key={idx} className="relative group shrink-0 flex items-center gap-2 bg-stone-100 border border-stone-200 px-3 py-1.5 rounded-lg">
+                                        <FileText size={14} className="text-stone-500" />
+                                        <span className="text-xs font-medium text-stone-700 max-w-[120px] truncate">{file.name}</span>
+                                        <button
+                                            onClick={() => removeFile?.(idx)}
+                                            className="ml-1 text-stone-400 hover:text-stone-700"
+                                        >
+                                            <X size={14} />
+                                        </button>
+                                    </div>
+                                ))}
                             </div>
+                        </div>
+                    )}
+
+                    {/* Active Mode Badges */}
+                    {(enableWebSearch || deepResearchMode) && (
+                        <div className="px-4 pt-2 flex gap-2 flex-wrap">
+                            {enableWebSearch && (
+                                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 text-blue-600 rounded-lg text-xs font-medium">
+                                    <Globe size={12} />
+                                    Web Search On
+                                    <button onClick={() => setEnableWebSearch(false)} className="ml-1 hover:text-blue-800">
+                                        <X size={12} />
+                                    </button>
+                                </div>
+                            )}
+                            {deepResearchMode && (
+                                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-purple-50 text-purple-600 rounded-lg text-xs font-medium">
+                                    <Search size={12} />
+                                    Deep Research
+                                    <button onClick={() => onToggleDeepResearch?.(false)} className="ml-1 hover:text-purple-800">
+                                        <X size={12} />
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -300,7 +348,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
                     {/* Bottom Bar — Claude Layout */}
                     <div className="w-full flex items-center justify-between px-3 pb-3">
                         {/* Left: + Button with Dropdown */}
-                        <div className="flex items-center gap-2 relative" ref={toolsMenuRef}>
+                        <div className="flex items-center gap-1 relative" ref={toolsMenuRef}>
                             <button
                                 onClick={() => setShowToolsMenu(!showToolsMenu)}
                                 className={cn(
@@ -309,30 +357,37 @@ const ChatInput: React.FC<ChatInputProps> = ({
                                         ? "bg-stone-200 text-stone-700"
                                         : "text-stone-400 hover:text-stone-600 hover:bg-stone-100"
                                 )}
-                                title="Attach files and tools"
+                                title="Attach menu"
                             >
                                 <Plus size={20} strokeWidth={1.8} />
                             </button>
+
+                            {/* Native File Upload Button (New Feature) */}
+                            {onFilesSelected && (
+                                <FileUploadButton onFilesSelected={onFilesSelected} disabled={isTyping} />
+                            )}
 
                             {/* Tools Dropdown */}
                             {showToolsMenu && (
                                 <div className="absolute bottom-full left-0 mb-2 w-52 bg-white border border-stone-200 rounded-xl shadow-xl overflow-hidden z-50 animate-in fade-in slide-in-from-bottom-2 duration-150">
                                     {TOOL_ITEMS.map((tool) => {
                                         const Icon = tool.icon;
-                                        const isActive = tool.id === 'web' && enableWebSearch;
+                                        const isActive = (tool.id === 'web' && enableWebSearch) || (tool.id === 'deep_research' && deepResearchMode);
                                         return (
                                             <button
                                                 key={tool.id}
                                                 onClick={() => handleToolSelect(tool.id)}
                                                 className={cn(
                                                     "w-full flex items-center gap-3 px-4 py-2.5 text-sm text-stone-700 hover:bg-stone-50 transition-colors",
-                                                    isActive && "text-blue-600 bg-blue-50/50"
+                                                    isActive && (tool.id === 'deep_research' ? "text-purple-600 bg-purple-50/50" : "text-blue-600 bg-blue-50/50")
                                                 )}
                                             >
                                                 <Icon size={16} strokeWidth={1.5} />
                                                 <span>{tool.label}</span>
                                                 {isActive && (
-                                                    <span className="ml-auto text-[10px] font-medium text-blue-500 bg-blue-100 px-1.5 py-0.5 rounded">ON</span>
+                                                    <span className={cn("ml-auto text-[10px] font-medium px-1.5 py-0.5 rounded",
+                                                        tool.id === 'deep_research' ? "text-purple-500 bg-purple-100" : "text-blue-500 bg-blue-100"
+                                                    )}>ON</span>
                                                 )}
                                             </button>
                                         );
@@ -372,10 +427,10 @@ const ChatInput: React.FC<ChatInputProps> = ({
                             {/* Send Button */}
                             <button
                                 onClick={() => handleSend(isDeepDiveModel && withReasoning)}
-                                disabled={(!input.trim() && attachedImages.length === 0) || isTyping}
+                                disabled={(!input.trim() && attachedImages.length === 0 && attachedFiles.length === 0) || isTyping}
                                 className={cn(
                                     "w-9 h-9 flex items-center justify-center rounded-full transition-all duration-200 ml-0.5",
-                                    (!input.trim() && attachedImages.length === 0) || isTyping
+                                    (!input.trim() && attachedImages.length === 0 && attachedFiles.length === 0) || isTyping
                                         ? "bg-stone-100 text-stone-300 cursor-not-allowed"
                                         : "bg-stone-800 hover:bg-stone-900 text-white transform hover:scale-105"
                                 )}
