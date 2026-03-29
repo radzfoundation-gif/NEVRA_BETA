@@ -19,11 +19,18 @@ const CitationBadge = ({ id, sources }: { id: string, sources: any }) => {
     const source = sources?.[id];
     const [isHovered, setIsHovered] = useState(false);
 
-    if (!source) return <sup className="text-xs text-zinc-500">[{id}]</sup>;
+    if (!source) return <sup className="text-xs text-zinc-500 font-bold ml-0.5 opacity-50">[{id}]</sup>;
+
+    let domain = '';
+    try {
+        domain = new URL(source.url).hostname.replace('www.', '');
+    } catch (e) {
+        domain = source.url;
+    }
 
     return (
         <span
-            className="relative inline-block align-super"
+            className="relative inline-block align-middle mb-0.5"
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
         >
@@ -31,9 +38,16 @@ const CitationBadge = ({ id, sources }: { id: string, sources: any }) => {
                 href={source.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center justify-center w-5 h-5 ml-0.5 text-[10px] font-bold text-blue-600 bg-blue-50 border border-blue-200 rounded-full hover:bg-blue-100 hover:scale-110 transition-all cursor-pointer no-underline select-none"
+                className="inline-flex items-center justify-center w-5 h-5 ml-1 bg-white border border-zinc-200 rounded-[4px] hover:border-blue-400 hover:scale-110 shadow-sm transition-all cursor-pointer no-underline select-none overflow-hidden p-0.5"
             >
-                {id}
+                <img 
+                    src={`https://www.google.com/s2/favicons?domain=${domain}&sz=64`}
+                    alt={id}
+                    className="w-full h-full object-contain"
+                    onError={(e) => {
+                        (e.target as HTMLImageElement).src = 'https://www.google.com/s2/favicons?domain=example.com&sz=64';
+                    }}
+                />
             </a>
 
             <AnimatePresence>
@@ -46,15 +60,19 @@ const CitationBadge = ({ id, sources }: { id: string, sources: any }) => {
                         className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-white dark:bg-zinc-900 rounded-xl shadow-xl border border-zinc-200 dark:border-zinc-800 z-50 text-left"
                     >
                         <div className="flex items-start gap-3">
-                            <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center shrink-0">
-                                <Globe size={14} className="text-blue-500" />
+                            <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center shrink-0 border border-blue-100 dark:border-blue-800">
+                                <img 
+                                    src={`https://www.google.com/s2/favicons?domain=${domain}&sz=64`}
+                                    className="w-5 h-5 object-contain"
+                                    alt="favicon"
+                                />
                             </div>
                             <div className="flex-1 min-w-0">
                                 <h4 className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 line-clamp-2 leading-snug mb-0.5">
                                     {source.title || 'Web Source'}
                                 </h4>
                                 <div className="flex items-center gap-1 text-[10px] text-zinc-500">
-                                    <span className="truncate max-w-[120px]">{new URL(source.url).hostname}</span>
+                                    <span className="truncate max-w-[120px]">{domain}</span>
                                     <ExternalLink size={8} />
                                 </div>
                             </div>

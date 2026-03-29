@@ -2,8 +2,26 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
     Plus, X, FileText, Camera, Image as ImageIcon,
     ArrowUp, Globe, Paperclip, ChevronDown, Mic,
-    Code2, Target, Sparkles, PenLine, BookOpen, AudioLines, Search
+    Code2, Target, Sparkles, PenLine, BookOpen, AudioLines, Search, Square, Wrench
 } from 'lucide-react';
+
+// Custom Shark Icon for Deep Research
+const SharkIcon = ({ size = 16, className = "" }: { size?: number, className?: string }) => (
+    <svg 
+        width={size} 
+        height={size} 
+        viewBox="0 0 24 24" 
+        fill="none" 
+        stroke="currentColor" 
+        strokeWidth="2" 
+        strokeLinecap="round" 
+        strokeLinejoin="round" 
+        className={className}
+    >
+        <path d="M2 12c0 0 5-3 8-3s5 2 7 2 4-2 7-2c0 0-2 6-7 6s-5-2-7-2-4 1-6 1c0 0 2-2 5-2" />
+        <path d="M11 9c0 0 0-5 3-7 0 0 0 5-3 7" />
+    </svg>
+);
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { useTokenLimit } from '@/hooks/useTokenLimit';
@@ -22,6 +40,7 @@ interface ChatInputProps {
     input: string;
     setInput: (value: string | ((prev: string) => string)) => void;
     handleSend: (deepDive?: boolean) => void;
+    handleStop?: () => void;
     isTyping: boolean;
     attachedImages: string[];
     removeImage: (index: number) => void;
@@ -69,7 +88,7 @@ const TOOL_ITEMS = [
     { id: 'camera', label: 'Take Photo', icon: Camera },
     { id: 'document', label: 'Upload Document', icon: FileText },
     { id: 'web', label: 'Web Search', icon: Globe },
-    { id: 'deep_research', label: 'Deep Research', icon: Search },
+    { id: 'deep_research', label: 'Deep Research', icon: SharkIcon },
     { id: 'voice', label: 'Voice Dictation', icon: Mic },
 ];
 
@@ -91,6 +110,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
     input,
     setInput,
     handleSend,
+    handleStop,
     isTyping,
     attachedImages,
     removeImage,
@@ -310,8 +330,8 @@ const ChatInput: React.FC<ChatInputProps> = ({
                             )}
                             {deepResearchMode && (
                                 <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-purple-50 text-purple-600 rounded-lg text-xs font-medium">
-                                    <Search size={12} />
-                                    Deep Research
+                                    <SharkIcon size={12} />
+                                    Deep Research On
                                     <button onClick={() => onToggleDeepResearch?.(false)} className="ml-1 hover:text-purple-800">
                                         <X size={12} />
                                     </button>
@@ -339,8 +359,12 @@ const ChatInput: React.FC<ChatInputProps> = ({
                                 }
                             }}
                             onBlur={() => setIsFocused(false)}
-                            placeholder="How can I help you today?"
-                            className="w-full bg-transparent border-0 text-gray-800 placeholder-stone-400 focus:outline-none resize-none max-h-[200px] text-base leading-relaxed font-normal scrollbar-none"
+                            placeholder={isTyping ? "AI is processing..." : "How can I help you today?"}
+                            disabled={isTyping}
+                            className={cn(
+                                "w-full bg-transparent border-0 text-gray-800 placeholder-stone-400 focus:outline-none resize-none max-h-[200px] text-base leading-relaxed font-normal scrollbar-none",
+                                isTyping && "opacity-60 cursor-not-allowed"
+                            )}
                             style={{ height: '28px', minHeight: '28px' }}
                         />
                     </div>
@@ -353,13 +377,40 @@ const ChatInput: React.FC<ChatInputProps> = ({
                                 onClick={() => setShowToolsMenu(!showToolsMenu)}
                                 className={cn(
                                     "w-8 h-8 flex items-center justify-center rounded-lg transition-all",
-                                    showToolsMenu
+                                    isTyping ? "opacity-30 cursor-not-allowed" : showToolsMenu
                                         ? "bg-stone-200 text-stone-700"
                                         : "text-stone-400 hover:text-stone-600 hover:bg-stone-100"
                                 )}
+                                disabled={isTyping}
                                 title="Attach menu"
                             >
                                 <Plus size={20} strokeWidth={1.8} />
+                            </button>
+
+                            {/* Quick AI Tools Toggle */}
+                            <button
+                                className="w-8 h-8 flex items-center justify-center rounded-lg text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition-all"
+                                title="AI Tools"
+                                onClick={() => setShowToolsMenu(true)} // Open tools menu since it contains AI conversion tools
+                            >
+                                <Wrench size={16} strokeWidth={1.8} />
+                            </button>
+
+                            {/* Deep Research Quick Toggle next to AI Tools */}
+                            <button
+                                onClick={() => {
+                                    onToggleDeepResearch?.(!deepResearchMode);
+                                    if (!enableWebSearch && !deepResearchMode) setEnableWebSearch(true);
+                                }}
+                                className={cn(
+                                    "w-8 h-8 flex items-center justify-center rounded-lg transition-all",
+                                    deepResearchMode
+                                        ? "bg-purple-100 text-purple-600 border border-purple-200"
+                                        : "text-stone-400 hover:text-stone-700 hover:bg-stone-100"
+                                )}
+                                title="Deep Research Mode"
+                            >
+                                <SharkIcon size={18} />
                             </button>
 
                             {/* Native File Upload Button (New Feature) */}
@@ -418,24 +469,35 @@ const ChatInput: React.FC<ChatInputProps> = ({
                             {/* Voice Button */}
                             <button
                                 onClick={() => setShowDictation(true)}
-                                className="w-8 h-8 flex items-center justify-center text-stone-400 hover:text-stone-600 rounded-lg transition-colors hover:bg-stone-100"
+                                disabled={isTyping}
+                                className={cn(
+                                    "w-8 h-8 flex items-center justify-center text-stone-400 hover:text-stone-600 rounded-lg transition-colors hover:bg-stone-100",
+                                    isTyping && "opacity-30 cursor-not-allowed"
+                                )}
                                 title="Voice Input"
                             >
                                 <AudioLines size={18} strokeWidth={1.8} />
                             </button>
 
-                            {/* Send Button */}
+                            {/* Send / Stop Button */}
                             <button
-                                onClick={() => handleSend(isDeepDiveModel && withReasoning)}
-                                disabled={(!input.trim() && attachedImages.length === 0 && attachedFiles.length === 0) || isTyping}
+                                onClick={() => isTyping ? handleStop?.() : handleSend(isDeepDiveModel && withReasoning)}
+                                disabled={!isTyping && (!input.trim() && attachedImages.length === 0 && attachedFiles.length === 0)}
                                 className={cn(
                                     "w-9 h-9 flex items-center justify-center rounded-full transition-all duration-200 ml-0.5",
-                                    (!input.trim() && attachedImages.length === 0 && attachedFiles.length === 0) || isTyping
+                                    !isTyping && (!input.trim() && attachedImages.length === 0 && attachedFiles.length === 0)
                                         ? "bg-stone-100 text-stone-300 cursor-not-allowed"
-                                        : "bg-stone-800 hover:bg-stone-900 text-white transform hover:scale-105"
+                                        : isTyping 
+                                            ? "bg-stone-800 hover:bg-red-600 text-white" 
+                                            : "bg-stone-800 hover:bg-stone-900 text-white transform hover:scale-105"
                                 )}
+                                title={isTyping ? "Stop generating" : "Send message"}
                             >
-                                <ArrowUp size={18} strokeWidth={2.5} />
+                                {isTyping ? (
+                                    <Square size={14} fill="currentColor" strokeWidth={0} />
+                                ) : (
+                                    <ArrowUp size={18} strokeWidth={2.5} />
+                                )}
                             </button>
                         </div>
                     </div>

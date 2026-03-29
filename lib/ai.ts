@@ -824,6 +824,28 @@ Keep the greeting short and natural, then immediately address their question.
     console.log(`✅ Greeting instruction added for: ${displayName}`);
   }
 
+  // Deep Research Mode — enhance system prompt for thorough, research-grade output
+  if (deepDive) {
+    const deepResearchEnhancement = `
+
+🔬 DEEP RESEARCH MODE ACTIVE:
+You are now operating in DEEP RESEARCH mode. This means the user expects an exceptionally thorough, well-structured, and comprehensive answer. Follow these rules strictly:
+
+1. **Thoroughness**: Cover ALL aspects of the topic. Do not skip details or give surface-level answers.
+2. **Structure**: Use clear headings (##, ###), numbered lists, and bullet points for scanability.
+3. **Evidence-Based**: Cite specific facts, data points, and examples. If you reference studies or sources, describe them clearly.
+4. **Multi-Perspective**: Present different viewpoints, pros/cons, or trade-offs when relevant.
+5. **Analysis Depth**: Go beyond descriptions — provide analysis, implications, and actionable insights.
+6. **Length**: Aim for comprehensive responses. Short answers are NOT acceptable in this mode.
+7. **Accuracy**: Double-check logical consistency. Verify claims against your knowledge.
+8. **Summary**: End with a concise "Key Takeaways" or "Ringkasan" section that distills the most important points.
+
+Think of yourself as a research analyst who has spent hours studying this topic and is now presenting a definitive briefing.
+`;
+    systemPrompt = systemPrompt + deepResearchEnhancement;
+    console.log('🔬 Deep Research system prompt enhancement applied');
+  }
+
   if (images && images.length > 0) {
     const visionInstructions = `
     
@@ -924,8 +946,19 @@ Always follow this structure when an image is present.`;
       // =====================================================
       // NOIRSYNC — Context-Aware Smart Model Routing
       // =====================================================
-      const routeNoirSync = (promptText: string, webSearchEnabled: boolean = false): string => {
+      const routeNoirSync = (promptText: string, webSearchEnabled: boolean = false, isDeepResearch: boolean = false): string => {
         const lower = promptText.toLowerCase();
+
+        // 0. Deep Research Mode (Highest Priority)
+        if (isDeepResearch) {
+          const complexity = promptText.length > 300 || lower.includes('analyze') || lower.includes('research') || lower.includes('jelaskan') || lower.includes('detail');
+          if (complexity) {
+            console.log('🔬 [NoirSync] Deep Research: Routed to Seed 2.0 Pro');
+            return 'seed-2-0-pro-free';
+          }
+          console.log('🔬 [NoirSync] Deep Research: Routed to Seed 2.0 Lite');
+          return 'seed-2-0-lite-free';
+        }
 
         // 1. PDF / Document generation
         const pdfPatterns = [
@@ -979,7 +1012,7 @@ Always follow this structure when an image is present.`;
 
       // Determine if web search is active from prompt markers
       const hasWebSearchContext = prompt.includes('[Web Search Results]');
-      let targetModel = routeNoirSync(prompt, hasWebSearchContext);
+      let targetModel = routeNoirSync(prompt, hasWebSearchContext, deepDive);
 
       // Build and normalize messages
       // Prepare user content (Text or Multimodal)

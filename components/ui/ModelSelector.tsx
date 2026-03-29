@@ -109,6 +109,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                                         { emoji: '💬', label: 'Chat biasa', model: 'Seed 2.0 Mini' },
                                         { emoji: '🔍', label: 'Web Search', model: 'Gemini 2.5 Flash Lite' },
                                         { emoji: '💻', label: 'Coding', model: 'Kimi K2 Thinking' },
+                                        { emoji: '🧪', label: 'Deep Research', model: 'Seed 2.0 Pro' },
                                         { emoji: '📄', label: 'PDF / Document', model: 'Claude Opus 4' },
                                         { emoji: '🎨', label: 'Visual / Design', model: 'Gemini 3 Pro' },
                                     ].map((item) => (

@@ -1,12 +1,30 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Globe, ArrowUp, Link as LinkIcon, Layers, Plus, Paperclip, ChevronDown, Check, Sparkles, LayoutGrid, Mic, Youtube, FileText, X, Loader2, Wrench, AlertTriangle, Image as ImageIcon, PenTool, Code, LineChart, Hammer, GraduationCap, AudioLines, Lightbulb, ChevronRight } from 'lucide-react';
+import { Globe, ArrowUp, Link as LinkIcon, Layers, Plus, Paperclip, ChevronDown, Check, Sparkles, LayoutGrid, Mic, Youtube, FileText, X, Loader2, Wrench, AlertTriangle, Image as ImageIcon, PenTool, Code, LineChart, Hammer, GraduationCap, AudioLines, Lightbulb, ChevronRight, Target, BookOpen, PenLine, CircleDashed, Brain, Search } from 'lucide-react';
 import ModelSelector, { ModelType } from './ui/ModelSelector';
 import { cn, getApiUrl } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTokenLimit } from '@/hooks/useTokenLimit';
 import SubscriptionPopup from './SubscriptionPopup';
 import VoiceDictationModal from './chat/VoiceDictationModal';
+
+// Custom Shark Icon for Deep Research
+const SharkIcon = ({ size = 16, className = "" }: { size?: number, className?: string }) => (
+    <svg 
+        width={size} 
+        height={size} 
+        viewBox="0 0 24 24" 
+        fill="none" 
+        stroke="currentColor" 
+        strokeWidth="2" 
+        strokeLinecap="round" 
+        strokeLinejoin="round" 
+        className={className}
+    >
+        <path d="M2 12c0 0 5-3 8-3s5 2 7 2 4-2 7-2c0 0-2 6-7 6s-5-2-7-2-4 1-6 1c0 0 2-2 5-2" />
+        <path d="M11 9c0 0 0-5 3-7 0 0 0 5-3 7" />
+    </svg>
+);
 
 interface ResearchWelcomeProps {
     onSearch: (query: string, attachments?: AttachmentData[], model?: ModelType, reasoning?: boolean, featureType?: string) => void;
@@ -540,6 +558,15 @@ export function ResearchWelcome({
         { icon: <Sparkles size={14} />, label: 'Generate PDF', description: 'Type a PDF request', action: () => { setQuery('Buatkan PDF dokumen: '); } },
         { icon: <ImageIcon size={14} />, label: 'Upload Image', description: 'Attach images', action: () => fileInputRef.current?.click() },
         { icon: <FileText size={14} />, label: 'Upload Document', description: 'PDF, TXT, MD, DOCX', action: () => fileInputRef.current?.click() },
+        { 
+            icon: <SharkIcon size={14} />, 
+            label: 'Deep Research', 
+            description: 'Advanced multi-agent search', 
+            action: () => { 
+                setWithReasoning(!withReasoning);
+                if (!isWebSearchEnabled && onToggleWebSearch) onToggleWebSearch(true);
+            } 
+        },
         { icon: <Globe size={14} />, label: 'Web Search', description: 'Search the web', action: () => onToggleWebSearch && onToggleWebSearch(!isWebSearchEnabled) },
         { icon: <Mic size={14} />, label: 'Voice Dictation', description: 'Speak to type', action: () => setShowDictation(true) },
     ];
@@ -570,14 +597,15 @@ export function ResearchWelcome({
 
     const suggestions = [
         { 
-            icon: <Search size={16} className="text-stone-400" />, 
+            icon: <SharkIcon size={16} className={cn("transition-colors", withReasoning ? "text-purple-500" : "text-stone-400")} />, 
             label: "Research", 
-            query: "Can you research about ",
+            query: "Can you deep research about ",
+            action: () => setWithReasoning(true),
             options: [
-                { title: "Explore latest AI trends", prompt: "Can you research and summarize the latest trends in Artificial Intelligence?" },
-                { title: "Understand a new concept", prompt: "Help me understand the basics and key concepts of [Topic]: " },
-                { title: "Compare technologies", prompt: "Can you compare the pros and cons of [Option A] and [Option B]?" },
-                { title: "Market research", prompt: "Provide a market research overview for [Industry/Product]: " }
+                { title: "In-depth technology analysis", prompt: "Conduct an in-depth research and analysis of [Technology]: " },
+                { title: "Market competitive landscape", prompt: "Research the current competitive landscape for [Industry]: " },
+                { title: "Scientific breakthrough review", prompt: "Find and analyze recent scientific breakthroughs in [Field]: " },
+                { title: "Comprehensive case study", prompt: "Perform a comprehensive research-based case study on [Topic]: " }
             ]
         },
         { 
@@ -1051,24 +1079,41 @@ export function ResearchWelcome({
                         ? "shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] border-stone-300"
                         : "shadow-[0_2px_12px_-4px_rgba(0,0,0,0.05)] border-stone-200"
                 )}>
-                    {/* Web Search Indicator */}
+                    {/* Web Search & Deep Research Indicators */}
                     <AnimatePresence mode="wait">
-                        {isWebSearchEnabled && (
-                            <motion.div
-                                initial={{ height: 0, opacity: 0 }}
-                                animate={{ height: 'auto', opacity: 1 }}
-                                exit={{ height: 0, opacity: 0 }}
-                                className="px-4 pt-2"
-                            >
-                                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-stone-100 text-stone-600 rounded-md text-xs font-medium">
-                                    <Globe size={12} />
-                                    Web Search On
-                                    <button onClick={() => onToggleWebSearch && onToggleWebSearch(false)} className="ml-1 hover:text-stone-800">
-                                        <X size={12} />
-                                    </button>
-                                </div>
-                            </motion.div>
-                        )}
+                        <div className="flex flex-wrap items-center gap-2 px-4 pt-2">
+                            {isWebSearchEnabled && (
+                                <motion.div
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: 'auto', opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                >
+                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-stone-100 text-stone-600 rounded-md text-xs font-medium">
+                                        <Globe size={12} />
+                                        Web Search On
+                                        <button onClick={() => onToggleWebSearch && onToggleWebSearch(false)} className="ml-1 hover:text-stone-800">
+                                            <X size={12} />
+                                        </button>
+                                    </div>
+                                </motion.div>
+                            )}
+                            
+                            {withReasoning && (
+                                <motion.div
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: 'auto', opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                >
+                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-purple-50 text-purple-600 border border-purple-100/50 rounded-md text-xs font-medium">
+                                        <SharkIcon size={12} />
+                                        Deep Research On
+                                        <button onClick={() => setWithReasoning(false)} className="ml-1 hover:text-purple-800">
+                                            <X size={12} />
+                                        </button>
+                                    </div>
+                                </motion.div>
+                            )}
+                        </div>
                     </AnimatePresence>
 
                     {/* Attachments Preview */}
@@ -1175,6 +1220,23 @@ export function ResearchWelcome({
                                     </div>
                                 )}
                             </div>
+
+                            {/* Deep Research Quick Toggle next to AI Tools */}
+                            <button
+                                onClick={() => {
+                                    setWithReasoning(!withReasoning);
+                                    if (!isWebSearchEnabled && !withReasoning && onToggleWebSearch) onToggleWebSearch(true);
+                                }}
+                                className={cn(
+                                    "w-8 h-8 flex items-center justify-center rounded-lg transition-all",
+                                    withReasoning
+                                        ? "bg-purple-100 text-purple-600 border border-purple-200"
+                                        : "text-stone-400 hover:text-stone-700 hover:bg-stone-100"
+                                )}
+                                title="Deep Research Mode"
+                            >
+                                <SharkIcon size={18} />
+                            </button>
                         </div>
 
                         {/* Right: Model Name, Voice, Send */}
@@ -1245,6 +1307,7 @@ export function ResearchWelcome({
                         <button
                             key={i}
                             onClick={() => {
+                                if (suggestion.action) suggestion.action();
                                 setSelectedFeature(selectedFeature?.label === suggestion.label ? null : suggestion as any);
                                 setFeaturePrompt('');
                             }}

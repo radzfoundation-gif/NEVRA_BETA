@@ -93,33 +93,35 @@ export default function AILoading({ mode = 'tutor', status, loadingMessages, cla
     <div className={cn("flex flex-col gap-1.5 py-2 select-none", className)}>
       {/* Main loading row */}
       <div className="flex items-center gap-3">
-        {/* Breathing Logo */}
-        <div className="relative flex items-center justify-center w-5 h-5">
-          <motion.div
-            className="w-3.5 h-3.5 bg-[#da7756] rounded-[4px]"
-            animate={{
-              scale: [0.85, 1.1, 0.85],
-              opacity: [0.6, 1, 0.6],
-              rotate: [0, 45, 0]
-            }}
-            transition={{
-              duration: 2.5,
-              repeat: Infinity,
-              ease: "easeInOut"
-            }}
-          />
-          <motion.div
-            className="absolute inset-0 bg-[#da7756] rounded-full opacity-20"
-            animate={{
-              scale: [1, 1.4],
-              opacity: [0.2, 0]
-            }}
-            transition={{
-              duration: 2,
-              repeat: Infinity,
-              ease: "easeOut"
-            }}
-          />
+        {/* Pixel N Grid Logo */}
+        <div className="grid grid-cols-5 gap-[1.5px] w-fit">
+          {[
+            1,0,0,0,1,
+            1,1,0,0,1,
+            1,0,1,0,1,
+            1,0,0,1,1,
+            1,0,0,0,1
+          ].map((isN, i) => (
+            <motion.div
+              key={i}
+              className={cn(
+                "w-[2.5px] h-[2.5px] rounded-[0.5px]",
+                isN ? "bg-indigo-500 shadow-[0_0_3px_rgba(99,102,241,0.4)]" : "bg-stone-200"
+              )}
+              animate={isN ? {
+                opacity: [0.35, 1, 0.35],
+                scale: [0.95, 1.15, 0.95],
+              } : {
+                opacity: [0.1, 0.2, 0.1],
+              }}
+              transition={{
+                duration: 2,
+                repeat: Infinity,
+                delay: i * 0.08,
+                ease: "easeInOut"
+              }}
+            />
+          ))}
         </div>
 
         {/* Text + ETA */}
@@ -136,10 +138,6 @@ export default function AILoading({ mode = 'tutor', status, loadingMessages, cla
               {currentText}
             </motion.span>
           </AnimatePresence>
-
-          <span className="text-[10px] text-zinc-600 tabular-nums whitespace-nowrap">
-            {remaining > 0 ? formatTime(remaining) : '✨'}
-          </span>
         </div>
       </div>
 

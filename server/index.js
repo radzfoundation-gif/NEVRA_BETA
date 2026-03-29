@@ -2147,39 +2147,66 @@ app.post('/api/chat/stream', async (req, res) => {
   }
 });
 
-// Web Search Endpoint
+// Web Search Endpoint (Unified Tavily Integration)
 app.post('/api/search', async (req, res) => {
-  const { query } = req.body;
+  const { query, maxResults = 5, searchDepth = 'basic' } = req.body;
 
   if (!query) {
     return res.status(400).json({ error: 'Query is required' });
   }
 
+  const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
+
+  if (!TAVILY_API_KEY) {
+    console.warn('⚠️ TAVILY_API_KEY not set. Using DuckDuckGo fallback.');
+    const mockResults = [
+      {
+        title: `Search results for: ${query}`,
+        url: `https://duckduckgo.com/?q=${encodeURIComponent(query)}`,
+        snippet: `Please configure TAVILY_API_KEY for real-time AI-optimized search. Currently showing fallback for "${query}".`,
+        source: 'DuckDuckGo',
+      },
+    ];
+    return res.json({ query, results: mockResults.slice(0, maxResults) });
+  }
+
   try {
-    console.log(`[API] Searching for: ${query}`);
+    console.log(`🔍 [Search] "${query}" (Depth: ${searchDepth}, Results: ${maxResults})`);
     const response = await fetch('https://api.tavily.com/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        api_key: process.env.TAVILY_API_KEY,
+        api_key: TAVILY_API_KEY,
         query: query,
-        max_results: 5,
-        search_depth: 'basic',
+        max_results: maxResults,
+        search_depth: searchDepth, // 'basic' or 'advanced'
         include_answer: true,
+        include_raw_content: searchDepth === 'advanced',
       }),
     });
 
     if (!response.ok) {
-      console.error(`[API] Tavily error: ${response.status} ${response.statusText}`);
-      // Fallback or error
       throw new Error(`Tavily API error: ${response.statusText}`);
     }
 
     const data = await response.json();
-    res.json(data);
+    
+    // Map Tavily results to our internal SearchResult format
+    const results = (data.results || []).map(r => ({
+      title: r.title,
+      url: r.url,
+      snippet: r.content || r.snippet,
+      source: new URL(r.url).hostname.replace('www.', ''),
+    }));
+
+    res.json({
+      query: data.query || query,
+      results,
+      answer: data.answer,
+    });
 
   } catch (error) {
-    console.error('[API] Search error:', error);
+    console.error('❌ [Search] Error:', error);
     res.status(500).json({ error: 'Failed to perform search', details: error.message });
   }
 });
@@ -3000,22 +3027,17 @@ app.post('/api/github/push', async (req, res) => {
 
 // Web Search endpoint (for Tutor mode)
 app.post('/api/search', async (req, res) => {
-  const { query, maxResults = 10 } = req.body || {};
+  const { query, maxResults = 10, searchDepth = 'basic' } = req.body || {};
 
   if (!query) {
     return res.status(400).json({ error: 'Search query is required' });
   }
 
   try {
-    // Use Tavily API for web search (free tier available)
-    // Alternative: SerpAPI, Google Custom Search, or DuckDuckGo
     const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
 
     if (!TAVILY_API_KEY) {
-      // Fallback: Use DuckDuckGo HTML scraping (no API key needed)
       const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
-
-      // For now, return mock results (implement actual search later)
       const mockResults = [
         {
           title: `Search results for: ${query}`,
@@ -3033,7 +3055,6 @@ app.post('/api/search', async (req, res) => {
       });
     }
 
-    // Use Tavily API for real search
     const tavilyResponse = await fetch('https://api.tavily.com/search', {
       method: 'POST',
       headers: {
@@ -3043,7 +3064,7 @@ app.post('/api/search', async (req, res) => {
         api_key: TAVILY_API_KEY,
         query,
         max_results: maxResults,
-        search_depth: 'basic',
+        search_depth: searchDepth,
       }),
     });
 

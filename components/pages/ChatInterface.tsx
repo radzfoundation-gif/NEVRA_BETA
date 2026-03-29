@@ -16,6 +16,7 @@ import CodebaseExplorer from '@/components/CodebaseExplorer';
 import BuildingAnimation from '@/components/BuildingAnimation';
 import TypewriterText from '@/components/ui/TypewriterText';
 import AILoading from '@/components/ui/AILoading';
+import DeepResearchLoading from '@/components/ui/DeepResearchLoading';
 import DynamicBackground from '@/components/ui/DynamicBackground';
 // ProviderSelector removed - orchestrator now manages models automatically
 import FrameworkSelector from '@/components/ui/FrameworkSelector';
@@ -29,6 +30,24 @@ import remarkMath from 'remark-math';
 import rehypeRaw from 'rehype-raw';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css'; // Build error fix: Import CSS here
+
+// Custom Shark Icon for Deep Research
+const SharkIcon = ({ size = 16, className = "" }: { size?: number, className?: string }) => (
+    <svg 
+        width={size} 
+        height={size} 
+        viewBox="0 0 24 24" 
+        fill="none" 
+        stroke="currentColor" 
+        strokeWidth="2" 
+        strokeLinecap="round" 
+        strokeLinejoin="round" 
+        className={className}
+    >
+        <path d="M2 12c0 0 5-3 8-3s5 2 7 2 4-2 7-2c0 0-2 6-7 6s-5-2-7-2-4 1-6 1c0 0 2-2 5-2" />
+        <path d="M11 9c0 0 0-5 3-7 0 0 0 5-3 7" />
+    </svg>
+);
 
 import SubscriptionPopup from '../SubscriptionPopup';
 import { useTokenLimit, useTrackAIUsage } from '@/hooks/useTokenLimit';
@@ -115,6 +134,9 @@ type Message = {
   modelA?: string;
   modelB?: string;
   selectedVersion?: 'a' | 'b';
+  searchResults?: SearchResult[];
+  isDeepDive?: boolean;
+  isWebSearch?: boolean;
 };
 
 type FileNode = {
@@ -192,6 +214,7 @@ const ChatInterface: React.FC = () => {
     // Check for explicit mode passed from Home (e.g. for silent canvas activation)
     const explicitMode = location.state?.mode as AppMode;
     const enableWebSearch = location.state?.enableWebSearch as boolean | undefined;
+    const reasoning = location.state?.reasoning as boolean | undefined;
 
     if (initialPrompt || (initialImages && initialImages.length > 0)) {
       // Use explicit mode if provided, otherwise detect
@@ -214,14 +237,17 @@ const ChatInterface: React.FC = () => {
           content: content,
           images: initialImages,
           attachments: initialAttachments,
-          timestamp: new Date()
+          timestamp: new Date(),
+          isDeepDive: !!reasoning,
+          isWebSearch: !!enableWebSearch
         }] as Message[],
         shouldAutoSend: autoSend,
         initialProvider: optimalProvider,
         initialImages: initialImages || [],
         targetFile: targetFile,
         codebaseMode: codebaseMode || false,
-        enableWebSearch: enableWebSearch ?? false
+        enableWebSearch: enableWebSearch ?? false,
+        reasoning: reasoning ?? false
       };
     }
 
@@ -239,7 +265,7 @@ const ChatInterface: React.FC = () => {
       };
     }
     // Default to tutor mode if no prompt (auto-detect from Home.tsx)
-    return { mode: 'tutor' as AppMode, messages: [], shouldAutoSend: false, initialProvider: 'groq' as AIProvider, initialImages: [], targetFile: undefined, codebaseMode: false, enableWebSearch: enableWebSearch ?? false };
+    return { mode: 'tutor' as AppMode, messages: [], shouldAutoSend: false, initialProvider: 'groq' as AIProvider, initialImages: [], targetFile: undefined, codebaseMode: false, enableWebSearch: enableWebSearch ?? false, reasoning: reasoning ?? false };
   };
 
   const initialState = getInitialState();
@@ -375,7 +401,10 @@ const ChatInterface: React.FC = () => {
   const [workflowStatus, setWorkflowStatus] = useState<{ status: string; message: string } | null>(null);
   const [attachedImages, setAttachedImages] = useState<string[]>(initialState.initialImages || []);
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
-  const [deepResearchMode, setDeepResearchMode] = useState(false);
+  const [deepResearchMode, setDeepResearchMode] = useState(initialState.reasoning);
+  const [deepResearchPhase, setDeepResearchPhase] = useState<'thinking' | 'searching' | 'synthesizing' | 'answering'>('thinking');
+  const [currentSearchQuery, setCurrentSearchQuery] = useState<string>('');
+  const [activeSearchResults, setActiveSearchResults] = useState<SearchResult[]>([]);
   const MAX_IMAGES = 3;
   // AI Memory State - History yang akan dikirim ke AI
   const [aiMemoryHistory, setAiMemoryHistory] = useState<Message[]>([]);
@@ -386,7 +415,7 @@ const ChatInterface: React.FC = () => {
     (location.state?.model as ModelType) || 'sonar'
   );
   const [withReasoning, setWithReasoning] = useState<boolean>(
-    (location.state?.reasoning as boolean) ?? true
+    initialState.reasoning
   );
 
   // Sync Dual Stream content with message state
@@ -542,6 +571,22 @@ const ChatInterface: React.FC = () => {
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  const handleStop = useCallback(() => {
+    console.log('🛑 [NoirSync] Stopping generation...');
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    if (dualStream.isStreaming) {
+      dualStream.cancelDualStream();
+    }
+    setIsTyping(false);
+    setIsBuildingCode(false);
+    setAnimatingMessageId(null);
+    // Hide deep research agent if active
+    setDeepResearchPhase('answering');
+  }, [dualStream]);
+
   const hasAutoSent = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showImageMenu, setShowImageMenu] = useState(false);
@@ -1595,11 +1640,11 @@ const ChatInterface: React.FC = () => {
     let deepDive = false;
     let text: string;
     if (typeof textOverride === 'boolean') {
-      deepDive = textOverride;
+      deepDive = textOverride || deepResearchMode;
       text = input;
     } else {
       text = textOverride || input;
-      deepDive = deepDiveOverride || false;
+      deepDive = deepDiveOverride || deepResearchMode;
     }
     const imagesToSend = imagesOverride || (historyOverride ? (historyOverride[historyOverride.length - 1]?.images || []) : attachedImages);
 
@@ -1648,6 +1693,16 @@ const ChatInterface: React.FC = () => {
       }
     }
 
+    // Reset deep research phase at start of new message
+    if (deepDive) {
+      setDeepResearchPhase('thinking');
+      setCurrentSearchQuery(text.substring(0, 40) + '...');
+      setActiveSearchResults([]); // Reset active results
+      // Natural 'Thinking' phase (AI managing/analyzing the question)
+      // This is a real-time simulation of the initial logic dispatch
+      await new Promise(resolve => setTimeout(resolve, 1400 + Math.random() * 800));
+    }
+
     const mode = detectedMode;
 
     // Auto-switch mode if detected mode is different from current mode
@@ -1680,11 +1735,23 @@ const ChatInterface: React.FC = () => {
       content: text,
       images: imagesToSend,
       attachments: attachmentsOverride,
-      timestamp: new Date()
+      timestamp: new Date(),
+      isDeepDive: deepDive,
+      isWebSearch: enableWebSearch
     };
 
-    // Always add message to UI immediately
-    setMessages(prev => [...prev, newMessage]);
+    // Add message to UI only if it's not already the initial message being auto-sent
+    const isInitialAutoSend = historyOverride && historyOverride.length > 0 && historyOverride[0].content === text;
+    
+    if (!isInitialAutoSend) {
+      setMessages(prev => [...prev, newMessage]);
+    } else {
+      console.log('📝 Auto-send detected, syncing mode flags to existing initial user message');
+      // Update the existing initial message in state with the correct flags
+      setMessages(prev => prev.map((msg, idx) => 
+        idx === 0 ? { ...msg, isDeepDive: deepDive, isWebSearch: enableWebSearch } : msg
+      ));
+    }
     
     // Only clear main input box if this wasn't an override action
     if (!textOverride || typeof textOverride === 'boolean') {
@@ -1926,21 +1993,45 @@ const ChatInterface: React.FC = () => {
       }
 
       // Perform web search if enabled (Allowed in all modes if explicitly enabled)
-      if (enableWebSearch && text.trim()) {
+      // Perform web search if enabled or in Deep Research mode
+      const shouldSearch = (enableWebSearch || deepDive) && text.trim();
+      if (shouldSearch) {
         try {
-          // Show searching indicator (optional: could add a state for this)
-          console.log('🔍 Starting web search for:', text);
-
-          const searchResponse = await performWebSearch(text, 5);
+          // Show searching indicator
+          console.log(`🔍 [NoirSync] Starting ${deepDive ? 'ADVANCED' : 'BASIC'} web search for:`, text);
+          if (deepDive) {
+            setDeepResearchPhase('searching');
+            setCurrentSearchQuery(text);
+          }
+          
+          // Use advanced search (10 results + deep content) for Deep Research mode
+          const searchResponse = await performWebSearch(
+            text, 
+            deepDive ? 10 : 5, 
+            deepDive ? 'advanced' : 'basic'
+          );
+          
           searchResults = searchResponse.results;
           setSearchResults(searchResults);
+          
+          if (deepDive) {
+            setActiveSearchResults(searchResults);
+            setDeepResearchPhase('synthesizing');
+            // Wait for synthesized 'Discovery' feel
+            await new Promise(resolve => setTimeout(resolve, 1500));
+          }
 
           // Enhance prompt with search context
           if (searchResults.length > 0) {
             const searchContext = searchResults
-              .map((r, i) => `[${i + 1}] ${r.title}: ${r.snippet}`)
+              .map((r, i) => `[${i + 1}] ${r.title} (${r.source}): ${r.snippet}`)
               .join('\n');
-            promptToSend = `${text}\n\n[Web Search Results]\n${searchContext}\n\nPlease use the above search results to provide a comprehensive answer with citations.`;
+            
+            if (deepDive) {
+              promptToSend = `${text}\n\n[🔬 DEEP RESEARCH CONTEXT - TAVILY ADVANCED]\n${searchContext}\n\nINSTRUCTION: Provide a comprehensive, research-grade answer. You have 10 sources above. Cross-reference them to identify patterns, consensus, or conflicts. Use formal citations (e.g. [1][3]).`;
+            } else {
+              promptToSend = `${text}\n\n[Web Search Results]\n${searchContext}\n\nPlease use the above search results to provide a comprehensive answer with citations.`;
+            }
 
             // For builder mode, also append context
             if (mode === 'builder') {
@@ -2046,6 +2137,9 @@ const ChatInterface: React.FC = () => {
           selectedModel, // NEW: Include selected model
           abortControllerRef.current?.signal // Support cancellation
         );
+
+        // Final preparation before answering
+        if (deepDive) setDeepResearchPhase('answering');
 
         // Handle multi-file or single-file response (BUILDER MODE ONLY)
         if (!codeResponse) {
@@ -2284,6 +2378,7 @@ const ChatInterface: React.FC = () => {
                       id: 'streaming-temp',
                       role: 'ai',
                       content: chunk,
+                      searchResults: searchResults, // Store search results in message
                       timestamp: new Date()
                     }
                   ];
@@ -2612,6 +2707,7 @@ const ChatInterface: React.FC = () => {
         role: 'ai',
         content: finalResponseText,
         code: code || undefined,
+        searchResults: searchResults, // Include search results
         timestamp: new Date()
       };
 
@@ -2647,6 +2743,7 @@ const ChatInterface: React.FC = () => {
           role: 'ai',
           content: '', // Start empty
           code: code || undefined,
+          searchResults: searchResults, // Include search results
           timestamp: new Date()
         }]);
 
@@ -3157,7 +3254,13 @@ const ChatInterface: React.FC = () => {
     if (initialState.shouldAutoSend && !hasAutoSent.current && initialState.messages.length > 0) {
       hasAutoSent.current = true;
       // Use ref to get latest handleSend without adding it to dependencies
-      handleSendRef.current(initialState.messages[0].content, initialState.mode as AppMode, initialState.messages);
+      // Pass reasoning as 4th argument (deepDiveOverride) to trigger multi-agent loading
+      handleSendRef.current(
+        initialState.messages[0].content, 
+        initialState.mode as AppMode, 
+        initialState.messages,
+        initialState.reasoning
+      );
     }
     // Only run once on mount - initialState is stable
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -3590,17 +3693,14 @@ const ChatInterface: React.FC = () => {
                         {/* Parse and render sources if available (at top of message like ChatGPT) */}
                         {(() => {
                           const sourcesMatch = msg.content.match(/<!-- SOURCES_JSON:(.*?) -->/);
-                          if (sourcesMatch) {
-                            try {
-                              const sources = JSON.parse(sourcesMatch[1]);
-                              return (
-                                <div className="mb-4 not-prose">
-                                  <SourcesIndicator sources={sources} messageId={msg.id} />
-                                </div>
-                              );
-                            } catch (e) {
-                              return null;
-                            }
+                          const sources = msg.searchResults || (sourcesMatch ? JSON.parse(sourcesMatch[1]) : null);
+                          
+                          if (sources && sources.length > 0) {
+                            return (
+                              <div className="mb-4 not-prose">
+                                <SourcesIndicator sources={sources} messageId={msg.id} />
+                              </div>
+                            );
                           }
                           return null;
                         })()}
@@ -3613,8 +3713,25 @@ const ChatInterface: React.FC = () => {
 
                       </div>
                     ) : (
-                      <div className="whitespace-pre-wrap text-zinc-900 dark:text-zinc-100 leading-relaxed text-sm">
-                        {msg.content.replace(/<!-- SOURCES_JSON:.*? -->/g, '')}
+                      <div className="flex flex-col gap-1">
+                        {(msg.isDeepDive || msg.isWebSearch) && (
+                          <div className="flex items-center gap-1.5 mb-1 opacity-60">
+                            {msg.isDeepDive ? (
+                              <div className="flex items-center gap-1 text-[10px] font-bold text-purple-600 uppercase tracking-tight">
+                                <SharkIcon size={12} strokeWidth={2.5} />
+                                <span>Deep Research</span>
+                              </div>
+                            ) : msg.isWebSearch ? (
+                              <div className="flex items-center gap-1 text-[10px] font-bold text-blue-600 uppercase tracking-tight">
+                                <Globe size={12} strokeWidth={2.5} />
+                                <span>Web Search</span>
+                              </div>
+                            ) : null}
+                          </div>
+                        )}
+                        <div className="whitespace-pre-wrap text-zinc-900 dark:text-zinc-100 leading-relaxed text-sm">
+                          {msg.content.replace(/<!-- SOURCES_JSON:.*? -->/g, '')}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -3820,13 +3937,21 @@ const ChatInterface: React.FC = () => {
 
                 return (
                   <div className="pl-2">
-                    <AILoading
-                      mode={appMode || 'tutor'}
-                      status={workflowStatus?.message}
-                      loadingMessages={contextMessages}
-                      userPrompt={lastUserMsg?.content}
-                      hasImages={lastUserMsg?.images && lastUserMsg.images.length > 0}
-                    />
+                    {deepResearchMode ? (
+                      <DeepResearchLoading 
+                        phase={deepResearchPhase} 
+                        query={currentSearchQuery}
+                        searchResults={activeSearchResults}
+                      />
+                    ) : (
+                      <AILoading
+                        mode={appMode || 'tutor'}
+                        status={workflowStatus?.message}
+                        loadingMessages={contextMessages}
+                        userPrompt={lastUserMsg?.content}
+                        hasImages={lastUserMsg?.images && lastUserMsg.images.length > 0}
+                      />
+                    )}
                   </div>
                 );
               })()}
@@ -3887,6 +4012,7 @@ const ChatInterface: React.FC = () => {
             input={input}
             setInput={setInput}
             handleSend={(deepDive?: boolean) => handleSend(deepDive)}
+            handleStop={handleStop}
             isTyping={isTyping}
             attachedImages={attachedImages}
             removeImage={removeImage}

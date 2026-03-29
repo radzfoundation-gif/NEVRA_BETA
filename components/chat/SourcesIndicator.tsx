@@ -79,12 +79,15 @@ export const SourcesIndicator = ({ sources, messageId }: SourcesIndicatorProps) 
                                     {source.title}
                                 </span>
                                 <div className="flex items-center gap-1.5 text-[10px] text-zinc-500 mt-auto pt-1">
-                                    <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0 ${isHighlighted ? 'bg-indigo-500' : 'bg-zinc-100'
-                                        }`}>
-                                        <span className={`text-[9px] font-bold ${isHighlighted ? 'text-white' : 'text-zinc-400'}`}>{idx + 1}</span>
+                                    <div className="w-4 h-4 rounded-[3px] bg-white border border-zinc-200 flex items-center justify-center shrink-0 overflow-hidden shadow-xs p-0.5">
+                                        <img 
+                                            src={`https://www.google.com/s2/favicons?domain=${hostname}&sz=64`}
+                                            alt={hostname}
+                                            className="w-full h-full object-contain"
+                                        />
                                     </div>
-                                    <span className="truncate max-w-[120px]">{hostname}</span>
-                                    <ExternalLink size={8} className="opacity-0 group-hover/card:opacity-100 transition-opacity ml-auto" />
+                                    <span className="truncate max-w-[120px] font-medium text-zinc-600">{hostname}</span>
+                                    <ExternalLink size={8} className="opacity-0 group-hover/card:opacity-100 transition-opacity ml-auto text-blue-500" />
                                 </div>
                             </a>
                         );

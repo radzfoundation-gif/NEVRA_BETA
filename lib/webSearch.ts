@@ -26,7 +26,8 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
  */
 export async function performWebSearch(
   query: string,
-  maxResults: number = 10
+  maxResults: number = 10,
+  searchDepth: 'basic' | 'advanced' = 'basic'
 ): Promise<SearchResponse> {
   try {
     const response = await fetch(`${API_BASE}/search`, {
@@ -37,6 +38,7 @@ export async function performWebSearch(
       body: JSON.stringify({
         query,
         maxResults,
+        searchDepth,
       }),
     });
 
