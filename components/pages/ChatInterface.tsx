@@ -3210,9 +3210,25 @@ const ChatInterface: React.FC = () => {
       setIsBuildingCode(false); // Clear building state before showing error
       setIsTyping(false); // Ensure typing state is cleared
 
+      // Check for image input not supported error
+      const isImageNotSupportedError = errorMessage.toLowerCase().includes('does not support image') || 
+        errorMessage.toLowerCase().includes('image input') ||
+        errorMessage.toLowerCase().includes('does not support vision');
+
       // Format error message based on mode
       let errorContent = '';
-      if (mode === 'tutor') {
+      if (isImageNotSupportedError) {
+        // User-friendly message for image input not supported
+        const currentModel = effectiveProvider === 'openai' ? 'GPT-5 Mini' :
+          effectiveProvider === 'anthropic' ? 'Claude' :
+            effectiveProvider === 'gemini' ? 'Gemini' : 'current AI model';
+        errorContent = `⚠️ **Gambar tidak didukung oleh model AI ini**\n\n` +
+          `Model AI yang sedang digunakan (${currentModel}) tidak mendukung input gambar.\n\n` +
+          `**Solusi:**\n` +
+          `1. **Ganti model** - Pilih model yang mendukung gambar (misal: Claude Sonnet, GPT-4o, atau Gemini Pro)\n` +
+          `2. **Hapus gambar** - Kirim prompt tanpa melampirkan gambar\n` +
+          `3. **Coba model lain** - Buka selector model dan pilih "Claude Sonnet 4.5" atau "GPT-5 Mini"`;
+      } else if (mode === 'tutor') {
         // For tutor mode, provide helpful error message
         errorContent = `I apologize, but I encountered an error while processing your request.\n\n` +
           `**Error Details:** ${errorMessage}\n\n` +
@@ -3445,7 +3461,7 @@ const ChatInterface: React.FC = () => {
       {/* Chat List */}
       <div className={
         cn(
-          "relative flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain scroll-smooth",
+          "relative flex-1 overflow-y-auto overflow-x-visible overscroll-y-contain scroll-smooth",
           messages.length === 0
             ? "flex flex-col items-center justify-center text-center p-0"
             : "px-3 sm:px-4 md:px-5 lg:px-6 pt-20 md:pt-24 block " + (showBottomClarification ? "pb-[350px] md:pb-[400px]" : "pb-64 sm:pb-72 md:pb-80")
@@ -3683,7 +3699,7 @@ const ChatInterface: React.FC = () => {
                         prose-ol:my-4 prose-ol:pl-6 prose-ol:space-y-2
                         prose-li:text-zinc-800 prose-li:leading-7 prose-li:my-0 prose-li:marker:text-zinc-400
                         prose-blockquote:border-l-4 prose-blockquote:border-zinc-200 prose-blockquote:bg-transparent prose-blockquote:pl-4 prose-blockquote:text-zinc-600 prose-blockquote:italic prose-blockquote:my-4
-                        prose-table:my-6 prose-table:w-full prose-table:border-collapse prose-table:text-sm
+                        prose-table:my-6 prose-table:w-full prose-table:border-collapse prose-table:text-sm prose-table:block prose-table:overflow-x-auto
                         prose-th:text-left prose-th:font-semibold prose-th:text-zinc-900 prose-th:bg-zinc-50 prose-th:border prose-th:border-zinc-200 prose-th:px-4 prose-th:py-2
                         prose-td:text-zinc-700 prose-td:border prose-td:border-zinc-200 prose-td:px-4 prose-td:py-2
                         prose-a:text-[#0164FF] prose-a:font-medium prose-a:no-underline hover:prose-a:underline

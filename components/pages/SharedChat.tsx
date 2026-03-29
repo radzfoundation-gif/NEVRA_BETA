@@ -178,7 +178,7 @@ const SharedChat: React.FC = () => {
                                         : "rounded-[24px] px-6 py-5 bg-white/80 backdrop-blur-md border border-white/60 text-gray-800 max-w-[95%] sm:max-w-[90%] shadow-lg shadow-purple-900/5 w-full"
                                 )}>
                                     {msg.role === 'ai' ? (
-                                        <div className="prose prose-sm md:prose-base max-w-none w-full break-words overflow-hidden
+                                        <div className="prose prose-sm md:prose-base max-w-none w-full break-words overflow-visible
                                         prose-p:text-gray-700 prose-p:leading-relaxed
                                         prose-headings:text-gray-900 prose-headings:font-bold prose-headings:tracking-tight
                                         prose-strong:text-gray-900 
@@ -195,6 +195,15 @@ const SharedChat: React.FC = () => {
                                                 remarkPlugins={[remarkGfm, remarkMath]}
                                                 rehypePlugins={[rehypeKatex]}
                                                 components={{
+                                                    table({ children, ...props }) {
+                                                        return (
+                                                            <div className="overflow-x-auto w-full my-4 -mx-2 md:mx-0 md:w-auto">
+                                                                <table className="min-w-full border-collapse text-sm" {...props}>
+                                                                    {children}
+                                                                </table>
+                                                            </div>
+                                                        );
+                                                    },
                                                     code({ node, inline, className, children, ...props }: any) {
                                                         const match = /language-(\w+)/.exec(className || '');
                                                         return !inline && match ? (

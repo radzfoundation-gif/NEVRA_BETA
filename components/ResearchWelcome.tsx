@@ -746,7 +746,7 @@ export function ResearchWelcome({
                                         {previewData.type === 'file' && <FileText size={20} />}
                                     </div>
                                     <div>
-                                        <h3 className="font-semibold text-zinc-900 truncate max-w-[300px]">{previewData.title}</h3>
+                                        <h3 className="font-semibold text-zinc-900 truncate max-w-[180px] sm:max-w-[300px]">{previewData.title}</h3>
                                         <div className="text-xs text-zinc-500 font-medium uppercase tracking-wider">{previewData.type} Content</div>
                                     </div>
                                 </div>
@@ -1125,7 +1125,7 @@ export function ResearchWelcome({
                                     {att.type === 'audio' && <Mic size={14} className="text-stone-500" />}
                                     {att.type === 'url' && <LinkIcon size={14} className="text-stone-500" />}
                                     {att.type === 'file' && <FileText size={14} className="text-stone-500" />}
-                                    <span className="text-stone-700 font-medium truncate max-w-[150px]">{att.name}</span>
+                                    <span className="text-stone-700 font-medium truncate max-w-[100px] sm:max-w-[150px]">{att.name}</span>
                                     <button onClick={() => removeAttachment(i)} className="text-stone-400 hover:text-red-500">
                                         <X size={14} />
                                     </button>

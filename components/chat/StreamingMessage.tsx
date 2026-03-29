@@ -148,7 +148,7 @@ export default function StreamingMessage({
                         prose-ol:my-4 prose-ol:pl-6 prose-ol:space-y-2
                         prose-li:text-zinc-800 prose-li:leading-7 prose-li:my-0 prose-li:marker:text-zinc-400
                         prose-blockquote:border-l-4 prose-blockquote:border-zinc-200 prose-blockquote:bg-transparent prose-blockquote:pl-4 prose-blockquote:text-zinc-600 prose-blockquote:italic prose-blockquote:my-4
-                        prose-table:my-6 prose-table:w-full prose-table:border-collapse prose-table:text-sm
+                        prose-table:my-6 prose-table:w-full prose-table:border-collapse prose-table:text-sm prose-table:block prose-table:overflow-x-auto
                         prose-th:text-left prose-th:font-semibold prose-th:text-zinc-900 prose-th:bg-zinc-50 prose-th:border prose-th:border-zinc-200 prose-th:px-4 prose-th:py-2
                         prose-td:text-zinc-700 prose-td:border prose-td:border-zinc-200 prose-td:px-4 prose-td:py-2
                         prose-a:text-[#0164FF] prose-a:font-medium prose-a:no-underline hover:prose-a:underline
@@ -159,6 +159,15 @@ export default function StreamingMessage({
                                     remarkPlugins={[remarkGfm, remarkMath]}
                                     rehypePlugins={[rehypeKatex]}
                                     components={{
+                                        table({ children, ...props }) {
+                                            return (
+                                                <div className="overflow-x-auto w-full my-6 -mx-2 md:mx-0 md:w-auto">
+                                                    <table className="min-w-full border-collapse text-sm" {...props}>
+                                                        {children}
+                                                    </table>
+                                                </div>
+                                            );
+                                        },
                                         code({ node, inline, className, children, ...props }: any) {
                                             const match = /language-(\w+)/.exec(className || '');
                                             return !inline && match ? (

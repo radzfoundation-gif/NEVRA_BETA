@@ -248,7 +248,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                         {showUserMenu && (
                             <div className="absolute bottom-0 left-10 w-48 bg-white rounded-xl shadow-xl border border-zinc-200 p-1.5 z-50 animate-in slide-in-from-left-2 fade-in duration-200">
                                 <div className="px-2 py-1.5 border-b border-zinc-100 mb-1">
-                                    <p className="text-xs font-semibold text-zinc-900 truncate">{user?.primaryEmailAddress?.emailAddress}</p>
+                                    <p className="text-xs font-semibold text-zinc-900 truncate max-w-[140px]">{user?.primaryEmailAddress?.emailAddress}</p>
                                 </div>
                                 <button
                                     onClick={onOpenSettings}

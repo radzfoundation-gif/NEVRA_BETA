@@ -86,7 +86,7 @@ export const SourcesIndicator = ({ sources, messageId }: SourcesIndicatorProps) 
                                             className="w-full h-full object-contain"
                                         />
                                     </div>
-                                    <span className="truncate max-w-[120px] font-medium text-zinc-600">{hostname}</span>
+                                    <span className="truncate max-w-[80px] sm:max-w-[120px] font-medium text-zinc-600">{hostname}</span>
                                     <ExternalLink size={8} className="opacity-0 group-hover/card:opacity-100 transition-opacity ml-auto text-blue-500" />
                                 </div>
                             </a>

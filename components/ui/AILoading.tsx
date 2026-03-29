@@ -144,7 +144,7 @@ export default function AILoading({ mode = 'tutor', status, loadingMessages, cla
       {/* Copy prompt row */}
       {userPrompt && (
         <div className="flex items-center gap-2 pl-8">
-          <div className="max-w-[220px] truncate text-[10px] text-zinc-600 italic">
+          <div className="max-w-[150px] sm:max-w-[220px] truncate text-[10px] text-zinc-600 italic">
             "{userPrompt.length > 60 ? userPrompt.substring(0, 60) + '...' : userPrompt}"
           </div>
           <button

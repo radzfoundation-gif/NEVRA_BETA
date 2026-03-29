@@ -128,7 +128,7 @@ const Navbar: React.FC = () => {
                   {showUserMenu && (
                     <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-zinc-900 rounded-xl shadow-xl border border-zinc-200 dark:border-zinc-800 p-2 z-50">
                       <div className="px-3 py-2 border-b border-zinc-100 dark:border-zinc-800 mb-1">
-                        <p className="text-xs font-medium text-zinc-900 dark:text-white truncate">
+                        <p className="text-xs font-medium text-zinc-900 dark:text-white truncate max-w-[160px]">
                           {user?.emailAddresses?.[0]?.emailAddress}
                         </p>
                       </div>

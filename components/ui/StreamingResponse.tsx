@@ -72,7 +72,7 @@ const CitationBadge = ({ id, sources }: { id: string, sources: any }) => {
                                     {source.title || 'Web Source'}
                                 </h4>
                                 <div className="flex items-center gap-1 text-[10px] text-zinc-500">
-                                    <span className="truncate max-w-[120px]">{domain}</span>
+                                    <span className="truncate max-w-[80px] sm:max-w-[120px]">{domain}</span>
                                     <ExternalLink size={8} />
                                 </div>
                             </div>

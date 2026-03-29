@@ -303,7 +303,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
                                 {attachedFiles.map((file, idx) => (
                                     <div key={idx} className="relative group shrink-0 flex items-center gap-2 bg-stone-100 border border-stone-200 px-3 py-1.5 rounded-lg">
                                         <FileText size={14} className="text-stone-500" />
-                                        <span className="text-xs font-medium text-stone-700 max-w-[120px] truncate">{file.name}</span>
+                                        <span className="text-xs font-medium text-stone-700 max-w-[120px] sm:max-w-[200px] truncate">{file.name}</span>
                                         <button
                                             onClick={() => removeFile?.(idx)}
                                             className="ml-1 text-stone-400 hover:text-stone-700"
@@ -370,7 +370,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
                     </div>
 
                     {/* Bottom Bar — Claude Layout */}
-                    <div className="w-full flex items-center justify-between px-3 pb-3">
+                    <div className="w-full flex items-center justify-between px-3 pb-3 gap-2">
                         {/* Left: + Button with Dropdown */}
                         <div className="flex items-center gap-1 relative" ref={toolsMenuRef}>
                             <button
@@ -387,23 +387,23 @@ const ChatInput: React.FC<ChatInputProps> = ({
                                 <Plus size={20} strokeWidth={1.8} />
                             </button>
 
-                            {/* Quick AI Tools Toggle */}
+                            {/* Quick AI Tools Toggle - hidden on mobile */}
                             <button
-                                className="w-8 h-8 flex items-center justify-center rounded-lg text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition-all"
+                                className="hidden md:flex w-8 h-8 items-center justify-center rounded-lg text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition-all"
                                 title="AI Tools"
                                 onClick={() => setShowToolsMenu(true)} // Open tools menu since it contains AI conversion tools
                             >
                                 <Wrench size={16} strokeWidth={1.8} />
                             </button>
 
-                            {/* Deep Research Quick Toggle next to AI Tools */}
+                            {/* Deep Research Quick Toggle - hidden on mobile */}
                             <button
                                 onClick={() => {
                                     onToggleDeepResearch?.(!deepResearchMode);
                                     if (!enableWebSearch && !deepResearchMode) setEnableWebSearch(true);
                                 }}
                                 className={cn(
-                                    "w-8 h-8 flex items-center justify-center rounded-lg transition-all",
+                                    "hidden md:flex w-8 h-8 items-center justify-center rounded-lg transition-all",
                                     deepResearchMode
                                         ? "bg-purple-100 text-purple-600 border border-purple-200"
                                         : "text-stone-400 hover:text-stone-700 hover:bg-stone-100"
@@ -461,7 +461,8 @@ const ChatInput: React.FC<ChatInputProps> = ({
                                 onComparisonModeToggle={onComparisonModeToggle}
                             >
                                 <button className="flex items-center gap-1 px-2 py-1.5 text-stone-400 hover:text-stone-600 transition-colors text-sm font-medium">
-                                    <span>{modelDisplayName}</span>
+                                    <span className="hidden sm:inline">{modelDisplayName}</span>
+                                    <span className="sm:hidden text-xs">AI</span>
                                     <ChevronDown size={14} strokeWidth={2} />
                                 </button>
                             </ModelSelector>
