@@ -50,21 +50,6 @@ const Home: React.FC<HomeProps> = ({ defaultMode = 'chat' }) => {
   const [showVoiceCall, setShowVoiceCall] = useState(false);
   const [activeMode, setActiveMode] = useState<'chat' | 'redesign'>(defaultMode);
 
-  const [wibTime, setWibTime] = useState('');
-
-  useEffect(() => {
-    const updateTime = () => {
-      setWibTime(new Date().toLocaleTimeString('id-ID', {
-        timeZone: 'Asia/Jakarta',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false
-      }) + ' WIB');
-    };
-    updateTime();
-    const interval = setInterval(updateTime, 1000);
-    return () => clearInterval(interval);
-  }, []);
 
   // Sidebar Persistence
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
@@ -386,9 +371,6 @@ const Home: React.FC<HomeProps> = ({ defaultMode = 'chat' }) => {
           <button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-2 text-foreground hover:bg-foreground/10 rounded-lg transition-colors">
             <LayoutGrid size={24} strokeWidth={1.5} />
           </button>
-          <div className="flex items-center justify-center">
-            <span className="font-mono text-lg font-medium text-foreground tracking-wide">{wibTime}</span>
-          </div>
           <div className="w-8" /> {/* Spacer */}
         </div>
 

@@ -758,7 +758,7 @@ export function ResearchWelcome({
 
     return (
         <div className={cn(
-            "w-full min-h-full flex flex-col items-center justify-center px-3 py-4 md:p-6 relative max-w-3xl mx-auto",
+            "w-full min-h-full flex flex-col items-center justify-center px-3 py-4 pt-10 md:p-6 md:pt-16 relative max-w-3xl mx-auto",
             className
         )}>
             {/* Hidden File Inputs */}
@@ -1269,7 +1269,7 @@ export function ResearchWelcome({
                                     <Plus size={20} strokeWidth={2} />
                                 </button>
                                 {showToolsMenu && (
-                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 md:left-0 md:translate-x-0 mb-2 w-[85vw] max-w-[224px] sm:w-56 bg-white border border-stone-200 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden z-50 animate-in fade-in slide-in-from-bottom-2 duration-150 py-1.5">
+                                    <div className="absolute bottom-full left-0 mb-2 w-[calc(100vw-2rem)] max-w-[240px] bg-white border border-stone-200 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden z-50 animate-in fade-in slide-in-from-bottom-2 duration-150 py-1.5">
                                         {attachToolsGroups.map((group, groupIdx) => (
                                             <React.Fragment key={groupIdx}>
                                                 <div className="flex flex-col">
@@ -1279,28 +1279,27 @@ export function ResearchWelcome({
                                                             <button
                                                                 key={tool.id}
                                                                 onClick={() => { tool.action(); setShowToolsMenu(false); }}
-                                                                className="w-full flex items-center gap-3 px-3 py-2 hover:bg-stone-50 transition-colors mx-1.5 rounded-lg text-left"
-                                                                style={{ width: 'calc(100% - 12px)' }}
+                                                                className="w-full flex items-center gap-2.5 px-3 py-1.5 hover:bg-stone-50 transition-colors text-left"
                                                             >
-                                                                <div className={cn("flex justify-center items-center w-5", isActive ? "text-blue-500" : "text-stone-700")}>
+                                                                <div className={cn("flex justify-center items-center w-4 shrink-0", isActive ? "text-blue-500" : "text-stone-600")}>
                                                                     {tool.icon}
                                                                 </div>
-                                                                <div className="flex-1 flex flex-col justify-center">
-                                                                    <span className={cn("text-[13px]", isActive ? "text-blue-600 font-medium" : "text-stone-700 font-medium")}>{tool.label}</span>
-                                                                    <span className="text-[10px] text-stone-400">{tool.description}</span>
+                                                                <div className="flex-1 flex flex-col justify-center min-w-0">
+                                                                    <span className={cn("text-[12px] leading-tight", isActive ? "text-blue-600 font-medium" : "text-stone-700 font-medium")}>{tool.label}</span>
+                                                                    <span className="text-[10px] text-stone-400 truncate">{tool.description}</span>
                                                                 </div>
                                                                 {(tool as any).hasChevron && (
-                                                                    <ChevronRight size={14} className="text-stone-400 ml-auto" strokeWidth={2} />
+                                                                    <ChevronRight size={12} className="text-stone-300 shrink-0" strokeWidth={2} />
                                                                 )}
                                                                 {isActive && (
-                                                                    <Check size={16} className="text-blue-500 ml-auto" strokeWidth={2.5} />
+                                                                    <Check size={13} className="text-blue-500 shrink-0" strokeWidth={2.5} />
                                                                 )}
                                                             </button>
                                                         );
                                                     })}
                                                 </div>
                                                 {groupIdx < attachToolsGroups.length - 1 && (
-                                                    <div className="h-px bg-stone-100 my-1.5 mx-3" />
+                                                    <div className="h-px bg-stone-100 my-1 mx-3" />
                                                 )}
                                             </React.Fragment>
                                         ))}
