@@ -1811,14 +1811,24 @@ app.post('/api/chat/stream', async (req, res) => {
   let provider = 'openrouter';
   let targetModel = OPENROUTER_STREAM_MODEL_MAPPING[model] || model || 'openai/gpt-4o-mini';
 
-  // Check if SumoPod requested (default 'groq' or explict gemini models)
-  // Also force 'claude-sonnet-4-5' to use SumoPod as requested by user
-  if (model === 'groq' || model === 'gemini' || model === 'gemini-flash' || !model || model === 'claude-sonnet-4-5') {
+  // Check if SumoPod requested (default 'groq' or explicit gemini/seed models)
+  // Also force 'claude-sonnet-4-5' and all 'seed-2-0' variants to use SumoPod
+  const isSumoPodModel = model === 'groq' || model === 'gemini' || model === 'gemini-flash' || 
+      model === 'claude-sonnet-4-5' || (model && model.includes('seed-2-0')) || !model;
+  
+  if (isSumoPodModel) {
     provider = 'sumopod';
-    targetModel = process.env.SUMOPOD_MODEL_ID || 'gemini-2.5-flash-lite'; // Default SumoPod model
+    // Preserve specific model IDs from frontend (e.g. seed-2-0-pro-free)
+    // Only fallback to SUMOPOD_MODEL_ID for generic requests (groq, gemini, etc.)
+    const genericModels = ['groq', 'gemini', 'gemini-flash', 'claude-sonnet-4-5'];
+    if (!model || genericModels.includes(model)) {
+      targetModel = process.env.SUMOPOD_MODEL_ID || 'seed-2-0-pro-free';
+    } else {
+      targetModel = model; // Use the exact model ID from frontend (e.g. seed-2-0-pro-free)
+    }
   }
 
-  console.log(`[Stream] Starting stream for provider: ${provider}, model: ${targetModel}`);
+  console.log(`[Stream] Starting stream for provider: ${provider}, model: ${targetModel}, requested: ${model}`);
 
   // 4. Set SSE headers
   res.setHeader('Content-Type', 'text/event-stream');
@@ -1838,6 +1848,46 @@ app.post('/api/chat/stream', async (req, res) => {
     // controller.abort(); 
   });
 
+  // --- SHARED MCP TOOL DISCOVERY (SKILL SCOUT) ---
+  let mcpTools = [];
+  let detectedCategories = [];
+  try {
+    console.log('[Stream] Starting MCP tool discovery for Skill Scout...');
+    res.write(`event: status\ndata: ${JSON.stringify({ message: 'Scanning available skills...' })}\n\n`);
+
+    const lastUserMessage = messages[messages.length - 1]?.content || '';
+    const { tools: matchedTools, categories } = await mcpManager.findRelevantTools(lastUserMessage);
+    detectedCategories = categories;
+    
+    if (matchedTools.length > 0) {
+      console.log(`[Stream] Skill Scout found ${matchedTools.length} relevant tools for: ${categories.join(', ')}`);
+      res.write(`event: skill_match\ndata: ${JSON.stringify({ 
+        message: `Skill Scout found: ${categories.join(', ')}`, 
+        categories,
+        tools: matchedTools.map(t => t.name)
+      })}\n\n`);
+      res.write(`event: status\ndata: ${JSON.stringify({ message: `Found ${matchedTools.length} skill(s)`, tools: matchedTools.map(t => t.name) })}\n\n`);
+    } else {
+      console.log('[Stream] Skill Scout: No matching skills found for this query.');
+      res.write(`event: status\ndata: ${JSON.stringify({ message: 'No specific skills found, using core intelligence.' })}\n\n`);
+    }
+
+    const allMcpTools = await mcpManager.listAllTools();
+    mcpTools = allMcpTools.map(tool => ({
+      type: 'function',
+      function: {
+        name: `mcp__${tool.serverId}__${tool.name}`,
+        description: `[${tool.serverName}] ${tool.description}`,
+        parameters: tool.inputSchema
+      },
+      _meta: { serverId: tool.serverId, serverName: tool.serverName, originalName: tool.name }
+    }));
+    console.log(`[Stream] Total ${mcpTools.length} MCP tools listed for possible injection.`);
+  } catch (mcpError) {
+    console.error('[Stream] MCP Discovery Error:', mcpError);
+    res.write(`event: status\ndata: ${JSON.stringify({ message: 'Skill scan skipped' })}\n\n`);
+  }
+
   try {
     if (provider === 'sumopod') {
       // --- SUMOPOD STREAMING WITH MCP TOOL SCANNING ---
@@ -1845,38 +1895,32 @@ app.post('/api/chat/stream', async (req, res) => {
         throw new Error('SumoPod client not initialized');
       }
 
-      console.log(`[Stream] Using SumoPod client for ${targetModel}`);
+      console.log(`[Stream] Using SumoPod provider logic for ${targetModel}`);
+      const categories = detectedCategories;
 
-      // --- STEP 1: Real MCP Tool Discovery ---
-      res.write(`event: status\ndata: ${JSON.stringify({ message: 'Scanning available skills...' })}\n\n`);
-      console.log('[Stream] Scanning MCP tools...');
-
-      let mcpTools = [];
-      try {
-        const allMcpTools = await mcpManager.listAllTools();
-        mcpTools = allMcpTools.map(tool => ({
-          type: 'function',
-          function: {
-            name: `mcp__${tool.serverId}__${tool.name}`,
-            description: `[${tool.serverName}] ${tool.description}`,
-            parameters: tool.inputSchema
-          },
-          _meta: { serverId: tool.serverId, serverName: tool.serverName, originalName: tool.name }
-        }));
-        console.log(`[Stream] Found ${mcpTools.length} MCP tools`);
-
-        if (mcpTools.length > 0) {
-          res.write(`event: status\ndata: ${JSON.stringify({ message: `Found ${mcpTools.length} skill(s)`, tools: mcpTools.map(t => t.function.name) })}\n\n`);
-        } else {
-          res.write(`event: status\ndata: ${JSON.stringify({ message: 'No external skills connected' })}\n\n`);
-        }
-      } catch (mcpErr) {
-        console.warn('[Stream] MCP tool scan failed (non-fatal):', mcpErr.message);
-        res.write(`event: status\ndata: ${JSON.stringify({ message: 'Skill scan skipped' })}\n\n`);
+      if (mcpTools.length > 0) {
+        res.write(`event: status\ndata: ${JSON.stringify({ message: `Found ${mcpTools.length} skill(s)`, tools: mcpTools.map(t => t.function.name) })}\n\n`);
+      } else {
+        res.write(`event: status\ndata: ${JSON.stringify({ message: 'No external skills connected' })}\n\n`);
       }
 
       // --- STEP 2: Tool-calling loop ---
       let currentMessages = [...messages];
+      
+      // Inject "Agentic Nudge" if skills are found
+      if (mcpTools.length > 0) {
+        const skillContext = categories.length > 0 
+          ? `[SKILL SCOUT: ${categories.join(', ').toUpperCase()} ACTIVE]` 
+          : `[SKILL SCOUT: EXPERT AGENT ACTIVE]`;
+          
+        currentMessages.unshift({
+          role: 'system',
+          content: `${skillContext}\nYou have discovered several specialized skills/tools relevant to this query. 
+          You are an Expert Agent capable of multi-step reasoning. You MUST prioritize using these tools (via function calls) 
+          to provide a more robust, data-driven, and complex response. Do not settle for a surface-level answer if a tool can provide deeper insights.`
+        });
+      }
+
       let iterations = 0;
       const MAX_TOOL_ITERATIONS = 5;
 
@@ -1970,27 +2014,56 @@ app.post('/api/chat/stream', async (req, res) => {
       // --- STEP 3: Final streaming response (fallback or after tool loop) ---
       res.write(`event: status\ndata: ${JSON.stringify({ message: 'Generating response...' })}\n\n`);
 
-      const stream = await sumopodClient.chat.completions.create({
-        model: targetModel,
-        messages: currentMessages,
-        stream: true,
-      }, { signal: controller.signal });
+      try {
+        const stream = await sumopodClient.chat.completions.create({
+          model: targetModel,
+          messages: currentMessages,
+          stream: true,
+        }, { signal: controller.signal });
 
-      console.log(`[Stream] Stream created successfully`);
-      let chunkCount = 0;
+        console.log(`[Stream] Stream created successfully for model: ${targetModel}`);
+        let chunkCount = 0;
+        let contentLength = 0;
 
-      for await (const chunk of stream) {
-        chunkCount++;
+        for await (const chunk of stream) {
+          chunkCount++;
 
-        const content = chunk.choices[0]?.delta?.content || '';
-        if (content) {
-          res.write(`data: ${JSON.stringify({ content })}\n\n`);
+          const content = chunk.choices[0]?.delta?.content || '';
+          if (content) {
+            contentLength += content.length;
+            res.write(`data: ${JSON.stringify({ content })}\n\n`);
+          }
+          
+          // Check for error in chunk
+          if (chunk.error) {
+            console.error(`[Stream] Error in chunk: ${JSON.stringify(chunk.error)}`);
+            res.write(`event: error\ndata: ${JSON.stringify({ message: chunk.error.message || 'Model returned an error' })}\n\n`);
+            res.end();
+            return;
+          }
         }
+        
+        console.log(`[Stream] Finished streaming ${chunkCount} chunks, ${contentLength} chars total`);
+        
+        // If we got 0 content, send an error so the frontend knows
+        if (contentLength === 0) {
+          console.error(`[Stream] WARNING: SumoPod returned 0 content chunks for model ${targetModel}`);
+          res.write(`event: error\ndata: ${JSON.stringify({ message: `Model "${targetModel}" returned empty response. The model may be unavailable or overloaded. Please try again.` })}\n\n`);
+        }
+        
+        res.write('data: [DONE]\n\n');
+        res.end();
+        return;
+      } catch (streamErr) {
+        console.error(`[Stream] SumoPod streaming error for model ${targetModel}:`, streamErr.message);
+        // If response hasn't ended, send error to client
+        if (!res.writableEnded) {
+          res.write(`event: error\ndata: ${JSON.stringify({ message: `SumoPod stream error: ${streamErr.message}` })}\n\n`);
+          res.write('data: [DONE]\n\n');
+          res.end();
+        }
+        return;
       }
-      console.log(`[Stream] Finished streaming ${chunkCount} chunks`);
-      res.write('data: [DONE]\n\n');
-      res.end();
-      return;
     }
 
     // --- OPENROUTER STREAMING ---
@@ -2003,6 +2076,8 @@ app.post('/api/chat/stream', async (req, res) => {
     }
 
     // 6. Fetch from OpenRouter with streaming
+    res.write(`event: status\ndata: ${JSON.stringify({ message: 'Generating response...' })}\n\n`);
+    
     const upstreamResponse = await fetch(`${openrouterBaseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
@@ -2013,7 +2088,7 @@ app.post('/api/chat/stream', async (req, res) => {
       },
       body: JSON.stringify({
         model: targetModel,
-        messages,
+        messages: typeof currentMessages !== 'undefined' ? currentMessages : messages,
         stream: true,
       }),
       signal: controller.signal,

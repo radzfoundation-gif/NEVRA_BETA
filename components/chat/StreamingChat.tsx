@@ -8,6 +8,7 @@ import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { useOpenRouterStream } from '@/hooks/useOpenRouterStream';
 import SlidingCubeLoader from '@/components/ui/SlidingCubeLoader';
 import { Zap, CheckCircle, XCircle } from 'lucide-react';
+import SkillScoutLoading from '@/components/ui/SkillScoutLoading';
 
 /**
  * StreamingChat - Modular real-time streaming chat component
@@ -55,6 +56,7 @@ export function StreamingChat({
         error,
         statusMessage,
         activeTools,
+        matchedSkills,
         startStream,
         cancelStream,
         resetStream,
@@ -189,14 +191,13 @@ export function StreamingChat({
                                     <span className="inline-block w-2 h-5 bg-teal-500 ml-1 animate-pulse rounded-sm" />
                                 </div>
                             ) : (
-                                <div className="space-y-2">
-                                    {/* Real-time status message */}
-                                    <div className="flex items-center gap-2 text-gray-500">
-                                        <SlidingCubeLoader size={12} />
-                                        <span className="text-sm">
-                                            {statusMessage || 'Noir is thinking...'}
-                                        </span>
-                                    </div>
+                                <div className="space-y-4">
+                                    {/* Specialized Skill Scanning UI */}
+                                    <SkillScoutLoading 
+                                        status={statusMessage} 
+                                        matchedSkills={matchedSkills} 
+                                    />
+
 
                                     {/* Active tool execution indicators */}
                                     {activeTools.length > 0 && (

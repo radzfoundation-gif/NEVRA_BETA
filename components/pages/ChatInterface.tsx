@@ -17,6 +17,7 @@ import BuildingAnimation from '@/components/BuildingAnimation';
 import TypewriterText from '@/components/ui/TypewriterText';
 import AILoading from '@/components/ui/AILoading';
 import DeepResearchLoading from '@/components/ui/DeepResearchLoading';
+import SkillScoutLoading from '@/components/ui/SkillScoutLoading';
 import DynamicBackground from '@/components/ui/DynamicBackground';
 // ProviderSelector removed - orchestrator now manages models automatically
 import FrameworkSelector from '@/components/ui/FrameworkSelector';
@@ -399,10 +400,13 @@ const ChatInterface: React.FC = () => {
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [workflowStatus, setWorkflowStatus] = useState<{ status: string; message: string } | null>(null);
+  const [showSkillScout, setShowSkillScout] = useState(false);
+  const [skillScoutData, setSkillScoutData] = useState<{ message: string, categories: string[], tools: string[] } | null>(null);
   const [attachedImages, setAttachedImages] = useState<string[]>(initialState.initialImages || []);
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [deepResearchMode, setDeepResearchMode] = useState(initialState.reasoning);
   const [deepResearchPhase, setDeepResearchPhase] = useState<'thinking' | 'searching' | 'synthesizing' | 'answering'>('thinking');
+  const [activeLoadingPhase, setActiveLoadingPhase] = useState<'none' | 'deep_research' | 'skill_scout' | 'exploring_codebase' | 'generating'>('none');
   const [currentSearchQuery, setCurrentSearchQuery] = useState<string>('');
   const [activeSearchResults, setActiveSearchResults] = useState<SearchResult[]>([]);
   const MAX_IMAGES = 3;
@@ -1762,7 +1766,6 @@ const ChatInterface: React.FC = () => {
 
     // Track feedback conditions
     checkFeedbackConditions();
-
     // Abort previous generation if any
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -1770,7 +1773,11 @@ const ChatInterface: React.FC = () => {
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
+    // Reset states for new message
     setIsTyping(true);
+    setActiveLoadingPhase('generating');
+    setWorkflowStatus(null);
+    setShowSkillScout(false);
 
     // =====================================================
     // PDF GENERATION DETECTION - Intercepts before normal AI flow
@@ -2000,6 +2007,7 @@ const ChatInterface: React.FC = () => {
           // Show searching indicator
           console.log(`🔍 [NoirSync] Starting ${deepDive ? 'ADVANCED' : 'BASIC'} web search for:`, text);
           if (deepDive) {
+            setActiveLoadingPhase('deep_research');
             setDeepResearchPhase('searching');
             setCurrentSearchQuery(text);
           }
@@ -2054,6 +2062,7 @@ const ChatInterface: React.FC = () => {
       if (mode === 'builder') {
         const existingFiles = fileManager.getAllFiles();
         setIsExploringCodebase(true);
+        setActiveLoadingPhase('exploring_codebase');
         try {
           const analysis = CodebaseExplorerClass.analyzeCodebase(existingFiles);
           setCodebaseAnalysis(analysis);
@@ -2067,8 +2076,25 @@ const ChatInterface: React.FC = () => {
         }
       }
 
-      // IMPORTANT: Only generate code for builder mode
-      // For tutor mode, generate text response only (no code)
+      // Determine if Skill Scout should be active (selective activation) - Applies to all modes
+      const SKILL_SCOUT_KEYWORDS = [
+        'pdf', 'docx', 'doc', 'pptx', 'ppt', 'powerpoint', 'pdf-creator',
+        'marketing', 'iklan', 'ads', 'ad-creative', 'content-strategy',
+        'trading', 'saham', 'crypto', 'stock', 'binance',
+        'strategi', 'brainstorm', 'ide', 'analisis', 'analysis',
+        'mcp', 'skill', 'tool', 'nexus', 'ripple'
+      ];
+      
+      const isSkillScoutPrompt = SKILL_SCOUT_KEYWORDS.some(keyword => 
+        text.toLowerCase().includes(keyword)
+      );
+      
+      setShowSkillScout(isSkillScoutPrompt);
+      if (isSkillScoutPrompt) {
+        setActiveLoadingPhase('skill_scout');
+      }
+      setSkillScoutData(null); // Reset for new request
+
       let code: string | null = null;
       let responseText = '';
 
@@ -2089,7 +2115,7 @@ const ChatInterface: React.FC = () => {
               name: f.path.split('/').pop() || f.path,
               path: f.path,
               type: f.type,
-              summary: `File: ${f.path}`,
+          summary: `File: ${f.path}`,
             })),
             totalFiles: existingFiles.length,
             frameworks: [],
@@ -2103,6 +2129,9 @@ const ChatInterface: React.FC = () => {
           });
         }
 
+        // 3. Log context analysis
+        console.log(`🎯 Context Analysis: mode=${mode}, text="${text.substring(0, 50)}..."`);
+
         // Debug: Log mode before generating code
         console.log(`🎯 Generating code with mode: ${mode}, framework: ${frameworkToUse}, text: "${text.substring(0, 50)}..."`);
 
@@ -2112,7 +2141,33 @@ const ChatInterface: React.FC = () => {
 
         // Create status update callback
         const onStatusUpdate = (status: string, message?: string) => {
-          setWorkflowStatus({ status, message: message || '' });
+          let parsedMessage = '';
+          try {
+            const data = JSON.parse(message || '{}');
+            parsedMessage = data.message || '';
+          } catch (e) {
+            parsedMessage = message || '';
+          }
+
+          if (status === 'skill_match' || status === 'skill_run' || status === 'status') {
+            if (status !== 'status' || parsedMessage.toLowerCase().includes('skill')) {
+              setActiveLoadingPhase('skill_scout');
+              setShowSkillScout(true);
+            }
+            // Transition to generating if AI has finished skills and started generating
+            if (status === 'status' && parsedMessage.includes('Generating response...')) {
+              setActiveLoadingPhase('generating');
+            }
+          }
+          if (status === 'skill_match' && message) {
+            try {
+              const data = JSON.parse(message);
+              setSkillScoutData(data);
+            } catch (e) {
+              console.warn('Failed to parse skill_match data:', e);
+            }
+          }
+          setWorkflowStatus({ status, message: parsedMessage || '' });
         };
 
         codeResponse = await generateCode(
@@ -2350,7 +2405,34 @@ const ChatInterface: React.FC = () => {
           const useWorkflow = WORKFLOW_CONFIG.enableWorkflow;
 
           const onStatusUpdate = (status: string, message?: string) => {
-            setWorkflowStatus({ status, message: message || '' });
+            let parsedMessage = '';
+            try {
+              const data = JSON.parse(message || '{}');
+              parsedMessage = data.message || '';
+            } catch (e) {
+              parsedMessage = message || '';
+            }
+
+            if (status === 'skill_match' || status === 'skill_run' || status === 'status') {
+              // Switch loading view to skill scout
+              if (status !== 'status' || parsedMessage.toLowerCase().includes('skill')) {
+                setActiveLoadingPhase('skill_scout');
+                setShowSkillScout(true);
+              }
+              // Transition to generating if AI has finished skills and started generating
+              if (status === 'status' && parsedMessage.includes('Generating response...')) {
+                setActiveLoadingPhase('generating');
+              }
+            }
+            if (status === 'skill_match' && message) {
+              try {
+                const data = JSON.parse(message);
+                setSkillScoutData(data);
+              } catch (e) {
+                console.warn('Failed to parse skill_match data:', e);
+              }
+            }
+            setWorkflowStatus({ status, message: parsedMessage || '' });
           };
 
           codeResponse = await generateCode(
@@ -2364,6 +2446,7 @@ const ChatInterface: React.FC = () => {
             (chunk) => {
               // Streaming callback for tutor mode
               setIsTyping(false); // Stop typing indicator once streaming starts
+              setActiveLoadingPhase('none'); // Streaming has started
               setMessages(prev => {
                 const lastMsg = prev[prev.length - 1];
                 if (lastMsg && lastMsg.role === 'ai' && lastMsg.id === 'streaming-temp') {
@@ -2905,6 +2988,14 @@ const ChatInterface: React.FC = () => {
           const useWorkflow = WORKFLOW_CONFIG.enableWorkflow;
 
           const onStatusUpdate = (status: string, message?: string) => {
+            if (status === 'skill_match' && message) {
+              try {
+                const data = JSON.parse(message);
+                setSkillScoutData(data);
+              } catch (e) {
+                console.warn('Failed to parse skill_match data:', e);
+              }
+            }
             setWorkflowStatus({ status, message: message || '' });
           };
 
@@ -3076,6 +3167,14 @@ const ChatInterface: React.FC = () => {
           const useWorkflow = WORKFLOW_CONFIG.enableWorkflow;
 
           const onStatusUpdate = (status: string, message?: string) => {
+            if (status === 'skill_match' && message) {
+              try {
+                const data = JSON.parse(message);
+                setSkillScoutData(data);
+              } catch (e) {
+                console.warn('Failed to parse skill_match data:', e);
+              }
+            }
             setWorkflowStatus({ status, message: message || '' });
           };
 
@@ -3410,7 +3509,7 @@ const ChatInterface: React.FC = () => {
               {isTitleDropdownOpen && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setIsTitleDropdownOpen(false)} />
-                  <div className="absolute top-full left-0 mt-1 w-48 bg-white border border-zinc-200 rounded-xl shadow-lg z-50 py-1 animate-in fade-in zoom-in-95 duration-100">
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 md:left-0 md:translate-x-0 mt-1 w-[70vw] max-w-[192px] sm:w-48 bg-white border border-zinc-200 rounded-xl shadow-lg z-50 py-1 animate-in fade-in zoom-in-95 duration-100">
                     <button
                       onClick={() => {
                         setIsTitleDropdownOpen(false);
@@ -3915,62 +4014,30 @@ const ChatInterface: React.FC = () => {
                 </div>
                 );
               })}
-              {isTyping && (() => {
-                // Context-aware loading messages based on last user prompt
-                const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
-                const promptLower = (lastUserMsg?.content || '').toLowerCase();
+              {isTyping && (
+                <div className="px-2 pb-4">
+                  {activeLoadingPhase === 'deep_research' ? (
+                    <DeepResearchLoading
+                      phase={deepResearchPhase}
+                      query={currentSearchQuery}
+                      searchResults={activeSearchResults}
+                    />
+                  ) : activeLoadingPhase === 'skill_scout' ? (
+                    <SkillScoutLoading
+                      status={workflowStatus?.message}
+                      matchedSkills={skillScoutData}
+                    />
+                  ) : (
+                    <AILoading
+                      mode={appMode as any}
+                      status={workflowStatus?.message}
+                      userPrompt={messages[messages.length - 1]?.content}
+                      hasImages={attachedImages.length > 0}
+                    />
+                  )}
+                </div>
+              )}
 
-                const codingKw = ['code', 'coding', 'function', 'component', 'debug', 'error', 'react', 'javascript', 'typescript', 'python', 'html', 'css', 'api', 'kode', 'program', 'algorithm', 'server', 'backend', 'frontend', 'database', 'sql', 'deploy'];
-                const pdfKw = ['pdf', 'dokumen', 'document', 'export'];
-                const designKw = ['design', 'desain', 'ui', 'ux', 'layout', 'landing page', 'website', 'visual', 'mockup', 'template'];
-
-                let contextMessages: string[] | undefined;
-                if (codingKw.some(kw => promptLower.includes(kw))) {
-                  contextMessages = [
-                    "Noir is writing code...",
-                    "Analyzing your request...",
-                    "Generating solution...",
-                    "Building components...",
-                    "Almost done..."
-                  ];
-                } else if (pdfKw.some(kw => promptLower.includes(kw))) {
-                  contextMessages = [
-                    "Noir is creating document...",
-                    "Structuring content...",
-                    "Formatting layout...",
-                    "Generating PDF...",
-                    "Almost done..."
-                  ];
-                } else if (designKw.some(kw => promptLower.includes(kw))) {
-                  contextMessages = [
-                    "Noir is designing...",
-                    "Crafting visual layout...",
-                    "Building interface...",
-                    "Polishing design...",
-                    "Almost done..."
-                  ];
-                }
-
-                return (
-                  <div className="pl-2">
-                    {deepResearchMode ? (
-                      <DeepResearchLoading 
-                        phase={deepResearchPhase} 
-                        query={currentSearchQuery}
-                        searchResults={activeSearchResults}
-                      />
-                    ) : (
-                      <AILoading
-                        mode={appMode || 'tutor'}
-                        status={workflowStatus?.message}
-                        loadingMessages={contextMessages}
-                        userPrompt={lastUserMsg?.content}
-                        hasImages={lastUserMsg?.images && lastUserMsg.images.length > 0}
-                      />
-                    )}
-                  </div>
-                );
-              })()}
               <div ref={messagesEndRef} />
             </motion.div>
           )

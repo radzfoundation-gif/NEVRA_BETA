@@ -949,18 +949,7 @@ Always follow this structure when an image is present.`;
       const routeNoirSync = (promptText: string, webSearchEnabled: boolean = false, isDeepResearch: boolean = false): string => {
         const lower = promptText.toLowerCase();
 
-        // 0. Deep Research Mode (Highest Priority)
-        if (isDeepResearch) {
-          const complexity = promptText.length > 300 || lower.includes('analyze') || lower.includes('research') || lower.includes('jelaskan') || lower.includes('detail');
-          if (complexity) {
-            console.log('🔬 [NoirSync] Deep Research: Routed to Seed 2.0 Pro');
-            return 'seed-2-0-pro-free';
-          }
-          console.log('🔬 [NoirSync] Deep Research: Routed to Seed 2.0 Lite');
-          return 'seed-2-0-lite-free';
-        }
-
-        // 1. PDF / Document generation
+        // 1. PDF / Document generation → Claude Opus (specialized)
         const pdfPatterns = [
           /\b(buatkan|buat|generate|create|bikin)\b.*\b(pdf|dokumen|document)\b/i,
           /\b(pdf|dokumen|document)\b.*\b(buatkan|buat|generate|create|bikin)\b/i,
@@ -972,42 +961,9 @@ Always follow this structure when an image is present.`;
           return 'claude-opus-4-6';
         }
 
-        // 2. Visual / Design
-        const designKeywords = [
-          'design', 'desain', 'ui', 'ux', 'landing page', 'mockup', 'wireframe',
-          'visual', 'layout', 'template', 'figma', 'prototype', 'website design',
-          'web design', 'buatkan website', 'buat website', 'buat halaman',
-          'redesign', 'tata letak',
-        ];
-        if (designKeywords.some(kw => lower.includes(kw))) {
-          console.log('🎨 [NoirSync] Routed to Gemini 3 Pro (Visual/Design)');
-          return 'gemini/gemini-3-pro-preview';
-        }
-
-        // 3. Coding
-        const codingKeywords = [
-          'code', 'coding', 'program', 'function', 'class', 'component',
-          'debug', 'error', 'syntax', 'algorithm', 'api', 'database',
-          'react', 'javascript', 'typescript', 'python', 'java', 'html', 'css',
-          'node', 'express', 'next.js', 'vue', 'angular', 'flutter', 'swift',
-          'kode', 'buat kode', 'buatkan kode', 'perbaiki kode', 'fix bug',
-          'implement', 'refactor', 'deploy', 'server', 'backend', 'frontend',
-          'npm', 'git', 'docker', 'sql', 'mongodb', 'firebase', 'supabase',
-        ];
-        if (codingKeywords.some(kw => lower.includes(kw))) {
-          console.log('💻 [NoirSync] Routed to Kimi K2 Thinking (Coding)');
-          return 'kimi-k2-thinking';
-        }
-
-        // 4. Web Search active
-        if (webSearchEnabled) {
-          console.log('🔍 [NoirSync] Routed to Gemini 2.5 Flash Lite (Web Search)');
-          return 'gemini/gemini-2.5-flash-lite';
-        }
-
-        // 5. Default — normal chat
-        console.log('💬 [NoirSync] Routed to Seed 2.0 Mini (Default Chat)');
-        return 'seed-2-0-lite-free';
+        // 2. Everything else → Seed 2.0 Pro (default for all chat)
+        console.log('🚀 [NoirSync] Routed to Seed 2.0 Pro (Default)');
+        return 'seed-2-0-pro-free';
       };
 
       // Determine if web search is active from prompt markers
@@ -1083,10 +1039,11 @@ Always follow this structure when an image is present.`;
         stream: true,
         temperature: 0.7,
       };
-      const sumopodBaseUrl = import.meta.env.VITE_SUMOPOD_BASE_URL || 'https://ai.sumopod.com';
-      console.log(`[AI] SumoPod Request: model=${targetModel}`, JSON.stringify({ ...requestBody, messages: coalescedMessages.map(m => ({ role: m.role, length: typeof m.content === 'string' ? m.content.length : 'multimodal' })) }, null, 2));
+      
+      console.log(`[AI] NoirSync Request (via Backend): model=${targetModel}`, JSON.stringify({ ...requestBody, messages: coalescedMessages.map(m => ({ role: m.role, length: typeof m.content === 'string' ? m.content.length : 'multimodal' })) }, null, 2));
 
-      const streamResp = await fetchWithRetry(`${sumopodBaseUrl}/v1/chat/completions`, {
+      // Redirect to local backend to enable Skill Scout (MCP tool discovery)
+      const streamResp = await fetch(`${API_BASE}/chat/stream`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1097,6 +1054,21 @@ Always follow this structure when an image is present.`;
 
       clearTimeout(timeoutId);
 
+      // Check for HTTP errors before attempting to read stream
+      if (!streamResp.ok) {
+        let errorMsg = `Backend stream error (${streamResp.status})`;
+        try {
+          const errorText = await streamResp.text();
+          const errorData = JSON.parse(errorText);
+          errorMsg = errorData.error || errorData.message || errorMsg;
+        } catch {
+          // If parse fails, use the status text
+          errorMsg += `: ${streamResp.statusText}`;
+        }
+        console.error(`[AI] Stream HTTP Error: ${errorMsg}`);
+        throw new Error(errorMsg);
+      }
+
       if (!streamResp.body) {
         throw new Error('No response body for stream');
       }
@@ -1104,38 +1076,114 @@ Always follow this structure when an image is present.`;
       const reader = streamResp.body.getReader();
       const decoder = new TextDecoder();
       let fullContent = '';
+      let buffer = '';
+      let streamDone = false;
+      let streamError = '';
 
-      while (true) {
+      while (!streamDone) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split('\n\n');
+        buffer = parts.pop() || '';
 
-        for (const line of lines) {
-          const trimmedLine = line.trim();
-          if (!trimmedLine || trimmedLine === 'data: [DONE]') continue;
+        for (const part of parts) {
+          if (!part.trim()) continue;
+          
+          const lines = part.split('\n');
+          let eventType = '';
+          let dataContent = '';
 
-          if (trimmedLine.startsWith('data: ')) {
+          for (const line of lines) {
+            if (line.startsWith('event:')) {
+              eventType = line.slice(6).trim();
+            } else if (line.startsWith('data:')) {
+              dataContent = line.slice(5).trim();
+            }
+          }
+
+          if (dataContent === '[DONE]') {
+            streamDone = true;
+            break;
+          }
+
+          // Handle error events from backend
+          if (eventType === 'error') {
             try {
-              const data = JSON.parse(trimmedLine.slice(6));
+              const errorData = JSON.parse(dataContent);
+              streamError = errorData.message || errorData.details || 'Stream error from backend';
+            } catch {
+              streamError = dataContent || 'Unknown stream error';
+            }
+            console.error(`[AI] Stream error event: ${streamError}`);
+            streamDone = true;
+            break;
+          }
+
+          if (eventType === 'status' || eventType === 'skill_match') {
+            if (statusCallback) {
+              statusCallback(eventType, dataContent);
+            }
+            continue;
+          }
+
+          // Handle 'done' event from OpenRouter path
+          if (eventType === 'done') {
+            streamDone = true;
+            break;
+          }
+
+          // Handle content (delta) - usually uses event-less data: or event: delta
+          if (dataContent) {
+            try {
+              const data = JSON.parse(dataContent);
+              
+              // Check for error in data payload
+              if (data.error) {
+                streamError = data.error.message || data.error || 'Stream error';
+                console.error(`[AI] Error in stream data: ${streamError}`);
+                streamDone = true;
+                break;
+              }
+
+              // Handle standard OpenAI/SumoPod format
               if (data.choices?.[0]?.delta?.content) {
                 const contentChunk = data.choices[0].delta.content;
                 fullContent += contentChunk;
                 onChunk(contentChunk);
+              } 
+              // Handle raw content payload
+              else if (data.content) {
+                fullContent += data.content;
+                onChunk(data.content);
               }
-              if (data.error) {
-                throw new Error(data.error.message || 'Stream error');
+              // Handle full message format (non-streaming probe response)
+              else if (data.choices?.[0]?.message?.content) {
+                const messageContent = data.choices[0].message.content;
+                fullContent += messageContent;
+                onChunk(messageContent);
               }
-            } catch (e) {
-              // Ignore parse errors for partial chunks
+            } catch (e: any) {
+              // Only ignore JSON parse errors, not other errors
+              if (e instanceof SyntaxError) {
+                console.warn('[AI] Ignoring unparseable SSE chunk:', dataContent.substring(0, 100));
+              } else {
+                console.error('[AI] Error processing stream chunk:', e.message);
+              }
             }
           }
         }
       }
 
+      // If we got an error from the stream, throw it
+      if (streamError && !fullContent) {
+        throw new Error(streamError);
+      }
+
       if (!fullContent) {
-        throw new Error("Received empty response from SumoPod.");
+        console.error('[AI] Empty response received. Stream completed without content chunks.');
+        throw new Error("Received empty response from SumoPod. This may indicate the model is unavailable or returned an error. Check backend logs for details.");
       }
 
       return {

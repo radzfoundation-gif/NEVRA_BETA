@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
     Plus, X, FileText, Camera, Image as ImageIcon,
     ArrowUp, Globe, Paperclip, ChevronDown, Mic,
-    Code2, Target, Sparkles, PenLine, BookOpen, AudioLines, Search, Square, Wrench
+    Code2, Target, Sparkles, PenLine, BookOpen, AudioLines, Search, Square, Wrench, Check, Brain, Palette, Folder, Github, Plug, SquareTerminal, ChevronRight, Wand2
 } from 'lucide-react';
 
 // Custom Shark Icon for Deep Research
@@ -31,6 +31,7 @@ import { AppMode } from '@/lib/modeDetector';
 import ModelSelector, { ModelType } from '@/components/ui/ModelSelector';
 import VoiceDictationModal from './VoiceDictationModal';
 import FileUploadButton from './FileUploadButton';
+import AlertModal from '@/components/ui/AlertModal';
 
 function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs));
@@ -81,15 +82,22 @@ interface ChatInputProps {
     onToggleDeepResearch?: (enabled: boolean) => void;
 }
 
-// Tool items for the + dropdown
-const TOOL_ITEMS = [
-    { id: 'smart_document', label: 'Generate PDF', icon: Sparkles },
-    { id: 'image', label: 'Upload Image', icon: ImageIcon },
-    { id: 'camera', label: 'Take Photo', icon: Camera },
-    { id: 'document', label: 'Upload Document', icon: FileText },
-    { id: 'web', label: 'Web Search', icon: Globe },
-    { id: 'deep_research', label: 'Deep Research', icon: SharkIcon },
-    { id: 'voice', label: 'Voice Dictation', icon: Mic },
+// Tool groups for the segmented + dropdown
+const TOOL_GROUPS = [
+    [
+        { id: 'upload_file', label: 'Add files or photos', icon: Paperclip },
+        { id: 'camera', label: 'Take a screenshot', icon: Camera },
+        { id: 'project', label: 'Add to project', icon: Folder, hasChevron: true },
+        { id: 'github', label: 'Add from GitHub', icon: Github },
+    ],
+    [
+        { id: 'skills', label: 'Skills', icon: SquareTerminal, hasChevron: true },
+        { id: 'connectors', label: 'Add connectors', icon: Plug },
+    ],
+    [
+        { id: 'web', label: 'Web search', icon: Globe },
+        { id: 'styles', label: 'Use style', icon: Wand2 },
+    ]
 ];
 
 // Quick action pills
@@ -103,7 +111,10 @@ const QUICK_ACTIONS = [
 
 // Human-readable model display names
 const MODEL_DISPLAY_NAMES: Record<string, string> = {
-    'sonar': 'NoirSync',
+    'sonar': 'Fast Thinking',
+    'sonnet': 'Fast Thinking',
+    'opus': 'Pro',
+    'haiku': 'Haiku',
 };
 
 const ChatInput: React.FC<ChatInputProps> = ({
@@ -153,8 +164,22 @@ const ChatInput: React.FC<ChatInputProps> = ({
 
     const [isFocused, setIsFocused] = useState(false);
     const cameraInputRef = useRef<HTMLInputElement>(null);
+    const combinedInputRef = useRef<HTMLInputElement>(null);
     const toolsMenuRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    // Alert Modal State
+    const [alertConfig, setAlertConfig] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        type?: 'info' | 'development' | 'upgrade';
+    }>({
+        isOpen: false,
+        title: '',
+        message: '',
+        type: 'development'
+    });
 
     // NoirSync handles model routing automatically - no manual deep dive model check needed
     const isDeepDiveModel = false;
@@ -179,29 +204,61 @@ const ChatInput: React.FC<ChatInputProps> = ({
 
     // Handle tool selection from + dropdown
     const handleToolSelect = (toolId: string) => {
+        // Add custom vibration or haptic feedback
+        if (navigator.vibrate) {
+            navigator.vibrate(50);
+        }
+
         setShowToolsMenu(false);
         switch (toolId) {
-            case 'smart_document':
-                setInput('Buatkan PDF dokumen: ');
-                textareaRef.current?.focus();
-                break;
-            case 'image':
-                fileInputRef.current?.click();
+            case 'upload_file':
+                combinedInputRef.current?.click();
                 break;
             case 'camera':
                 cameraInputRef.current?.click();
                 break;
-            case 'document':
-                documentInputRef.current?.click();
+            case 'project':
+                setAlertConfig({
+                    isOpen: true,
+                    title: 'Projects',
+                    message: 'Noir Workspace akan segera hadir! Nantikan fitur kolaborasi proyek yang lebih canggih.',
+                    type: 'development'
+                });
+                break;
+            case 'github':
+                setAlertConfig({
+                    isOpen: true,
+                    title: 'GitHub Integration',
+                    message: 'Hubungkan repositori GitHub Anda langsung ke Noir untuk analisis kode yang lebih mendalam.',
+                    type: 'development'
+                });
+                break;
+            case 'connectors':
+                setAlertConfig({
+                    isOpen: true,
+                    title: 'Connectors',
+                    message: 'Integrasikan Google Drive, Notion, dan tool lainnya untuk memperkaya basis pengetahuan AI Anda.',
+                    type: 'development'
+                });
+                break;
+            case 'skills':
+                setAlertConfig({
+                    isOpen: true,
+                    title: 'Noir Skills',
+                    message: 'Tingkatkan kemampuan AI dengan mengaktifkan skill khusus seperti akses basis data atau pencarian web spesifik.',
+                    type: 'development'
+                });
+                break;
+            case 'styles':
+                setAlertConfig({
+                    isOpen: true,
+                    title: 'Writing Styles',
+                    message: 'Ubah gaya penulisan AI secara instan. Mulai dari gaya akademis hingga gaya kreatif.',
+                    type: 'development'
+                });
                 break;
             case 'web':
                 setEnableWebSearch(!enableWebSearch);
-                break;
-            case 'deep_research':
-                onToggleDeepResearch?.(!deepResearchMode);
-                break;
-            case 'voice':
-                setShowDictation(true);
                 break;
         }
     };
@@ -242,7 +299,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
                 type="file"
                 ref={documentInputRef}
                 className="hidden"
-                accept=".pdf,.docx,.txt,.md"
+                accept=".pdf,.docx,.txt,.md,.csv,.doc"
                 onChange={async (e) => {
                     const file = e.target.files?.[0];
                     if (!file) return;
@@ -254,9 +311,37 @@ const ChatInput: React.FC<ChatInputProps> = ({
                         setShowDocumentViewer(true);
                     } catch (error: unknown) {
                         const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-                        alert(`Failed to parse document: ${errorMessage}`);
+                        setAlertConfig({
+                            isOpen: true,
+                            title: 'Parsing Error',
+                            message: `Maaf, terjadi kesalahan saat membaca dokumen tersebut: ${errorMessage}`,
+                            type: 'info'
+                        });
                     }
                     if (documentInputRef.current) documentInputRef.current.value = '';
+                }}
+            />
+            {/* Combined Input for Upload Files menu item */}
+            <input
+                type="file"
+                ref={combinedInputRef}
+                className="hidden"
+                multiple
+                accept="image/*,.pdf,.docx,.txt,.md,.csv,.doc"
+                onChange={(e) => {
+                    const files = Array.from(e.target.files || []);
+                    if (!files.length) return;
+                    
+                    const images = files.filter(f => f.type.startsWith('image/'));
+                    const docs = files.filter(f => !f.type.startsWith('image/'));
+
+                    if (images.length) {
+                        handleFileChange({ target: { files: images } } as unknown as React.ChangeEvent<HTMLInputElement>);
+                    }
+                    if (docs.length && onFilesSelected) {
+                        onFilesSelected(docs as any);
+                    }
+                    if (combinedInputRef.current) combinedInputRef.current.value = '';
                 }}
             />
         </>
@@ -317,26 +402,15 @@ const ChatInput: React.FC<ChatInputProps> = ({
                     )}
 
                     {/* Active Mode Badges */}
-                    {(enableWebSearch || deepResearchMode) && (
+                    {(enableWebSearch) && (
                         <div className="px-4 pt-2 flex gap-2 flex-wrap">
-                            {enableWebSearch && (
-                                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 text-blue-600 rounded-lg text-xs font-medium">
-                                    <Globe size={12} />
-                                    Web Search On
-                                    <button onClick={() => setEnableWebSearch(false)} className="ml-1 hover:text-blue-800">
-                                        <X size={12} />
-                                    </button>
-                                </div>
-                            )}
-                            {deepResearchMode && (
-                                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-purple-50 text-purple-600 rounded-lg text-xs font-medium">
-                                    <SharkIcon size={12} />
-                                    Deep Research On
-                                    <button onClick={() => onToggleDeepResearch?.(false)} className="ml-1 hover:text-purple-800">
-                                        <X size={12} />
-                                    </button>
-                                </div>
-                            )}
+                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 text-blue-600 rounded-lg text-xs font-medium">
+                                <Globe size={12} />
+                                Web Search On
+                                <button onClick={() => setEnableWebSearch(false)} className="ml-1 hover:text-blue-800">
+                                    <X size={12} />
+                                </button>
+                            </div>
                         </div>
                     )}
 
@@ -387,62 +461,44 @@ const ChatInput: React.FC<ChatInputProps> = ({
                                 <Plus size={20} strokeWidth={1.8} />
                             </button>
 
-                            {/* Quick AI Tools Toggle - hidden on mobile */}
-                            <button
-                                className="hidden md:flex w-8 h-8 items-center justify-center rounded-lg text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition-all"
-                                title="AI Tools"
-                                onClick={() => setShowToolsMenu(true)} // Open tools menu since it contains AI conversion tools
-                            >
-                                <Wrench size={16} strokeWidth={1.8} />
-                            </button>
 
-                            {/* Deep Research Quick Toggle - hidden on mobile */}
-                            <button
-                                onClick={() => {
-                                    onToggleDeepResearch?.(!deepResearchMode);
-                                    if (!enableWebSearch && !deepResearchMode) setEnableWebSearch(true);
-                                }}
-                                className={cn(
-                                    "hidden md:flex w-8 h-8 items-center justify-center rounded-lg transition-all",
-                                    deepResearchMode
-                                        ? "bg-purple-100 text-purple-600 border border-purple-200"
-                                        : "text-stone-400 hover:text-stone-700 hover:bg-stone-100"
-                                )}
-                                title="Deep Research Mode"
-                            >
-                                <SharkIcon size={18} />
-                            </button>
-
-                            {/* Native File Upload Button (New Feature) */}
-                            {onFilesSelected && (
-                                <FileUploadButton onFilesSelected={onFilesSelected} disabled={isTyping} />
-                            )}
 
                             {/* Tools Dropdown */}
                             {showToolsMenu && (
-                                <div className="absolute bottom-full left-0 mb-2 w-52 bg-white border border-stone-200 rounded-xl shadow-xl overflow-hidden z-50 animate-in fade-in slide-in-from-bottom-2 duration-150">
-                                    {TOOL_ITEMS.map((tool) => {
-                                        const Icon = tool.icon;
-                                        const isActive = (tool.id === 'web' && enableWebSearch) || (tool.id === 'deep_research' && deepResearchMode);
-                                        return (
-                                            <button
-                                                key={tool.id}
-                                                onClick={() => handleToolSelect(tool.id)}
-                                                className={cn(
-                                                    "w-full flex items-center gap-3 px-4 py-2.5 text-sm text-stone-700 hover:bg-stone-50 transition-colors",
-                                                    isActive && (tool.id === 'deep_research' ? "text-purple-600 bg-purple-50/50" : "text-blue-600 bg-blue-50/50")
-                                                )}
-                                            >
-                                                <Icon size={16} strokeWidth={1.5} />
-                                                <span>{tool.label}</span>
-                                                {isActive && (
-                                                    <span className={cn("ml-auto text-[10px] font-medium px-1.5 py-0.5 rounded",
-                                                        tool.id === 'deep_research' ? "text-purple-500 bg-purple-100" : "text-blue-500 bg-blue-100"
-                                                    )}>ON</span>
-                                                )}
-                                            </button>
-                                        );
-                                    })}
+                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 md:left-0 md:translate-x-0 mb-2 w-[85vw] max-w-[224px] sm:w-56 bg-white border border-stone-200 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden z-50 animate-in fade-in slide-in-from-bottom-2 duration-150 py-1.5">
+                                    {TOOL_GROUPS.map((group, groupIdx) => (
+                                        <React.Fragment key={groupIdx}>
+                                            <div className="flex flex-col">
+                                                {group.map((tool) => {
+                                                    const Icon = tool.icon;
+                                                    const isActive = (tool.id === 'web' && enableWebSearch);
+                                                    return (
+                                                        <button
+                                                            key={tool.id}
+                                                            onClick={() => handleToolSelect(tool.id)}
+                                                            className="w-full flex items-center gap-3 px-3 py-2 text-[13px] hover:bg-stone-50 transition-colors mx-1.5 rounded-lg text-left"
+                                                            style={{ width: 'calc(100% - 12px)' }}
+                                                        >
+                                                            <div className={cn("flex justify-center items-center w-5", isActive ? "text-blue-500" : "text-stone-700")}>
+                                                                <Icon size={16} strokeWidth={1.8} />
+                                                            </div>
+                                                            <span className={cn("flex-1", isActive ? "text-blue-600 font-medium" : "text-stone-700")}>{tool.label}</span>
+                                                            
+                                                            {(tool as any).hasChevron && (
+                                                                <ChevronRight size={14} className="text-stone-400 ml-auto" strokeWidth={2} />
+                                                            )}
+                                                            {isActive && (
+                                                                <Check size={16} className="text-blue-500 ml-auto" strokeWidth={2.5} />
+                                                            )}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                            {groupIdx < TOOL_GROUPS.length - 1 && (
+                                                <div className="h-px bg-stone-100 my-1.5 mx-3" />
+                                            )}
+                                        </React.Fragment>
+                                    ))}
                                 </div>
                             )}
                         </div>
@@ -455,7 +511,10 @@ const ChatInput: React.FC<ChatInputProps> = ({
                                 onModelChange={onModelChange}
                                 disabled={isTyping}
                                 withReasoning={withReasoning}
-                                onReasoningToggle={() => setWithReasoning(!withReasoning)}
+                                onReasoningToggle={() => {
+                                    setWithReasoning(!withReasoning);
+                                    onToggleDeepResearch?.(!withReasoning);
+                                }}
                                 isSubscribed={isSubscribed}
                                 comparisonMode={comparisonMode}
                                 onComparisonModeToggle={onComparisonModeToggle}

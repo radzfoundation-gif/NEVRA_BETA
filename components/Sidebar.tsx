@@ -218,6 +218,14 @@ const Sidebar: React.FC<SidebarProps> = ({
                     >
                         <History size={20} strokeWidth={1.5} />
                     </button>
+
+                    <button
+                        onClick={onOpenSettings}
+                        className="p-2 hover:bg-zinc-200 rounded-lg text-zinc-500 hover:text-zinc-900 transition-colors"
+                        title="Skills & MCP"
+                    >
+                        <Zap size={20} strokeWidth={1.5} />
+                    </button>
                 </div>
 
                 <div className="flex-1" />
@@ -244,9 +252,9 @@ const Sidebar: React.FC<SidebarProps> = ({
                             {getUserInitials()}
                         </div>
 
-                        {/* Mini User Menu */}
-                        {showUserMenu && (
-                            <div className="absolute bottom-0 left-10 w-48 bg-white rounded-xl shadow-xl border border-zinc-200 p-1.5 z-50 animate-in slide-in-from-left-2 fade-in duration-200">
+                            {/* Mini User Menu */}
+                            {showUserMenu && (
+                                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 md:left-10 md:translate-x-0 w-[70vw] max-w-[192px] sm:w-48 bg-white rounded-xl shadow-xl border border-zinc-200 p-1.5 z-50 animate-in slide-in-from-left-2 fade-in duration-200">
                                 <div className="px-2 py-1.5 border-b border-zinc-100 mb-1">
                                     <p className="text-xs font-semibold text-zinc-900 truncate max-w-[140px]">{user?.primaryEmailAddress?.emailAddress}</p>
                                 </div>
@@ -354,6 +362,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                     <button onClick={() => window.open('http://localhost:5173/pricing', '_blank')} className="w-full flex items-center gap-3 px-2 py-2 text-[13px] hover:bg-zinc-100 rounded-md text-zinc-700 transition-colors">
                         <Code size={16} strokeWidth={1.5} className="text-zinc-500" />
                         Code
+                    </button>
+                    <button onClick={onOpenSettings} className="w-full flex items-center gap-3 px-2 py-2 text-[13px] hover:bg-zinc-100 rounded-md text-zinc-700 transition-colors">
+                        <Zap size={16} strokeWidth={1.5} className="text-zinc-500" />
+                        Skills
                     </button>
                 </div>
             </div>

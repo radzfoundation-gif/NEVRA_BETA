@@ -1,0 +1,50 @@
+[
+  {
+    "id": "1774834754262",
+    "name": "pdf",
+    "url": "npx @modelcontextprotocol/server-everything",
+    "enabled": true
+  },
+  {
+    "id": "1774834761227",
+    "name": "docx",
+    "url": "npx @modelcontextprotocol/server-everything",
+    "enabled": true
+  },
+  {
+    "id": "1774835450972",
+    "name": "frontend-design",
+    "url": "npx @modelcontextprotocol/server-everything",
+    "enabled": true
+  },
+  {
+    "id": "1774835995066",
+    "name": "skill-creator",
+    "url": "npx @modelcontextprotocol/server-everything",
+    "enabled": true
+  },
+  {
+    "id": "1774836189337",
+    "name": "ui-ux-pro-max",
+    "url": "npx @modelcontextprotocol/server-everything",
+    "enabled": true
+  },
+  {
+    "id": "1774836192334",
+    "name": "brainstorming",
+    "url": "npx @modelcontextprotocol/server-everything",
+    "enabled": true
+  },
+  {
+    "id": "1774836194359",
+    "name": "pptx",
+    "url": "npx @modelcontextprotocol/server-everything",
+    "enabled": true
+  },
+  {
+    "id": "1774836196661",
+    "name": "marketing",
+    "url": "npx @modelcontextprotocol/server-everything",
+    "enabled": true
+  }
+]

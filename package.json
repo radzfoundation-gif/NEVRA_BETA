@@ -12,7 +12,8 @@
     "test:mcp": "node scripts/test-mcp.js",
     "deploy": "bash scripts/deploy.sh",
     "deploy:prod": "bash scripts/deploy.sh --prod",
-    "check:env": "bash scripts/check-env.sh"
+    "check:env": "bash scripts/check-env.sh",
+    "skills": "node scripts/skills.js"
   },
   "dependencies": {
     "@excalidraw/excalidraw": "^0.18.0",

@@ -146,7 +146,8 @@ export default function DocGenerator({ asModal = false, onClose }: DocGeneratorP
             };
 
             // This triggers the download in browser directly
-            await html2pdf().set(opt).from(container).save();
+            const html2pdfFunc = (html2pdf as any).default || html2pdf;
+            await html2pdfFunc().set(opt).from(container).save();
             document.body.removeChild(container);
 
         } catch (err: any) {

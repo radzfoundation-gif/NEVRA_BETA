@@ -32,6 +32,7 @@ interface StreamState {
     error: string | null;
     statusMessage: string | null;
     activeTools: ToolEvent[];
+    matchedSkills: { message: string, categories: string[], tools: string[] } | null;
 }
 
 interface UseOpenRouterStreamReturn extends StreamState {
@@ -47,6 +48,7 @@ export function useOpenRouterStream(): UseOpenRouterStreamReturn {
         error: null,
         statusMessage: null,
         activeTools: [],
+        matchedSkills: null,
     });
 
     const abortControllerRef = useRef<AbortController | null>(null);
@@ -69,6 +71,7 @@ export function useOpenRouterStream(): UseOpenRouterStreamReturn {
             error: null,
             statusMessage: null,
             activeTools: [],
+            matchedSkills: null,
         });
 
         // Create new AbortController
@@ -141,6 +144,18 @@ export function useOpenRouterStream(): UseOpenRouterStreamReturn {
                             const parsed = JSON.parse(eventData);
                             setState(prev => ({
                                 ...prev,
+                                statusMessage: parsed.message || null,
+                            }));
+                        } catch {
+                            // ignore
+                        }
+                    } else if (eventType === 'skill_match' && eventData) {
+                        // Skill Scout found potential skills
+                        try {
+                            const parsed = JSON.parse(eventData);
+                            setState(prev => ({
+                                ...prev,
+                                matchedSkills: parsed,
                                 statusMessage: parsed.message || null,
                             }));
                         } catch {
@@ -287,6 +302,7 @@ export function useOpenRouterStream(): UseOpenRouterStreamReturn {
             error: null,
             statusMessage: null,
             activeTools: [],
+            matchedSkills: null,
         });
     }, [cancelStream]);
 

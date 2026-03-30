@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Globe, ArrowUp, Link as LinkIcon, Layers, Plus, Paperclip, ChevronDown, Check, Sparkles, LayoutGrid, Mic, Youtube, FileText, X, Loader2, Wrench, AlertTriangle, Image as ImageIcon, PenTool, Code, LineChart, Hammer, GraduationCap, AudioLines, Lightbulb, ChevronRight, Target, BookOpen, PenLine, CircleDashed, Brain, Search } from 'lucide-react';
+import { Globe, ArrowUp, Link as LinkIcon, Layers, Plus, Paperclip, ChevronDown, Check, Sparkles, LayoutGrid, Mic, Youtube, FileText, X, Loader2, Wrench, AlertTriangle, Image as ImageIcon, PenTool, Code, LineChart, Hammer, GraduationCap, AudioLines, Lightbulb, ChevronRight, Target, BookOpen, PenLine, CircleDashed, Brain, Search, Palette, Folder, Github, Plug, SquareTerminal, Wand2, Camera } from 'lucide-react';
 import ModelSelector, { ModelType } from './ui/ModelSelector';
 import { cn, getApiUrl } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
+import AlertModal from './ui/AlertModal';
 import { useTokenLimit } from '@/hooks/useTokenLimit';
 import SubscriptionPopup from './SubscriptionPopup';
 import VoiceDictationModal from './chat/VoiceDictationModal';
@@ -78,7 +79,7 @@ export function ResearchWelcome({
 
     // Model Selector State
     const [selectedModel, setSelectedModel] = useState<ModelType>('sonar');
-    const [withReasoning, setWithReasoning] = useState(true);
+    const [withReasoning, setWithReasoning] = useState(false);
 
     // Usage limits hook
     const { checkFeatureLimit, incrementFeatureUsage, isSubscribed, credits, softLimitReached, featureUsage } = useTokenLimit();
@@ -163,6 +164,19 @@ export function ResearchWelcome({
 
     const [greeting, setGreeting] = useState("What shall we think through?");
 
+    // Alert Modal State
+    const [alertConfig, setAlertConfig] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        type?: 'info' | 'development' | 'upgrade';
+    }>({
+        isOpen: false,
+        title: '',
+        message: '',
+        type: 'development'
+    });
+
     useEffect(() => {
         const phrases = [
             "What shall we think through?",
@@ -240,11 +254,21 @@ export function ResearchWelcome({
                     });
                     incrementFeatureUsage('convert');
                 } else {
-                    alert('No image was generated. Please try again.');
+                    setAlertConfig({
+                        isOpen: true,
+                        title: 'Image Generation',
+                        message: 'Maaf, tidak ada gambar yang dihasilkan. Sila coba lagi dengan prompt yang berbeda.',
+                        type: 'info'
+                    });
                 }
             } else {
                 const error = await response.json().catch(() => ({ error: 'Unknown error' }));
-                alert(error.error?.message || error.error || 'Failed to generate image');
+                setAlertConfig({
+                    isOpen: true,
+                    title: 'Generation Failed',
+                    message: error.error?.message || error.error || 'Gagal menghasilkan gambar. Sila periksa koneksi atau kredit Anda.',
+                    type: 'info'
+                });
             }
         } catch (error) {
             console.error('Image generation error:', error);
@@ -540,9 +564,19 @@ export function ResearchWelcome({
             });
             const data = await response.json();
             if (response.ok) {
-                alert(`Successfully embedded ${data.chunksProcessed} chunks!`);
+                setAlertConfig({
+                    isOpen: true,
+                    title: 'Knowledge Success',
+                    message: `Berhasil menambahkan ${data.chunksProcessed} bagian informasi ke dalam basis pengetahuan Anda.`,
+                    type: 'info'
+                });
             } else {
-                alert('Failed to embed: ' + data.error);
+                setAlertConfig({
+                    isOpen: true,
+                    title: 'Upload Failed',
+                    message: 'Gagal mengupload dokumen: ' + data.error,
+                    type: 'info'
+                });
             }
         } catch (e) {
             console.error(e);
@@ -553,22 +587,90 @@ export function ResearchWelcome({
         }
     };
 
-    // Attach tools (+ dropdown)
-    const attachTools = [
-        { icon: <Sparkles size={14} />, label: 'Generate PDF', description: 'Type a PDF request', action: () => { setQuery('Buatkan PDF dokumen: '); } },
-        { icon: <ImageIcon size={14} />, label: 'Upload Image', description: 'Attach images', action: () => fileInputRef.current?.click() },
-        { icon: <FileText size={14} />, label: 'Upload Document', description: 'PDF, TXT, MD, DOCX', action: () => fileInputRef.current?.click() },
-        { 
-            icon: <SharkIcon size={14} />, 
-            label: 'Deep Research', 
-            description: 'Advanced multi-agent search', 
-            action: () => { 
-                setWithReasoning(!withReasoning);
-                if (!isWebSearchEnabled && onToggleWebSearch) onToggleWebSearch(true);
-            } 
-        },
-        { icon: <Globe size={14} />, label: 'Web Search', description: 'Search the web', action: () => onToggleWebSearch && onToggleWebSearch(!isWebSearchEnabled) },
-        { icon: <Mic size={14} />, label: 'Voice Dictation', description: 'Speak to type', action: () => setShowDictation(true) },
+    // Attach tools (+ dropdown) grouped natively
+    const attachToolsGroups = [
+        [
+            { id: 'upload_file', icon: <Paperclip size={16} />, label: 'Add files or photos', description: 'Images & Documents', action: () => fileInputRef.current?.click() },
+            { 
+                id: 'camera', 
+                icon: <Camera size={16} />, 
+                label: 'Take a screenshot', 
+                description: 'Capture screen', 
+                action: () => setAlertConfig({
+                    isOpen: true,
+                    title: 'Screenshots',
+                    message: 'Fitur tangkapan layar langsung akan segera hadir di Noir!',
+                    type: 'development'
+                }) 
+            },
+            { 
+                id: 'project', 
+                icon: <Folder size={16} />, 
+                label: 'Add to project', 
+                description: 'Workspace files', 
+                action: () => setAlertConfig({
+                    isOpen: true,
+                    title: 'Projects',
+                    message: 'Kelola basis data dan dokumen proyek Anda dalam satu tempat yang aman.',
+                    type: 'development'
+                }), 
+                hasChevron: true 
+            },
+            { 
+                id: 'github', 
+                icon: <Github size={16} />, 
+                label: 'Add from GitHub', 
+                description: 'Connect repo', 
+                action: () => setAlertConfig({
+                    isOpen: true,
+                    title: 'GitHub Integration',
+                    message: 'Analisis seluruh repositori GitHub Anda dengan kecerdasan AI Noir.',
+                    type: 'development'
+                }) 
+            },
+        ],
+        [
+            { 
+                id: 'skills', 
+                icon: <SquareTerminal size={16} />, 
+                label: 'Skills', 
+                description: 'Advanced capabilities', 
+                action: () => setAlertConfig({
+                    isOpen: true,
+                    title: 'Noir Skills',
+                    message: 'Buka kemampuan baru AI untuk menjalankan tugas-tugas teknis yang spesifik.',
+                    type: 'development'
+                }), 
+                hasChevron: true 
+            },
+            { 
+                id: 'connectors', 
+                icon: <Plug size={16} />, 
+                label: 'Add connectors', 
+                description: 'Integrations', 
+                action: () => setAlertConfig({
+                    isOpen: true,
+                    title: 'Connectors',
+                    message: 'Hubungkan Noir dengan aplikasi favorit Anda untuk sinkronisasi data real-time.',
+                    type: 'development'
+                }) 
+            },
+        ],
+        [
+            { id: 'web', icon: <Globe size={16} />, label: 'Web search', description: 'Search the web', action: () => onToggleWebSearch && onToggleWebSearch(!isWebSearchEnabled) },
+            { 
+                id: 'styles', 
+                icon: <Wand2 size={16} />, 
+                label: 'Use style', 
+                description: 'Writing tones', 
+                action: () => setAlertConfig({
+                    isOpen: true,
+                    title: 'Writing Styles',
+                    message: 'Sesuaikan nada dan gaya penulisan AI agar sesuai dengan kebutuhan audiens Anda.',
+                    type: 'development'
+                }) 
+            },
+        ]
     ];
 
     // AI Conversion tools (Wrench dropdown)
@@ -656,7 +758,7 @@ export function ResearchWelcome({
 
     return (
         <div className={cn(
-            "w-full min-h-full flex flex-col items-center justify-center p-4 md:p-6 relative max-w-3xl mx-auto",
+            "w-full min-h-full flex flex-col items-center justify-center px-3 py-4 md:p-6 relative max-w-3xl mx-auto",
             className
         )}>
             {/* Hidden File Inputs */}
@@ -1044,7 +1146,7 @@ export function ResearchWelcome({
                 className="flex flex-col items-center w-full z-10 font-sans"
             >
                 {/* Upgrade Pill */}
-                <div className="mb-12 flex justify-center">
+                <div className="mb-6 md:mb-12 flex justify-center">
                     {!isSubscribed ? (
                         <button 
                             onClick={() => setShowSubscriptionPopup(true)}
@@ -1068,7 +1170,7 @@ export function ResearchWelcome({
                 )}
 
                 {/* Greeting & Title */}
-                <h1 className="flex items-center text-center gap-3 text-4xl md:text-[44px] text-stone-800 tracking-tight font-serif mb-8 md:mb-12" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
+                <h1 className="flex items-center text-center gap-3 text-2xl md:text-[44px] text-stone-800 tracking-tight font-serif mb-5 md:mb-12" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
                     <span>{userName ? `${greeting.replace('?', `, ${userName}?`).replace('.', `, ${userName}.`)}` : greeting}</span>
                 </h1>
 
@@ -1167,76 +1269,46 @@ export function ResearchWelcome({
                                     <Plus size={20} strokeWidth={2} />
                                 </button>
                                 {showToolsMenu && (
-                                    <div className="absolute bottom-full left-0 mb-2 w-52 bg-white border border-stone-200 rounded-xl shadow-xl overflow-hidden z-50">
-                                        {attachTools.map((tool, idx) => (
-                                            <button
-                                                key={idx}
-                                                onClick={() => { tool.action(); setShowToolsMenu(false); }}
-                                                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-stone-700 hover:bg-stone-50 transition-colors"
-                                            >
-                                                <span className="text-stone-500">{tool.icon}</span>
-                                                <div className="text-left">
-                                                    <div className="font-medium">{tool.label}</div>
-                                                    <div className="text-[10px] text-stone-400">{tool.description}</div>
+                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 md:left-0 md:translate-x-0 mb-2 w-[85vw] max-w-[224px] sm:w-56 bg-white border border-stone-200 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden z-50 animate-in fade-in slide-in-from-bottom-2 duration-150 py-1.5">
+                                        {attachToolsGroups.map((group, groupIdx) => (
+                                            <React.Fragment key={groupIdx}>
+                                                <div className="flex flex-col">
+                                                    {group.map((tool) => {
+                                                        const isActive = (tool.id === 'web' && isWebSearchEnabled);
+                                                        return (
+                                                            <button
+                                                                key={tool.id}
+                                                                onClick={() => { tool.action(); setShowToolsMenu(false); }}
+                                                                className="w-full flex items-center gap-3 px-3 py-2 hover:bg-stone-50 transition-colors mx-1.5 rounded-lg text-left"
+                                                                style={{ width: 'calc(100% - 12px)' }}
+                                                            >
+                                                                <div className={cn("flex justify-center items-center w-5", isActive ? "text-blue-500" : "text-stone-700")}>
+                                                                    {tool.icon}
+                                                                </div>
+                                                                <div className="flex-1 flex flex-col justify-center">
+                                                                    <span className={cn("text-[13px]", isActive ? "text-blue-600 font-medium" : "text-stone-700 font-medium")}>{tool.label}</span>
+                                                                    <span className="text-[10px] text-stone-400">{tool.description}</span>
+                                                                </div>
+                                                                {(tool as any).hasChevron && (
+                                                                    <ChevronRight size={14} className="text-stone-400 ml-auto" strokeWidth={2} />
+                                                                )}
+                                                                {isActive && (
+                                                                    <Check size={16} className="text-blue-500 ml-auto" strokeWidth={2.5} />
+                                                                )}
+                                                            </button>
+                                                        );
+                                                    })}
                                                 </div>
-                                            </button>
+                                                {groupIdx < attachToolsGroups.length - 1 && (
+                                                    <div className="h-px bg-stone-100 my-1.5 mx-3" />
+                                                )}
+                                            </React.Fragment>
                                         ))}
                                     </div>
                                 )}
                             </div>
 
-                            {/* Optional: AI Tools */}
-                            <div className="relative">
-                                <button
-                                    onClick={() => { setShowAIToolsMenu(!showAIToolsMenu); setShowToolsMenu(false); }}
-                                    className={cn(
-                                        "w-8 h-8 flex items-center justify-center rounded-lg transition-all",
-                                        showAIToolsMenu
-                                            ? "bg-stone-200 text-stone-700"
-                                            : "text-stone-400 hover:text-stone-700 hover:bg-stone-100"
-                                    )}
-                                    title="AI Tools"
-                                >
-                                    <Wrench size={16} strokeWidth={1.8} />
-                                </button>
-                                {showAIToolsMenu && (
-                                    <div className="absolute bottom-full left-0 mb-2 w-56 bg-white border border-stone-200 rounded-xl shadow-xl overflow-hidden z-50">
-                                        <div className="px-4 py-2 border-b border-stone-100">
-                                            <span className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider">AI Tools</span>
-                                        </div>
-                                        {tools.map((tool, idx) => (
-                                            <button
-                                                key={idx}
-                                                onClick={() => { tool.action(); setShowAIToolsMenu(false); }}
-                                                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-stone-700 hover:bg-stone-50 transition-colors"
-                                            >
-                                                <span className="text-stone-500">{tool.icon}</span>
-                                                <div className="text-left">
-                                                    <div className="font-medium">{tool.label}</div>
-                                                    <div className="text-[10px] text-stone-400">{tool.description}</div>
-                                                </div>
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
 
-                            {/* Deep Research Quick Toggle next to AI Tools */}
-                            <button
-                                onClick={() => {
-                                    setWithReasoning(!withReasoning);
-                                    if (!isWebSearchEnabled && !withReasoning && onToggleWebSearch) onToggleWebSearch(true);
-                                }}
-                                className={cn(
-                                    "w-8 h-8 flex items-center justify-center rounded-lg transition-all",
-                                    withReasoning
-                                        ? "bg-purple-100 text-purple-600 border border-purple-200"
-                                        : "text-stone-400 hover:text-stone-700 hover:bg-stone-100"
-                                )}
-                                title="Deep Research Mode"
-                            >
-                                <SharkIcon size={18} />
-                            </button>
                         </div>
 
                         {/* Right: Model Name, Voice, Send */}
@@ -1254,9 +1326,10 @@ export function ResearchWelcome({
                                     <span>
                                         {(() => {
                                             const names: Record<string, string> = {
-                                                'claude-sonnet': 'Sonnet 4.6',
-                                                'claude-opus': 'Opus 4.1',
-                                                'sonar': 'NoirSync',
+                                                'sonnet': 'Fast Thinking',
+                                                'sonar': 'Fast Thinking',
+                                                'opus': 'Pro',
+                                                'haiku': 'Haiku',
                                             };
                                             return names[selectedModel] || selectedModel;
                                         })()}
@@ -1302,7 +1375,7 @@ export function ResearchWelcome({
                 </div>
 
                 {/* Suggestions Pills */}
-                <div className="flex flex-wrap items-center justify-center gap-2 mt-4 max-w-3xl">
+                <div className="flex flex-wrap items-center justify-center gap-1.5 md:gap-2 mt-3 md:mt-4 max-w-3xl">
                     {suggestions.map((suggestion, i) => (
                         <button
                             key={i}
@@ -1312,7 +1385,7 @@ export function ResearchWelcome({
                                 setFeaturePrompt('');
                             }}
                             className={cn(
-                                "flex items-center gap-2 px-3.5 py-1.5 rounded-full border text-[13px] font-medium transition-colors shadow-sm",
+                                "flex items-center gap-1.5 md:gap-2 px-2.5 md:px-3.5 py-1 md:py-1.5 rounded-full border text-[12px] md:text-[13px] font-medium transition-colors shadow-sm",
                                 selectedFeature?.label === suggestion.label
                                     ? "bg-stone-100 border-stone-300 text-stone-800" 
                                     : "bg-white border-stone-200 hover:bg-stone-50 text-stone-600"
@@ -1382,6 +1455,13 @@ export function ResearchWelcome({
                 }}
             />
 
+            <AlertModal 
+                isOpen={alertConfig.isOpen}
+                onClose={() => setAlertConfig(prev => ({ ...prev, isOpen: false }))}
+                title={alertConfig.title}
+                message={alertConfig.message}
+                type={alertConfig.type}
+            />
 
         </div>
     );

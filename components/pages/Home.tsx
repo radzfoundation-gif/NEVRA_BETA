@@ -402,35 +402,7 @@ const Home: React.FC<HomeProps> = ({ defaultMode = 'chat' }) => {
           {/* Background Elements removed to show DynamicBackground */}
           {/* <div className="absolute inset-0 pointer-events-none overflow-hidden"> ... </div> */}
 
-          {/* Mode Tabs */}
-          <div className="relative z-20 flex justify-center pt-4 md:pt-8">
-            <div className="flex items-center gap-1 p-1 rounded-xl bg-muted/80 backdrop-blur-sm border border-border/50 shadow-sm">
-              <button
-                onClick={() => setActiveMode('chat')}
-                className={cn(
-                  "flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all",
-                  activeMode === 'chat'
-                    ? "bg-card text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground hover:bg-foreground/5"
-                )}
-              >
-                <MessageSquare size={16} />
-                <span>Chat</span>
-              </button>
-              <button
-                onClick={() => setActiveMode('redesign')}
-                className={cn(
-                  "flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all",
-                  activeMode === 'redesign'
-                    ? "bg-gradient-to-r from-pink-500 to-violet-500 text-white shadow-lg shadow-pink-500/25"
-                    : "text-muted-foreground hover:text-foreground hover:bg-foreground/5"
-                )}
-              >
-                <Paintbrush size={16} />
-                <span>Studio</span>
-              </button>
-            </div>
-          </div>
+
 
           {/* Conditional Content */}
           {activeMode === 'chat' ? (

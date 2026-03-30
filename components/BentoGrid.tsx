@@ -1,7 +1,7 @@
 import React, { useRef } from 'react';
 import SpotlightCard from './ui/SpotlightCard';
 import { Bot, Zap, Shield, Cpu, Globe, Activity } from 'lucide-react';
-import LaserFlow from './ui/LaserFlow';
+
 
 const BentoGrid: React.FC = () => {
   const revealImgRef = useRef<HTMLImageElement>(null);
@@ -35,11 +35,8 @@ const BentoGrid: React.FC = () => {
             }
           }}
         >
-          <LaserFlow
-            horizontalBeamOffset={0.1}
-            verticalBeamOffset={0.0}
-            color="#FF79C6"
-          />
+          {/* LaserFlow disabled due to missing file */}
+          <div className="absolute inset-0 bg-gradient-to-tr from-purple-500/5 to-blue-500/5" />
           
           {/* Grid Overlay */}
           <div className="absolute inset-0 bg-grid opacity-30 pointer-events-none z-[4]" />
