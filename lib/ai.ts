@@ -1,19 +1,28 @@
-export type AIProvider = 'groq' | 'openai' | 'anthropic' | 'gemini';
-export type Framework = 'html' | 'react' | 'nextjs' | 'vite';
+export type AIProvider = 'groq' | 'openai' | 'anthropic' | 'gemini' | 'qwen-free' | 'philos' | 'nemotron-free' | 'nemotron-nano-free' | 'minimax-free' | 'glm-free' | 'qwen-coder-free' | 'gemma-free' | 'gpt-oss-free' | 'hermes-free' | 'openrouter-free';
 
-// --- MODEL TIER RESTRICTIONS ---
-// Free users: Only Gemini Flash Lite (via groq/SumoPod)
-export const FREE_TIER_MODELS: AIProvider[] = ['groq'];
+export type Framework = 'html' | 'react' | 'vite' | 'nextjs';
 
-// Pro users: All models including premium ones
+export const FREE_TIER_MODELS: AIProvider[] = ['groq', 'qwen-free', 'nemotron-free', 'nemotron-nano-free', 'minimax-free', 'glm-free', 'qwen-coder-free', 'gemma-free', 'gpt-oss-free', 'hermes-free', 'openrouter-free'];
+
 export const PRO_ONLY_MODELS: AIProvider[] = ['openai', 'anthropic', 'gemini'];
 
 // Model display names for UI
 export const MODEL_DISPLAY_NAMES: Record<AIProvider, string> = {
-  groq: 'Gemini 2.5 Flash Lite', // Updated from Tech Spec 3.1
-  openai: 'GPT-5 Mini',          // Updated from Tech Spec 3.1 (Pro Reasoning)
-  anthropic: 'Claude Opus 4.5',
-  gemini: 'Gemini 3 Pro',        // Updated from Tech Spec 3.1 (UI & Creative)
+  'groq': 'SumoPod (Default)',
+  'openai': 'OpenAI GPT-5',
+  'anthropic': 'Claude Sonnet',
+  'gemini': 'Gemini Pro',
+  'qwen-free': 'Qwen 3.6 Plus',
+  'philos': 'Noir Philos',
+  'nemotron-free': 'Nemotron 3 Super 120B',
+  'nemotron-nano-free': 'Nemotron 3 Nano 30B',
+  'minimax-free': 'MiniMax M2.5',
+  'glm-free': 'GLM 4.5 Air',
+  'qwen-coder-free': 'Qwen3 Coder 480B',
+  'gemma-free': 'Gemma 3 27B',
+  'gpt-oss-free': 'gpt-oss 120B',
+  'hermes-free': 'Hermes 3 405B',
+  'openrouter-free': 'OpenRouter Free',
 };
 
 // Check if a model is allowed for a given tier
@@ -39,27 +48,20 @@ export const isProOnlyModel = (provider: AIProvider): boolean => {
 const smartRouteModel = (prompt: string, requestedProvider: AIProvider, tier: 'free' | 'normal' | 'pro'): AIProvider => {
   // 1. Force Free Tier Limits
   if (tier === 'free') {
-    if (!FREE_TIER_MODELS.includes(requestedProvider)) return 'groq'; // Default free (Gemini 2.5 Flash Lite)
+    if (!FREE_TIER_MODELS.includes(requestedProvider)) return 'groq';
     return requestedProvider;
   }
 
-  // 2. Optimization for Pro Users (Save costs/time on simple queries)
-  // If prompt is very short and simple, use faster model even if premium requested?
-  // Only if the user didn't explicitly ask for "GPT-5" (assuming 'openai' could be that).
-  // But generally, for "Hi" or "Thanks", Groq is better.
+  // 2. Optimization for Pro Users
   const isSimple = prompt.length < 50 && !prompt.includes('code') && !prompt.includes('complex') && !prompt.includes('analysis');
   if (isSimple && (requestedProvider === 'openai' || requestedProvider === 'anthropic')) {
-    return 'groq'; // Gemini 2.5 Flash Lite for simple queries
+    return 'groq';
   }
 
-  // 3. Complexity Handling (Upgrade to better model if 'groq' requested but task is hard?)
-  // Tech Spec: Pro Reasoning uses GPT-5 Mini
+  // 3. Complexity Handling
   const isComplex = prompt.includes('code') || prompt.length > 500 || prompt.includes('analyze') || prompt.includes('reason');
   if (isComplex && tier === 'pro' && requestedProvider === 'groq') {
-    // Elevate to GPT-5 Mini (openai) for complex tasks if user is Pro
-    // return 'openai'; 
-    // Commented out for now to respect explicit user choice, but this is where the routing rule would live.
-    // For now, we trust the user or the default.
+    // Could elevate to pro model here
   }
 
   return requestedProvider;
@@ -711,11 +713,15 @@ export const generateCode = async (
   userTier: 'free' | 'normal' | 'pro' = 'free', // User subscription tier for token limits
   deepDive: boolean = false, // Deep Dive mode - uses GPT-5, limited 2/day
   model?: string, // Generic model ID (e.g. 'gemini-flash', 'claude-sonnet')
-  abortSignal?: AbortSignal // Optional signal to cancel request
+  abortSignal?: AbortSignal, // Optional signal to cancel request
+  extraSystemPrompt?: string // Optional extra system prompt (e.g. from active skills)
 ): Promise<CodeResponse> => {
-  // Smart Model Routing
+  // Smart Model Routing - respect explicit model selection
   const effectiveProvider = smartRouteModel(prompt, provider, userTier);
   console.log(`🧠 Smart Routing: ${provider} -> ${effectiveProvider} (Tier: ${userTier}, Length: ${prompt.length})`);
+  if (model) {
+    console.log(`🎯 Explicit model selected: ${model}`);
+  }
 
   // Use workflow if enabled
   const workflowEnabled = typeof useWorkflow === 'object' ? true : useWorkflow;
@@ -882,6 +888,12 @@ Always follow this structure when an image is present.`;
     systemPrompt = systemPrompt + visionInstructions;
   }
 
+  // Inject active skill system prompts
+  if (extraSystemPrompt) {
+    systemPrompt = systemPrompt + '\n\n' + extraSystemPrompt;
+    console.log('🎯 [Skills] Active skill prompts injected');
+  }
+
 
   // STREAMING LOGIC REPLACEMENT: OpenRouter Direct Fetch
   if (onChunk) {
@@ -946,7 +958,40 @@ Always follow this structure when an image is present.`;
       // =====================================================
       // NOIRSYNC — Context-Aware Smart Model Routing
       // =====================================================
+      const OPENROUTER_FREE_MODELS = [
+        'qwen-free', 'philos', 'nemotron-free', 'nemotron-nano-free', 'minimax-free',
+        'glm-free', 'qwen-coder-free', 'gemma-free', 'gpt-oss-free',
+        'hermes-free', 'openrouter-free'
+      ];
+
+      // Check if model is a direct OpenRouter model ID (contains '/')
+      const isOpenRouterModelId = model && model.includes('/');
+
       const routeNoirSync = (promptText: string, webSearchEnabled: boolean = false, isDeepResearch: boolean = false): string => {
+        // If user explicitly selected a free OpenRouter model (by alias), respect it
+        if (model && OPENROUTER_FREE_MODELS.includes(model)) {
+          console.log(`🚀 [NoirSync] Using selected free OpenRouter model: ${model}`);
+          return model;
+        }
+
+        // If user selected a direct OpenRouter model ID (e.g. qwen/qwen3.6-plus-preview:free)
+        if (isOpenRouterModelId) {
+          console.log(`🚀 [NoirSync] Using direct OpenRouter model: ${model}`);
+          return model;
+        }
+
+        // If user selected Philos, route to Qwen via OpenRouter
+        if (model === 'philos') {
+          console.log('🧠 [NoirSync] Routed to OpenRouter qwen/qwen3.6-plus-preview:free (Noir Philos)');
+          return 'philos';
+        }
+
+        // If user selected Fast Thinking (sonnet), route to seed-2-0-pro-free via SumoPod
+        if (model === 'sonnet') {
+          console.log('⚡ [NoirSync] Routed to SumoPod seed-2-0-pro-free (Fast Thinking)');
+          return 'seed-2-0-pro-free';
+        }
+
         const lower = promptText.toLowerCase();
 
         // 1. PDF / Document generation → Claude Opus (specialized)
@@ -961,9 +1006,9 @@ Always follow this structure when an image is present.`;
           return 'claude-opus-4-6';
         }
 
-        // 2. Everything else → Seed 2.0 Pro (default for all chat)
-        console.log('🚀 [NoirSync] Routed to Seed 2.0 Pro (Default)');
-        return 'seed-2-0-pro-free';
+        // 2. Default → SumoPod (seed-2-0-pro-free) as primary model
+        console.log('🚀 [NoirSync] Routed to SumoPod Seed (Default)');
+        return 'groq';
       };
 
       // Determine if web search is active from prompt markers
@@ -1040,7 +1085,7 @@ Always follow this structure when an image is present.`;
         temperature: 0.7,
       };
       
-      console.log(`[AI] NoirSync Request (via Backend): model=${targetModel}`, JSON.stringify({ ...requestBody, messages: coalescedMessages.map(m => ({ role: m.role, length: typeof m.content === 'string' ? m.content.length : 'multimodal' })) }, null, 2));
+      console.log(`[AI] NoirSync Request (via Backend): model=${targetModel}, selectedModel=${model}`);
 
       // Redirect to local backend to enable Skill Scout (MCP tool discovery)
       const streamResp = await fetch(`${API_BASE}/chat/stream`, {
@@ -1177,13 +1222,14 @@ Always follow this structure when an image is present.`;
       }
 
       // If we got an error from the stream, throw it
-      if (streamError && !fullContent) {
+      if (streamError) {
+        console.error('[AI] Stream error:', streamError);
         throw new Error(streamError);
       }
 
       if (!fullContent) {
         console.error('[AI] Empty response received. Stream completed without content chunks.');
-        throw new Error("Received empty response from SumoPod. This may indicate the model is unavailable or returned an error. Check backend logs for details.");
+        throw new Error("Received empty response. The model may be unavailable or rate-limited. Please try again.");
       }
 
       return {

@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import AlertModal from './AlertModal';
 
-export type ModelType = 'sonar' | 'opus' | 'sonnet' | 'haiku';
+export type ModelType = 'sonar' | 'opus' | 'sonnet' | 'philos' | string;
 
 interface ModelOption {
     id: ModelType;
@@ -18,17 +18,24 @@ interface ModelOption {
 
 interface ExtendedModel {
     name: string;
-    provider: 'OpenAI' | 'Google' | 'Anthropic';
+    provider: 'OpenAI' | 'Google' | 'Anthropic' | 'Qwen' | 'Meta' | 'NVIDIA' | 'MiniMax' | 'Z.ai' | 'StepFun' | 'Nous' | 'OpenRouter';
     description: string;
     score: number;
+    modelId: string;
 }
 
 const MODEL_OPTIONS: ModelOption[] = [
     {
-        id: 'haiku',
+        id: 'philos',
         name: 'Noir Philos',
-        description: 'Philos — Your friendliest work companion.',
+        description: 'Super Agent — Multi-phase reasoning & research.',
         isSoon: true,
+    },
+    {
+        id: 'sonnet',
+        name: 'Fast Thinking',
+        description: 'fast & smart for daily work',
+        isSoon: false,
     },
     {
         id: 'opus',
@@ -36,31 +43,45 @@ const MODEL_OPTIONS: ModelOption[] = [
         description: 'Most capable for ambitious work',
         isPro: true,
     },
-    {
-        id: 'sonnet',
-        name: 'Fast Thinking',
-        description: 'Most efficient for everyday tasks',
-    },
 ];
 
 const PROVIDER_COLORS: Record<ExtendedModel['provider'], string> = {
     OpenAI: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     Google: 'bg-blue-50 text-blue-700 border-blue-200',
     Anthropic: 'bg-orange-50 text-orange-700 border-orange-200',
+    Qwen: 'bg-purple-50 text-purple-700 border-purple-200',
+    Meta: 'bg-yellow-50 text-yellow-700 border-yellow-200',
+    NVIDIA: 'bg-green-50 text-green-700 border-green-200',
+    MiniMax: 'bg-pink-50 text-pink-700 border-pink-200',
+    'Z.ai': 'bg-red-50 text-red-700 border-red-200',
+    StepFun: 'bg-teal-50 text-teal-700 border-teal-200',
+    Nous: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+    OpenRouter: 'bg-stone-50 text-stone-700 border-stone-200',
 };
 
-const MORE_MODELS: ExtendedModel[] = [
-    { name: 'GPT-5.4 Thinking xHigh', provider: 'OpenAI', description: 'Highest effort reasoning', score: 80.28 },
-    { name: 'Gemini 3.1 Pro Preview', provider: 'Google', description: 'High effort, top Google model', score: 79.93 },
-    { name: 'Claude 4.6 Opus Thinking', provider: 'Anthropic', description: 'High effort, Anthropic flagship', score: 76.33 },
-    { name: 'Claude 4.5 Opus Thinking', provider: 'Anthropic', description: 'High effort reasoning', score: 75.96 },
-    { name: 'Claude 4.6 Sonnet Thinking', provider: 'Anthropic', description: 'Medium effort, fast & smart', score: 75.47 },
-    { name: 'GPT-5.2 High', provider: 'OpenAI', description: 'High effort GPT-5 series', score: 74.84 },
-    { name: 'GPT-5.2 Codex', provider: 'OpenAI', description: 'Optimized for code generation', score: 74.30 },
-    { name: 'GPT-5.1 Codex Max High', provider: 'OpenAI', description: 'Max effort code model', score: 73.98 },
-    { name: 'Gemini 3 Pro Preview', provider: 'Google', description: 'High effort Gemini 3', score: 73.39 },
-    { name: 'GPT-5.3 Codex High', provider: 'OpenAI', description: 'High effort code & reasoning', score: 72.76 },
-    { name: 'Gemini 3 Flash Preview', provider: 'Google', description: 'Fast & efficient Gemini 3', score: 71.50 },
+const FREE_MODELS: ExtendedModel[] = [
+    { name: 'Qwen 3.6 Plus', provider: 'Qwen', description: '1M context, best free model', score: 79.5, modelId: 'qwen/qwen3.6-plus-preview:free' },
+    { name: 'Step 3.5 Flash', provider: 'StepFun', description: 'Ultra-fast & capable', score: 78.8, modelId: 'stepfun/step-3.5-flash:free' },
+    { name: 'Nemotron 3 Super 120B', provider: 'NVIDIA', description: 'Large NVIDIA expert model', score: 75.8, modelId: 'nvidia/nemotron-3-super-120b-a12b:free' },
+    { name: 'MiniMax M2.5', provider: 'MiniMax', description: 'Strong multi-modal reasoning', score: 74.5, modelId: 'minimax/minimax-m2.5:free' },
+    { name: 'GLM 4.5 Air', provider: 'Z.ai', description: 'Zhuipu AI fast inference', score: 73.9, modelId: 'z-ai/glm-4.5-air:free' },
+    { name: 'Gemma 3 27B', provider: 'Google', description: 'Open model by Google', score: 71.2, modelId: 'google/gemma-3-27b-it:free' },
+    { name: 'gpt-oss 120B', provider: 'OpenAI', description: 'High-parameter OpenSource GPT', score: 70.5, modelId: 'openai/gpt-oss-120b:free' },
+    { name: 'Auto Free', provider: 'OpenRouter', description: 'Auto-routed free models', score: 68.0, modelId: 'openrouter-free' },
+];
+
+const PRO_MODELS: ExtendedModel[] = [
+    { name: 'GPT-5.4 Thinking xHigh', provider: 'OpenAI', description: 'Highest effort reasoning', score: 80.28, modelId: 'gpt-5-high' },
+    { name: 'Gemini 3.1 Pro Preview', provider: 'Google', description: 'High effort, top Google model', score: 79.93, modelId: 'gemini-3-pro' },
+    { name: 'Claude 4.6 Opus Thinking', provider: 'Anthropic', description: 'High effort, Anthropic flagship', score: 76.33, modelId: 'claude-4-opus' },
+    { name: 'Claude 4.5 Opus Thinking', provider: 'Anthropic', description: 'High effort reasoning', score: 75.96, modelId: 'claude-4-5-opus' },
+    { name: 'Claude 4.6 Sonnet Thinking', provider: 'Anthropic', description: 'Medium effort, fast & smart', score: 75.47, modelId: 'claude-4-sonnet' },
+    { name: 'GPT-5.2 High', provider: 'OpenAI', description: 'High effort GPT-5 series', score: 74.84, modelId: 'gpt-5-2-high' },
+    { name: 'GPT-5.2 Codex', provider: 'OpenAI', description: 'Optimized for code generation', score: 74.30, modelId: 'gpt-5-2-codex' },
+    { name: 'GPT-5.1 Codex Max High', provider: 'OpenAI', description: 'Max effort code model', score: 73.98, modelId: 'gpt-5-1-codex' },
+    { name: 'Gemini 3 Pro Preview', provider: 'Google', description: 'High effort Gemini 3', score: 73.39, modelId: 'gemini-3-pro-ext' },
+    { name: 'GPT-5.3 Codex High', provider: 'OpenAI', description: 'High effort code & reasoning', score: 72.76, modelId: 'gpt-5-3-codex' },
+    { name: 'Gemini 3 Flash Preview', provider: 'Google', description: 'Fast & efficient Gemini 3', score: 71.50, modelId: 'gemini-3-flash' },
 ];
 
 export interface ModelSelectorProps {
@@ -141,7 +162,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, y: -10 }}
                         transition={{ duration: 0.15, ease: "easeOut" }}
-                        className="absolute bottom-full right-0 mb-3 w-[85vw] max-w-[280px] sm:w-[260px] bg-white border border-stone-200 shadow-xl rounded-[18px] overflow-hidden flex flex-col z-[100]"
+                        className="absolute bottom-full right-0 mb-2 w-[90vw] max-w-[280px] sm:w-[260px] bg-white border border-stone-200 shadow-xl rounded-[18px] overflow-hidden flex flex-col z-[100]"
                     >
                         <AnimatePresence mode="wait">
                             {!showMoreModels ? (
@@ -261,14 +282,43 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                                             <ChevronLeft size={15} />
                                         </button>
                                         <span className="text-[13px] font-semibold text-stone-700">More Models</span>
-                                        <span className="ml-auto text-[10px] text-stone-400 bg-stone-100 px-1.5 py-0.5 rounded-full">Pro only</span>
                                     </div>
 
                                     {/* Scrollable list */}
-                                    <div className="overflow-y-auto max-h-[280px] py-1">
-                                        {MORE_MODELS.map((model, i) => (
+                                    <div className="overflow-y-auto max-h-[350px]">
+                                        {/* Free Models Section */}
+                                        <div className="px-3 py-1.5 bg-green-50/50 border-b border-green-100">
+                                            <span className="text-[10px] font-semibold text-green-700 uppercase tracking-wider">Free Models</span>
+                                        </div>
+                                        {FREE_MODELS.map((model, i) => (
                                             <button
-                                                key={i}
+                                                key={`free-${i}`}
+                                                onClick={() => {
+                                                    onModelChange(model.modelId as ModelType);
+                                                    handleClose();
+                                                }}
+                                                className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-stone-50 transition-colors text-left"
+                                            >
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                                        <span className="text-[13px] text-stone-900 font-medium leading-tight">{model.name}</span>
+                                                        <span className={cn("text-[9px] font-medium px-1.5 py-0.5 rounded-full border shrink-0", PROVIDER_COLORS[model.provider])}>
+                                                            {model.provider}
+                                                        </span>
+                                                        <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full border shrink-0 bg-green-50 text-green-700 border-green-200">Free</span>
+                                                    </div>
+                                                    <span className="text-[11px] text-stone-400 mt-0.5 block truncate">{model.description}</span>
+                                                </div>
+                                            </button>
+                                        ))}
+
+                                        {/* Pro Models Section */}
+                                        <div className="px-3 py-1.5 bg-blue-50/50 border-b border-t border-blue-100 mt-1">
+                                            <span className="text-[10px] font-semibold text-blue-700 uppercase tracking-wider">Pro Models</span>
+                                        </div>
+                                        {PRO_MODELS.map((model, i) => (
+                                            <button
+                                                key={`pro-${i}`}
                                                 onClick={() => {
                                                     if (!isSubscribed) {
                                                         setAlertConfig({

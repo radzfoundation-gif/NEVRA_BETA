@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
     Plus, X, FileText, Camera, Image as ImageIcon,
     ArrowUp, Globe, Paperclip, ChevronDown, Mic,
@@ -32,6 +33,9 @@ import ModelSelector, { ModelType } from '@/components/ui/ModelSelector';
 import VoiceDictationModal from './VoiceDictationModal';
 import FileUploadButton from './FileUploadButton';
 import AlertModal from '@/components/ui/AlertModal';
+import ConnectorsModal from './ConnectorsModal';
+import { getSkills, UserSkill } from '@/lib/skillsApi';
+import { useUser } from '@/lib/authContext';
 
 function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs));
@@ -80,6 +84,13 @@ interface ChatInputProps {
     // Deep Research
     deepResearchMode?: boolean;
     onToggleDeepResearch?: (enabled: boolean) => void;
+    // Feature callbacks
+    onOpenGitHub?: () => void;
+    onOpenConnectors?: () => void;
+    onAddToProject?: () => void;
+    // Style — controlled from parent
+    activeStyle: string | null;
+    onStyleChange: (style: string | null) => void;
 }
 
 // Tool groups for the segmented + dropdown
@@ -157,10 +168,26 @@ const ChatInput: React.FC<ChatInputProps> = ({
     removeFile,
     deepResearchMode = false,
     onToggleDeepResearch,
+    activeStyle,
+    onStyleChange,
 }) => {
     const { credits } = useTokenLimit();
+    const navigate = useNavigate();
+    const { user } = useUser();
     const [showDictation, setShowDictation] = useState(false);
     const [showToolsMenu, setShowToolsMenu] = useState(false);
+    const [showConnectors, setShowConnectors] = useState(false);
+    const [showStyleSubmenu, setShowStyleSubmenu] = useState(false);
+    const [showSkillSubmenu, setShowSkillSubmenu] = useState(false);
+    const [userSkills, setUserSkills] = useState<Array<{id: string; name: string; enabled: boolean}>>([]);
+
+    // Load skills from Supabase
+    useEffect(() => {
+        if (!user?.id) return;
+        getSkills(user.id)
+            .then(data => setUserSkills(data.map(s => ({ id: s.id, name: s.name, enabled: s.enabled }))))
+            .catch(() => {});
+    }, [user?.id]);
 
     const [isFocused, setIsFocused] = useState(false);
     const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -189,6 +216,8 @@ const ChatInput: React.FC<ChatInputProps> = ({
         const handleClickOutside = (event: MouseEvent) => {
             if (toolsMenuRef.current && !toolsMenuRef.current.contains(event.target as Node)) {
                 setShowToolsMenu(false);
+                setShowStyleSubmenu(false);
+                setShowSkillSubmenu(false);
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
@@ -204,63 +233,58 @@ const ChatInput: React.FC<ChatInputProps> = ({
 
     // Handle tool selection from + dropdown
     const handleToolSelect = (toolId: string) => {
-        // Add custom vibration or haptic feedback
-        if (navigator.vibrate) {
-            navigator.vibrate(50);
-        }
+        if (navigator.vibrate) navigator.vibrate(50);
 
-        setShowToolsMenu(false);
         switch (toolId) {
             case 'upload_file':
+                setShowToolsMenu(false);
                 combinedInputRef.current?.click();
                 break;
             case 'camera':
+                setShowToolsMenu(false);
                 cameraInputRef.current?.click();
                 break;
             case 'project':
-                setAlertConfig({
-                    isOpen: true,
-                    title: 'Projects',
-                    message: 'Noir Workspace akan segera hadir! Nantikan fitur kolaborasi proyek yang lebih canggih.',
-                    type: 'development'
-                });
+                setShowToolsMenu(false);
+                setAlertConfig({ isOpen: true, title: 'Projects', message: 'Noir Workspace akan segera hadir! Nantikan fitur kolaborasi proyek yang lebih canggih.', type: 'development' });
                 break;
             case 'github':
-                setAlertConfig({
-                    isOpen: true,
-                    title: 'GitHub Integration',
-                    message: 'Hubungkan repositori GitHub Anda langsung ke Noir untuk analisis kode yang lebih mendalam.',
-                    type: 'development'
-                });
+                setShowToolsMenu(false);
+                setAlertConfig({ isOpen: true, title: 'GitHub Integration', message: 'Hubungkan repositori GitHub Anda langsung ke Noir untuk analisis kode yang lebih mendalam.', type: 'development' });
                 break;
             case 'connectors':
-                setAlertConfig({
-                    isOpen: true,
-                    title: 'Connectors',
-                    message: 'Integrasikan Google Drive, Notion, dan tool lainnya untuk memperkaya basis pengetahuan AI Anda.',
-                    type: 'development'
-                });
+                setShowToolsMenu(false);
+                setShowConnectors(true);
                 break;
             case 'skills':
-                setAlertConfig({
-                    isOpen: true,
-                    title: 'Noir Skills',
-                    message: 'Tingkatkan kemampuan AI dengan mengaktifkan skill khusus seperti akses basis data atau pencarian web spesifik.',
-                    type: 'development'
-                });
+                setShowSkillSubmenu(prev => !prev);
+                setShowStyleSubmenu(false);
                 break;
             case 'styles':
-                setAlertConfig({
-                    isOpen: true,
-                    title: 'Writing Styles',
-                    message: 'Ubah gaya penulisan AI secara instan. Mulai dari gaya akademis hingga gaya kreatif.',
-                    type: 'development'
-                });
+                setShowStyleSubmenu(prev => !prev);
+                setShowSkillSubmenu(false);
                 break;
             case 'web':
+                setShowToolsMenu(false);
                 setEnableWebSearch(!enableWebSearch);
                 break;
         }
+    };
+
+    const WRITING_STYLES = [
+        { id: 'normal', label: 'Normal', prompt: '' },
+        { id: 'learning', label: 'Learning', prompt: 'Explain in a clear, educational way with examples.' },
+        { id: 'concise', label: 'Concise', prompt: 'Be brief and to the point. No fluff.' },
+        { id: 'explanatory', label: 'Explanatory', prompt: 'Explain thoroughly with context and reasoning.' },
+        { id: 'formal', label: 'Formal', prompt: 'Use formal, professional language.' },
+    ];
+
+    const handleSelectStyle = (styleId: string) => {
+        const style = WRITING_STYLES.find(s => s.id === styleId);
+        if (!style) return;
+        onStyleChange(styleId === 'normal' ? null : styleId);
+        setShowStyleSubmenu(false);
+        setShowToolsMenu(false);
     };
 
     // Handle quick action pills
@@ -402,15 +426,27 @@ const ChatInput: React.FC<ChatInputProps> = ({
                     )}
 
                     {/* Active Mode Badges */}
-                    {(enableWebSearch) && (
+                    {(enableWebSearch || !!activeStyle) && (
                         <div className="px-4 pt-2 flex gap-2 flex-wrap">
-                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 text-blue-600 rounded-lg text-xs font-medium">
-                                <Globe size={12} />
-                                Web Search On
-                                <button onClick={() => setEnableWebSearch(false)} className="ml-1 hover:text-blue-800">
-                                    <X size={12} />
+                            {enableWebSearch && (
+                                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 text-blue-600 rounded-lg text-xs font-medium">
+                                    <Globe size={12} />
+                                    Web Search On
+                                    <button onClick={() => setEnableWebSearch(false)} className="ml-1 hover:text-blue-800">
+                                        <X size={12} />
+                                    </button>
+                                </div>
+                            )}
+                            {activeStyle && (
+                                <button
+                                    onClick={() => onStyleChange(null)}
+                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-orange-50 text-orange-600 rounded-lg text-xs font-medium hover:bg-orange-100 transition-colors"
+                                >
+                                    <Wand2 size={12} />
+                                    Style: {WRITING_STYLES.find(s => s.id === activeStyle)?.label}
+                                    <X size={12} className="ml-1" />
                                 </button>
-                            </div>
+                            )}
                         </div>
                     )}
 
@@ -465,40 +501,107 @@ const ChatInput: React.FC<ChatInputProps> = ({
 
                             {/* Tools Dropdown */}
                             {showToolsMenu && (
-                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 md:left-0 md:translate-x-0 mb-2 w-[85vw] max-w-[224px] sm:w-56 bg-white border border-stone-200 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden z-50 animate-in fade-in slide-in-from-bottom-2 duration-150 py-1.5">
-                                    {TOOL_GROUPS.map((group, groupIdx) => (
-                                        <React.Fragment key={groupIdx}>
-                                            <div className="flex flex-col">
-                                                {group.map((tool) => {
-                                                    const Icon = tool.icon;
-                                                    const isActive = (tool.id === 'web' && enableWebSearch);
-                                                    return (
-                                                        <button
-                                                            key={tool.id}
-                                                            onClick={() => handleToolSelect(tool.id)}
-                                                            className="w-full flex items-center gap-3 px-3 py-2 text-[13px] hover:bg-stone-50 transition-colors mx-1.5 rounded-lg text-left"
-                                                            style={{ width: 'calc(100% - 12px)' }}
-                                                        >
-                                                            <div className={cn("flex justify-center items-center w-5", isActive ? "text-blue-500" : "text-stone-700")}>
-                                                                <Icon size={16} strokeWidth={1.8} />
-                                                            </div>
-                                                            <span className={cn("flex-1", isActive ? "text-blue-600 font-medium" : "text-stone-700")}>{tool.label}</span>
-                                                            
-                                                            {(tool as any).hasChevron && (
-                                                                <ChevronRight size={14} className="text-stone-400 ml-auto" strokeWidth={2} />
-                                                            )}
-                                                            {isActive && (
-                                                                <Check size={16} className="text-blue-500 ml-auto" strokeWidth={2.5} />
-                                                            )}
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
-                                            {groupIdx < TOOL_GROUPS.length - 1 && (
-                                                <div className="h-px bg-stone-100 my-1.5 mx-3" />
+                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 md:left-0 md:translate-x-0 mb-2 flex items-end gap-1 z-50">
+                                    {/* Main menu */}
+                                    <div className="w-[85vw] max-w-[224px] sm:w-56 bg-white border border-stone-200 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-150 py-1.5">
+                                        {TOOL_GROUPS.map((group, groupIdx) => (
+                                            <React.Fragment key={groupIdx}>
+                                                <div className="flex flex-col">
+                                                    {group.map((tool) => {
+                                                        const Icon = tool.icon;
+                                                        const isWebActive = tool.id === 'web' && enableWebSearch;
+                                                        const isStyleActive = tool.id === 'styles' && !!activeStyle;
+                                                        const isActive = isWebActive || isStyleActive;
+                                                        return (
+                                                            <button
+                                                                key={tool.id}
+                                                                onClick={() => handleToolSelect(tool.id)}
+                                                                className={cn(
+                                                                    "w-full flex items-center gap-3 px-3 py-2 text-[13px] transition-colors mx-1.5 rounded-lg text-left",
+                                                                    (tool.id === 'styles' && showStyleSubmenu) || (tool.id === 'skills' && showSkillSubmenu) ? "bg-stone-100" : "hover:bg-stone-50"
+                                                                )}
+                                                                style={{ width: 'calc(100% - 12px)' }}
+                                                            >
+                                                                <div className={cn("flex justify-center items-center w-5", isActive ? "text-blue-500" : "text-stone-700")}>
+                                                                    <Icon size={16} strokeWidth={1.8} />
+                                                                </div>
+                                                                <span className={cn("flex-1", isActive ? "text-blue-600 font-medium" : "text-stone-700")}>{tool.label}</span>
+                                                                {tool.id === 'styles' ? (
+                                                                    <ChevronRight size={14} className={cn("text-stone-400 ml-auto transition-transform duration-150", showStyleSubmenu && "rotate-90")} strokeWidth={2} />
+                                                                ) : tool.id === 'skills' ? (
+                                                                    <ChevronRight size={14} className={cn("text-stone-400 ml-auto transition-transform duration-150", showSkillSubmenu && "rotate-90")} strokeWidth={2} />
+                                                                ) : (tool as any).hasChevron ? (
+                                                                    <ChevronRight size={14} className="text-stone-400 ml-auto" strokeWidth={2} />
+                                                                ) : isWebActive ? (
+                                                                    <Check size={16} className="text-blue-500 ml-auto" strokeWidth={2.5} />
+                                                                ) : null}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                                {groupIdx < TOOL_GROUPS.length - 1 && (
+                                                    <div className="h-px bg-stone-100 my-1.5 mx-3" />
+                                                )}
+                                            </React.Fragment>
+                                        ))}
+                                    </div>
+
+                                    {/* Skill submenu */}
+                                    {showSkillSubmenu && (
+                                        <div className="w-44 bg-white border border-stone-200 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden animate-in fade-in slide-in-from-left-1 duration-150 py-1.5">
+                                            {userSkills.filter(s => s.enabled).length === 0 ? (
+                                                <div className="px-3 py-3 text-[12px] text-stone-400 text-center">
+                                                    Belum ada skill aktif
+                                                </div>
+                                            ) : (
+                                                userSkills.filter(s => s.enabled).map(skill => (
+                                                    <div key={skill.id} className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] mx-1.5 rounded-lg" style={{ width: 'calc(100% - 12px)' }}>
+                                                        <SquareTerminal size={14} className="text-stone-400 shrink-0" strokeWidth={1.8} />
+                                                        <span className="text-stone-700 truncate">{skill.name}</span>
+                                                    </div>
+                                                ))
                                             )}
-                                        </React.Fragment>
-                                    ))}
+                                            <div className="h-px bg-stone-100 my-1.5 mx-3" />
+                                            <button
+                                                onClick={() => { setShowSkillSubmenu(false); setShowToolsMenu(false); navigate('/skills'); }}
+                                                className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] hover:bg-stone-50 transition-colors mx-1.5 rounded-lg text-left"
+                                                style={{ width: 'calc(100% - 12px)' }}
+                                            >
+                                                <Wrench size={14} className="text-stone-500 shrink-0" strokeWidth={1.8} />
+                                                <span className="text-stone-700">Manage skills</span>
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {/* Style submenu */}
+                                    {showStyleSubmenu && (
+                                        <div className="w-44 bg-white border border-stone-200 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden animate-in fade-in slide-in-from-left-1 duration-150 py-1.5">
+                                            {WRITING_STYLES.map((style) => {
+                                                const isSelected = activeStyle === style.id || (!activeStyle && style.id === 'normal');
+                                                return (
+                                                    <button
+                                                        key={style.id}
+                                                        onClick={() => handleSelectStyle(style.id)}
+                                                        className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] hover:bg-stone-50 transition-colors mx-1.5 rounded-lg text-left"
+                                                        style={{ width: 'calc(100% - 12px)' }}
+                                                    >
+                                                        <Wand2 size={14} className={isSelected ? "text-blue-500" : "text-stone-400"} strokeWidth={1.8} />
+                                                        <span className={cn("flex-1", isSelected ? "text-blue-600 font-medium" : "text-stone-700")}>{style.label}</span>
+                                                        {isSelected && <Check size={13} className="text-blue-500 shrink-0" strokeWidth={2.5} />}
+                                                    </button>
+                                                );
+                                            })}
+                                            <div className="h-px bg-stone-100 my-1.5 mx-3" />
+                                            <button
+                                                onClick={() => { setShowStyleSubmenu(false); setShowToolsMenu(false); setAlertConfig({ isOpen: true, title: 'Custom Styles', message: 'Fitur buat & edit style kustom akan segera hadir!', type: 'development' }); }}
+                                                className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] hover:bg-stone-50 transition-colors mx-1.5 rounded-lg text-left"
+                                                style={{ width: 'calc(100% - 12px)' }}
+                                            >
+                                                <Plus size={14} className="text-stone-500 shrink-0" strokeWidth={2} />
+                                                <span className="text-stone-700">Create &amp; edit styles</span>
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -594,6 +697,11 @@ const ChatInput: React.FC<ChatInputProps> = ({
                 onInsert={(text) => {
                     setInput((prev) => prev ? prev + ' ' + text : text);
                 }}
+            />
+
+            <ConnectorsModal
+                isOpen={showConnectors}
+                onClose={() => setShowConnectors(false)}
             />
 
         </div >

@@ -8,18 +8,46 @@ import AlertModal from './ui/AlertModal';
 import { useTokenLimit } from '@/hooks/useTokenLimit';
 import SubscriptionPopup from './SubscriptionPopup';
 import VoiceDictationModal from './chat/VoiceDictationModal';
+import { useUser } from '@/lib/authContext';
+import { getSkills } from '@/lib/skillsApi';
+
+const TOOL_GROUPS = [
+    [
+        { id: 'upload_file', label: 'Add files or photos', icon: Paperclip },
+        { id: 'camera', label: 'Take a screenshot', icon: Camera },
+        { id: 'project', label: 'Add to project', icon: Folder, hasChevron: true },
+        { id: 'github', label: 'Add from GitHub', icon: Github },
+    ],
+    [
+        { id: 'skills', label: 'Skills', icon: SquareTerminal, hasChevron: true },
+        { id: 'connectors', label: 'Add connectors', icon: Plug },
+    ],
+    [
+        { id: 'web', label: 'Web search', icon: Globe },
+        { id: 'styles', label: 'Use style', icon: Wand2 },
+    ]
+];
+
+const WRITING_STYLES = [
+    { id: 'normal', label: 'Normal', prompt: '' },
+    { id: 'learning', label: 'Learning', prompt: 'Explain in a clear, educational way with examples.' },
+    { id: 'concise', label: 'Concise', prompt: 'Be brief and to the point. No fluff.' },
+    { id: 'explanatory', label: 'Explanatory', prompt: 'Explain thoroughly with context and reasoning.' },
+    { id: 'formal', label: 'Formal', prompt: 'Use formal, professional language.' },
+];
+
 
 // Custom Shark Icon for Deep Research
 const SharkIcon = ({ size = 16, className = "" }: { size?: number, className?: string }) => (
-    <svg 
-        width={size} 
-        height={size} 
-        viewBox="0 0 24 24" 
-        fill="none" 
-        stroke="currentColor" 
-        strokeWidth="2" 
-        strokeLinecap="round" 
-        strokeLinejoin="round" 
+    <svg
+        width={size}
+        height={size}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
         className={className}
     >
         <path d="M2 12c0 0 5-3 8-3s5 2 7 2 4-2 7-2c0 0-2 6-7 6s-5-2-7-2-4 1-6 1c0 0 2-2 5-2" />
@@ -54,7 +82,7 @@ export function ResearchWelcome({
     onToggleWebSearch
 }: ResearchWelcomeProps) {
     const [query, setQuery] = useState(initialQuery);
-    
+
     // Sync query if initialQuery changes (e.g., from localStorage after mount)
     useEffect(() => {
         if (initialQuery) {
@@ -72,13 +100,108 @@ export function ResearchWelcome({
     const [urlInput, setUrlInput] = useState('');
     const [isProcessing, setIsProcessing] = useState(false);
     const [processingMessage, setProcessingMessage] = useState('');
-    const [previewData, setPreviewData] = useState<{ title: string; content: string; type: 'file' | 'audio' | 'youtube' | 'url'; mimeType?: string } | null>(null);
     const [showSubscriptionPopup, setShowSubscriptionPopup] = useState(false);
     const [showDictation, setShowDictation] = useState(false);
 
+    const { user } = useUser();
+    const [showStyleSubmenu, setShowStyleSubmenu] = useState(false);
+    const [showSkillSubmenu, setShowSkillSubmenu] = useState(false);
+    const [userSkills, setUserSkills] = useState<Array<{ id: string; name: string; enabled: boolean }>>([]);
+    const [activeStyle, setActiveStyle] = useState<string | null>(null);
+    const toolsMenuRef = useRef<HTMLDivElement>(null);
+
+    // Load skills from Supabase
+    useEffect(() => {
+        if (!user?.id) return;
+        getSkills(user.id)
+            .then(data => setUserSkills(data.map(s => ({ id: s.id, name: s.name, enabled: s.enabled }))))
+            .catch(() => { });
+    }, [user?.id]);
+
+    // Close tools menu on click outside
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (toolsMenuRef.current && !toolsMenuRef.current.contains(event.target as Node)) {
+                setShowToolsMenu(false);
+                setShowStyleSubmenu(false);
+                setShowSkillSubmenu(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    // Handle tool selection from + dropdown
+    const handleToolSelect = (toolId: string) => {
+        if (navigator.vibrate) navigator.vibrate(50);
+
+        switch (toolId) {
+            case 'upload_file':
+                setShowToolsMenu(false);
+                fileInputRef.current?.click();
+                break;
+            case 'camera':
+                setShowToolsMenu(false);
+                setAlertConfig({
+                    isOpen: true,
+                    title: 'Screenshots',
+                    message: 'Fitur tangkapan layar langsung akan segera hadir di Noir!',
+                    type: 'development'
+                });
+                break;
+            case 'project':
+                setShowToolsMenu(false);
+                setAlertConfig({
+                    isOpen: true,
+                    title: 'Projects',
+                    message: 'Noir Workspace akan segera hadir! Nantikan fitur kolaborasi proyek yang lebih canggih.',
+                    type: 'development'
+                });
+                break;
+            case 'github':
+                setShowToolsMenu(false);
+                setAlertConfig({
+                    isOpen: true,
+                    title: 'GitHub Integration',
+                    message: 'Hubungkan repositori GitHub Anda langsung ke Noir untuk analisis kode yang lebih mendalam.',
+                    type: 'development'
+                });
+                break;
+            case 'connectors':
+                setShowToolsMenu(false);
+                setAlertConfig({
+                    isOpen: true,
+                    title: 'Connectors',
+                    message: 'Hubungkan Noir dengan aplikasi favorit Anda untuk sinkronisasi data real-time.',
+                    type: 'development'
+                });
+                break;
+            case 'skills':
+                setShowSkillSubmenu(prev => !prev);
+                setShowStyleSubmenu(false);
+                break;
+            case 'styles':
+                setShowStyleSubmenu(prev => !prev);
+                setShowSkillSubmenu(false);
+                break;
+            case 'web':
+                setShowToolsMenu(false);
+                onToggleWebSearch && onToggleWebSearch(!isWebSearchEnabled);
+                break;
+        }
+    };
+
+    const handleSelectStyle = (styleId: string) => {
+        const style = WRITING_STYLES.find(s => s.id === styleId);
+        if (!style) return;
+        setActiveStyle(styleId === 'normal' ? null : styleId);
+        setShowStyleSubmenu(false);
+        setShowToolsMenu(false);
+    };
+
 
     // Model Selector State
-    const [selectedModel, setSelectedModel] = useState<ModelType>('sonar');
+    const [selectedModel, setSelectedModel] = useState<ModelType>('sonnet');
     const [withReasoning, setWithReasoning] = useState(false);
 
     // Usage limits hook
@@ -94,51 +217,9 @@ export function ResearchWelcome({
         return true;
     };
 
-    const confirmAttachment = () => {
-        if (previewData) {
-            setAttachments(prev => [...prev, {
-                type: previewData.type,
-                name: previewData.title,
-                content: previewData.content,
-                mimeType: previewData.mimeType
-            }]);
-
-            // Auto-fill prompt if empty to help user start
-            if (!query.trim()) {
-                let defaultPrompt = "Please analyze this attached content and provide a summary.";
-                if (previewData.type === 'audio') defaultPrompt = "Please transcribe and summarize this audio.";
-                if (previewData.type === 'youtube') defaultPrompt = "Please summarize this video transcript.";
-                if (previewData.type === 'file' && previewData.title.endsWith('.pdf')) defaultPrompt = "Please summarize this PDF document.";
-
-                setQuery(defaultPrompt);
-            }
-
-            setPreviewData(null);
-        }
-    };
-
     // Process transcription directly with AI and send to ChatInterface
     const processWithAI = () => {
-        if (previewData) {
-            // Create attachment
-            const attachment: AttachmentData = {
-                type: previewData.type,
-                name: previewData.title,
-                content: previewData.content,
-                mimeType: previewData.mimeType
-            };
-
-            // Generate prompt based on content type
-            let prompt = "Please analyze this content and provide a detailed summary.";
-            if (previewData.type === 'audio') prompt = "Berikut adalah transkripsi audio. Tolong rangkum isi audio ini dengan jelas dan berikan poin-poin utamanya:";
-            if (previewData.type === 'youtube') prompt = "Berikut adalah transkrip video YouTube. Tolong rangkum konten video ini dengan jelas:";
-            if (previewData.type === 'url') prompt = "Berikut adalah konten dari halaman web. Tolong rangkum artikel ini:";
-            if (previewData.type === 'file') prompt = "Berikut adalah isi dokumen. Tolong rangkum dokumen ini:";
-
-            // Close modal and immediately send to ChatInterface
-            setPreviewData(null);
-            onSearch(prompt, [attachment], selectedModel, withReasoning);
-        }
+        // This function is no longer used since we directly add attachments
     };
 
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -159,7 +240,7 @@ export function ResearchWelcome({
     const [knowledgeTitle, setKnowledgeTitle] = useState('');
 
     // Feature Prompt Modal State
-    const [selectedFeature, setSelectedFeature] = useState<{ label: string; icon: React.ReactNode; query: string; options?: {title: string; prompt: string}[] } | null>(null);
+    const [selectedFeature, setSelectedFeature] = useState<{ label: string; icon: React.ReactNode; query: string; options?: { title: string; prompt: string }[] } | null>(null);
     const [featurePrompt, setFeaturePrompt] = useState('');
 
     const [greeting, setGreeting] = useState("What shall we think through?");
@@ -333,7 +414,7 @@ export function ResearchWelcome({
                             'Authorization': `Bearer ${apiKey}`,
                         },
                         body: JSON.stringify({
-                            model: 'gpt-5-mini',
+                            model: 'seed-2-0-pro-free',
                             messages: [{
                                 role: 'user',
                                 content: [
@@ -348,12 +429,12 @@ export function ResearchWelcome({
                     if (response.ok) {
                         const data = await response.json();
                         const extractedText = data.choices?.[0]?.message?.content || 'PDF content extracted';
-                        setPreviewData({
+                        setAttachments(prev => [...prev, {
                             type: 'file',
-                            title: file.name,
+                            name: file.name,
                             content: extractedText,
                             mimeType: 'application/pdf'
-                        });
+                        }]);
                         incrementFeatureUsage('convert');
                     } else {
                         const errData = await response.json().catch(() => ({}));
@@ -374,12 +455,12 @@ export function ResearchWelcome({
                 } else {
                     // Text files
                     const text = await file.text();
-                    setPreviewData({
+                    setAttachments(prev => [...prev, {
                         type: 'file',
-                        title: file.name,
+                        name: file.name,
                         content: text,
                         mimeType: file.type
-                    });
+                    }]);
                 }
             } catch (error) {
                 console.error('File upload error:', error);
@@ -421,11 +502,11 @@ export function ResearchWelcome({
 
             if (response.ok) {
                 const data = await response.json();
-                setPreviewData({
+                setAttachments(prev => [...prev, {
                     type: 'audio',
-                    title: file.name,
+                    name: file.name,
                     content: data.text || 'Audio transcribed',
-                });
+                }]);
                 incrementFeatureUsage('convert');
             } else {
                 const errData = await response.json().catch(() => ({}));
@@ -441,7 +522,7 @@ export function ResearchWelcome({
         }
     };
 
-    // YouTube Transcript Handler — SumoPod gpt-5-mini
+    // YouTube Transcript Handler — SumoPod seed-2-0-pro-free
     const handleYouTubeSubmit = async () => {
         if (!checkConvertLimit()) return;
         if (!youtubeUrl.trim()) return;
@@ -460,7 +541,7 @@ export function ResearchWelcome({
                     'Authorization': `Bearer ${apiKey}`,
                 },
                 body: JSON.stringify({
-                    model: 'gpt-5-mini',
+                    model: 'seed-2-0-pro-free',
                     messages: [{
                         role: 'user',
                         content: `Please analyze and summarize this YouTube video. Provide key points and a detailed transcript/summary of the content: ${youtubeUrl}`
@@ -472,11 +553,11 @@ export function ResearchWelcome({
             if (response.ok) {
                 const data = await response.json();
                 const summary = data.choices?.[0]?.message?.content || 'Could not analyze video';
-                setPreviewData({
+                setAttachments(prev => [...prev, {
                     type: 'youtube',
-                    title: `YouTube: ${youtubeUrl}`,
+                    name: `YouTube: ${youtubeUrl}`,
                     content: summary,
-                });
+                }]);
                 setYoutubeUrl('');
                 setShowYouTubeInput(false);
                 incrementFeatureUsage('convert');
@@ -493,7 +574,7 @@ export function ResearchWelcome({
         }
     };
 
-    // URL Content Handler — SumoPod gpt-5-mini
+    // URL Content Handler — SumoPod seed-2-0-pro-free
     const handleUrlSubmit = async () => {
         if (!checkConvertLimit()) return;
         if (!urlInput.trim()) return;
@@ -512,7 +593,7 @@ export function ResearchWelcome({
                     'Authorization': `Bearer ${apiKey}`,
                 },
                 body: JSON.stringify({
-                    model: 'gpt-5-mini',
+                    model: 'seed-2-0-pro-free',
                     messages: [{
                         role: 'user',
                         content: `Please fetch, read, and extract the main text content from this webpage URL. Provide a clean, well-formatted version of the page content: ${urlInput}`
@@ -524,11 +605,11 @@ export function ResearchWelcome({
             if (response.ok) {
                 const data = await response.json();
                 const content = data.choices?.[0]?.message?.content || 'Could not extract content';
-                setPreviewData({
+                setAttachments(prev => [...prev, {
                     type: 'url',
-                    title: urlInput,
+                    name: urlInput,
                     content,
-                });
+                }]);
                 setUrlInput('');
                 setShowUrlInput(false);
                 incrementFeatureUsage('convert');
@@ -587,120 +668,11 @@ export function ResearchWelcome({
         }
     };
 
-    // Attach tools (+ dropdown) grouped natively
-    const attachToolsGroups = [
-        [
-            { id: 'upload_file', icon: <Paperclip size={16} />, label: 'Add files or photos', description: 'Images & Documents', action: () => fileInputRef.current?.click() },
-            { 
-                id: 'camera', 
-                icon: <Camera size={16} />, 
-                label: 'Take a screenshot', 
-                description: 'Capture screen', 
-                action: () => setAlertConfig({
-                    isOpen: true,
-                    title: 'Screenshots',
-                    message: 'Fitur tangkapan layar langsung akan segera hadir di Noir!',
-                    type: 'development'
-                }) 
-            },
-            { 
-                id: 'project', 
-                icon: <Folder size={16} />, 
-                label: 'Add to project', 
-                description: 'Workspace files', 
-                action: () => setAlertConfig({
-                    isOpen: true,
-                    title: 'Projects',
-                    message: 'Kelola basis data dan dokumen proyek Anda dalam satu tempat yang aman.',
-                    type: 'development'
-                }), 
-                hasChevron: true 
-            },
-            { 
-                id: 'github', 
-                icon: <Github size={16} />, 
-                label: 'Add from GitHub', 
-                description: 'Connect repo', 
-                action: () => setAlertConfig({
-                    isOpen: true,
-                    title: 'GitHub Integration',
-                    message: 'Analisis seluruh repositori GitHub Anda dengan kecerdasan AI Noir.',
-                    type: 'development'
-                }) 
-            },
-        ],
-        [
-            { 
-                id: 'skills', 
-                icon: <SquareTerminal size={16} />, 
-                label: 'Skills', 
-                description: 'Advanced capabilities', 
-                action: () => setAlertConfig({
-                    isOpen: true,
-                    title: 'Noir Skills',
-                    message: 'Buka kemampuan baru AI untuk menjalankan tugas-tugas teknis yang spesifik.',
-                    type: 'development'
-                }), 
-                hasChevron: true 
-            },
-            { 
-                id: 'connectors', 
-                icon: <Plug size={16} />, 
-                label: 'Add connectors', 
-                description: 'Integrations', 
-                action: () => setAlertConfig({
-                    isOpen: true,
-                    title: 'Connectors',
-                    message: 'Hubungkan Noir dengan aplikasi favorit Anda untuk sinkronisasi data real-time.',
-                    type: 'development'
-                }) 
-            },
-        ],
-        [
-            { id: 'web', icon: <Globe size={16} />, label: 'Web search', description: 'Search the web', action: () => onToggleWebSearch && onToggleWebSearch(!isWebSearchEnabled) },
-            { 
-                id: 'styles', 
-                icon: <Wand2 size={16} />, 
-                label: 'Use style', 
-                description: 'Writing tones', 
-                action: () => setAlertConfig({
-                    isOpen: true,
-                    title: 'Writing Styles',
-                    message: 'Sesuaikan nada dan gaya penulisan AI agar sesuai dengan kebutuhan audiens Anda.',
-                    type: 'development'
-                }) 
-            },
-        ]
-    ];
-
-    // AI Conversion tools (Wrench dropdown)
-    const tools = [
-        { icon: <Mic size={14} />, label: 'Audio to Text', description: 'Transcribe audio (2 Credits)', action: () => audioInputRef.current?.click() },
-        { icon: <Youtube size={14} />, label: 'YouTube to Text', description: 'Video transcript (2 Credits)', action: () => setShowYouTubeInput(true) },
-        { icon: <FileText size={14} />, label: 'PDF to Text', description: 'Extract PDF (3 Credits)', action: () => fileInputRef.current?.click() },
-        { icon: <LinkIcon size={14} />, label: 'URL to Text', description: 'Scrape webpage (3 Credits)', action: () => setShowUrlInput(true) },
-        {
-            icon: <Globe size={14} />, label: 'Add to Knowledge', description: 'Embed for RAG (2 Credits)', action: () => {
-                setKnowledgeText('');
-                setKnowledgeTitle('');
-                setShowKnowledgeInput(true);
-            }
-        },
-        {
-            icon: <ImageIcon size={14} />, label: 'Generate Image', description: 'AI Image (5 Credits)', action: () => {
-                if (!checkConvertLimit()) return;
-                const prompt = window.prompt('Describe the image you want to generate:');
-                if (prompt && prompt.trim()) {
-                    handleImageGeneration(prompt.trim());
-                }
-            }
-        },
-    ];
-
+    // Suggestions
     const suggestions = [
-        { 
-            icon: <SharkIcon size={16} className={cn("transition-colors", withReasoning ? "text-purple-500" : "text-stone-400")} />, 
-            label: "Research", 
+        {
+            icon: <SharkIcon size={16} className={cn("transition-colors", withReasoning ? "text-purple-500" : "text-stone-400")} />,
+            label: "Research",
             query: "Can you deep research about ",
             action: () => setWithReasoning(true),
             options: [
@@ -710,9 +682,9 @@ export function ResearchWelcome({
                 { title: "Comprehensive case study", prompt: "Perform a comprehensive research-based case study on [Topic]: " }
             ]
         },
-        { 
-            icon: <FileText size={16} className="text-stone-400" />, 
-            label: "Summarize", 
+        {
+            icon: <FileText size={16} className="text-stone-400" />,
+            label: "Summarize",
             query: "Please summarize ",
             options: [
                 { title: "Summarize an article", prompt: "Can you summarize the following article, highlighting the main points? " },
@@ -721,9 +693,9 @@ export function ResearchWelcome({
                 { title: "Executive summary", prompt: "Create a brief executive summary for the following document: " }
             ]
         },
-        { 
-            icon: <Lightbulb size={16} className="text-stone-400" />, 
-            label: "Brainstorm", 
+        {
+            icon: <Lightbulb size={16} className="text-stone-400" />,
+            label: "Brainstorm",
             query: "Help me brainstorm ideas for ",
             options: [
                 { title: "Startup ideas", prompt: "Brainstorm 5 innovative startup ideas in the field of " },
@@ -732,9 +704,9 @@ export function ResearchWelcome({
                 { title: "Marketing campaign", prompt: "Brainstorm a creative marketing campaign for " }
             ]
         },
-        { 
-            icon: <Globe size={16} className="text-stone-400" />, 
-            label: "Translate", 
+        {
+            icon: <Globe size={16} className="text-stone-400" />,
+            label: "Translate",
             query: "Translate this text into ",
             options: [
                 { title: "Translate to English", prompt: "Translate the following text to professional English: " },
@@ -743,9 +715,9 @@ export function ResearchWelcome({
                 { title: "Improve translation", prompt: "Please review and improve this translation to sound more native: " }
             ]
         },
-        { 
-            icon: <LineChart size={16} className="text-stone-400" />, 
-            label: "Analyze", 
+        {
+            icon: <LineChart size={16} className="text-stone-400" />,
+            label: "Analyze",
             query: "Can you analyze ",
             options: [
                 { title: "Analyze text sentiment", prompt: "Analyze the tone and sentiment of the following text: " },
@@ -818,95 +790,6 @@ export function ResearchWelcome({
                                 transition={{ duration: 2, repeat: Infinity }}
                             />
                         </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-
-            {/* Result Preview Modal */}
-            <AnimatePresence>
-                {previewData && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 bg-black/60 backdrop-blur-md z-[60] flex items-center justify-center p-4"
-                        onClick={() => setPreviewData(null)}
-                    >
-                        <motion.div
-                            initial={{ scale: 0.95, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0.95, opacity: 0 }}
-                            onClick={e => e.stopPropagation()}
-                            className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden"
-                        >
-                            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center text-purple-600">
-                                        {previewData.type === 'youtube' && <Youtube size={20} className="text-red-500" />}
-                                        {previewData.type === 'audio' && <Mic size={20} />}
-                                        {previewData.type === 'url' && <LinkIcon size={20} className="text-blue-500" />}
-                                        {previewData.type === 'file' && <FileText size={20} />}
-                                    </div>
-                                    <div>
-                                        <h3 className="font-semibold text-zinc-900 truncate max-w-[180px] sm:max-w-[300px]">{previewData.title}</h3>
-                                        <div className="text-xs text-zinc-500 font-medium uppercase tracking-wider">{previewData.type} Content</div>
-                                    </div>
-                                </div>
-                                <button onClick={() => setPreviewData(null)} className="p-2 hover:bg-zinc-100 rounded-full text-zinc-400 hover:text-zinc-600 transition-colors">
-                                    <X size={20} />
-                                </button>
-                            </div>
-
-                            <div className="flex-1 overflow-y-auto p-6 bg-zinc-50/50">
-                                {previewData.mimeType?.startsWith('image/') ? (
-                                    <div className="flex justify-center items-center h-full">
-                                        <img
-                                            src={previewData.content}
-                                            alt={previewData.title}
-                                            className="max-w-full max-h-[60vh] object-contain rounded-lg shadow-sm"
-                                        />
-                                    </div>
-                                ) : (
-                                    <pre className="whitespace-pre-wrap font-sans text-sm text-zinc-700 leading-relaxed">
-                                        {previewData.content}
-                                    </pre>
-                                )}
-                            </div>
-
-                            <div className="p-4 border-t border-zinc-100 bg-white flex justify-end gap-3">
-                                <button
-                                    onClick={() => {
-                                        navigator.clipboard.writeText(previewData.content);
-                                        // Optional: toast 'Copied!'
-                                    }}
-                                    className="px-4 py-2.5 rounded-xl border border-zinc-200 text-zinc-700 font-medium hover:bg-zinc-50 transition-colors"
-                                >
-                                    Copy to Clipboard
-                                </button>
-                                {!previewData.mimeType?.startsWith('image/') && (
-                                    <button
-                                        onClick={() => handleEmbedDocument(previewData.content, previewData.title)}
-                                        className="px-4 py-2.5 rounded-xl border border-zinc-200 text-zinc-700 font-medium hover:bg-zinc-50 transition-colors"
-                                    >
-                                        Save to Knowledge
-                                    </button>
-                                )}
-                                <button
-                                    onClick={confirmAttachment}
-                                    className="px-4 py-2.5 rounded-xl border border-zinc-200 text-zinc-700 font-medium hover:bg-zinc-50 transition-colors flex items-center gap-2"
-                                >
-                                    <Paperclip size={16} />
-                                    Attach Only
-                                </button>
-                                <button
-                                    onClick={processWithAI}
-                                    className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 text-white font-medium hover:from-purple-700 hover:to-blue-700 transition-all flex items-center gap-2 shadow-lg"
-                                >
-                                    <Sparkles size={16} />
-                                    Process with AI
-                                </button>
-                            </div>
-                        </motion.div>
                     </motion.div>
                 )}
             </AnimatePresence>
@@ -1148,7 +1031,7 @@ export function ResearchWelcome({
                 {/* Upgrade Pill */}
                 <div className="mb-6 md:mb-12 flex justify-center">
                     {!isSubscribed ? (
-                        <button 
+                        <button
                             onClick={() => setShowSubscriptionPopup(true)}
                             className="text-xs font-medium text-stone-500 hover:text-stone-800 bg-stone-100 hover:bg-stone-200 px-3 py-1 rounded-full transition-colors"
                         >
@@ -1199,7 +1082,7 @@ export function ResearchWelcome({
                                     </div>
                                 </motion.div>
                             )}
-                            
+
                             {withReasoning && (
                                 <motion.div
                                     initial={{ height: 0, opacity: 0 }}
@@ -1213,6 +1096,23 @@ export function ResearchWelcome({
                                             <X size={12} />
                                         </button>
                                     </div>
+                                </motion.div>
+                            )}
+
+                            {activeStyle && (
+                                <motion.div
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: 'auto', opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                >
+                                    <button
+                                        onClick={() => setActiveStyle(null)}
+                                        className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-orange-50 text-orange-600 border border-orange-100/50 rounded-md text-xs font-medium hover:bg-orange-100 transition-colors"
+                                    >
+                                        <Wand2 size={12} />
+                                        Style: {WRITING_STYLES.find(s => s.id === activeStyle)?.label}
+                                        <X size={12} className="ml-1" />
+                                    </button>
                                 </motion.div>
                             )}
                         </div>
@@ -1252,62 +1152,126 @@ export function ResearchWelcome({
 
                     {/* Bottom Bar — Clean Layout */}
                     <div className="w-full flex items-center justify-between px-3 pb-3">
-                        {/* Left: + Button */}
-                        <div className="flex items-center gap-1 relative">
-                            {/* + Attach Dropdown */}
-                            <div className="relative">
-                                <button
-                                    onClick={() => { setShowToolsMenu(!showToolsMenu); setShowAIToolsMenu(false); }}
-                                    className={cn(
-                                        "w-8 h-8 flex items-center justify-center rounded-lg transition-all",
-                                        showToolsMenu
-                                            ? "bg-stone-200 text-stone-700"
-                                            : "text-stone-400 hover:text-stone-700 hover:bg-stone-100"
-                                    )}
-                                    title="Attach files"
-                                >
-                                    <Plus size={20} strokeWidth={2} />
-                                </button>
-                                {showToolsMenu && (
-                                    <div className="absolute bottom-full left-0 mb-2 w-[calc(100vw-2rem)] max-w-[240px] bg-white border border-stone-200 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden z-50 animate-in fade-in slide-in-from-bottom-2 duration-150 py-1.5">
-                                        {attachToolsGroups.map((group, groupIdx) => (
+                        {/* Left: + Button with Dropdown */}
+                        <div className="flex items-center gap-1 relative" ref={toolsMenuRef}>
+                            <button
+                                onClick={() => setShowToolsMenu(!showToolsMenu)}
+                                className={cn(
+                                    "w-8 h-8 flex items-center justify-center rounded-lg transition-all",
+                                    showToolsMenu
+                                        ? "bg-stone-200 text-stone-700"
+                                        : "text-stone-400 hover:text-stone-700 hover:bg-stone-100"
+                                )}
+                                title="Attach menu"
+                            >
+                                <Plus size={20} strokeWidth={1.8} />
+                            </button>
+
+                            {/* Tools Dropdown */}
+                            {showToolsMenu && (
+                                <div className="absolute bottom-full left-0 mb-2 flex items-end gap-1 z-50">
+                                    {/* Main menu */}
+                                    <div className="w-[85vw] max-w-[224px] sm:w-56 bg-white border border-stone-200 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-150 py-1.5">
+                                        {TOOL_GROUPS.map((group, groupIdx) => (
                                             <React.Fragment key={groupIdx}>
                                                 <div className="flex flex-col">
                                                     {group.map((tool) => {
-                                                        const isActive = (tool.id === 'web' && isWebSearchEnabled);
+                                                        const Icon = tool.icon;
+                                                        const isWebActive = tool.id === 'web' && isWebSearchEnabled;
+                                                        const isStyleActive = tool.id === 'styles' && !!activeStyle;
+                                                        const isActive = isWebActive || isStyleActive;
                                                         return (
                                                             <button
                                                                 key={tool.id}
-                                                                onClick={() => { tool.action(); setShowToolsMenu(false); }}
-                                                                className="w-full flex items-center gap-2.5 px-3 py-1.5 hover:bg-stone-50 transition-colors text-left"
+                                                                onClick={() => handleToolSelect(tool.id)}
+                                                                className={cn(
+                                                                    "w-full flex items-center gap-3 px-3 py-2 text-[13px] transition-colors mx-1.5 rounded-lg text-left",
+                                                                    (tool.id === 'styles' && showStyleSubmenu) || (tool.id === 'skills' && showSkillSubmenu) ? "bg-stone-100" : "hover:bg-stone-50"
+                                                                )}
+                                                                style={{ width: 'calc(100% - 12px)' }}
                                                             >
-                                                                <div className={cn("flex justify-center items-center w-4 shrink-0", isActive ? "text-blue-500" : "text-stone-600")}>
-                                                                    {tool.icon}
+                                                                <div className={cn("flex justify-center items-center w-5", isActive ? "text-blue-500" : "text-stone-700")}>
+                                                                    <Icon size={16} strokeWidth={1.8} />
                                                                 </div>
-                                                                <div className="flex-1 flex flex-col justify-center min-w-0">
-                                                                    <span className={cn("text-[12px] leading-tight", isActive ? "text-blue-600 font-medium" : "text-stone-700 font-medium")}>{tool.label}</span>
-                                                                    <span className="text-[10px] text-stone-400 truncate">{tool.description}</span>
-                                                                </div>
-                                                                {(tool as any).hasChevron && (
-                                                                    <ChevronRight size={12} className="text-stone-300 shrink-0" strokeWidth={2} />
-                                                                )}
-                                                                {isActive && (
-                                                                    <Check size={13} className="text-blue-500 shrink-0" strokeWidth={2.5} />
-                                                                )}
+                                                                <span className={cn("flex-1", isActive ? "text-blue-600 font-medium" : "text-stone-700")}>{tool.label}</span>
+                                                                {tool.id === 'styles' ? (
+                                                                    <ChevronRight size={14} className={cn("text-stone-400 ml-auto transition-transform duration-150", showStyleSubmenu && "rotate-90")} strokeWidth={2} />
+                                                                ) : tool.id === 'skills' ? (
+                                                                    <ChevronRight size={14} className={cn("text-stone-400 ml-auto transition-transform duration-150", showSkillSubmenu && "rotate-90")} strokeWidth={2} />
+                                                                ) : (tool as any).hasChevron ? (
+                                                                    <ChevronRight size={14} className="text-stone-400 ml-auto" strokeWidth={2} />
+                                                                ) : isWebActive ? (
+                                                                    <Check size={16} className="text-blue-500 ml-auto" strokeWidth={2.5} />
+                                                                ) : null}
                                                             </button>
                                                         );
                                                     })}
                                                 </div>
-                                                {groupIdx < attachToolsGroups.length - 1 && (
-                                                    <div className="h-px bg-stone-100 my-1 mx-3" />
+                                                {groupIdx < TOOL_GROUPS.length - 1 && (
+                                                    <div className="h-px bg-stone-100 my-1.5 mx-3" />
                                                 )}
                                             </React.Fragment>
                                         ))}
                                     </div>
-                                )}
-                            </div>
 
+                                    {/* Skill submenu */}
+                                    {showSkillSubmenu && (
+                                        <div className="w-44 bg-white border border-stone-200 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden animate-in fade-in slide-in-from-left-1 duration-150 py-1.5">
+                                            {userSkills.filter(s => s.enabled).length === 0 ? (
+                                                <div className="px-3 py-3 text-[12px] text-stone-400 text-center">
+                                                    Belum ada skill aktif
+                                                </div>
+                                            ) : (
+                                                userSkills.filter(s => s.enabled).map(skill => (
+                                                    <div key={skill.id} className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] mx-1.5 rounded-lg" style={{ width: 'calc(100% - 12px)' }}>
+                                                        <SquareTerminal size={14} className="text-stone-400 shrink-0" strokeWidth={1.8} />
+                                                        <span className="text-stone-700 truncate">{skill.name}</span>
+                                                    </div>
+                                                ))
+                                            )}
+                                            <div className="h-px bg-stone-100 my-1.5 mx-3" />
+                                            <button
+                                                onClick={() => { setShowSkillSubmenu(false); setShowToolsMenu(false); navigate('/skills'); }}
+                                                className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] hover:bg-stone-50 transition-colors mx-1.5 rounded-lg text-left"
+                                                style={{ width: 'calc(100% - 12px)' }}
+                                            >
+                                                <Wrench size={14} className="text-stone-500 shrink-0" strokeWidth={1.8} />
+                                                <span className="text-stone-700">Manage skills</span>
+                                            </button>
+                                        </div>
+                                    )}
 
+                                    {/* Style submenu */}
+                                    {showStyleSubmenu && (
+                                        <div className="w-44 bg-white border border-stone-200 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden animate-in fade-in slide-in-from-left-1 duration-150 py-1.5">
+                                            {WRITING_STYLES.map((style) => {
+                                                const isSelected = activeStyle === style.id || (!activeStyle && style.id === 'normal');
+                                                return (
+                                                    <button
+                                                        key={style.id}
+                                                        onClick={() => handleSelectStyle(style.id)}
+                                                        className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] hover:bg-stone-50 transition-colors mx-1.5 rounded-lg text-left"
+                                                        style={{ width: 'calc(100% - 12px)' }}
+                                                    >
+                                                        <Wand2 size={14} className={isSelected ? "text-blue-500" : "text-stone-400"} strokeWidth={1.8} />
+                                                        <span className={cn("flex-1", isSelected ? "text-blue-600 font-medium" : "text-stone-700")}>{style.label}</span>
+                                                        {isSelected && <Check size={13} className="text-blue-500 shrink-0" strokeWidth={2.5} />}
+                                                    </button>
+                                                );
+                                            })}
+                                            <div className="h-px bg-stone-100 my-1.5 mx-3" />
+                                            <button
+                                                onClick={() => { setShowStyleSubmenu(false); setShowToolsMenu(false); setAlertConfig({ isOpen: true, title: 'Custom Styles', message: 'Fitur buat & edit style kustom akan segera hadir!', type: 'development' }); }}
+                                                className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] hover:bg-stone-50 transition-colors mx-1.5 rounded-lg text-left"
+                                                style={{ width: 'calc(100% - 12px)' }}
+                                            >
+                                                <Plus size={14} className="text-stone-500 shrink-0" strokeWidth={2} />
+                                                <span className="text-stone-700">Create &amp; edit styles</span>
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
 
                         {/* Right: Model Name, Voice, Send */}
@@ -1328,9 +1292,20 @@ export function ResearchWelcome({
                                                 'sonnet': 'Fast Thinking',
                                                 'sonar': 'Fast Thinking',
                                                 'opus': 'Pro',
+                                                'philos': 'Noir Philos',
                                                 'haiku': 'Haiku',
                                             };
-                                            return names[selectedModel] || selectedModel;
+                                            const name = names[selectedModel] || selectedModel;
+                                            return (
+                                                <span className="flex items-center gap-1">
+                                                    {name}
+                                                    {selectedModel === 'philos' && (
+                                                        <span className="px-1.5 py-0.5 rounded-full border border-stone-200 text-stone-400 text-[9px] font-medium bg-stone-50">
+                                                            Soon
+                                                        </span>
+                                                    )}
+                                                </span>
+                                            );
                                         })()}
                                     </span>
                                     <ChevronDown size={12} strokeWidth={2.5} />
@@ -1386,7 +1361,7 @@ export function ResearchWelcome({
                             className={cn(
                                 "flex items-center gap-1.5 md:gap-2 px-2.5 md:px-3.5 py-1 md:py-1.5 rounded-full border text-[12px] md:text-[13px] font-medium transition-colors shadow-sm",
                                 selectedFeature?.label === suggestion.label
-                                    ? "bg-stone-100 border-stone-300 text-stone-800" 
+                                    ? "bg-stone-100 border-stone-300 text-stone-800"
                                     : "bg-white border-stone-200 hover:bg-stone-50 text-stone-600"
                             )}
                         >
@@ -1416,7 +1391,7 @@ export function ResearchWelcome({
                             </div>
                             <div className="flex flex-col">
                                 {selectedFeature.options?.map((opt: any, i: number) => (
-                                    <button 
+                                    <button
                                         key={i}
                                         onClick={() => {
                                             setQuery(opt.prompt);
@@ -1454,7 +1429,7 @@ export function ResearchWelcome({
                 }}
             />
 
-            <AlertModal 
+            <AlertModal
                 isOpen={alertConfig.isOpen}
                 onClose={() => setAlertConfig(prev => ({ ...prev, isOpen: false }))}
                 title={alertConfig.title}
