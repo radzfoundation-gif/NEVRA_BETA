@@ -19,7 +19,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import { createRequire } from 'module';
 import midtransClient from 'midtrans-client';
-import { YoutubeTranscript } from 'youtube-transcript';
+import { YoutubeTranscript } from 'youtube-transcript/dist/youtube-transcript.esm.js';
 import nodemailer from 'nodemailer';
 import { createClient } from '@supabase/supabase-js';
 import { mcpManager } from './mcpManager.js';
@@ -37,6 +37,22 @@ if (supabase) {
 } else {
   console.warn('⚠️ Supabase not configured. Using file-based fallback.');
 }
+
+// Initialize Philos Services (global scope for access in routes)
+let philosMemory = null;
+let philosIntegration = null;
+const initPhilosServices = async () => {
+  try {
+    const { PhilosMemoryService } = await import('./philos/memoryService.js');
+    const { PhilosIntegrationService } = await import('./philos/integrationService.js');
+    philosMemory = new PhilosMemoryService(supabase);
+    philosIntegration = new PhilosIntegrationService(supabase);
+    console.log('🧠 [Philos] Services initialized');
+  } catch (e) {
+    console.error('❌ [Philos] Initialization failed:', e.message);
+  }
+};
+initPhilosServices();
 
 // =====================================================
 // MISSING FUNCTION DEFINITIONS (Fixed)
@@ -1813,8 +1829,10 @@ app.post('/api/chat/stream', async (req, res) => {
 
   // Check if SumoPod requested (default 'groq' or explicit gemini/seed models)
   // Also force 'claude-sonnet-4-5' and all 'seed-2-0' variants to use SumoPod
-  const isSumoPodModel = model === 'groq' || model === 'gemini' || model === 'gemini-flash' || 
-      model === 'claude-sonnet-4-5' || (model && model.includes('seed-2-0')) || !model;
+  // IMPORTANT: Direct OpenRouter model IDs (containing '/') should NOT be routed to SumoPod
+  const isOpenRouterModelId = model && model.includes('/');
+  const isSumoPodModel = !isOpenRouterModelId && (model === 'groq' || model === 'gemini' || model === 'gemini-flash' || 
+      model === 'claude-sonnet-4-5' || (model && model.includes('seed-2-0')) || !model);
   
   if (isSumoPodModel) {
     provider = 'sumopod';
@@ -1830,7 +1848,14 @@ app.post('/api/chat/stream', async (req, res) => {
 
   console.log(`[Stream] Starting stream for provider: ${provider}, model: ${targetModel}, requested: ${model}`);
 
-  // 4. Set SSE headers
+  // =====================================================
+  // NOIR PHILOS SUPER AGENT PIPELINE (3-Phase)
+  // =====================================================
+  if (model === 'philos') {
+    return handlePhilosPipeline(req, res, messages);
+  }
+
+  // Set SSE headers
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
@@ -2088,7 +2113,7 @@ app.post('/api/chat/stream', async (req, res) => {
       },
       body: JSON.stringify({
         model: targetModel,
-        messages: typeof currentMessages !== 'undefined' ? currentMessages : messages,
+        messages: messages,
         stream: true,
       }),
       signal: controller.signal,
@@ -2631,6 +2656,116 @@ Always provide information based on your training data AND the current date cont
 // Other orphan code removed (was dead code from old deepseek/gemini handlers)
 
 // Health check endpoints
+// =====================================================
+// NOIR PHILOS PIPELINE HELPER
+// =====================================================
+async function handlePhilosPipeline(req, res, messages) {
+  const userId = req.body.userId || 'local-user';
+  const lastUserMessage = messages[messages.length - 1]?.content || '';
+
+  // Set SSE headers
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+
+  try {
+    // PHASE 1: Thinking / Deep Understanding
+    res.write(`event: status\ndata: ${JSON.stringify({ message: "Phase 1: Analyzing intent and recalling memories..." })}\n\n`);
+    
+    let systemPrompt = "You are Noir Philos, a deeply intuitive and personalized AI companion.";
+    if (philosMemory) {
+      const memoryContext = await philosMemory.buildSystemPrompt(userId, lastUserMessage);
+      systemPrompt = memoryContext;
+    }
+    
+    // PHASE 2: Collaborative Research (Web + Deep)
+    res.write(`event: status\ndata: ${JSON.stringify({ message: "Phase 2: Performing collaborative research (Web + Deep)..." })}\n\n`);
+    
+    // Run Web Search
+    let searchResults = [];
+    try {
+      // Use local API for search to ensure it works in this environment
+      const searchRes = await fetch(`${process.env.FRONTEND_URL || 'http://localhost:8788'}/api/search`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: lastUserMessage, maxResults: 5 })
+      });
+      if (searchRes.ok) {
+        const searchData = await searchRes.json();
+        searchResults = searchData.results || [];
+      }
+    } catch (e) { console.warn('[Philos] Web search failed', e.message); }
+
+    // PHASE 3: Multi-Model Synthesis (Consensus Step)
+    res.write(`event: status\ndata: ${JSON.stringify({ message: "Phase 3: Synthesizing final response from multiple models..." })}\n\n`);
+    
+    const researchContext = searchResults.length > 0 
+      ? `\n\n[Research Context]:\n${searchResults.map((r, i) => `[${i+1}] ${r.title}: ${r.snippet}`).join('\n')}`
+      : '';
+
+    // Step A: Fetch Consensus Drafts (Parallel)
+    const [draftA, draftB] = await Promise.all([
+      sumopodClient.chat.completions.create({
+        model: 'seed-2-0-pro-free',
+        messages: [{ role: 'system', content: 'Provide a highly detailed, technical draft answer.' }, { role: 'user', content: lastUserMessage + researchContext }],
+        max_tokens: 1000
+      }).catch(() => null),
+      sumopodClient.chat.completions.create({
+        model: 'seed-2-0-lite-free',
+        messages: [{ role: 'system', content: 'Provide a creative, intuitive draft answer.' }, { role: 'user', content: lastUserMessage + researchContext }],
+        max_tokens: 1000
+      }).catch(() => null)
+    ]);
+
+    const consensusContext = `
+[Draft Alpha (Logical)]: ${draftA?.choices[0]?.message?.content || 'No draft available'}
+[Draft Beta (Creative)]: ${draftB?.choices[0]?.message?.content || 'No draft available'}
+`;
+
+    const finalMessages = [
+      { role: 'system', content: systemPrompt },
+      ...messages.slice(-10), // User context
+      { role: 'user', content: `[TASK]: Synthesize the following drafts and research into one "Super-Agentic" response. 
+${consensusContext}
+${researchContext}
+Original Prompt: "${lastUserMessage}"` }
+    ];
+
+    // Final generation (The Pixel Grid Skeleton should be shown in UI)
+    const stream = await sumopodClient.chat.completions.create({
+      model: 'seed-2-0-pro-free',
+      messages: finalMessages,
+      stream: true,
+    });
+
+    let fullResponse = '';
+    for await (const chunk of stream) {
+      const content = chunk.choices[0]?.delta?.content || '';
+      if (content) {
+        fullResponse += content;
+        res.write(`data: ${JSON.stringify({ content })}\n\n`);
+      }
+    }
+    
+    res.write('data: [DONE]\n\n');
+    res.end();
+
+    // Memory Extraction (Post-Generation)
+    if (philosMemory) {
+      import('./philos/memoryService.js').then(({ extractAndSaveMemories }) => {
+        extractAndSaveMemories(userId, lastUserMessage, fullResponse, philosMemory).catch(console.error);
+      });
+    }
+
+  } catch (err) {
+    console.error('[Philos Pipeline] Error:', err);
+    res.write(`event: error\ndata: ${JSON.stringify({ message: err.message })}\n\n`);
+    res.end();
+  }
+}
+
 app.get('/', (_req, res) => {
   res.type('text/html').send('<h1>Noir AI API OK</h1>');
 });

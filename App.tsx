@@ -18,8 +18,9 @@ const ForgotPasswordPage = React.lazy(() => import('./components/auth/ForgotPass
 const NicknamePage = React.lazy(() => import('./components/auth/NicknamePage'));
 const SurveyPage = React.lazy(() => import('./components/pages/SurveyPage'));
 const Gallery = React.lazy(() => import('./components/pages/Gallery'));
-const DocGenerator = React.lazy(() => import('./components/pages/DocGenerator'));
+
 const Studio = React.lazy(() => import('./components/pages/Studio'));
+const SkillsPage = React.lazy(() => import('./components/pages/SkillsPage'));
 
 // UserSyncProvider removed - Supabase handles user data directly
 const UserSyncProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -39,7 +40,7 @@ const AppContent: React.FC = () => {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/redesign" element={<Home defaultMode="redesign" />} />
-          <Route path="/document" element={<ProtectedRoute><DocGenerator /></ProtectedRoute>} />
+
           <Route path="/gallery" element={<ProtectedRoute><Gallery /></ProtectedRoute>} />
           <Route path="/studio" element={<Studio />} />
           <Route path="/survey" element={<SurveyPage />} />
@@ -75,6 +76,7 @@ const AppContent: React.FC = () => {
             }
           />
           <Route path="/share/:id" element={<SharedChat />} />
+          <Route path="/skills" element={<ProtectedRoute><SkillsPage /></ProtectedRoute>} />
         </Routes>
       </React.Suspense>
     </>

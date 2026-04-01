@@ -92,7 +92,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         { type: 'divider' as const },
         { type: 'button' as const, icon: Home, label: 'Home', action: () => navigate('/') },
         { type: 'button' as const, icon: LayoutGrid, label: 'Gallery', action: () => navigate('/gallery') },
-        { type: 'button' as const, icon: FileText, label: 'Smart Document', action: () => navigate('/document') },
+
         { type: 'button' as const, icon: Share2, label: 'Share with Friend', action: () => setShowShare(true) },
         // Add Install App button if installable
         ...(isInstallable ? [{ type: 'button' as const, icon: Box, label: 'Install App', action: installApp }] : []),
@@ -177,13 +177,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                         <LayoutGrid size={20} strokeWidth={1.5} />
                     </button>
 
-                    <button
-                        onClick={() => navigate('/document')}
-                        className="p-2 hover:bg-zinc-200 rounded-lg text-zinc-500 hover:text-zinc-900 transition-colors"
-                        title="Smart Document"
-                    >
-                        <FileText size={20} strokeWidth={1.5} />
-                    </button>
 
                     <button
                         onClick={() => setShowShare(true)}
@@ -350,10 +343,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                     <button onClick={() => navigate('/')} className="w-full flex items-center gap-3 px-2 py-2 text-[13px] hover:bg-zinc-100 rounded-md text-zinc-700 transition-colors">
                         <MessageSquare size={16} strokeWidth={1.5} className="text-zinc-500" />
                         Chats
-                    </button>
-                    <button onClick={() => navigate('/document')} className="w-full flex items-center gap-3 px-2 py-2 text-[13px] hover:bg-zinc-100 rounded-md text-zinc-700 transition-colors">
-                        <FolderOpen size={16} strokeWidth={1.5} className="text-zinc-500" />
-                        Projects
                     </button>
                     <button onClick={() => navigate('/gallery')} className="w-full flex items-center gap-3 px-2 py-2 text-[13px] hover:bg-zinc-100 rounded-md text-zinc-700 transition-colors">
                         <LayoutGrid size={16} strokeWidth={1.5} className="text-zinc-500" />

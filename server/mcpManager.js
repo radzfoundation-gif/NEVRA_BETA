@@ -167,61 +167,112 @@ class McpManager {
         const queryLower = query.toLowerCase();
         const allTools = await this.listAllTools();
         
-        // Define intent categories
+        // Define intent categories with comprehensive keywords (English & Indonesian)
         const categories = {
-            pdf: ['pdf', 'buat pdf', 'generate pdf', 'eksport pdf', 'export pdf'],
-            doc: ['doc', 'docx', 'word', 'dokumen', 'document', 'buat dokumen'],
-            ppt: ['ppt', 'pptx', 'powerpoint', 'presentation', 'presentasi', 'slide', 'deck'],
-            search: ['cari', 'search', 'web', 'browsing', 'internet', 'terbaru', 'berita'],
-            code: ['code', 'coding', 'program', 'developer', 'github', 'script', 'react', 'program'],
-            design: ['desain', 'ui', 'ux', 'layout', 'landing page', 'mockup', 'wireframe', 'photoshop', 'figma'],
-            marketing: ['marketing', 'iklan', 'ads', 'strategi', 'campaign', 'social content', 'iklan', 'promosi'],
-            trading: ['trading', 'saham', 'stock', 'investasi', 'investment', 'crypto', 'signal', 'market', 'pasar'],
-            brainstorm: ['brainstorm', 'ide', 'idea', 'creative', 'konsep', 'mind map', 'curah pendapat'],
-            analyze: ['analisis', 'analyze', 'data', 'csv', 'hitung', 'math', 'statistik']
+            pdf: {
+                keywords: ['pdf', 'buat pdf', 'dua pdf', 'generate pdf', 'eksport pdf', 'export pdf', 'save as pdf'],
+                label: 'PDF & Document Generation'
+            },
+            doc: {
+                keywords: ['doc', 'docx', 'word', 'dokumen', 'document', 'buat dokumen', 'penulisan', 'artikel', 'teks'],
+                label: 'Professional Documentation'
+            },
+            ppt: {
+                keywords: ['ppt', 'pptx', 'powerpoint', 'presentation', 'presentasi', 'slide', 'deck', 'materi'],
+                label: 'Presentation Design'
+            },
+            search: {
+                keywords: ['cari', 'search', 'web', 'browsing', 'internet', 'terbaru', 'berita', 'info', 'news', 'update'],
+                label: 'Web Intelligence'
+            },
+            code: {
+                keywords: [
+                    'code', 'coding', 'program', 'developer', 'github', 'script', 'react', 'html', 'css', 'js', 
+                    'javascript', 'typescript', 'frontend', 'backend', 'api', 'database', 'sql', 'python', 'java',
+                    'php', 'web app', 'coding html', 'buat website', 'bikin web'
+                ],
+                label: 'Coding & Development'
+            },
+            design: {
+                keywords: ['desain', 'design', 'ui', 'ux', 'layout', 'landing page', 'mockup', 'wireframe', 'photoshop', 'figma', 'grafis', 'ikon', 'logo'],
+                label: 'UI/UX & Creative Design'
+            },
+            marketing: {
+                keywords: ['marketing', 'iklan', 'ads', 'strategi', 'campaign', 'social content', 'iklan', 'promosi', 'branding', 'konten'],
+                label: 'Marketing & Strategy'
+            },
+            trading: {
+                keywords: ['trading', 'saham', 'stock', 'investasi', 'investment', 'crypto', 'signal', 'market', 'pasar', 'harga', 'chart'],
+                label: 'Market & Trading Analysis'
+            },
+            brainstorm: {
+                keywords: ['brainstorm', 'ide', 'idea', 'creative', 'konsep', 'mind map', 'curah pendapat', 'rencana', 'plan'],
+                label: 'Creative Brainstorming'
+            },
+            analyze: {
+                keywords: ['analisis', 'analyze', 'data', 'csv', 'hitung', 'math', 'statistik', 'excel', 'tabel', 'riset', 'research'],
+                label: 'Advanced Data Analysis'
+            }
         };
-
 
         const matchedTools = [];
         const detectedCategories = [];
+        const detectedLabels = [];
 
-        // Identify categories based on query
-        for (const [cat, keywords] of Object.entries(categories)) {
-            if (keywords.some(k => queryLower.includes(k))) {
-                detectedCategories.push(cat);
+        // 1. Hardcoded Category Match
+        for (const [id, cat] of Object.entries(categories)) {
+            if (cat.keywords.some(k => queryLower.includes(k))) {
+                detectedCategories.push(id);
+                detectedLabels.push(cat.label);
             }
         }
 
-        if (detectedCategories.length === 0) return { tools: [], categories: [] };
-
-        // Match tools based on detected categories
+        // 2. DYNAMIC MATCH: Check query words against all available tool names/descriptions
+        // This ensures newly added skills work immediately without needing to update the categories object.
+        const queryWords = queryLower.split(/[^\w\d]+/).filter(w => w.length > 2);
+        
         for (const tool of allTools) {
+            // Skip if already matched via categories
+            if (matchedTools.some(t => t.name === tool.name && t.serverId === tool.serverId)) continue;
+
             const toolName = tool.name.toLowerCase();
             const toolDesc = (tool.description || '').toLowerCase();
             const serverName = (tool.serverName || '').toLowerCase();
             
-            const isMatch = detectedCategories.some(cat => {
-                const keywords = categories[cat];
-                // Match if:
-                // 1. Tool name contains keyword
-                // 2. Tool description contains keyword
-                // 3. Server name contains keyword (meaning all tools in this server are specialized)
+            // Check if this tool belongs to any detected category
+            const belongsToCategory = detectedCategories.some(catId => {
+                const keywords = categories[catId].keywords;
                 return keywords.some(k => 
                     toolName.includes(k) || 
                     toolDesc.includes(k) || 
-                    serverName.includes(k.replace(' ', '')) || // Match "socialcontent" vs "social content"
-                    serverName.startsWith(cat)
+                    serverName.includes(k.replace(' ', '')) ||
+                    serverName.startsWith(catId)
                 );
             });
 
-            if (isMatch) {
+            if (belongsToCategory) {
                 matchedTools.push(tool);
+                continue;
+            }
+
+            // Direct word match for total dynamics (Noir searches for the exact tool function)
+            const isDirectMatch = queryWords.some(word => 
+                toolName.includes(word) || 
+                (toolDesc.length > 0 && toolDesc.includes(word))
+            );
+
+            if (isDirectMatch) {
+                matchedTools.push(tool);
+                // If it's a direct match and not in categories, add a generic "Specialized Skill" label if none exist
+                if (detectedLabels.length === 0) {
+                    detectedLabels.push('Specialized Expert Skill');
+                }
             }
         }
 
         return {
             tools: matchedTools,
-            categories: detectedCategories
+            categories: [...new Set(detectedLabels)] // Return unique human-readable labels
         };
     }
 

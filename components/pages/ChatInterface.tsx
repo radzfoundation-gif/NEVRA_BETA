@@ -16,6 +16,7 @@ import CodebaseExplorer from '@/components/CodebaseExplorer';
 import BuildingAnimation from '@/components/BuildingAnimation';
 import TypewriterText from '@/components/ui/TypewriterText';
 import AILoading from '@/components/ui/AILoading';
+import PhilosLoading from '@/components/ui/PhilosLoading';
 import DeepResearchLoading from '@/components/ui/DeepResearchLoading';
 import SkillScoutLoading from '@/components/ui/SkillScoutLoading';
 import DynamicBackground from '@/components/ui/DynamicBackground';
@@ -4026,6 +4027,16 @@ const ChatInterface: React.FC = () => {
                     <SkillScoutLoading
                       status={workflowStatus?.message}
                       matchedSkills={skillScoutData}
+                    />
+                  ) : selectedModel === 'philos' ? (
+                    <PhilosLoading
+                      phase={
+                        workflowStatus?.message?.toLowerCase().includes('phase 1') ? 'understanding' :
+                        workflowStatus?.message?.toLowerCase().includes('phase 2') ? 'researching' :
+                        workflowStatus?.message?.toLowerCase().includes('phase 3') ? 'synthesizing' :
+                        'understanding'
+                      }
+                      status={workflowStatus?.message}
                     />
                   ) : (
                     <AILoading

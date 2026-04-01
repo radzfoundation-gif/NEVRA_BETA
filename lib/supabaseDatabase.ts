@@ -339,9 +339,15 @@ export function subscribeToUserSessions(
     // Initial fetch
     getUserSessions(userId).then(callback);
 
+    const channelName = `sessions:${userId}`;
+
+    // Remove any existing channel with the same name to prevent
+    // "cannot add postgres_changes callbacks after subscribe()" error
+    supabase.removeChannel(supabase.channel(channelName));
+
     // Subscribe to changes
     const subscription = supabase
-        .channel(`sessions:${userId}`)
+        .channel(channelName)
         .on(
             'postgres_changes',
             {
@@ -357,7 +363,7 @@ export function subscribeToUserSessions(
         .subscribe();
 
     return () => {
-        subscription.unsubscribe();
+        supabase.removeChannel(subscription);
     };
 }
 
