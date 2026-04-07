@@ -60,6 +60,8 @@ const PROVIDER_COLORS: Record<ExtendedModel['provider'], string> = {
 };
 
 const FREE_MODELS: ExtendedModel[] = [
+    { name: 'Groq Llama 3.3', provider: 'Groq', description: 'Insanely fast inference', score: 77.5, modelId: 'groq/llama-3.3-70b-versatile' },
+    { name: 'Perplexity Sonar', provider: 'Perplexity', description: 'Online research & citations', score: 79.0, modelId: 'perplexity/sonar' },
     { name: 'Qwen 3.6 Plus', provider: 'Qwen', description: '1M context, best free model', score: 79.5, modelId: 'qwen/qwen3.6-plus-preview:free' },
     { name: 'Step 3.5 Flash', provider: 'StepFun', description: 'Ultra-fast & capable', score: 78.8, modelId: 'stepfun/step-3.5-flash:free' },
     { name: 'Nemotron 3 Super 120B', provider: 'NVIDIA', description: 'Large NVIDIA expert model', score: 75.8, modelId: 'nvidia/nemotron-3-super-120b-a12b:free' },
