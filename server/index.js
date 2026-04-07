@@ -183,8 +183,8 @@ const abuseLimiter = rateLimit({
   max: 30, // Limit each IP to 30 requests per minute
   message: { error: 'Too many requests (abuse protection). Please slow down.' }
 });
-// Midtrans webhook handler
-app.use('/api/payment/webhook', express.json());
+// Midtrans webhook handler (Fixed Parsing)
+app.use('/api/payment/webhook', express.json({ limit: '50mb' }));
 
 // Ensure uploads directory exists (skip in Vercel serverless)
 const uploadsDir = process.env.VERCEL
@@ -1415,7 +1415,7 @@ app.post('/api/payment/create-transaction', async (req, res) => {
         name: 'Noir Pro - Monthly Subscription',
       }],
       callbacks: {
-        finish: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/`,
+        finish: 'https://www.noir.biz.id/',
       },
     };
 
@@ -1481,18 +1481,19 @@ app.post('/api/payment/webhook', async (req, res) => {
     }
 
     // Check transaction status
-    if (transactionStatus === 'capture' && fraudStatus === 'accept') {
+    console.log(`🔍 Processing status: ${transactionStatus} for user: ${userId}`);
+    if (transactionStatus === 'capture' && (fraudStatus === 'accept' || !fraudStatus)) {
       // Credit card payment success
       const expiresAt = new Date();
       expiresAt.setMonth(expiresAt.getMonth() + 1);
       await saveSubscription(userId, 'pro', expiresAt.toISOString(), orderId);
-      console.log(`✅ Webhook: Pro activated for ${userId}`);
+      console.log(`✅ Webhook: Pro activated for ${userId} (Credit Card)`);
     } else if (transactionStatus === 'settlement') {
       // Bank transfer, e-wallet success
       const expiresAt = new Date();
       expiresAt.setMonth(expiresAt.getMonth() + 1);
       await saveSubscription(userId, 'pro', expiresAt.toISOString(), orderId);
-      console.log(`✅ Webhook: Pro activated for ${userId}`);
+      console.log(`✅ Webhook: Pro activated for ${userId} (Settlement)`);
     } else if (['deny', 'cancel', 'expire'].includes(transactionStatus)) {
       console.log(`❌ Payment failed for ${userId}: ${transactionStatus}`);
     }
