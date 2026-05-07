@@ -1109,10 +1109,10 @@ Always follow this structure when an image is present.`;
           return 'philos';
         }
 
-        // If user selected Fast Thinking (sonnet), route to seed-2-0-pro-free via SumoPod
+        // If user selected Fast Thinking (sonnet), route to gpt-oss 120b via OpenRouter
         if (model === 'sonnet') {
-          console.log('⚡ [NoirSync] Routed to SumoPod seed-2-0-pro-free (Fast Thinking)');
-          return 'seed-2-0-pro-free';
+          console.log('⚡ [NoirSync] Routed to OpenRouter openai/gpt-oss-120b:free (Fast Thinking)');
+          return 'openai/gpt-oss-120b:free';
         }
 
         const lower = promptText.toLowerCase();
