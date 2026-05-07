@@ -8,7 +8,7 @@ import {
     Calendar, Box, RefreshCw,
     Share2, Database, FolderOpen, Bot,
     Home, HelpCircle, Clock, Check, PanelLeft, LayoutGrid, Keyboard, FileText,
-    Plus, Code
+    Plus, Code, Folder
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useUser, useAuth } from '@/lib/authContext';
@@ -170,9 +170,9 @@ const Sidebar: React.FC<SidebarProps> = ({
                     </button>
 
                     <button
-                        onClick={() => navigate('/gallery')}
+                        onClick={() => navigate('/artifacts')}
                         className="p-2 hover:bg-zinc-200 rounded-lg text-zinc-500 hover:text-zinc-900 transition-colors"
-                        title="Gallery"
+                        title="Artifacts"
                     >
                         <LayoutGrid size={20} strokeWidth={1.5} />
                     </button>
@@ -197,25 +197,25 @@ const Sidebar: React.FC<SidebarProps> = ({
                     )}
 
                     <button
-                        onClick={() => window.open('http://localhost:5173/pricing', '_blank')}
+                        onClick={() => navigate('/pricing')}
                         className="p-2 hover:bg-zinc-200 rounded-lg text-zinc-500 hover:text-zinc-900 transition-colors"
-                        title="Upgrade to Pro"
+                        title="Pricing"
                     >
                         <CreditCard size={20} strokeWidth={1.5} />
                     </button>
 
                     <button
-                        onClick={onClose} // Expand sidebar for History
+                        onClick={() => navigate('/projects')}
                         className="p-2 hover:bg-zinc-200 rounded-lg text-zinc-500 hover:text-zinc-900 transition-colors"
-                        title="History"
+                        title="Projects"
                     >
-                        <History size={20} strokeWidth={1.5} />
+                        <FolderOpen size={20} strokeWidth={1.5} />
                     </button>
 
                     <button
-                        onClick={onOpenSettings}
+                        onClick={() => navigate('/skills')}
                         className="p-2 hover:bg-zinc-200 rounded-lg text-zinc-500 hover:text-zinc-900 transition-colors"
-                        title="Skills & MCP"
+                        title="Skills"
                     >
                         <Zap size={20} strokeWidth={1.5} />
                     </button>
@@ -344,15 +344,15 @@ const Sidebar: React.FC<SidebarProps> = ({
                         <MessageSquare size={16} strokeWidth={1.5} className="text-zinc-500" />
                         Chats
                     </button>
-                    <button onClick={() => navigate('/gallery')} className="w-full flex items-center gap-3 px-2 py-2 text-[13px] hover:bg-zinc-100 rounded-md text-zinc-700 transition-colors">
+                    <button onClick={() => navigate('/artifacts')} className="w-full flex items-center gap-3 px-2 py-2 text-[13px] hover:bg-zinc-100 rounded-md text-zinc-700 transition-colors">
                         <LayoutGrid size={16} strokeWidth={1.5} className="text-zinc-500" />
                         Artifacts
                     </button>
-                    <button onClick={() => window.open('http://localhost:5173/pricing', '_blank')} className="w-full flex items-center gap-3 px-2 py-2 text-[13px] hover:bg-zinc-100 rounded-md text-zinc-700 transition-colors">
+                    <button onClick={() => navigate('/projects')} className="w-full flex items-center gap-3 px-2 py-2 text-[13px] hover:bg-zinc-100 rounded-md text-zinc-700 transition-colors">
                         <Code size={16} strokeWidth={1.5} className="text-zinc-500" />
                         Code
                     </button>
-                    <button onClick={onOpenSettings} className="w-full flex items-center gap-3 px-2 py-2 text-[13px] hover:bg-zinc-100 rounded-md text-zinc-700 transition-colors">
+                    <button onClick={() => navigate('/skills')} className="w-full flex items-center gap-3 px-2 py-2 text-[13px] hover:bg-zinc-100 rounded-md text-zinc-700 transition-colors">
                         <Zap size={16} strokeWidth={1.5} className="text-zinc-500" />
                         Skills
                     </button>

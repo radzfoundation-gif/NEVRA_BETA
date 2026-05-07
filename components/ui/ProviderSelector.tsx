@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDown, Brain, Check, Lock, AlertCircle, Sparkles, Zap, Crown } from 'lucide-react';
-import { AIProvider, isModelAllowed, isProOnlyModel, MODEL_DISPLAY_NAMES } from '@/lib/ai';
+import { AIProvider } from '@/lib/ai';
 import clsx from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -24,11 +24,12 @@ const providers: {
   isPro: boolean;
   description?: string;
 }[] = [
-    { id: 'groq', name: 'Gemini Flash Lite', icon: Zap, color: 'text-orange-500', isPro: false, description: 'Fast & Free' },
     { id: 'openai', name: 'GPT-4o / GPT-5', icon: Brain, color: 'text-green-400', isPro: true, description: 'Most Capable' },
     { id: 'anthropic', name: 'Claude Opus 4.5', icon: Sparkles, color: 'text-purple-400', isPro: true, description: 'Best Reasoning' },
     { id: 'gemini', name: 'Gemini 3 Pro', icon: Zap, color: 'text-blue-400', isPro: true, description: 'Google Latest' },
   ];
+
+const freeProviders = providers.filter(p => !p.isPro);
 
 const ProviderSelector: React.FC<ProviderSelectorProps> = ({
   value,
@@ -109,29 +110,30 @@ const ProviderSelector: React.FC<ProviderSelectorProps> = ({
             className="absolute bottom-full left-1/2 -translate-x-1/2 md:left-auto md:right-0 md:translate-x-0 mb-2 w-[85vw] max-w-[224px] sm:w-56 bg-[#1a1a1a] border border-white/10 rounded-xl shadow-xl overflow-hidden z-50 backdrop-blur-xl"
           >
             <div className="p-1 space-y-0.5">
-              {/* Free Tier Label */}
-              <div className="px-3 py-1 text-[10px] text-gray-500 uppercase tracking-wide">Free</div>
-
-              {/* Free model */}
-              {providers.filter(p => !p.isPro).map((provider) => (
-                <button
-                  key={provider.id}
-                  onClick={() => handleProviderClick(provider)}
-                  className={cn(
-                    "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs text-left transition-colors",
-                    value === provider.id ? "bg-white/10 text-white" : "text-gray-400 hover:bg-white/5 hover:text-gray-200"
-                  )}
-                >
-                  <div className={cn("p-1.5 rounded-md bg-black/50 flex items-center justify-center", value === provider.id ? "bg-white/10" : "")}>
-                    <provider.icon size={14} className={provider.color} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium">{provider.name}</div>
-                    <div className="text-[10px] text-gray-500">{provider.description}</div>
-                  </div>
-                  {value === provider.id && <Check size={12} className="text-purple-400 shrink-0" />}
-                </button>
-              ))}
+              {freeProviders.length > 0 && (
+                <>
+                  <div className="px-3 py-1 text-[10px] text-gray-500 uppercase tracking-wide">Free</div>
+                  {freeProviders.map((provider) => (
+                    <button
+                      key={provider.id}
+                      onClick={() => handleProviderClick(provider)}
+                      className={cn(
+                        "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs text-left transition-colors",
+                        value === provider.id ? "bg-white/10 text-white" : "text-gray-400 hover:bg-white/5 hover:text-gray-200"
+                      )}
+                    >
+                      <div className={cn("p-1.5 rounded-md bg-black/50 flex items-center justify-center", value === provider.id ? "bg-white/10" : "")}>
+                        <provider.icon size={14} className={provider.color} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium">{provider.name}</div>
+                        <div className="text-[10px] text-gray-500">{provider.description}</div>
+                      </div>
+                      {value === provider.id && <Check size={12} className="text-purple-400 shrink-0" />}
+                    </button>
+                  ))}
+                </>
+              )}
 
               {/* Pro Tier Label */}
               <div className="px-3 py-1 text-[10px] text-amber-400/70 uppercase tracking-wide flex items-center gap-1 mt-2">

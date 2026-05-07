@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Globe, ArrowUp, Link as LinkIcon, Layers, Plus, Paperclip, ChevronDown, Check, Sparkles, LayoutGrid, Mic, Youtube, FileText, X, Loader2, Wrench, AlertTriangle, Image as ImageIcon, PenTool, Code, LineChart, Hammer, GraduationCap, AudioLines, Lightbulb, ChevronRight, Target, BookOpen, PenLine, CircleDashed, Brain, Search, Palette, Folder, Github, Plug, SquareTerminal, Wand2, Camera } from 'lucide-react';
+import { Globe, ArrowUp, Link as LinkIcon, Layers, Plus, Paperclip, ChevronDown, Check, Sparkles, LayoutGrid, Mic, Youtube, FileText, X, Loader2, Wrench, AlertTriangle, Image as ImageIcon, PenTool, Code, LineChart, Hammer, GraduationCap, AudioLines, Lightbulb, ChevronRight, Target, BookOpen, PenLine, CircleDashed, Brain, Search, Palette, Folder, Github, Plug, SquareTerminal, Wand2, Camera, Play } from 'lucide-react';
 import ModelSelector, { ModelType } from './ui/ModelSelector';
 import { cn, getApiUrl } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -10,6 +10,7 @@ import SubscriptionPopup from './SubscriptionPopup';
 import VoiceDictationModal from './chat/VoiceDictationModal';
 import { useUser } from '@/lib/authContext';
 import { getSkills } from '@/lib/skillsApi';
+import { getModelDisplayName } from '@/lib/ai';
 
 const TOOL_GROUPS = [
     [
@@ -235,6 +236,8 @@ export function ResearchWelcome({
 
     const [showImageGenInput, setShowImageGenInput] = useState(false);
     const [imageGenPrompt, setImageGenPrompt] = useState('');
+    const [showVideoGenInput, setShowVideoGenInput] = useState(false);
+    const [videoGenPrompt, setVideoGenPrompt] = useState('');
     const [showKnowledgeInput, setShowKnowledgeInput] = useState(false);
     const [knowledgeText, setKnowledgeText] = useState('');
     const [knowledgeTitle, setKnowledgeTitle] = useState('');
@@ -300,6 +303,16 @@ export function ResearchWelcome({
         return imageKeywords.some(keyword => lowerText.includes(keyword));
     };
 
+    // Detect if query is a video generation request
+    const isVideoRequest = (text: string): boolean => {
+        const videoKeywords = [
+            'buatkan video', 'buat video', 'generate video', 'create video',
+            'bikin video', 'make a video', 'animasi', 'animation'
+        ];
+        const lowerText = text.toLowerCase();
+        return videoKeywords.some(keyword => lowerText.includes(keyword));
+    };
+
     // Handle image generation via SumoPod gpt-image-1
     const handleImageGeneration = async (prompt: string) => {
         setIsProcessing(true);
@@ -360,13 +373,65 @@ export function ResearchWelcome({
         }
     };
 
+    // Handle video generation
+    const handleVideoGeneration = async (prompt: string) => {
+        setIsProcessing(true);
+        setProcessingMessage('Generating video with AI (this may take a minute)...');
+
+        try {
+            const response = await fetch(`${apiUrl}/api/generate-video`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ prompt, userId: user?.id }),
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                if (data.videoUrl) {
+                    navigate('/chat/new', {
+                        state: {
+                            initialPrompt: prompt,
+                            generatedVideo: data.videoUrl
+                        }
+                    });
+                    incrementFeatureUsage('convert');
+                } else {
+                    setAlertConfig({
+                        isOpen: true,
+                        title: 'Video Generation',
+                        message: 'Maaf, video sedang diproses atau gagal. Sila coba lagi nanti.',
+                        type: 'info'
+                    });
+                }
+            } else {
+                const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+                setAlertConfig({
+                    isOpen: true,
+                    title: 'Generation Failed',
+                    message: error.error || 'Gagal menghasilkan video. Sila periksa koneksi atau paket langganan Anda.',
+                    type: 'info'
+                });
+            }
+        } catch (error) {
+            console.error('Video generation error:', error);
+            alert('Failed to generate video. Please try again.');
+        } finally {
+            setIsProcessing(false);
+            setProcessingMessage('');
+        }
+    };
+
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             if (query.trim()) {
-                // Check if this is an image generation request
+                // Check if this is an image/video generation request
                 if (isImageRequest(query)) {
                     handleImageGeneration(query);
+                } else if (isVideoRequest(query)) {
+                    handleVideoGeneration(query);
                 } else {
                     onSearch(query, attachments, selectedModel, withReasoning);
                 }
@@ -683,6 +748,23 @@ export function ResearchWelcome({
             ]
         },
         {
+            icon: <ImageIcon size={16} className="text-pink-500" />,
+            label: "Generate Image",
+            query: "Generate an image of ",
+            action: () => {
+                setQuery("Generate an image of ");
+                // Focus will be handled by the textarea ref if available
+            },
+        },
+        {
+            icon: <Play size={16} className="text-blue-500" />,
+            label: "Generate Video",
+            query: "Generate a video of ",
+            action: () => {
+                setQuery("Generate a video of ");
+            },
+        },
+        {
             icon: <FileText size={16} className="text-stone-400" />,
             label: "Summarize",
             query: "Please summarize ",
@@ -704,28 +786,6 @@ export function ResearchWelcome({
                 { title: "Marketing campaign", prompt: "Brainstorm a creative marketing campaign for " }
             ]
         },
-        {
-            icon: <Globe size={16} className="text-stone-400" />,
-            label: "Translate",
-            query: "Translate this text into ",
-            options: [
-                { title: "Translate to English", prompt: "Translate the following text to professional English: " },
-                { title: "Translate to Indonesian", prompt: "Tolong terjemahkan teks berikut ke dalam bahasa Indonesia yang natural: " },
-                { title: "Translate to Japanese", prompt: "Translate the following text to Japanese (formal): " },
-                { title: "Improve translation", prompt: "Please review and improve this translation to sound more native: " }
-            ]
-        },
-        {
-            icon: <LineChart size={16} className="text-stone-400" />,
-            label: "Analyze",
-            query: "Can you analyze ",
-            options: [
-                { title: "Analyze text sentiment", prompt: "Analyze the tone and sentiment of the following text: " },
-                { title: "Code review", prompt: "Can you analyze this code snippet and suggest improvements or highlight bugs? " },
-                { title: "Business strategy", prompt: "Analyze the potential risks and benefits of this strategic decision: " },
-                { title: "Data interpretation", prompt: "Help me interpret this data and identify key trends: " }
-            ]
-        }
     ];
 
     return (
@@ -902,6 +962,61 @@ export function ResearchWelcome({
                 )}
             </AnimatePresence>
 
+            {/* Video Generation Input Modal */}
+            <AnimatePresence>
+                {showVideoGenInput && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+                        onClick={() => setShowVideoGenInput(false)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.9, opacity: 0 }}
+                            onClick={e => e.stopPropagation()}
+                            className="bg-white rounded-2xl p-6 shadow-xl w-full max-w-md"
+                        >
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
+                                    <Play className="w-5 h-5 text-blue-600" />
+                                </div>
+                                <div>
+                                    <h3 className="font-semibold text-zinc-900">Generate Video</h3>
+                                    <p className="text-xs text-zinc-500">Describe the video you want to create</p>
+                                </div>
+                            </div>
+                            <textarea
+                                value={videoGenPrompt}
+                                onChange={e => setVideoGenPrompt(e.target.value)}
+                                placeholder="A cinematic drone shot of a tropical island at sunset..."
+                                className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none mb-4 min-h-[100px] resize-none"
+                            />
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setShowVideoGenInput(false)}
+                                    className="flex-1 px-4 py-2.5 rounded-xl border border-zinc-200 text-zinc-600 font-medium hover:bg-zinc-50"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setShowVideoGenInput(false);
+                                        handleVideoGeneration(videoGenPrompt);
+                                    }}
+                                    disabled={!videoGenPrompt.trim()}
+                                    className="flex-1 px-4 py-2.5 rounded-xl bg-zinc-900 text-white font-medium hover:bg-zinc-800 disabled:opacity-50"
+                                >
+                                    Generate
+                                </button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             {/* Knowledge Base Input Modal */}
             <AnimatePresence>
                 {showKnowledgeInput && (
@@ -1028,6 +1143,17 @@ export function ResearchWelcome({
                 transition={{ duration: 0.8, ease: "easeOut" }}
                 className="flex flex-col items-center w-full z-10 font-sans"
             >
+                {/* Maintenance notice */}
+                <div className="mb-4 md:mb-6 flex justify-center px-4">
+                    <span
+                        className="inline-flex items-center gap-2 text-center text-xs font-medium text-amber-900 bg-amber-50 border border-amber-200/80 px-3.5 py-1.5 rounded-full max-w-xl leading-snug"
+                        role="status"
+                    >
+                        <Wrench size={14} className="shrink-0 text-amber-700" strokeWidth={1.8} />
+                        Noir is under maintenance — we&apos;re fixing things. Thanks for your patience.
+                    </span>
+                </div>
+
                 {/* Upgrade Pill */}
                 <div className="mb-6 md:mb-12 flex justify-center">
                     {!isSubscribed ? (
@@ -1295,7 +1421,7 @@ export function ResearchWelcome({
                                                 'philos': 'Noir Philos',
                                                 'haiku': 'Haiku',
                                             };
-                                            const name = names[selectedModel] || selectedModel;
+                                            const name = names[selectedModel] ?? getModelDisplayName(selectedModel);
                                             return (
                                                 <span className="flex items-center gap-1">
                                                     {name}
@@ -1330,6 +1456,7 @@ export function ResearchWelcome({
                                         exit={{ scale: 0, opacity: 0 }}
                                         onClick={() => {
                                             if (isImageRequest(query)) handleImageGeneration(query);
+                                            else if (isVideoRequest(query)) handleVideoGeneration(query);
                                             else onSearch(query, attachments, selectedModel, withReasoning);
                                         }}
                                         disabled={isProcessing}

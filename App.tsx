@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './lib/authContext';
+import { SettingsProvider } from './hooks/useSettings';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import ErrorBoundary from './components/ErrorBoundary';
 
@@ -18,9 +19,12 @@ const ForgotPasswordPage = React.lazy(() => import('./components/auth/ForgotPass
 const NicknamePage = React.lazy(() => import('./components/auth/NicknamePage'));
 const SurveyPage = React.lazy(() => import('./components/pages/SurveyPage'));
 const Gallery = React.lazy(() => import('./components/pages/Gallery'));
+const ArtifactsPage = React.lazy(() => import('./components/pages/ArtifactsPage'));
+const ProjectsPage = React.lazy(() => import('./components/pages/ProjectsPage'));
+const SkillsPage = React.lazy(() => import('./components/pages/SkillsPage'));
+const PricingPage = React.lazy(() => import('./components/pages/PricingPage'));
 
 const Studio = React.lazy(() => import('./components/pages/Studio'));
-const SkillsPage = React.lazy(() => import('./components/pages/SkillsPage'));
 
 // UserSyncProvider removed - Supabase handles user data directly
 const UserSyncProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -28,7 +32,7 @@ const UserSyncProvider: React.FC<{ children: React.ReactNode }> = ({ children })
 };
 
 const AppContent: React.FC = () => {
-  return (
+    return (
     <>
       <DynamicBackground />
       <InstallPrompt />
@@ -42,6 +46,9 @@ const AppContent: React.FC = () => {
           <Route path="/redesign" element={<Home defaultMode="redesign" />} />
 
           <Route path="/gallery" element={<ProtectedRoute><Gallery /></ProtectedRoute>} />
+          <Route path="/artifacts" element={<ProtectedRoute><ArtifactsPage /></ProtectedRoute>} />
+          <Route path="/projects" element={<ProtectedRoute><ProjectsPage /></ProtectedRoute>} />
+          <Route path="/pricing" element={<PricingPage />} />
           <Route path="/studio" element={<Studio />} />
           <Route path="/survey" element={<SurveyPage />} />
           <Route path="/sign-in" element={<SignInPage />} />
@@ -87,11 +94,13 @@ const App: React.FC = () => {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <Router>
-          <ErrorBoundary>
-            <AppContent />
-          </ErrorBoundary>
-        </Router>
+        <SettingsProvider>
+          <Router>
+            <ErrorBoundary>
+              <AppContent />
+            </ErrorBoundary>
+          </Router>
+        </SettingsProvider>
       </AuthProvider>
     </ErrorBoundary>
   );

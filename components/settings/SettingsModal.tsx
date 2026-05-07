@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { X, Moon, Sun, Monitor, Check, CreditCard, Zap, Layout, Database, Github, Figma, Cloud, Book, Beaker, Link } from 'lucide-react';
+import { X, Moon, Sun, Monitor, Check, CreditCard, Zap, Layout, Database, Github, Figma, Cloud, Book, Beaker, Link, Sparkles, Brain } from 'lucide-react';
 import { useTokenLimit } from '@/hooks/useTokenLimit';
+import { useSettings } from '@/hooks/useSettings';
 import McpSettings from './McpSettings';
 
 interface SettingsModalProps {
@@ -15,22 +16,22 @@ type SettingsTab = 'general' | 'subscription' | 'applications' | 'connectors' | 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, isSubscribed: propIsSubscribed, tokensUsed: propTokensUsed }) => {
     const [activeTab, setActiveTab] = useState<SettingsTab>('general');
     const { tokensUsed: hookTokensUsed, credits: hookCredits, isSubscribed: hookIsSubscribed } = useTokenLimit();
+    const { settings, updateSetting, isLoaded } = useSettings();
+    
+    if (!isOpen || !isLoaded) return null;
 
-    // Use props if available (source of truth from Home), otherwise fallback to hook
     const isSubscribed = propIsSubscribed !== undefined ? propIsSubscribed : hookIsSubscribed;
     const tokensUsed = propTokensUsed !== undefined ? propTokensUsed : hookTokensUsed;
     const tokensRemaining = typeof hookCredits === 'number' ? hookCredits : 999999;
-
-    if (!isOpen) return null;
 
     const tabs = [
         { id: 'general', label: 'General', icon: Layout },
         { id: 'subscription', label: 'Subscription & Tokens', icon: CreditCard },
         { id: 'connectors', label: 'Connectors (MCP)', icon: Link },
-        { id: 'applications', label: 'Applications', icon: Layout }, // Using Layout as placeholder for Grid/Apps icon
-        { id: 'cloud', label: 'Cloud', icon: Cloud },
-        { id: 'knowledge', label: 'Knowledge', icon: Book },
-        { id: 'experimental', label: 'Experimental features', icon: Beaker },
+        { id: 'applications', label: 'Apps', icon: Sparkles },
+        { id: 'cloud', label: 'Cloud Storage', icon: Cloud },
+        { id: 'knowledge', label: 'Knowledge Base', icon: Book },
+        { id: 'experimental', label: 'Experimental', icon: Beaker },
     ];
 
     return (
@@ -85,50 +86,83 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, isSubscr
                             {activeTab === 'general' && (
                                 <div className="space-y-8">
                                     <section>
-                                        <h3 className="text-sm font-medium text-zinc-500 mb-4">Appearance and notifications</h3>
-
+                                        <h3 className="text-sm font-medium text-zinc-500 mb-4">Appearance</h3>
                                         <div className="space-y-6">
                                             <div className="flex items-center justify-between">
                                                 <div>
                                                     <div className="text-zinc-900 font-medium mb-1">Theme</div>
-                                                    <div className="text-sm text-zinc-500">Change the interface to light, dark or your default system preference.</div>
+                                                    <div className="text-sm text-zinc-500">Change the interface theme.</div>
                                                 </div>
-                                                <div className="relative">
-                                                    <select className="bg-white border border-zinc-200 text-zinc-900 text-sm rounded-lg px-3 py-2 pr-8 focus:outline-none focus:border-purple-500 appearance-none min-w-[120px]">
-                                                        <option>Light</option>
-                                                        <option>Dark</option>
-                                                        <option>System</option>
-                                                    </select>
-                                                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" size={14} />
-                                                </div>
+                                                <select 
+                                                    value={settings.theme}
+                                                    onChange={(e) => updateSetting('theme', e.target.value as SettingsValues['theme'])}
+                                                    className="bg-white border border-zinc-200 text-zinc-900 text-sm rounded-lg px-3 py-2 pr-8 focus:outline-none focus:border-purple-500 appearance-none min-w-[120px]"
+                                                >
+                                                    <option value="light">Light</option>
+                                                    <option value="dark">Dark</option>
+                                                    <option value="system">System</option>
+                                                </select>
                                             </div>
 
                                             <div className="flex items-center justify-between">
                                                 <div>
-                                                    <div className="text-zinc-900 font-medium mb-1">Display token usage in chat</div>
-                                                    <div className="text-sm text-zinc-500">When activated, your token consumption will be shown above the prompt field at all times.</div>
+                                                    <div className="text-zinc-900 font-medium mb-1">Display token usage</div>
+                                                    <div className="text-sm text-zinc-500">Show token consumption above prompt field.</div>
                                                 </div>
-                                                <ToggleSwitch defaultChecked={false} />
+                                                <ToggleSwitch 
+                                                    checked={settings.showTokenUsage} 
+                                                    onChange={(v) => updateSetting('showTokenUsage', v)} 
+                                                />
                                             </div>
 
                                             <div className="flex items-center justify-between">
                                                 <div>
                                                     <div className="text-zinc-900 font-medium mb-1">Sound notification</div>
-                                                    <div className="text-sm text-zinc-500">Play a chime when Bolt finishes responding. This only works in your active browser tab.</div>
+                                                    <div className="text-sm text-zinc-500">Play chime when AI finishes responding.</div>
                                                 </div>
-                                                <ToggleSwitch defaultChecked={true} />
+                                                <ToggleSwitch 
+                                                    checked={settings.soundNotification} 
+                                                    onChange={(v) => updateSetting('soundNotification', v)} 
+                                                />
+                                            </div>
+
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <div className="text-zinc-900 font-medium mb-1">Compact mode</div>
+                                                    <div className="text-sm text-zinc-500">Use smaller spacing and font sizes.</div>
+                                                </div>
+                                                <ToggleSwitch 
+                                                    checked={settings.compactMode} 
+                                                    onChange={(v) => updateSetting('compactMode', v)} 
+                                                />
                                             </div>
                                         </div>
                                     </section>
 
                                     <section>
-                                        <h3 className="text-sm font-medium text-zinc-500 mb-4">Code</h3>
-                                        <div className="flex items-center justify-between">
-                                            <div>
-                                                <div className="text-zinc-900 font-medium mb-1">Editor line wrapping</div>
-                                                <div className="text-sm text-zinc-500">When enabled, long lines of code will visually wrap to the next line within the editor, preventing horizontal scrolling.</div>
+                                        <h3 className="text-sm font-medium text-zinc-500 mb-4">Editor</h3>
+                                        <div className="space-y-6">
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <div className="text-zinc-900 font-medium mb-1">Line wrapping</div>
+                                                    <div className="text-sm text-zinc-500">Wrap long lines in the code editor.</div>
+                                                </div>
+                                                <ToggleSwitch 
+                                                    checked={settings.lineWrapping} 
+                                                    onChange={(v) => updateSetting('lineWrapping', v)} 
+                                                />
                                             </div>
-                                            <ToggleSwitch defaultChecked={true} />
+
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <div className="text-zinc-900 font-medium mb-1">Auto-save</div>
+                                                    <div className="text-sm text-zinc-500">Automatically save your work.</div>
+                                                </div>
+                                                <ToggleSwitch 
+                                                    checked={settings.autoSave} 
+                                                    onChange={(v) => updateSetting('autoSave', v)} 
+                                                />
+                                            </div>
                                         </div>
                                     </section>
                                 </div>
@@ -275,6 +309,86 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, isSubscr
                                 <McpSettings />
                             )}
 
+                            {/* Cloud Tab */}
+                            {activeTab === 'cloud' && (
+                                <div className="space-y-4">
+                                    <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-6">
+                                        <div className="flex items-center gap-4 mb-4">
+                                            <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center">
+                                                <Cloud className="text-blue-600" size={24} />
+                                            </div>
+                                            <div>
+                                                <h3 className="font-medium text-zinc-900">Cloud Storage</h3>
+                                                <p className="text-sm text-zinc-500">Sync your data across devices</p>
+                                            </div>
+                                        </div>
+                                        <p className="text-sm text-zinc-500 mb-4">
+                                            Sign in with your account to enable cloud sync. Your settings, chat history, and projects will be available on all devices.
+                                        </p>
+                                        <button className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg transition-colors">
+                                            Connect Cloud
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Knowledge Tab */}
+                            {activeTab === 'knowledge' && (
+                                <div className="space-y-4">
+                                    <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-6">
+                                        <div className="flex items-center gap-4 mb-4">
+                                            <div className="w-12 h-12 rounded-lg bg-green-100 flex items-center justify-center">
+                                                <Brain className="text-green-600" size={24} />
+                                            </div>
+                                            <div>
+                                                <h3 className="font-medium text-zinc-900">Knowledge Base</h3>
+                                                <p className="text-sm text-zinc-500">Train AI with your own data</p>
+                                            </div>
+                                        </div>
+                                        <p className="text-sm text-zinc-500 mb-4">
+                                            Upload documents, notes, or code to create a personalized knowledge base. AI will use this context for more accurate responses.
+                                        </p>
+                                        <button className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white text-sm font-medium rounded-lg transition-colors">
+                                            Add Knowledge
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Experimental Tab */}
+                            {activeTab === 'experimental' && (
+                                <div className="space-y-6">
+                                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
+                                        <p className="text-sm text-amber-800">
+                                            These features are experimental. Use with caution.
+                                        </p>
+                                    </div>
+                                    <div className="space-y-4">
+                                        <div className="flex items-center justify-between p-4 bg-zinc-50 border border-zinc-200 rounded-xl">
+                                            <div>
+                                                <div className="text-zinc-900 font-medium mb-1">Advanced voice mode</div>
+                                                <div className="text-sm text-zinc-500">Enable voice conversations with AI</div>
+                                            </div>
+                                            <ToggleSwitch checked={false} onChange={() => {}} />
+                                        </div>
+                                        <div className="flex items-center justify-between p-4 bg-zinc-50 border border-zinc-200 rounded-xl">
+                                            <div>
+                                                <div className="text-zinc-900 font-medium mb-1">Canvas collaboration</div>
+                                                <div className="text-sm text-zinc-500">Real-time collaborative editing</div>
+                                            </div>
+                                            <ToggleSwitch checked={false} onChange={() => {}} />
+                                        </div>
+                                        <div className="flex items-center justify-between p-4 bg-zinc-50 border border-zinc-200 rounded-xl">
+                                            <div>
+                                                <div className="text-zinc-900 font-medium mb-1">Web search enhancement</div>
+                                                <div className="text-sm text-zinc-500">Enhanced search with citations</div>
+                                            </div>
+                                            <ToggleSwitch checked={false} onChange={() => {}} />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
                         </div>
                     </div>
                 </div>
@@ -283,11 +397,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, isSubscr
     );
 };
 
-const ToggleSwitch = ({ defaultChecked }: { defaultChecked: boolean }) => {
-    const [checked, setChecked] = useState(defaultChecked);
+const ToggleSwitch = ({ checked, onChange }: { checked: boolean, onChange: (value: boolean) => void }) => {
     return (
         <button
-            onClick={() => setChecked(!checked)}
+            role="switch"
+            aria-checked={checked}
+            onClick={() => onChange(!checked)}
             className={`w-11 h-6 rounded-full transition-colors relative ${checked ? 'bg-blue-600' : 'bg-zinc-200'}`}
         >
             <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${checked ? 'translate-x-5' : 'translate-x-0'}`} />
@@ -310,23 +425,6 @@ const IntegrationCard = ({ icon, name, description }: { icon: React.ReactNode, n
             <p className="text-sm text-zinc-500 leading-relaxed">{description}</p>
         </div>
     </div>
-);
-
-// Helper for ChevronDown since it wasn't imported
-const ChevronDown = ({ size, className }: { size: number, className?: string }) => (
-    <svg
-        width={size}
-        height={size}
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className={className}
-    >
-        <path d="m6 9 6 6 6-6" />
-    </svg>
 );
 
 export default SettingsModal;

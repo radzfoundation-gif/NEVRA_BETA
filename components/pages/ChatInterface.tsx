@@ -19,6 +19,9 @@ import AILoading from '@/components/ui/AILoading';
 import PhilosLoading from '@/components/ui/PhilosLoading';
 import DeepResearchLoading from '@/components/ui/DeepResearchLoading';
 import SkillScoutLoading from '@/components/ui/SkillScoutLoading';
+import ImageGenLoading from '@/components/chat/ImageGenLoading';
+import ChatSkeleton from '@/components/chat/ChatSkeleton';
+import GridNLoader from '@/components/chat/GridNLoader';
 import DynamicBackground from '@/components/ui/DynamicBackground';
 // ProviderSelector removed - orchestrator now manages models automatically
 import FrameworkSelector from '@/components/ui/FrameworkSelector';
@@ -399,6 +402,7 @@ const ChatInterface: React.FC = () => {
   }, [messages.length]);
   const [animatingMessageId, setAnimatingMessageId] = useState<string | null>(null);
   const [input, setInput] = useState('');
+  const [activeStyle, setActiveStyle] = useState<string | null>(null);
   const [isTyping, setIsTyping] = useState(false);
   const [workflowStatus, setWorkflowStatus] = useState<{ status: string; message: string } | null>(null);
   const [showSkillScout, setShowSkillScout] = useState(false);
@@ -407,7 +411,8 @@ const ChatInterface: React.FC = () => {
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [deepResearchMode, setDeepResearchMode] = useState(initialState.reasoning);
   const [deepResearchPhase, setDeepResearchPhase] = useState<'thinking' | 'searching' | 'synthesizing' | 'answering'>('thinking');
-  const [activeLoadingPhase, setActiveLoadingPhase] = useState<'none' | 'deep_research' | 'skill_scout' | 'exploring_codebase' | 'generating'>('none');
+  const [activeLoadingPhase, setActiveLoadingPhase] = useState<'none' | 'deep_research' | 'skill_scout' | 'exploring_codebase' | 'generating' | 'image_gen' | 'video_gen'>('none');
+  const [isSessionLoading, setIsSessionLoading] = useState(false);
   const [currentSearchQuery, setCurrentSearchQuery] = useState<string>('');
   const [activeSearchResults, setActiveSearchResults] = useState<SearchResult[]>([]);
   const MAX_IMAGES = 3;
@@ -811,6 +816,7 @@ const ChatInterface: React.FC = () => {
       setCurrentSessionId(sessionId);
 
       try {
+        setIsSessionLoading(true);
         const token = null;
         const sessionMessages = await getSessionMessages(sessionId);
 
@@ -837,6 +843,8 @@ const ChatInterface: React.FC = () => {
         }
       } catch (error) {
         console.error('Error loading session messages:', error);
+      } finally {
+        setIsSessionLoading(false);
       }
     };
 
@@ -908,6 +916,7 @@ const ChatInterface: React.FC = () => {
       if (!sessionId || !user || restoredSessionRef.current) return;
 
       try {
+        setIsSessionLoading(true);
         const token = null;
         const dbMessages = await getSessionMessages(sessionId);
 
@@ -931,6 +940,8 @@ const ChatInterface: React.FC = () => {
         restoredSessionRef.current = true;
       } catch (error) {
         console.error('Error loading session messages', error);
+      } finally {
+        setIsSessionLoading(false);
       }
     };
 
@@ -1776,7 +1787,32 @@ const ChatInterface: React.FC = () => {
 
     // Reset states for new message
     setIsTyping(true);
-    setActiveLoadingPhase('generating');
+    
+    // Detect image/video generation request for specialized loading UI
+    const isVisualRequest = (text: string): boolean => {
+      const lowerText = text.toLowerCase();
+      // Match common intent to generate visual media including typos
+      const generateIntentRegex = /\b(buat|buatkan|bikin|bikinin|generate|ganerate|create|draw|design|gambarkan)\b.*\b(gambar|image|foto|picture|video|animasi|animation)\b/i;
+      
+      const visualKeywords = [
+        'buatkan gambar', 'buat gambar', 'generate image', 'create image',
+        'gambarkan', 'draw', 'ilustrasi', 'illustration', 'make an image',
+        'buat foto', 'generate a picture', 'make a picture', 'design image',
+        'buatkan video', 'buat video', 'generate video', 'create video',
+        'bikin video', 'make a video', 'animasi', 'animation'
+      ];
+      return generateIntentRegex.test(lowerText) || visualKeywords.some(keyword => lowerText.includes(keyword)) || ['gpt-image-1', 'flux-schnell', 'sdxl', 'openjourney', 'stable-video'].includes(selectedModel);
+    };
+
+    const isVisual = isVisualRequest(text);
+    const isVideo = /\b(video|animasi|animation)\b/i.test(text.toLowerCase());
+
+    if (isVisual) {
+      setActiveLoadingPhase(isVideo ? 'video_gen' : 'image_gen');
+    } else {
+      setActiveLoadingPhase('generating');
+    }
+    
     setWorkflowStatus(null);
     setShowSkillScout(false);
 
@@ -2151,12 +2187,12 @@ const ChatInterface: React.FC = () => {
           }
 
           if (status === 'skill_match' || status === 'skill_run' || status === 'status') {
-            if (status !== 'status' || parsedMessage.toLowerCase().includes('skill')) {
+            if (!isVisual && (status !== 'status' || parsedMessage.toLowerCase().includes('skill'))) {
               setActiveLoadingPhase('skill_scout');
               setShowSkillScout(true);
             }
             // Transition to generating if AI has finished skills and started generating
-            if (status === 'status' && parsedMessage.includes('Generating response...')) {
+            if (!isVisual && status === 'status' && parsedMessage.includes('Generating response...')) {
               setActiveLoadingPhase('generating');
             }
           }
@@ -2416,12 +2452,12 @@ const ChatInterface: React.FC = () => {
 
             if (status === 'skill_match' || status === 'skill_run' || status === 'status') {
               // Switch loading view to skill scout
-              if (status !== 'status' || parsedMessage.toLowerCase().includes('skill')) {
+              if (!isVisual && (status !== 'status' || parsedMessage.toLowerCase().includes('skill'))) {
                 setActiveLoadingPhase('skill_scout');
                 setShowSkillScout(true);
               }
               // Transition to generating if AI has finished skills and started generating
-              if (status === 'status' && parsedMessage.includes('Generating response...')) {
+              if (!isVisual && status === 'status' && parsedMessage.includes('Generating response...')) {
                 setActiveLoadingPhase('generating');
               }
             }
@@ -3356,6 +3392,7 @@ const ChatInterface: React.FC = () => {
     } finally {
       setIsTyping(false);
       setIsBuildingCode(false); // Ensure loading state is cleared
+      setActiveLoadingPhase('none');
     }
   };
 
@@ -3556,7 +3593,27 @@ const ChatInterface: React.FC = () => {
         </div>
       </div>
 
-
+      {/* DEV TOOLS - TEMPORARY MOCK LOADING */}
+      <div className="absolute top-16 right-4 z-[100] flex flex-col gap-2 opacity-60 hover:opacity-100 transition-opacity">
+        <button 
+          onClick={() => { setIsTyping(true); setActiveLoadingPhase('image_gen'); }} 
+          className="bg-purple-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shadow-lg hover:bg-purple-700"
+        >
+          Mock Image Load
+        </button>
+        <button 
+          onClick={() => { setIsTyping(true); setActiveLoadingPhase('video_gen'); }} 
+          className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shadow-lg hover:bg-blue-700"
+        >
+          Mock Video Load
+        </button>
+        <button 
+          onClick={() => { setIsTyping(false); setActiveLoadingPhase('none'); }} 
+          className="bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shadow-lg hover:bg-red-700"
+        >
+          Stop Loading
+        </button>
+      </div>
 
       {/* Chat List */}
       <div className={
@@ -3568,7 +3625,27 @@ const ChatInterface: React.FC = () => {
         )
       } >
         <AnimatePresence mode="wait">
-          {messages.length === 0 ? (
+          {isSessionLoading ? (
+            <motion.div
+              key="loading-session"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="max-w-2xl mx-auto w-full space-y-12 pt-20"
+            >
+              <div className="space-y-8">
+                <ChatSkeleton />
+                <div className="flex justify-end pr-4">
+                  <div className="h-10 w-48 bg-zinc-100 dark:bg-zinc-800 rounded-[18px] animate-pulse" />
+                </div>
+                <ChatSkeleton />
+                <div className="flex justify-end pr-4">
+                  <div className="h-10 w-32 bg-zinc-100 dark:bg-zinc-800 rounded-[18px] animate-pulse" />
+                </div>
+                <ChatSkeleton />
+              </div>
+            </motion.div>
+          ) : messages.length === 0 ? (
             <motion.div
               key="welcome"
               initial={{ opacity: 0, y: 10 }}
@@ -3643,7 +3720,7 @@ const ChatInterface: React.FC = () => {
                   </div>
                 </div>
               )}
-
+              
               {messages.map((msg, idx) => {
                 const clarification = msg.role === 'ai' ? parseClarificationFromAIResponse(msg.content) : null;
                 const showClarification = clarification?.hasClarification && !answeredClarifications[msg.id];
@@ -4017,7 +4094,11 @@ const ChatInterface: React.FC = () => {
               })}
               {isTyping && (
                 <div className="px-2 pb-4">
-                  {activeLoadingPhase === 'deep_research' ? (
+                  {activeLoadingPhase === 'image_gen' ? (
+                    <ImageGenLoading type="image" />
+                  ) : activeLoadingPhase === 'video_gen' ? (
+                    <ImageGenLoading type="video" />
+                  ) : activeLoadingPhase === 'deep_research' ? (
                     <DeepResearchLoading
                       phase={deepResearchPhase}
                       query={currentSearchQuery}
@@ -4028,6 +4109,8 @@ const ChatInterface: React.FC = () => {
                       status={workflowStatus?.message}
                       matchedSkills={skillScoutData}
                     />
+                  ) : activeLoadingPhase === 'generating' || !activeLoadingPhase || activeLoadingPhase === 'none' ? (
+                    <GridNLoader />
                   ) : selectedModel === 'philos' ? (
                     <PhilosLoading
                       phase={
@@ -4105,6 +4188,8 @@ const ChatInterface: React.FC = () => {
           <ChatInput
             input={input}
             setInput={setInput}
+            activeStyle={activeStyle}
+            onStyleChange={setActiveStyle}
             handleSend={(deepDive?: boolean) => handleSend(deepDive)}
             handleStop={handleStop}
             isTyping={isTyping}

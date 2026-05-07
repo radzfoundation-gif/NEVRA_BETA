@@ -260,7 +260,7 @@ const PricingPage: React.FC = () => {
               <ul className="space-y-3 mb-8 flex-1">
                 {[
                   '200 AI Tokens/month',
-                  'Basic AI Models (Groq, Deepseek)',
+                  'Basic AI models',
                   'Community Support',
                   '7-day Chat History',
                   'Builder & Tutor Mode',

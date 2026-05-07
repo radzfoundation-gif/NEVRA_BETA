@@ -18,7 +18,7 @@ interface ModelOption {
 
 interface ExtendedModel {
     name: string;
-    provider: 'OpenAI' | 'Google' | 'Anthropic' | 'Qwen' | 'Meta' | 'NVIDIA' | 'MiniMax' | 'Z.ai' | 'StepFun' | 'Nous' | 'OpenRouter';
+    provider: 'OpenAI' | 'Google' | 'Anthropic' | 'Qwen' | 'Meta' | 'NVIDIA' | 'MiniMax' | 'Z.ai' | 'StepFun' | 'Nous' | 'OpenRouter' | 'Tencent';
     description: string;
     score: number;
     modelId: string;
@@ -57,19 +57,15 @@ const PROVIDER_COLORS: Record<ExtendedModel['provider'], string> = {
     StepFun: 'bg-teal-50 text-teal-700 border-teal-200',
     Nous: 'bg-indigo-50 text-indigo-700 border-indigo-200',
     OpenRouter: 'bg-stone-50 text-stone-700 border-stone-200',
+    Tencent: 'bg-sky-50 text-sky-800 border-sky-200',
 };
 
 const FREE_MODELS: ExtendedModel[] = [
-    { name: 'Groq Llama 3.3', provider: 'Groq', description: 'Insanely fast inference', score: 77.5, modelId: 'groq/llama-3.3-70b-versatile' },
-    { name: 'Perplexity Sonar', provider: 'Perplexity', description: 'Online research & citations', score: 79.0, modelId: 'perplexity/sonar' },
-    { name: 'Qwen 3.6 Plus', provider: 'Qwen', description: '1M context, best free model', score: 79.5, modelId: 'qwen/qwen3.6-plus-preview:free' },
-    { name: 'Step 3.5 Flash', provider: 'StepFun', description: 'Ultra-fast & capable', score: 78.8, modelId: 'stepfun/step-3.5-flash:free' },
-    { name: 'Nemotron 3 Super 120B', provider: 'NVIDIA', description: 'Large NVIDIA expert model', score: 75.8, modelId: 'nvidia/nemotron-3-super-120b-a12b:free' },
-    { name: 'MiniMax M2.5', provider: 'MiniMax', description: 'Strong multi-modal reasoning', score: 74.5, modelId: 'minimax/minimax-m2.5:free' },
-    { name: 'GLM 4.5 Air', provider: 'Z.ai', description: 'Zhuipu AI fast inference', score: 73.9, modelId: 'z-ai/glm-4.5-air:free' },
-    { name: 'Gemma 3 27B', provider: 'Google', description: 'Open model by Google', score: 71.2, modelId: 'google/gemma-3-27b-it:free' },
-    { name: 'gpt-oss 120B', provider: 'OpenAI', description: 'High-parameter OpenSource GPT', score: 70.5, modelId: 'openai/gpt-oss-120b:free' },
-    { name: 'Auto Free', provider: 'OpenRouter', description: 'Auto-routed free models', score: 68.0, modelId: 'openrouter-free' },
+    { name: 'Tencent HY3 Preview', provider: 'Tencent', description: 'Tencent open preview on OpenRouter', score: 76, modelId: 'tencent/hy3-preview:free' },
+    { name: 'Nemotron 3 Super 120B', provider: 'NVIDIA', description: 'Large NVIDIA MoE — free tier', score: 75.8, modelId: 'nvidia/nemotron-3-super-120b-a12b:free' },
+    { name: 'Gemma 4 31B', provider: 'Google', description: 'Google open Gemma instruct', score: 74, modelId: 'google/gemma-4-31b-it:free' },
+    { name: 'GPT-OSS 120B', provider: 'OpenAI', description: 'Open-source GPT-class model', score: 72, modelId: 'openai/gpt-oss-120b:free' },
+    { name: 'GLM 4.5 Air', provider: 'Z.ai', description: 'Fast Zhipu inference — free tier', score: 73.9, modelId: 'z-ai/glm-4.5-air:free' },
 ];
 
 const PRO_MODELS: ExtendedModel[] = [
@@ -288,34 +284,41 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 
                                     {/* Scrollable list */}
                                     <div className="overflow-y-auto max-h-[350px]">
-                                        {/* Free Models Section */}
-                                        <div className="px-3 py-1.5 bg-green-50/50 border-b border-green-100">
-                                            <span className="text-[10px] font-semibold text-green-700 uppercase tracking-wider">Free Models</span>
-                                        </div>
-                                        {FREE_MODELS.map((model, i) => (
-                                            <button
-                                                key={`free-${i}`}
-                                                onClick={() => {
-                                                    onModelChange(model.modelId as ModelType);
-                                                    handleClose();
-                                                }}
-                                                className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-stone-50 transition-colors text-left"
-                                            >
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center gap-1.5 flex-wrap">
-                                                        <span className="text-[13px] text-stone-900 font-medium leading-tight">{model.name}</span>
-                                                        <span className={cn("text-[9px] font-medium px-1.5 py-0.5 rounded-full border shrink-0", PROVIDER_COLORS[model.provider])}>
-                                                            {model.provider}
-                                                        </span>
-                                                        <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full border shrink-0 bg-green-50 text-green-700 border-green-200">Free</span>
-                                                    </div>
-                                                    <span className="text-[11px] text-stone-400 mt-0.5 block truncate">{model.description}</span>
+                                        {/* Free Models Section — hidden until FREE_MODELS is populated */}
+                                        {FREE_MODELS.length > 0 && (
+                                            <>
+                                                <div className="px-3 py-1.5 bg-green-50/50 border-b border-green-100">
+                                                    <span className="text-[10px] font-semibold text-green-700 uppercase tracking-wider">Free Models</span>
                                                 </div>
-                                            </button>
-                                        ))}
+                                                {FREE_MODELS.map((model, i) => (
+                                                    <button
+                                                        key={`free-${i}`}
+                                                        onClick={() => {
+                                                            onModelChange(model.modelId as ModelType);
+                                                            handleClose();
+                                                        }}
+                                                        className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-stone-50 transition-colors text-left"
+                                                    >
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                                <span className="text-[13px] text-stone-900 font-medium leading-tight">{model.name}</span>
+                                                                <span className={cn("text-[9px] font-medium px-1.5 py-0.5 rounded-full border shrink-0", PROVIDER_COLORS[model.provider])}>
+                                                                    {model.provider}
+                                                                </span>
+                                                                <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full border shrink-0 bg-green-50 text-green-700 border-green-200">Free</span>
+                                                            </div>
+                                                            <span className="text-[11px] text-stone-400 mt-0.5 block truncate">{model.description}</span>
+                                                        </div>
+                                                    </button>
+                                                ))}
+                                            </>
+                                        )}
 
                                         {/* Pro Models Section */}
-                                        <div className="px-3 py-1.5 bg-blue-50/50 border-b border-t border-blue-100 mt-1">
+                                        <div className={cn(
+                                            'px-3 py-1.5 bg-blue-50/50 border-b border-blue-100',
+                                            FREE_MODELS.length > 0 && 'border-t mt-1'
+                                        )}>
                                             <span className="text-[10px] font-semibold text-blue-700 uppercase tracking-wider">Pro Models</span>
                                         </div>
                                         {PRO_MODELS.map((model, i) => (

@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import {
     Plus, X, FileText, Camera, Image as ImageIcon,
     ArrowUp, Globe, Paperclip, ChevronDown, Mic,
-    Code2, Target, Sparkles, PenLine, BookOpen, AudioLines, Search, Square, Wrench, Check, Brain, Palette, Folder, Github, Plug, SquareTerminal, ChevronRight, Wand2
+    Code2, Target, Sparkles, PenLine, BookOpen, AudioLines, Search, Square, Wrench, Check, Brain, Palette, Folder, Github, Plug, SquareTerminal, ChevronRight, Wand2, Play
 } from 'lucide-react';
+import { useSettings } from '@/hooks/useSettings';
 
 // Custom Shark Icon for Deep Research
 const SharkIcon = ({ size = 16, className = "" }: { size?: number, className?: string }) => (
@@ -36,6 +37,7 @@ import AlertModal from '@/components/ui/AlertModal';
 import ConnectorsModal from './ConnectorsModal';
 import { getSkills, UserSkill } from '@/lib/skillsApi';
 import { useUser } from '@/lib/authContext';
+import { getModelDisplayName } from '@/lib/ai';
 
 function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs));
@@ -98,6 +100,8 @@ const TOOL_GROUPS = [
     [
         { id: 'upload_file', label: 'Add files or photos', icon: Paperclip },
         { id: 'camera', label: 'Take a screenshot', icon: Camera },
+        { id: 'image_gen', label: 'Generate Image', icon: ImageIcon, hasChevron: true },
+        { id: 'video_gen', label: 'Generate Video', icon: Play, hasChevron: true },
         { id: 'project', label: 'Add to project', icon: Folder, hasChevron: true },
         { id: 'github', label: 'Add from GitHub', icon: Github },
     ],
@@ -120,12 +124,13 @@ const QUICK_ACTIONS = [
     { id: 'learn', label: 'Learn', icon: BookOpen },
 ];
 
-// Human-readable model display names
-const MODEL_DISPLAY_NAMES: Record<string, string> = {
+/** Short labels for bundled model presets; OpenRouter slugs fall back via getModelDisplayName. */
+const SHORT_MODEL_LABELS: Record<string, string> = {
     'sonar': 'Fast Thinking',
     'sonnet': 'Fast Thinking',
     'opus': 'Pro',
     'haiku': 'Haiku',
+    'philos': 'Noir Philos',
 };
 
 const ChatInput: React.FC<ChatInputProps> = ({
@@ -172,6 +177,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
     onStyleChange,
 }) => {
     const { credits } = useTokenLimit();
+    const { settings, isLoaded: settingsLoaded } = useSettings();
     const navigate = useNavigate();
     const { user } = useUser();
     const [showDictation, setShowDictation] = useState(false);
@@ -179,6 +185,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
     const [showConnectors, setShowConnectors] = useState(false);
     const [showStyleSubmenu, setShowStyleSubmenu] = useState(false);
     const [showSkillSubmenu, setShowSkillSubmenu] = useState(false);
+    const [showVisualSubmenu, setShowVisualSubmenu] = useState<'image' | 'video' | null>(null);
     const [userSkills, setUserSkills] = useState<Array<{id: string; name: string; enabled: boolean}>>([]);
 
     // Load skills from Supabase
@@ -218,6 +225,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
                 setShowToolsMenu(false);
                 setShowStyleSubmenu(false);
                 setShowSkillSubmenu(false);
+                setShowVisualSubmenu(null);
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
@@ -244,6 +252,16 @@ const ChatInput: React.FC<ChatInputProps> = ({
                 setShowToolsMenu(false);
                 cameraInputRef.current?.click();
                 break;
+            case 'image_gen':
+                setShowVisualSubmenu(showVisualSubmenu === 'image' ? null : 'image');
+                setShowSkillSubmenu(false);
+                setShowStyleSubmenu(false);
+                break;
+            case 'video_gen':
+                setShowVisualSubmenu(showVisualSubmenu === 'video' ? null : 'video');
+                setShowSkillSubmenu(false);
+                setShowStyleSubmenu(false);
+                break;
             case 'project':
                 setShowToolsMenu(false);
                 setAlertConfig({ isOpen: true, title: 'Projects', message: 'Noir Workspace akan segera hadir! Nantikan fitur kolaborasi proyek yang lebih canggih.', type: 'development' });
@@ -259,10 +277,12 @@ const ChatInput: React.FC<ChatInputProps> = ({
             case 'skills':
                 setShowSkillSubmenu(prev => !prev);
                 setShowStyleSubmenu(false);
+                setShowVisualSubmenu(null);
                 break;
             case 'styles':
                 setShowStyleSubmenu(prev => !prev);
                 setShowSkillSubmenu(false);
+                setShowVisualSubmenu(null);
                 break;
             case 'web':
                 setShowToolsMenu(false);
@@ -371,7 +391,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
         </>
     );
 
-    const modelDisplayName = MODEL_DISPLAY_NAMES[selectedModel] || selectedModel;
+    const modelDisplayName = SHORT_MODEL_LABELS[selectedModel] ?? getModelDisplayName(selectedModel);
 
     return (
         <div className="absolute bottom-0 left-0 right-0 p-4 pb-safe md:pb-4 bg-transparent z-20">
@@ -511,14 +531,15 @@ const ChatInput: React.FC<ChatInputProps> = ({
                                                         const Icon = tool.icon;
                                                         const isWebActive = tool.id === 'web' && enableWebSearch;
                                                         const isStyleActive = tool.id === 'styles' && !!activeStyle;
-                                                        const isActive = isWebActive || isStyleActive;
+                                                        const isVisualActive = (tool.id === 'image_gen' && showVisualSubmenu === 'image') || (tool.id === 'video_gen' && showVisualSubmenu === 'video');
+                                                        const isActive = isWebActive || isStyleActive || isVisualActive;
                                                         return (
                                                             <button
                                                                 key={tool.id}
                                                                 onClick={() => handleToolSelect(tool.id)}
                                                                 className={cn(
                                                                     "w-full flex items-center gap-3 px-3 py-2 text-[13px] transition-colors mx-1.5 rounded-lg text-left",
-                                                                    (tool.id === 'styles' && showStyleSubmenu) || (tool.id === 'skills' && showSkillSubmenu) ? "bg-stone-100" : "hover:bg-stone-50"
+                                                                    (tool.id === 'styles' && showStyleSubmenu) || (tool.id === 'skills' && showSkillSubmenu) || isVisualActive ? "bg-stone-100" : "hover:bg-stone-50"
                                                                 )}
                                                                 style={{ width: 'calc(100% - 12px)' }}
                                                             >
@@ -530,6 +551,10 @@ const ChatInput: React.FC<ChatInputProps> = ({
                                                                     <ChevronRight size={14} className={cn("text-stone-400 ml-auto transition-transform duration-150", showStyleSubmenu && "rotate-90")} strokeWidth={2} />
                                                                 ) : tool.id === 'skills' ? (
                                                                     <ChevronRight size={14} className={cn("text-stone-400 ml-auto transition-transform duration-150", showSkillSubmenu && "rotate-90")} strokeWidth={2} />
+                                                                ) : tool.id === 'image_gen' ? (
+                                                                    <ChevronRight size={14} className={cn("text-stone-400 ml-auto transition-transform duration-150", showVisualSubmenu === 'image' && "rotate-90")} strokeWidth={2} />
+                                                                ) : tool.id === 'video_gen' ? (
+                                                                    <ChevronRight size={14} className={cn("text-stone-400 ml-auto transition-transform duration-150", showVisualSubmenu === 'video' && "rotate-90")} strokeWidth={2} />
                                                                 ) : (tool as any).hasChevron ? (
                                                                     <ChevronRight size={14} className="text-stone-400 ml-auto" strokeWidth={2} />
                                                                 ) : isWebActive ? (
@@ -600,6 +625,37 @@ const ChatInput: React.FC<ChatInputProps> = ({
                                                 <Plus size={14} className="text-stone-500 shrink-0" strokeWidth={2} />
                                                 <span className="text-stone-700">Create &amp; edit styles</span>
                                             </button>
+                                        </div>
+                                    )}
+
+                                    {/* Visual Model submenu */}
+                                    {showVisualSubmenu && (
+                                        <div className="w-48 bg-white border border-stone-200 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden animate-in fade-in slide-in-from-left-1 duration-150 py-1.5">
+                                            <div className="px-3 py-1.5 text-[11px] font-bold text-stone-400 uppercase tracking-wider">
+                                                {showVisualSubmenu === 'image' ? 'Image Models' : 'Video Models'}
+                                            </div>
+                                            {[
+                                                { id: 'flux-schnell', label: 'Flux 1.1 Schnell', type: 'image', icon: ImageIcon },
+                                                { id: 'sdxl', label: 'Stable Diffusion XL', type: 'image', icon: ImageIcon },
+                                                { id: 'openjourney', label: 'Openjourney', type: 'image', icon: ImageIcon },
+                                                { id: 'stable-video', label: 'Stable Video Diffusion', type: 'video', icon: Play }
+                                            ].filter(m => m.type === showVisualSubmenu).map((model) => (
+                                                <button
+                                                    key={model.id}
+                                                    onClick={() => {
+                                                        onModelChange(model.id as any);
+                                                        setInput(`Generate an ${showVisualSubmenu} using ${model.label} of `);
+                                                        setShowVisualSubmenu(null);
+                                                        setShowToolsMenu(false);
+                                                        textareaRef.current?.focus();
+                                                    }}
+                                                    className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] hover:bg-stone-50 transition-colors mx-1.5 rounded-lg text-left"
+                                                    style={{ width: 'calc(100% - 12px)' }}
+                                                >
+                                                    <model.icon size={14} className="text-purple-500 shrink-0" strokeWidth={1.8} />
+                                                    <span className="text-stone-700 font-medium">{model.label}</span>
+                                                </button>
+                                            ))}
                                         </div>
                                     )}
                                 </div>
@@ -702,6 +758,14 @@ const ChatInput: React.FC<ChatInputProps> = ({
             <ConnectorsModal
                 isOpen={showConnectors}
                 onClose={() => setShowConnectors(false)}
+            />
+
+            <AlertModal
+                isOpen={alertConfig.isOpen}
+                onClose={() => setAlertConfig(prev => ({ ...prev, isOpen: false }))}
+                title={alertConfig.title}
+                message={alertConfig.message}
+                type={alertConfig.type}
             />
 
         </div >

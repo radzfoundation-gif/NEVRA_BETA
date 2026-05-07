@@ -117,7 +117,13 @@ export const TIER_LIMITS = {
         monthlyTokens: 150,
         monthlyCanvasAnalyzes: 2,
         chatHistoryDays: 7,
-        allowedModels: ['groq']
+        allowedModels: [
+            'tencent/hy3-preview:free',
+            'nvidia/nemotron-3-super-120b-a12b:free',
+            'google/gemma-4-31b-it:free',
+            'openai/gpt-oss-120b:free',
+            'z-ai/glm-4.5-air:free',
+        ] as string[],
     },
     pro: {
         monthlyTokens: -1, // Unlimited

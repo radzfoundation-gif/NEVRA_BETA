@@ -1,8 +1,36 @@
-export type AIProvider = 'groq' | 'openai' | 'anthropic' | 'gemini' | 'qwen-free' | 'philos' | 'nemotron-free' | 'nemotron-nano-free' | 'minimax-free' | 'glm-free' | 'qwen-coder-free' | 'gemma-free' | 'gpt-oss-free' | 'hermes-free' | 'openrouter-free';
+/** Canonical provider aliases plus OpenRouter `org/model:id` slugs allowed for routing. */
+export type AIProvider =
+  | 'groq'
+  | 'openai'
+  | 'anthropic'
+  | 'gemini'
+  | 'qwen-free'
+  | 'philos'
+  | 'nemotron-free'
+  | 'nemotron-nano-free'
+  | 'minimax-free'
+  | 'glm-free'
+  | 'qwen-coder-free'
+  | 'gemma-free'
+  | 'gpt-oss-free'
+  | 'hermes-free'
+  | 'openrouter-free'
+  | 'tencent/hy3-preview:free'
+  | 'nvidia/nemotron-3-super-120b-a12b:free'
+  | 'google/gemma-4-31b-it:free'
+  | 'openai/gpt-oss-120b:free'
+  | 'z-ai/glm-4.5-air:free';
 
 export type Framework = 'html' | 'react' | 'vite' | 'nextjs';
 
-export const FREE_TIER_MODELS: AIProvider[] = ['groq', 'qwen-free', 'nemotron-free', 'nemotron-nano-free', 'minimax-free', 'glm-free', 'qwen-coder-free', 'gemma-free', 'gpt-oss-free', 'hermes-free', 'openrouter-free'];
+/** Free-tier models (OpenRouter slugs exposed in UI). */
+export const FREE_TIER_MODELS: AIProvider[] = [
+  'tencent/hy3-preview:free',
+  'nvidia/nemotron-3-super-120b-a12b:free',
+  'google/gemma-4-31b-it:free',
+  'openai/gpt-oss-120b:free',
+  'z-ai/glm-4.5-air:free',
+];
 
 export const PRO_ONLY_MODELS: AIProvider[] = ['openai', 'anthropic', 'gemini'];
 
@@ -23,7 +51,18 @@ export const MODEL_DISPLAY_NAMES: Record<AIProvider, string> = {
   'gpt-oss-free': 'gpt-oss 120B',
   'hermes-free': 'Hermes 3 405B',
   'openrouter-free': 'OpenRouter Free',
+  'tencent/hy3-preview:free': 'Tencent HY3 Preview',
+  'nvidia/nemotron-3-super-120b-a12b:free': 'Nemotron 3 Super 120B',
+  'google/gemma-4-31b-it:free': 'Gemma 4 31B',
+  'openai/gpt-oss-120b:free': 'GPT-OSS 120B',
+  'z-ai/glm-4.5-air:free': 'GLM 4.5 Air',
 };
+
+/** Readable label for any model id (OpenRouter slug or legacy alias). */
+export function getModelDisplayName(modelId: string): string {
+  const map = MODEL_DISPLAY_NAMES as Record<string, string>;
+  return map[modelId] ?? modelId;
+}
 
 // Check if a model is allowed for a given tier
 export const isModelAllowed = (provider: AIProvider, tier: 'free' | 'pro'): boolean => {
@@ -48,7 +87,10 @@ export const isProOnlyModel = (provider: AIProvider): boolean => {
 const smartRouteModel = (prompt: string, requestedProvider: AIProvider, tier: 'free' | 'normal' | 'pro'): AIProvider => {
   // 1. Force Free Tier Limits
   if (tier === 'free') {
-    if (!FREE_TIER_MODELS.includes(requestedProvider)) return 'groq';
+    if (FREE_TIER_MODELS.length === 0) {
+      return requestedProvider;
+    }
+    if (!FREE_TIER_MODELS.includes(requestedProvider)) return FREE_TIER_MODELS[0];
     return requestedProvider;
   }
 
@@ -783,6 +825,91 @@ export const generateCode = async (
 
   // Direct generation (existing code)
 
+  // Specialized Model Handling (Visual Generation)
+  const isVideoRequest =
+    model === 'stable-video' ||
+    /\b(buat|buatkan|generate|create|bikin)\b.*\b(video|animasi|animation)\b/i.test(prompt.toLowerCase());
+
+  if (isVideoRequest) {
+    console.log(`🎬 [AI] Specialized Video Generation Detected`);
+    try {
+      const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
+
+      const response = await fetch(`${API_BASE}/generate-video`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ prompt, model, userId }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Video API Error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const finalUrl = data.videoUrl;
+      const content = `Berikut adalah video yang dihasilkan berdasarkan permintaan Anda: "${prompt}"\n\n[Generated Video](${finalUrl})`;
+
+      if (onChunk) {
+        onChunk(content);
+      }
+
+      return {
+        type: 'single-file',
+        content
+      };
+    } catch (error: any) {
+      console.error('🎬 [AI] Video Generation Error:', error);
+      throw error;
+    }
+  }
+
+  const isImageRequest = ['gpt-image-1', 'flux-schnell', 'sdxl', 'openjourney'].includes(model as string) ||
+    /\b(buat|buatkan|generate|create|draw)\b.*\b(gambar|image|foto|picture)\b/i.test(prompt.toLowerCase());
+
+  if (isImageRequest) {
+    console.log(`🎨 [AI] Specialized Image Generation Detected`);
+    try {
+      let finalUrl = '';
+      const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
+
+      console.log('🖼️ Requesting Image Generation via Backend...');
+      
+      const response = await fetch(`${API_BASE}/generate-image`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ prompt, model }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Image API Error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      finalUrl = data.image;
+
+      const content = `Berikut adalah gambar yang dihasilkan berdasarkan permintaan Anda: "${prompt}"\n\n![Generated Image](${finalUrl})`;
+      
+      // Call onChunk if provided to simulate streaming for UI
+      if (onChunk) {
+        onChunk(content);
+      }
+
+      return {
+        type: 'single-file',
+        content
+      };
+    } catch (error: any) {
+      console.error('🎨 [AI] Image Generation Error:', error);
+      throw error;
+    }
+  }
+
   // Enhance system prompt based on framework
   let systemPrompt = mode === 'builder' ? BUILDER_PROMPT : TUTOR_PROMPT;
 
@@ -958,11 +1085,7 @@ Always follow this structure when an image is present.`;
       // =====================================================
       // NOIRSYNC — Context-Aware Smart Model Routing
       // =====================================================
-      const OPENROUTER_FREE_MODELS = [
-        'qwen-free', 'philos', 'nemotron-free', 'nemotron-nano-free', 'minimax-free',
-        'glm-free', 'qwen-coder-free', 'gemma-free', 'gpt-oss-free',
-        'hermes-free', 'openrouter-free'
-      ];
+      const OPENROUTER_FREE_MODELS: string[] = [...FREE_TIER_MODELS];
 
       // Check if model is a direct OpenRouter model ID (contains '/')
       const isOpenRouterModelId = model && model.includes('/');

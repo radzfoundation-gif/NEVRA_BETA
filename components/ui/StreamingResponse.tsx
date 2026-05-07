@@ -145,6 +145,18 @@ const StreamingResponse: React.FC<StreamingResponseProps> = ({ content, isStream
         }
     );
 
+    const isVideoUrl = (url: string): boolean => {
+        const lower = url.toLowerCase();
+        return (
+            lower.endsWith('.mp4') ||
+            lower.endsWith('.webm') ||
+            lower.endsWith('.ogg') ||
+            lower.includes('video') ||
+            lower.includes('vimeo') ||
+            lower.includes('pixabay.com')
+        );
+    };
+
     const components = {
         code({ node, inline, className, children, ...props }: any) {
             const match = /language-(\w+)/.exec(className || '');
@@ -161,6 +173,71 @@ const StreamingResponse: React.FC<StreamingResponseProps> = ({ content, isStream
                 <code className={className} {...props}>
                     {children}
                 </code>
+            );
+        },
+        // Custom image renderer for generated images (base64 data URIs + regular URLs)
+        img({ node, src, alt, ...props }: any) {
+            if (!src) return null;
+            return (
+                <div className="my-4 not-prose">
+                    <div className="relative group rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-700 shadow-lg hover:shadow-xl transition-shadow duration-300 bg-zinc-50 dark:bg-zinc-900 max-w-md">
+                        <img
+                            src={src}
+                            alt={alt || 'Generated Image'}
+                            className="w-full h-auto object-cover rounded-2xl"
+                            loading="lazy"
+                            onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.style.display = 'none';
+                                const fallback = target.parentElement?.querySelector('.img-fallback');
+                                if (fallback) (fallback as HTMLElement).style.display = 'flex';
+                            }}
+                        />
+                        <div className="img-fallback hidden items-center justify-center h-48 text-zinc-400 text-sm">
+                            <span>⚠️ Gambar gagal dimuat</span>
+                        </div>
+                        {/* Hover overlay with download */}
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-200 rounded-2xl" />
+                    </div>
+                    {alt && alt !== 'Generated Image' && (
+                        <p className="text-xs text-zinc-500 mt-2 text-center italic">{alt}</p>
+                    )}
+                </div>
+            );
+        },
+        a({ href, children, ...props }: any) {
+            if (!href) return <a {...props}>{children}</a>;
+
+            if (isVideoUrl(href)) {
+                return (
+                    <div className="my-4 not-prose">
+                        <div className="relative rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-700 shadow-lg bg-zinc-50 dark:bg-zinc-900 max-w-2xl">
+                            <video
+                                src={href}
+                                controls
+                                playsInline
+                                preload="metadata"
+                                className="w-full h-auto rounded-2xl"
+                            />
+                        </div>
+                        <div className="mt-2">
+                            <a
+                                href={href}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-zinc-500 hover:text-zinc-700 underline underline-offset-2"
+                            >
+                                Open video in new tab
+                            </a>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <a href={href} target="_blank" rel="noopener noreferrer" {...props}>
+                    {children}
+                </a>
             );
         },
         // Custom handler for citation badges

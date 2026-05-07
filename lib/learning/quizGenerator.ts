@@ -66,22 +66,37 @@ RETURN FORMAT (JSON):
   ]
 }`;
 
-    const response = await generateCode({
+    const response = await generateCode(
       prompt,
-      mode: 'tutor',
-      provider: provider as any,
-      history: [],
-      systemPrompt: `You are an expert quiz generator. Generate educational quizzes that test understanding, not memorization.`,
-    });
+      [],
+      'tutor',
+      provider as any
+    );
 
-    if (!response || typeof response === 'string') {
+    if (!response) return null;
+
+    let content = '';
+    if (typeof response === 'object' && 'content' in response) {
+      content = response.content;
+    } else if (typeof response === 'string') {
+      content = response;
+    }
+
+    if (content) {
       // Try to parse JSON from response
-      const jsonMatch = response?.match(/```json\s*([\s\S]*?)\s*```/) || response?.match(/```\s*([\s\S]*?)\s*```/);
+      const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || content.match(/```\s*([\s\S]*?)\s*```/);
       if (jsonMatch) {
         const quizData = JSON.parse(jsonMatch[1]);
         return formatQuiz(quizData, topic, difficulty);
       }
-      return null;
+      
+      // Fallback: try parsing the whole content if no code blocks
+      try {
+        const quizData = JSON.parse(content);
+        return formatQuiz(quizData, topic, difficulty);
+      } catch (e) {
+        console.warn('Failed to parse quiz JSON directly, trying fallback...');
+      }
     }
 
     return null;

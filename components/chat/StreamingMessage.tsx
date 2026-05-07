@@ -17,6 +17,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
+import rehypeRaw from 'rehype-raw';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
@@ -157,7 +158,7 @@ export default function StreamingMessage({
                             >
                                 <ReactMarkdown
                                     remarkPlugins={[remarkGfm, remarkMath]}
-                                    rehypePlugins={[rehypeKatex]}
+                                    rehypePlugins={[rehypeKatex, rehypeRaw]}
                                     components={{
                                         table({ children, ...props }) {
                                             return (
@@ -165,6 +166,34 @@ export default function StreamingMessage({
                                                     <table className="min-w-full border-collapse text-sm" {...props}>
                                                         {children}
                                                     </table>
+                                                </div>
+                                            );
+                                        },
+                                        img({ node, src, alt, ...props }: any) {
+                                            if (!src) return null;
+                                            return (
+                                                <div className="my-4 not-prose">
+                                                    <div className="relative group rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-700 shadow-lg hover:shadow-xl transition-shadow duration-300 bg-zinc-50 dark:bg-zinc-900 max-w-md mx-auto sm:mx-0">
+                                                        <img
+                                                            src={src}
+                                                            alt={alt || 'Generated Image'}
+                                                            className="w-full h-auto object-cover rounded-2xl"
+                                                            loading="lazy"
+                                                            onError={(e) => {
+                                                                const target = e.target as HTMLImageElement;
+                                                                target.style.display = 'none';
+                                                                const fallback = target.parentElement?.querySelector('.img-fallback');
+                                                                if (fallback) (fallback as HTMLElement).style.display = 'flex';
+                                                            }}
+                                                        />
+                                                        <div className="img-fallback hidden items-center justify-center h-48 text-zinc-400 text-sm">
+                                                            <span>⚠️ Gambar gagal dimuat</span>
+                                                        </div>
+                                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors duration-200 rounded-2xl" />
+                                                    </div>
+                                                    {alt && alt !== 'Generated Image' && (
+                                                        <p className="text-xs text-zinc-500 mt-2 text-center sm:text-left italic">{alt}</p>
+                                                    )}
                                                 </div>
                                             );
                                         },

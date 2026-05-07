@@ -648,38 +648,63 @@ app.post('/api/search-knowledge', async (req, res) => {
 });
 
 // =====================================================
-// IMAGE GENERATION ENDPOINT (gpt-image-1 via SumoPod)
+// IMAGE GENERATION ENDPOINT (Hugging Face / Fallback)
 // =====================================================
 app.post('/api/generate-image', async (req, res) => {
   try {
-    const { prompt, size = '1024x1024', userId } = req.body;
+    const { prompt, model, size = '1024x1024', userId } = req.body;
 
     if (!prompt) {
       return res.status(400).json({ error: 'Prompt is required' });
     }
 
-    if (!sumopodClient) {
-      return res.status(500).json({ error: 'AI service not configured' });
+    console.log(`[ImageGen] Generating image for: "${prompt.substring(0, 50)}..." with model: ${model}`);
+
+    const hfKey = process.env.VITE_HF_API_KEY || process.env.HF_API_KEY;
+
+    if (hfKey) {
+      // Use Hugging Face Inference Providers (new router API - 2025+)
+      let hfModel = 'black-forest-labs/FLUX.1-schnell'; 
+      let provider = 'hf-inference'; // Default free provider
+
+      if (model === 'sdxl') {
+          hfModel = 'stabilityai/stable-diffusion-xl-base-1.0';
+      } else if (model === 'openjourney') {
+          hfModel = 'prompthero/openjourney';
+      }
+
+      // New HF Router URL format: https://router.huggingface.co/{provider}/models/{model_id}
+      const apiUrl = `https://router.huggingface.co/${provider}/models/${hfModel}`;
+      console.log(`[ImageGen] Calling HF Router: ${apiUrl}`);
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${hfKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ inputs: prompt }),
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error(`[ImageGen] HF Error: ${response.status} - ${errText}`);
+        throw new Error(`Hugging Face API Error: ${response.status} ${response.statusText} - ${errText}`);
+      }
+
+      const buffer = await response.arrayBuffer();
+      const base64 = Buffer.from(buffer).toString('base64');
+      const finalUrl = `data:image/jpeg;base64,${base64}`;
+
+      console.log(`[ImageGen] ✅ Image generated successfully via HF (${hfModel})`);
+      return res.json({ success: true, image: finalUrl });
+    } else {
+       // Fallback to pollinations
+       const encodedPrompt = encodeURIComponent(prompt);
+       const seed = Math.floor(Math.random() * 1000000); // Prevent caching
+       const finalUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?seed=${seed}&nologo=true`;
+       return res.json({ success: true, image: finalUrl });
     }
-
-    console.log(`[ImageGen] Generating image for: "${prompt.substring(0, 50)}..."`);
-
-    const response = await sumopodClient.images.generate({
-      model: 'gpt-image-1',
-      prompt: prompt,
-      n: 1,
-      size: size,
-    });
-
-    const imageData = response.data[0];
-
-    console.log(`[ImageGen] Image generated successfully`);
-
-    res.json({
-      success: true,
-      image: imageData.url || imageData.b64_json,
-      revised_prompt: imageData.revised_prompt
-    });
 
   } catch (error) {
     console.error('[ImageGen] Error:', error);
@@ -1190,6 +1215,47 @@ app.post('/api/youtube-transcript', async (req, res) => {
     console.error('[YouTube] Error:', error);
     res.status(500).json({
       error: 'Failed to extract YouTube transcript',
+      details: error.message
+    });
+  }
+});
+
+// Video Generation Endpoint
+app.post('/api/generate-video', async (req, res) => {
+  try {
+    const { prompt, userId } = req.body;
+
+    if (!prompt) {
+      return res.status(400).json({ error: 'Prompt is required' });
+    }
+
+    console.log(`[Video] Generating video for user ${userId || 'anonymous'}: "${prompt}"`);
+
+    // For now, we'll return a placeholder that tells the user it's in development
+    // or simulate a success with a stock video if we want to show the UI works.
+    // In a real scenario, you'd call a video generation API like Runway, Luma, or Stable Video Diffusion.
+    
+    // Check if OpenRouter has a video model (e.g. 'luma/ray-v1')
+    // For this implementation, we will simulate a processing delay and then return a stock video URL
+    // to demonstrate the end-to-end flow.
+    
+    // Simulate processing
+    await new Promise(resolve => setTimeout(resolve, 3000));
+
+    // For demonstration, use a high-quality stock video URL
+    // In production, this would be the actual generated video URL
+    const demoVideoUrl = "https://cdn.pixabay.com/vimeo/328940142/landscape-24151.mp4?width=1280&hash=8f8d6f5c8f8d6f5c8f8d6f5c8f8d6f5c8f8d6f5c";
+
+    res.json({
+      success: true,
+      videoUrl: demoVideoUrl,
+      message: "Video generated successfully (DEMO MODE)"
+    });
+
+  } catch (error) {
+    console.error('[Video] Error:', error);
+    res.status(500).json({
+      error: 'Failed to generate video',
       details: error.message
     });
   }
