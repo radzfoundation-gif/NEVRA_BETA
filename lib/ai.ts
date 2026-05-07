@@ -1024,15 +1024,15 @@ Always follow this structure when an image is present.`;
 
   // STREAMING LOGIC REPLACEMENT: OpenRouter Direct Fetch
   if (onChunk) {
-    console.log(`[AI] 🌊 Starting SumoPod Streaming for NoirSync routing...`);
+    console.log(`[AI] 🌊 Starting OpenRouter Streaming for NoirSync routing...`);
 
     // Helper for exponential backoff
     const fetchWithRetry = async (url: string, options: any, retries = 3, backoff = 1000) => {
       try {
-        // Check for SumoPod API Key
-        const apiKey = import.meta.env.VITE_SUMOPOD_API_KEY || import.meta.env.SUMOPOD_API_KEY;
+        // Check for OpenRouter API Key
+        const apiKey = import.meta.env.VITE_OPENROUTER_API_KEY || import.meta.env.OPENROUTER_API_KEY;
         if (!apiKey) {
-          throw new Error("SumoPod API Key not configured. Please set VITE_SUMOPOD_API_KEY in your .env file.");
+          throw new Error("OpenRouter API Key not configured. Please set VITE_OPENROUTER_API_KEY in your .env file.");
         }
 
         const response = await fetch(url, {
@@ -1049,14 +1049,14 @@ Always follow this structure when an image is present.`;
           const errorText = await response.text();
           // Don't retry 401 (Auth) or 400 (Bad Request)
           if (response.status === 401 || response.status === 400) {
-            throw new Error(`SumoPod API Error (${response.status}): ${errorText}`);
+            throw new Error(`OpenRouter API Error (${response.status}): ${errorText}`);
           }
           if (retries > 0) {
             console.warn(`[AI] Request failed (${response.status}), retrying in ${backoff}ms...`);
             await new Promise(r => setTimeout(r, backoff));
             return fetchWithRetry(url, options, retries - 1, backoff * 2);
           }
-          throw new Error(`SumoPod API Error (${response.status}): ${errorText}`);
+          throw new Error(`OpenRouter API Error (${response.status}): ${errorText}`);
         }
         return response;
       } catch (error: any) {
@@ -1106,7 +1106,7 @@ Always follow this structure when an image is present.`;
         // If user selected Philos, route to Qwen via OpenRouter
         if (model === 'philos') {
           console.log('🧠 [NoirSync] Routed to OpenRouter qwen/qwen3.6-plus-preview:free (Noir Philos)');
-          return 'philos';
+          return 'tencent/hy3-preview:free';
         }
 
         // If user selected Fast Thinking (sonnet), route to gpt-oss 120b via OpenRouter
@@ -1126,12 +1126,12 @@ Always follow this structure when an image is present.`;
         ];
         if (pdfPatterns.some(p => p.test(promptText))) {
           console.log('📄 [NoirSync] Routed to Claude Opus 4 (PDF/Document)');
-          return 'claude-opus-4-6';
+          return 'anthropic/claude-3-opus';
         }
 
-        // 2. Default → SumoPod (seed-2-0-pro-free) as primary model
-        console.log('🚀 [NoirSync] Routed to SumoPod Seed (Default)');
-        return 'groq';
+        // Default → OpenRouter (GPT-OSS 120B) as requested
+        console.log('🚀 [NoirSync] Routed to OpenRouter GPT-OSS 120B (Default)');
+        return 'openai/gpt-oss-120b:free';
       };
 
       // Determine if web search is active from prompt markers
@@ -1159,24 +1159,14 @@ Always follow this structure when an image is present.`;
         { role: 'user', content: userContent }
       ];
 
-      // Coalesce messages to ensure alternating roles (user -> assistant -> user)
-      // Note: Coalescing complex content (arrays) is tricky.
-      // We will perform coalescing, but if content is array, we might need to merge carefully.
-      // However, usually history is text-only from previous turns (unless we persist images in history which is rare in this app's storage).
-      // For the FINAL user message (which has images), it will be the last one and unlikely to be merged with previous USER message if we enforce alternating.
-      // BUT if we prepend "Context:", that's text.
-      // Let's implement robust coalescing that handles string vs array.
-
       const coalescedMessages: { role: string; content: any }[] = [];
       if (systemPrompt) {
         coalescedMessages.push({ role: 'system', content: systemPrompt });
       }
 
       for (const msg of rawMessages) {
-        // Skip system messages in raw stream (already handled)
         if (msg.role === 'system') continue;
 
-        // Ensure first message after system is user
         if (coalescedMessages.length === (systemPrompt ? 1 : 0) && msg.role === 'assistant') {
           coalescedMessages.push({ role: 'user', content: 'Context:' });
         }
@@ -1184,14 +1174,12 @@ Always follow this structure when an image is present.`;
         const currentLast = coalescedMessages[coalescedMessages.length - 1];
 
         if (currentLast && currentLast.role === msg.role) {
-          // Merge content if same role
           const lastContent = currentLast.content;
           const newContent = msg.content;
 
           if (typeof lastContent === 'string' && typeof newContent === 'string') {
             currentLast.content += '\n\n' + newContent;
           } else {
-            // Convert both to arrays and merge
             const lastArray = Array.isArray(lastContent) ? lastContent : [{ type: 'text', text: lastContent }];
             const newArray = Array.isArray(newContent) ? newContent : [{ type: 'text', text: newContent }];
             currentLast.content = [...lastArray, ...newArray];
@@ -1208,10 +1196,11 @@ Always follow this structure when an image is present.`;
         temperature: 0.7,
       };
       
-      console.log(`[AI] NoirSync Request (via Backend): model=${targetModel}, selectedModel=${model}`);
+      console.log(`[AI] NoirSync Request (Direct OpenRouter): model=${targetModel}, selectedModel=${model}`);
 
-      // Redirect to local backend to enable Skill Scout (MCP tool discovery)
-      const streamResp = await fetch(`${API_BASE}/chat/stream`, {
+      const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
+
+      const streamResp = await fetchWithRetry(OPENROUTER_API_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1224,13 +1213,12 @@ Always follow this structure when an image is present.`;
 
       // Check for HTTP errors before attempting to read stream
       if (!streamResp.ok) {
-        let errorMsg = `Backend stream error (${streamResp.status})`;
+        let errorMsg = `OpenRouter stream error (${streamResp.status})`;
         try {
           const errorText = await streamResp.text();
           const errorData = JSON.parse(errorText);
-          errorMsg = errorData.error || errorData.message || errorMsg;
+          errorMsg = errorData.error?.message || errorData.message || errorMsg;
         } catch {
-          // If parse fails, use the status text
           errorMsg += `: ${streamResp.statusText}`;
         }
         console.error(`[AI] Stream HTTP Error: ${errorMsg}`);
