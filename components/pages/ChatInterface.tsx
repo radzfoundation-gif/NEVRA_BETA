@@ -2948,7 +2948,7 @@ const ChatInterface: React.FC = () => {
         const versionManager = getVersionManager();
         versionManager.saveVersion(fileManager.getAllFiles(), 'Auto-save after generation');
 
-        setTimeout(() => setLogs(prev => [...prev, '> Server running at http://localhost:3000', '> Ready.']), 800);
+        setLogs(prev => [...prev, '> Server running at http://localhost:3000', '> Ready.']);
 
         // Debug: Log code preview info
         console.log('✅ Code set for preview:', {
@@ -3150,7 +3150,7 @@ const ChatInterface: React.FC = () => {
             setRefreshKey(k => k + 1);
             const versionManager = getVersionManager();
             versionManager.saveVersion(fileManager.getAllFiles(), 'Auto-save after generation');
-            setTimeout(() => setLogs(prev => [...prev, '> Server running at http://localhost:3000', '> Ready.']), 800);
+            setLogs(prev => [...prev, '> Server running at http://localhost:3000', '> Ready.']);
           }
 
           // Track usage
@@ -3316,7 +3316,7 @@ const ChatInterface: React.FC = () => {
             setRefreshKey(k => k + 1);
             const versionManager = getVersionManager();
             versionManager.saveVersion(fileManager.getAllFiles(), 'Auto-save after generation (Mistral Devstral)');
-            setTimeout(() => setLogs(prev => [...prev, '> Server running at http://localhost:3000', '> Ready.']), 800);
+            setLogs(prev => [...prev, '> Server running at http://localhost:3000', '> Ready.']);
           }
 
           // Track usage with Claude Opus 4.5
@@ -3591,28 +3591,6 @@ const ChatInterface: React.FC = () => {
             <Plus size={20} strokeWidth={1.5} />
           </button>
         </div>
-      </div>
-
-      {/* DEV TOOLS - TEMPORARY MOCK LOADING */}
-      <div className="absolute top-16 right-4 z-[100] flex flex-col gap-2 opacity-60 hover:opacity-100 transition-opacity">
-        <button 
-          onClick={() => { setIsTyping(true); setActiveLoadingPhase('image_gen'); }} 
-          className="bg-purple-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shadow-lg hover:bg-purple-700"
-        >
-          Mock Image Load
-        </button>
-        <button 
-          onClick={() => { setIsTyping(true); setActiveLoadingPhase('video_gen'); }} 
-          className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shadow-lg hover:bg-blue-700"
-        >
-          Mock Video Load
-        </button>
-        <button 
-          onClick={() => { setIsTyping(false); setActiveLoadingPhase('none'); }} 
-          className="bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shadow-lg hover:bg-red-700"
-        >
-          Stop Loading
-        </button>
       </div>
 
       {/* Chat List */}

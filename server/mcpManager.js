@@ -82,6 +82,10 @@ class McpManager {
             const isCommand = server.url.startsWith('npx ') || server.url.startsWith('node ') || server.url.startsWith('python ');
 
             if (isCommand) {
+                if (process.env.VERCEL) {
+                    console.warn(`[MCP] Skipping local server ${server.name} on Vercel (command-based transport not supported)`);
+                    return false;
+                }
                 console.log(`[MCP] Starting local server: ${server.name} via command...`);
                 const [cmd, ...args] = server.url.split(' ');
                 transport = new StdioClientTransport({

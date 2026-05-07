@@ -68,22 +68,31 @@ In Vercel Dashboard > Settings > Environment Variables:
 
 ```env
 # Supabase
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_KEY=your-service-key
 
 # Sumopod AI
-SUMOPOD_KEY=sk-your-sumopod-api-key
+SUMOPOD_API_KEY=your-sumopod-api-key
+SUMOPOD_BASE_URL=https://ai.sumopod.com
+SUMOPOD_MODEL_ID=gemini/gemini-2.5-flash-lite
 
 # YJS Server (will be set after deploying YJS server)
-NEXT_PUBLIC_YJS_SERVER_URL=wss://your-yjs-server.railway.app
+VITE_YJS_SERVER_URL=wss://your-yjs-server.railway.app
 
 # App
-NEXT_PUBLIC_APP_URL=https://noir-ai.com
+VITE_APP_URL=https://noir-ai.com
 NODE_ENV=production
 ```
 
-### Step 4: Deploy
+### Step 4: Configure Project Settings
+
+1. **Framework Preset**: Choose **Vite** (or **Other** if Vite is not available).
+2. **Build Command**: `npm run build`
+3. **Output Directory**: `dist`
+4. **Root Directory**: `.` (leave as default)
+
+### Step 5: Deploy
 
 Click "Deploy" - Vercel will automatically build and deploy.
 
@@ -175,18 +184,20 @@ Use WebSocket protocol: `wss://noir-ai-yjs.onrender.com`
 
 ```env
 # Supabase
-NEXT_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+VITE_SUPABASE_URL=https://xxxxx.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 SUPABASE_SERVICE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 
 # Sumopod AI
-SUMOPOD_KEY=sk-1BmaayhWccwE0E715vfSjw
+SUMOPOD_API_KEY=your-sumopod-api-key
+SUMOPOD_BASE_URL=https://ai.sumopod.com
+SUMOPOD_MODEL_ID=gemini/gemini-2.5-flash-lite
 
 # YJS Collaboration Server
-NEXT_PUBLIC_YJS_SERVER_URL=wss://noir-ai-yjs.railway.app
+VITE_YJS_SERVER_URL=wss://noir-ai-yjs.railway.app
 
 # App Configuration
-NEXT_PUBLIC_APP_URL=https://noir-ai.com
+VITE_APP_URL=https://noir-ai.com
 NODE_ENV=production
 ```
 
