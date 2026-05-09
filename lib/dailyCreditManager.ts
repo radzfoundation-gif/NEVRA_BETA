@@ -195,23 +195,32 @@ export async function canAffordFeature(userId: string, featureType: keyof typeof
 
 /**
  * Listen for realtime credit updates
+ * Ensures channel is created correctly before subscribing
  */
 export function subscribeToCreditUpdates(userId: string, callback: (usage: { used: number, limit: number, tier: string }) => void) {
-    const month = getCurrentMonth();
-    const day = getCurrentDay();
-
-    // Use a unique channel name to avoid React StrictMode re-subscription errors
-    const channel = supabase.channel(`credits:${userId}-${Date.now()}-${Math.random()}`);
-
+    // Unique channel name per session to avoid conflicts
+    const channelName = `credits:${userId}-${Math.random().toString(36).substring(7)}`;
+    
+    const channel = supabase.channel(channelName);
+    
+    // Configure callbacks BEFORE calling subscribe()
     channel.on('postgres_changes', {
         event: '*',
         schema: 'public',
         table: 'token_usage',
         filter: `user_id=eq.${userId}`
     }, async () => {
+        // Clear cache and fetch fresh data
+        const month = getCurrentMonth();
+        const day = getCurrentDay();
+        creditCache.delete(`${userId}_${month}_${day}`);
+        
         const usage = await getDailyUsage(userId);
         callback(usage);
-    }).subscribe();
+    });
+
+    // Now subscribe
+    channel.subscribe();
 
     return channel;
 }
