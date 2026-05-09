@@ -20,7 +20,7 @@ export class KnowledgeScheduler {
    */
   static start(intervalMinutes: number = 60): void {
     if (this.isRunning) {
-      console.warn('KnowledgeScheduler: Already running');
+      
       return;
     }
 
@@ -36,7 +36,7 @@ export class KnowledgeScheduler {
     }, intervalMinutes * 60 * 1000);
 
     this.isRunning = true;
-    console.log(`📅 KnowledgeScheduler: Started (runs every ${intervalMinutes} minutes)`);
+    
   }
 
   /**
@@ -48,7 +48,7 @@ export class KnowledgeScheduler {
       this.intervalId = null;
     }
     this.isRunning = false;
-    console.log('📅 KnowledgeScheduler: Stopped');
+    
   }
 
   /**
@@ -59,13 +59,13 @@ export class KnowledgeScheduler {
       return;
     }
 
-    console.log('🚀 KnowledgeScheduler: Starting pipeline...');
+    
     const startTime = Date.now();
 
     try {
       // Step 1: Get sources to fetch
       const sources = SourceRegistry.getEnabledSources();
-      console.log(`📚 Found ${sources.length} enabled sources`);
+      
 
       // Step 2: FETCH content from sources
       const allFetched: any[] = [];
@@ -78,23 +78,23 @@ export class KnowledgeScheduler {
           // Update last fetched time
           SourceRegistry.updateLastFetched(source.id);
 
-          console.log(`✅ Fetched ${fetched.length} items from ${source.name}`);
+          
         } catch (error) {
-          console.error(`❌ Error fetching from ${source.name}:`, error);
+          
         }
       }
 
       if (allFetched.length === 0) {
-        console.log('⚠️ No content fetched, skipping pipeline');
+        
         return;
       }
 
       // Step 3: PRE-FILTER content
       const filtered = PreFilter.filterBatch(allFetched);
-      console.log(`🔍 Pre-filtered: ${filtered.length}/${allFetched.length} passed`);
+      
 
       if (filtered.length === 0) {
-        console.log('⚠️ No content passed pre-filter, skipping pipeline');
+        
         return;
       }
 
@@ -110,11 +110,11 @@ export class KnowledgeScheduler {
 
           // Only process if should curate
           if (!watcherResult.shouldCurate) {
-            console.log(`⏭️ Skipping ${content.title.substring(0, 50)} - not relevant`);
+            
             continue;
           }
         } catch (error) {
-          console.error(`❌ TechWatcher error for ${content.title}:`, error);
+          
           continue;
         }
       }
@@ -133,20 +133,20 @@ export class KnowledgeScheduler {
         try {
           const curated = await curationAgent.execute({}, { content, watcherResult });
           curatedContents.push(curated);
-          console.log(`📚 Curated: ${curated.curatedTitle.substring(0, 50)}`);
+          
         } catch (error) {
-          console.error(`❌ Curation error for ${content.title}:`, error);
+          
         }
       }
 
       if (curatedContents.length === 0) {
-        console.log('⚠️ No content curated, skipping pipeline');
+        
         return;
       }
 
       // Step 6: DEDUPLICATION
       const unique = Deduplication.removeDuplicates(curatedContents);
-      console.log(`🔗 Deduplication: ${unique.length}/${curatedContents.length} unique`);
+      
 
       // Step 7: KNOWLEDGE NORMALIZER
       const relevanceMap = new Map<string, number>();
@@ -158,26 +158,20 @@ export class KnowledgeScheduler {
       });
 
       const normalized = KnowledgeNormalizer.normalizeBatch(unique, relevanceMap);
-      console.log(`📝 Normalized: ${normalized.length} knowledge entries`);
+      
 
       // Step 8: VECTOR STORE
       await VectorStore.storeBatch(normalized);
-      console.log(`💾 Stored ${normalized.length} entries in vector store`);
+      
 
       // Step 9: METADATA INDEX
       await MetadataIndexService.indexBatch(normalized);
-      console.log(`📇 Indexed ${normalized.length} entries in metadata index`);
+      
 
       const executionTime = Date.now() - startTime;
-      console.log(`✅ KnowledgeScheduler: Pipeline completed in ${executionTime}ms`, {
-        fetched: allFetched.length,
-        filtered: filtered.length,
-        curated: curatedContents.length,
-        unique: unique.length,
-        stored: normalized.length,
-      });
+      // Pipeline completed silently
     } catch (error) {
-      console.error('❌ KnowledgeScheduler: Pipeline error', error);
+      
     }
   }
 
@@ -196,6 +190,6 @@ export class KnowledgeScheduler {
     const filtered = PreFilter.filterBatch(fetched);
 
     // Continue with watcher, curation, etc. (simplified for single source)
-    console.log(`✅ Processed ${filtered.length} items from ${source.name}`);
+    
   }
 }

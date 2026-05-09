@@ -21,11 +21,7 @@ export async function executePlan(
       : context.prompt;
 
     if (WORKFLOW_CONFIG.logStages) {
-      console.log('⚙️ Executor: Starting execution', {
-        hasPlan: !!plan,
-        mode: context.mode,
-        provider,
-      });
+      // Executor starting execution silently
     }
 
     // Execute by calling API directly (avoid circular dependency)
@@ -102,18 +98,13 @@ export async function executePlan(
     }
 
     if (WORKFLOW_CONFIG.logStages) {
-      console.log('✅ Executor: Execution completed', {
-        executionTime,
-        hasCode: !!executionResult.code,
-        hasFiles: !!executionResult.files,
-        hasExplanation: !!executionResult.explanation,
-      });
+      // Executor execution completed silently
     }
 
     return executionResult;
   } catch (error) {
     const executionTime = Date.now() - startTime;
-    console.error('Executor error:', error);
+    
 
     // Return error result
     return {

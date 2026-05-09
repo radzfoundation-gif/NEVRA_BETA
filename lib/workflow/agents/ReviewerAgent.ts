@@ -28,13 +28,7 @@ export class ReviewerAgent extends BaseAgent {
     const { executionResult, plan } = input;
 
     try {
-      if (WORKFLOW_CONFIG.logStages) {
-        console.log('🔍 ReviewerAgent: Starting review', {
-          model: this.model,
-          hasPlan: !!plan,
-          mode: context.mode,
-        });
-      }
+      // ReviewerAgent starting review silently
 
       // Create review prompt
       const reviewPrompt = this.createReviewPrompt(executionResult, plan, context);
@@ -64,18 +58,11 @@ export class ReviewerAgent extends BaseAgent {
       // Parse review response
       const reviewData = this.parseReviewResponse(reviewText, executionResult, plan);
 
-      if (WORKFLOW_CONFIG.logStages) {
-        console.log('✅ ReviewerAgent: Review completed', {
-          qualityScore: reviewData.qualityScore,
-          issues: reviewData.issues.length,
-          suggestions: reviewData.suggestions.length,
-          rejected: reviewData.rejected,
-        });
-      }
+      // ReviewerAgent review completed silently
 
       return reviewData;
     } catch (error) {
-      console.error('ReviewerAgent error:', error);
+      
       return this.createBasicReview(executionResult, plan);
     }
   }

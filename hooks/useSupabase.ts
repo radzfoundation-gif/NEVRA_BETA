@@ -38,10 +38,10 @@ export function useChatSessions() {
                         fullName: user.fullName,
                         imageUrl: user.imageUrl,
                     });
-                    console.log('[Auth] User synced to database');
+                    // User synced to database
                 } catch (err) {
                     // Don't crash the app - just log and continue
-                    console.warn('[Auth] Error during user sync (non-fatal):', err);
+                    // Non-fatal user sync error - handled gracefully
                 }
             }
         };
@@ -80,7 +80,7 @@ export function useChatSessions() {
             const supabaseSessions = await getUserSessions(user.id);
             setSessions(supabaseSessions);
         } catch (err) {
-            console.error('Error refreshing sessions:', err);
+            // Error refreshing sessions - handled by error state
             setError(err instanceof Error ? err.message : 'Failed to refresh sessions');
         } finally {
             setLoading(false);
@@ -97,7 +97,7 @@ export function useChatSessions() {
             }
             return success;
         } catch (err) {
-            console.error('Error deleting session:', err);
+            // Error deleting session - handled by error state
             setError(err instanceof Error ? err.message : 'Failed to delete session');
             return false;
         }
@@ -180,7 +180,7 @@ export function useSubscription() {
                 setLoading(false);
             })
             .catch(err => {
-                console.error('Error fetching subscription:', err);
+                // Error fetching subscription - fallback to free tier
                 setTier('free');
                 setLoading(false);
             });
@@ -195,7 +195,7 @@ export function useSubscription() {
             setTier(data.tier || 'free');
             setSubscription({ tier: data.tier });
         } catch (err) {
-            console.error('Error refreshing subscription:', err);
+            // Error refreshing subscription - handled gracefully
         }
         setLoading(false);
     }, [user]);

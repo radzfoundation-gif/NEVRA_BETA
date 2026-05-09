@@ -60,7 +60,7 @@ export async function encryptApiKey(userId: string, apiKey: string): Promise<str
     // Convert to base64 for storage
     return btoa(String.fromCharCode(...combined));
   } catch (error) {
-    console.error('Error encrypting API key:', error);
+    
     throw new Error('Failed to encrypt API key');
   }
 }
@@ -91,7 +91,7 @@ export async function decryptApiKey(userId: string, encryptedKey: string): Promi
     const decoder = new TextDecoder();
     return decoder.decode(decrypted);
   } catch (error) {
-    console.error('Error decrypting API key:', error);
+    
     // Return original encrypted value if decryption fails (for backward compatibility)
     return encryptedKey;
   }

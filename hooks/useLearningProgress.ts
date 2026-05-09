@@ -35,7 +35,7 @@ export function useLearningProgress() {
         setError(null);
       })
       .catch(err => {
-        console.error('Error loading progress:', err);
+        // Error loading progress - handled by error state
         setError(err instanceof Error ? err.message : 'Failed to load progress');
       })
       .finally(() => {

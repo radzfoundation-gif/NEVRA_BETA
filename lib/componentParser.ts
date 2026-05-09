@@ -27,7 +27,7 @@ export function parseComponents(html: string): ComponentNode[] {
       parseElement(child as HTMLElement, `root-${index}`)
     );
   } catch (error) {
-    console.error('Error parsing components:', error);
+    
     return [];
   }
 }

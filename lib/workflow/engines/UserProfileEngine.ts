@@ -70,7 +70,7 @@ export class UserProfileEngine {
         behavior,
       };
     } catch (error) {
-      console.error('UserProfileEngine: Error loading profile', error);
+      
       return null;
     }
   }

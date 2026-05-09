@@ -127,7 +127,7 @@ export class ContextAwarenessEngine {
         },
       };
     } catch (error) {
-      console.error('ContextAwarenessEngine: Error building context', error);
+      
       return null;
     }
   }

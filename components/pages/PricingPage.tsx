@@ -46,7 +46,7 @@ const PricingPage: React.FC = () => {
         setIsSubscribed(data.isActive);
       }
     } catch (e) {
-      console.error('Error checking subscription:', e);
+      
     }
   };
 
@@ -124,7 +124,7 @@ const PricingPage: React.FC = () => {
           // @ts-ignore
           window.snap.pay(data.token, {
             onSuccess: async function (result: any) {
-              console.log('✅ Payment success:', result);
+              
 
               // Auto-activate subscription
               try {
@@ -139,7 +139,7 @@ const PricingPage: React.FC = () => {
 
                 if (activateResp.ok) {
                   const activateData = await activateResp.json();
-                  console.log('✅ Auto-activation successful:', activateData);
+                  
 
                   // Update local state immediately
                   setIsSubscribed(true);
@@ -149,11 +149,11 @@ const PricingPage: React.FC = () => {
                   alert('🎉 Selamat! Subscription Premium Anda berhasil diaktifkan!');
                 } else {
                   const errorData = await activateResp.json();
-                  console.error('❌ Auto-activation failed:', errorData);
+                  
                   alert('Payment berhasil, tapi aktivasi gagal. Silakan hubungi support.');
                 }
               } catch (error) {
-                console.error('❌ Activation error:', error);
+                
                 alert('Payment berhasil, tapi aktivasi gagal. Silakan hubungi support.');
               }
 
@@ -161,15 +161,15 @@ const PricingPage: React.FC = () => {
               window.location.href = '/pricing?success=true';
             },
             onPending: function (result: any) {
-              console.log('⏳ Payment pending:', result);
+              
               window.location.href = '/pricing?pending=true';
             },
             onError: function (result: any) {
-              console.error('❌ Payment error:', result);
+              
               window.location.href = '/pricing?error=true';
             },
             onClose: function () {
-              console.log('🚪 Payment popup closed');
+              
               setLoadingPlan(null);
             }
           });

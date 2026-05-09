@@ -60,7 +60,7 @@ export async function checkRateLimit(
             .maybeSingle();
 
         if (error) {
-            console.error('[Rate Limit] Query error:', error);
+            
             throw error;
         }
 
@@ -90,7 +90,7 @@ export async function checkRateLimit(
             limit: config.maxRequests,
         };
     } catch (error) {
-        console.error('[Rate Limit] Error:', error);
+        
         // Fail open (allow request) on database errors to prevent service disruption
         // In production, you may want to fail closed for critical endpoints
         return {
@@ -136,7 +136,7 @@ export async function getRateLimitStatus(
             limit: config.maxRequests,
         };
     } catch (error) {
-        console.error('[Rate Limit Status] Error:', error);
+        
         return {
             allowed: true,
             remaining: config.maxRequests,
@@ -161,8 +161,8 @@ export async function resetUserRateLimit(userId: string, endpoint?: string): Pro
         }
 
         await query;
-        console.log(`✅ Reset rate limits for user ${userId}${endpoint ? ` on ${endpoint}` : ''}`);
+        
     } catch (error) {
-        console.error('[Reset Rate Limit] Error:', error);
+        
     }
 }

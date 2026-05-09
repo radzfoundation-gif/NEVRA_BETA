@@ -99,7 +99,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
     };
 
     recognition.onerror = (event: any) => {
-      console.error('Speech recognition error:', event.error);
+      
       if (event.error === 'no-speech') {
         // Restart recognition if no speech detected
         if (isCalling && !isMuted) {
@@ -107,7 +107,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
             try {
               recognition.start();
             } catch (e) {
-              console.warn('Recognition restart failed:', e);
+              
             }
           }, 1000);
         }
@@ -122,7 +122,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
           try {
             recognition.start();
           } catch (e) {
-            console.warn('Recognition restart failed:', e);
+            
           }
         }, 500);
       }
@@ -246,7 +246,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
       // Speak the response
       speakText(responseText);
     } catch (error) {
-      console.error('Error generating AI response:', error);
+      
       speakText("I'm sorry, I encountered an error. Please try again.");
     }
   };
@@ -278,14 +278,14 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
           try {
             recognitionRef.current.start();
           } catch (e) {
-            console.warn('Recognition restart after speech failed:', e);
+            
           }
         }, 500);
       }
     };
 
     utterance.onerror = (event) => {
-      console.error('Speech synthesis error:', event);
+      
       setIsSpeaking(false);
     };
 
@@ -330,7 +330,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
       setConversationHistory(initialHistory);
       speakText(greeting);
     } catch (error) {
-      console.error('Error starting call:', error);
+      
       setIsRequestingPermission(false);
 
       let errorMessage = 'Failed to access microphone. ';
@@ -404,7 +404,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
           try {
             recognitionRef.current.start();
           } catch (e) {
-            console.warn('Recognition restart after unmute failed:', e);
+            
           }
         }, 500);
       }

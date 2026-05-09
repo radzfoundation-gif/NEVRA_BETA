@@ -127,7 +127,7 @@ export async function createFlashcard(
 
     return flashcard.id;
   } catch (error) {
-    console.error('Error creating flashcard:', error);
+    
     return null;
   }
 }
@@ -205,7 +205,7 @@ export async function getUserFlashcards(
       } as Flashcard;
     });
   } catch (error) {
-    console.error('Error getting flashcards:', error);
+    
     return [];
   }
 }
@@ -285,7 +285,7 @@ export async function reviewFlashcard(
 
     return true;
   } catch (error) {
-    console.error('Error reviewing flashcard:', error);
+    
     return false;
   }
 }
@@ -311,7 +311,7 @@ export async function deleteFlashcard(flashcardId: string): Promise<boolean> {
     await deleteDoc(cardRef);
     return true;
   } catch (error) {
-    console.error('Error deleting flashcard:', error);
+    
     return false;
   }
 }
@@ -379,7 +379,7 @@ export async function getFlashcard(flashcardId: string): Promise<Flashcard | nul
       updatedAt: data.updatedAt?.toDate() || new Date(),
     } as Flashcard;
   } catch (error) {
-    console.error('Error getting flashcard:', error);
+    
     return null;
   }
 }

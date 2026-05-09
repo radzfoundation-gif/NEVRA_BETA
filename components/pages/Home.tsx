@@ -2,486 +2,58 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Sparkles, ArrowRight, ChevronDown, Paperclip, X, AlertTriangle, Image as ImageIcon, Camera, ImagePlus, Layout, Phone, ChevronLeft, LayoutGrid, User, Bot, CheckCircle2, Youtube, FileText, Loader2, File, Paintbrush, MessageSquare } from 'lucide-react';
-import BentoGrid from '../BentoGrid';
-import Integrations from '../Integrations';
-import CTA from '../CTA';
-import Footer from '../Footer';
-import Background from '../ui/Background';
-import { FlipText } from '../ui/flip-text';
-import { AIProvider } from '@/lib/ai';
 import { detectMode } from '@/lib/modeDetector';
-import { useAuth, useUser } from '@/lib/authContext';
-import SubscriptionPopup from '../SubscriptionPopup';
-import TokenBadge from '../TokenBadge';
-import { useTokenLimit } from '@/hooks/useTokenLimit';
-import { FREE_TOKEN_LIMIT } from '@/lib/tokenLimit';
-import { getApiUrl } from '@/lib/utils'; // Import getApiUrl
+import { useUser } from '@/lib/authContext';
+import { useUI } from '../UIContext';
 
 import Sidebar from '../Sidebar';
-import SettingsModal from '../settings/SettingsModal';
-import TemplateBrowser from '../TemplateBrowser';
-import ShortcutBrowser from '../ShortcutBrowser';
-import { Template } from '@/lib/templates';
-import VoiceCall from '../VoiceCall';
 import { ResearchWelcome } from '../ResearchWelcome';
 import { RedesignWelcome } from '../RedesignWelcome';
-import { ModelType } from '../ui/ModelSelector';
 
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
-
-function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
-
-interface HomeProps {
-  defaultMode?: 'chat' | 'redesign';
-}
-
-const Home: React.FC<HomeProps> = ({ defaultMode = 'chat' }) => {
-  const { isSignedIn } = useAuth();
+const Home: React.FC<{ defaultMode?: 'chat' | 'redesign' }> = ({ defaultMode = 'chat' }) => {
+  const navigate = useNavigate();
   const { user } = useUser();
-  const { hasExceeded, tokensUsed, isSubscribed, refreshLimit } = useTokenLimit();
-  const [showSubscriptionPopup, setShowSubscriptionPopup] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [showTemplateBrowser, setShowTemplateBrowser] = useState(false);
-  const [showShortcutBrowser, setShowShortcutBrowser] = useState(false);
-  const [showVoiceCall, setShowVoiceCall] = useState(false);
+  const { setSidebarOpen } = useUI();
   const [activeMode, setActiveMode] = useState<'chat' | 'redesign'>(defaultMode);
 
-
-  // Sidebar Persistence
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
-    return localStorage.getItem('sidebar_collapsed') === 'true';
-  });
-
-  const toggleSidebarCollapse = () => {
-    setIsSidebarCollapsed(prev => {
-      const newState = !prev;
-      localStorage.setItem('sidebar_collapsed', String(newState));
-      return newState;
-    });
-  };
-
-  const navigate = useNavigate();
-
-  const handleNewChat = () => {
-    navigate('/redesign');
-  };
-
-  const handleSelectSession = (sessionId: string) => {
-    navigate(`/chat/${sessionId}`);
-  };
-
-  const handleOpenSettings = () => {
-    setIsSettingsOpen(true);
-  };
-
-  useEffect(() => {
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add('active');
-        }
-      });
-    }, { threshold: 0.1 });
-
-    setTimeout(() => {
-      document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
-    }, 100);
-
-    return () => observer.disconnect();
-  }, []);
-
-  // Keyboard Shortcut Listener for Shortcut Browser
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Check for Ctrl+/ or Cmd+/ (Mac)
-      if ((e.ctrlKey || e.metaKey) && e.key === '/') {
-        e.preventDefault();
-        setShowShortcutBrowser(prev => !prev);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
-  useEffect(() => {
-    const savedPrompt = localStorage.getItem('noir_ai_pending_prompt');
-    if (savedPrompt) {
-      setPrompt(savedPrompt);
-    }
-  }, []);
-
-  const [prompt, setPrompt] = useState('');
-  const [currentFeature, setCurrentFeature] = useState<string | undefined>(undefined);
-  const [featurePrompt, setFeaturePrompt] = useState<string>('');
-  const [provider, setProvider] = useState<AIProvider>('groq');
-  const [attachedImages, setAttachedImages] = useState<string[]>([]);
-  const [attachedDoc, setAttachedDoc] = useState<File | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const docInputRef = useRef<HTMLInputElement>(null);
-  const MAX_IMAGES = 3;
-  const MAX_SIZE_MB = 2;
-  const [isWebSearchEnabled, setIsWebSearchEnabled] = useState(false);
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [showImageMenu, setShowImageMenu] = useState(false);
-  const imageMenuRef = useRef<HTMLDivElement>(null);
-
-  // Camera Refs
-  const cameraStreamRef = useRef<MediaStream | null>(null);
-  const cameraModalRef = useRef<HTMLElement | null>(null);
-  const cameraEventListenersRef = useRef<Array<{ element: HTMLElement; event: string; handler: EventListener }>>([]);
-
-  const suggestedPrompts = [
-    "Build a CRM dashboard with dark mode",
-    "Create a landing page for a coffee shop",
-    "Make a personal portfolio with 3D effects",
-    "Design an e-commerce product card"
-  ];
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files) return;
-    if (attachedImages.length >= MAX_IMAGES) {
-      alert(`Maximum ${MAX_IMAGES} images per request.`);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      return;
-    }
-    const files = Array.from(e.target.files);
-
-    let accepted = 0;
-    files.forEach(file => {
-      if (attachedImages.length + accepted >= MAX_IMAGES) return;
-      if (file.size > MAX_SIZE_MB * 1024 * 1024) {
-        alert(`File ${file.name} is too large (> ${MAX_SIZE_MB}MB).`);
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setAttachedImages(prev => [...prev, reader.result as string]);
-      };
-      reader.readAsDataURL(file);
-      accepted += 1;
-    });
-
-    if (fileInputRef.current) fileInputRef.current.value = '';
-    setShowImageMenu(false);
-  };
-
-  const removeImage = (index: number) => {
-    setAttachedImages(prev => prev.filter((_, i) => i !== index));
-  };
-
-  // Removed local detectMode stub to use imported one
-
-  const handleDocChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files?.[0]) return;
-    const file = e.target.files[0];
-
-    // Validate file type
-    const validTypes = ['.pdf', '.docx', '.txt', '.md'];
-    const isExtensionValid = validTypes.some(ext => file.name.toLowerCase().endsWith(ext));
-
-    if (!isExtensionValid) {
-      alert('Supported file types: PDF, DOCX, TXT, MD');
-      return;
-    }
-
-    if (file.size > 10 * 1024 * 1024) { // 10MB limit
-      alert('File size must be under 10MB');
-      return;
-    }
-
-    setAttachedDoc(file);
-    // Clear prompt if it was empty to prompt for summary
-    if (!prompt) {
-      setPrompt(`Summarize this document: ${file.name}`);
-    }
-  };
-
-  const removeDoc = () => {
-    setAttachedDoc(null);
-    if (docInputRef.current) docInputRef.current.value = '';
-    if (prompt.startsWith('Summarize this document:')) {
-      setPrompt('');
-    }
-  };
-
-  const handleSearch = async () => {
-    if ((!prompt.trim() || isUploading) && attachedImages.length === 0 && !attachedDoc) return;
-
-    if (!isSignedIn) {
-      localStorage.setItem('noir_ai_pending_prompt', prompt);
-      navigate('/sign-in');
-      return;
-    }
-
-    // Handle Document Upload & Parsing
-    let finalPrompt = prompt;
-    let finalImages = [...attachedImages];
-
-    if (attachedDoc) {
-      setIsUploading(true);
-      try {
-        const formData = new FormData();
-        formData.append('file', attachedDoc);
-
-        // Adjust API URL based on environment
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8788';
-
-        const response = await fetch(`${apiUrl}/api/parse-document`, {
-          method: 'POST',
-          body: formData,
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to parse document');
-        }
-
-        const data = await response.json();
-
-        // Append document content to prompt
-        finalPrompt = `Document: ${data.title}\n\nContent:\n${data.content.substring(0, 20000)}...\n\nTask: ${prompt || 'Summarize this document.'}`;
-
-      } catch (error) {
-        console.error('Upload failed:', error);
-        alert('Failed to process document. Please try again.');
-        setIsUploading(false);
-        return;
-      }
-      setIsUploading(false);
-    } else {
-      // Check for YouTube URL in prompt
-      const youtubeRegex = /(https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)[\w-]{11})/;
-      const match = prompt.match(youtubeRegex);
-      if (match) {
-        setIsUploading(true);
-        try {
-          const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8788';
-          const response = await fetch(`${apiUrl}/api/transcript`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url: match[0] })
-          });
-
-          if (!response.ok) throw new Error('Failed to fetch transcript');
-          const data = await response.json();
-
-          finalPrompt = `Video Transcript:\n${data.transcript.substring(0, 20000)}...\n\nTask: ${prompt}`;
-        } catch (error) {
-          console.error('YouTube transcript failed', error);
-          // Fallback to just passing the URL if transcript fails
-          if (prompt.trim() === match[0]) {
-            finalPrompt = `Summarize this video: ${match[0]}`;
-          }
-        }
-        setIsUploading(false);
-      }
-    }
-
-    localStorage.removeItem('noir_ai_pending_prompt');
-    const detectedMode = detectMode(finalPrompt);
-
-    // Silent Canvas Activation: if prompt is just "orak orek" or similar, don't auto-send
-    const canvasTriggers = ['orak orek', 'orak-orek', 'rak orek', 'rak-orek', 'canvas', 'whiteboard', 'papan tulis', 'gambar', 'sketch', 'draw', 'drawing', 'lukis', 'board', 'coret'];
-    const lowerPrompt = finalPrompt.toLowerCase().trim();
-    const isSilentCanvas = detectedMode === 'canvas' && canvasTriggers.some(t => lowerPrompt === t || lowerPrompt.includes(t));
-
-    navigate('/chat', {
-      state: {
-        initialPrompt: isSilentCanvas ? '' : finalPrompt, // Clear prompt if silent activation
-        initialProvider: provider,
-        initialImages: finalImages,
-        enableWebSearch: isWebSearchEnabled,
-        mode: detectedMode, // Pass detected mode explicitly
-        ...(detectedMode === 'builder' ? {
-          mode: 'codebase', // Overwrite for builder to codebase link
-          framework: 'react'
-        } : {})
-      }
-    });
-  };
-
   return (
-    <div className="flex h-dvh bg-transparent selection:bg-primary/20 overflow-hidden font-sans text-foreground">
-
-      {/* Mobile Sidebar Overlay */}
-      {isSignedIn && isSidebarOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm md:hidden"
-          onClick={() => setIsSidebarOpen(false)}
-        />
-      )}
-
-      {/* Sidebar */}
-      {isSignedIn && (
-        <>
-          {/* Desktop Sidebar Panel */}
-          <div
-            className={cn(
-              "hidden md:block border-r border-border bg-card/60 backdrop-blur-md transition-all duration-300 ease-in-out shrink-0",
-              isSidebarCollapsed ? "w-[60px]" : "w-[260px]" // Fixed width matching ChatInterface
-            )}
-          >
-            <Sidebar
-              activeSessionId={undefined}
-              onNewChat={handleNewChat}
-              onSelectSession={handleSelectSession}
-              onOpenSettings={handleOpenSettings}
-              isSubscribed={isSubscribed || false}
-              onCollapse={toggleSidebarCollapse}
-              onClose={() => setIsSidebarCollapsed(false)}
-              isCollapsed={isSidebarCollapsed}
-              onOpenShortcuts={() => setShowShortcutBrowser(true)}
-            />
-          </div>
-
-          {/* Mobile Sidebar */}
-          <div className={`
-          fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out md:hidden
-          ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-          w-[280px] h-full border-r border-border bg-card/90 backdrop-blur-md
-        `}>
-            <Sidebar
-              onNewChat={() => {
-                setPrompt('');
-                setAttachedImages([]);
-                if (window.innerWidth < 768) setIsSidebarOpen(false);
-              }}
-              onSelectSession={(sessionId) => navigate(`/chat/${sessionId}`)}
-              onOpenSettings={() => setIsSettingsOpen(true)}
-              isSubscribed={isSubscribed || false}
-              onClose={() => setIsSidebarOpen(false)}
-              onOpenShortcuts={() => setShowShortcutBrowser(true)}
-            />
-
-
-          </div>
-        </>
-      )}
-
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col relative w-full h-full overflow-y-auto overflow-x-hidden">
-
-        {/* Mobile Header */}
-        {/* Mobile Header */}
+    <div className="flex h-screen bg-white overflow-hidden">
+      <Sidebar />
+      <div className="flex-1 flex flex-col min-w-0 bg-white relative">
         <div className="md:hidden flex items-center justify-between p-4 z-30 bg-transparent">
-          <button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-2 text-foreground hover:bg-foreground/10 rounded-lg transition-colors">
+          <button onClick={() => setSidebarOpen(true)} className="p-2 -ml-2 text-foreground hover:bg-foreground/10 rounded-lg transition-colors">
             <LayoutGrid size={24} strokeWidth={1.5} />
           </button>
-          <div className="w-8" /> {/* Spacer */}
         </div>
 
-        <SettingsModal
-          isOpen={isSettingsOpen}
-          onClose={() => setIsSettingsOpen(false)}
-        />
-
-        {/* Main Interface */}
         <main className="flex-1 relative w-full flex flex-col min-h-0">
-          {/* Background Elements removed to show DynamicBackground */}
-          {/* <div className="absolute inset-0 pointer-events-none overflow-hidden"> ... </div> */}
-
-
-
-          {/* Conditional Content */}
           {activeMode === 'chat' ? (
             <ResearchWelcome
               onSearch={(query, attachments, model, reasoning, featureType) => {
-                localStorage.removeItem('noir_ai_pending_prompt');
                 const detectedMode = detectMode(query);
-
-                // Silent Canvas Activation: if prompt is just "orak orek" or similar, don't auto-send
-                const canvasTriggers = ['orak orek', 'orak-orek', 'rak orek', 'rak-orek', 'canvas', 'whiteboard', 'papan tulis', 'gambar', 'sketch', 'draw', 'drawing', 'lukis', 'board', 'coret'];
-                const lowerQuery = query.toLowerCase().trim();
-                const isSilentCanvas = detectedMode === 'canvas' && canvasTriggers.some(t => lowerQuery === t || lowerQuery.includes(t));
-
-                // Separate images from text attachments
-                const imageAttachments = attachments?.filter(att => att.mimeType?.startsWith('image/')) || [];
-                const textAttachments = attachments?.filter(att => !att.mimeType?.startsWith('image/')) || [];
-
-                // Extract image contents (base64)
-                const images = imageAttachments.map(att => att.content);
-                // Combine with Home-level images if any (though ResearchWelcome usually handles its own)
-                const allImages = [...attachedImages, ...images];
-
-                // Build attachment content string for TEXT attachments only
-                let attachmentContent = '';
-                if (textAttachments.length > 0) {
-                  attachmentContent = textAttachments.map(att => {
-                    return `\n\n--- ${att.name} (${att.type}) ---\n${att.content}`;
-                  }).join('\n');
-                }
-
                 if (featureType) {
-                  setFeaturePrompt(query);
-                  setCurrentFeature(featureType);
                   setActiveMode('redesign');
                   return;
                 }
-
-                // Combine query with attachment content for AI processing
-                const fullPrompt = attachmentContent
-                  ? `${query}\n\n[Attached Content]:${attachmentContent}`
-                  : query;
-
                 navigate('/chat', {
                   state: {
-                    initialPrompt: isSilentCanvas ? '' : fullPrompt,
-                    initialProvider: provider,
-                    initialImages: allImages,
-                    enableWebSearch: isWebSearchEnabled,
+                    initialPrompt: query,
                     mode: detectedMode,
-                    autoSend: true, // Auto-send when coming from ResearchWelcome
-                    model: model,
-                    reasoning: reasoning,
-                    ...(detectedMode === 'builder' ? {
-                      mode: 'codebase',
-                      framework: 'react'
-                    } : {})
+                    autoSend: true,
+                    model,
+                    reasoning
                   }
                 });
               }}
-              initialQuery={prompt}
-              isWebSearchEnabled={isWebSearchEnabled}
-              onToggleWebSearch={(enabled) => setIsWebSearchEnabled(enabled)}
-              hasApiKey={true}
-              className="z-10"
               userName={user?.firstName || undefined}
             />
           ) : (
             <RedesignWelcome
-              className="z-10"
-              prompt={featurePrompt}
-              featureType={currentFeature}
               onBack={() => setActiveMode('chat')}
             />
           )}
         </main>
       </div>
-
-      {/* Subscription Popup */}
-      <SubscriptionPopup
-        isOpen={showSubscriptionPopup}
-        onClose={() => setShowSubscriptionPopup(false)}
-        tokensUsed={tokensUsed}
-        tokensLimit={FREE_TOKEN_LIMIT}
-      />
-
-      {/* Settings Modal */}
-      <SettingsModal
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-        isSubscribed={isSubscribed || false}
-        tokensUsed={tokensUsed}
-      />
-
-      <ShortcutBrowser
-        isOpen={showShortcutBrowser}
-        onClose={() => setShowShortcutBrowser(false)}
-      />
     </div>
   );
 };

@@ -39,7 +39,7 @@ export function parseClarificationFromAIResponse(responseText: string): Clarific
       };
     }
   } catch (error) {
-    console.warn('Failed to parse CLARIFY block JSON:', error);
+    
   }
 
   // If parsing failed or structure is invalid, return original text unchanged without extracting

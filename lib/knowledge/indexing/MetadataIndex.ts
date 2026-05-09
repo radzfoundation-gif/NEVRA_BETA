@@ -48,15 +48,9 @@ export class MetadataIndexService {
       // Store in memory
       metadataCache.set(knowledge.id, indexEntry);
 
-      if (WORKFLOW_CONFIG.logStages) {
-        console.log('📇 MetadataIndex: Metadata indexed in memory', {
-          knowledgeId: knowledge.id,
-          tags: knowledge.tags.length,
-          categories: knowledge.categories.length,
-        });
-      }
+      // Metadata indexed in memory silently
     } catch (error) {
-      console.error('MetadataIndex: Error indexing', error);
+      
     }
   }
 
@@ -85,7 +79,7 @@ export class MetadataIndexService {
 
       return results.slice(0, limit);
     } catch (error) {
-      console.error('MetadataIndex: Error searching by tags', error);
+      
       return [];
     }
   }
@@ -105,7 +99,7 @@ export class MetadataIndexService {
 
       return results.slice(0, limit);
     } catch (error) {
-      console.error('MetadataIndex: Error searching by category', error);
+      
       return [];
     }
   }

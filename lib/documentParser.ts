@@ -60,7 +60,7 @@ export async function parseDocument(
       metadata: data.metadata || {},
     };
   } catch (error) {
-    console.error('Document parsing error:', error);
+    
     throw error;
   }
 }

@@ -52,7 +52,7 @@ const SharedChat: React.FC = () => {
                     setError("Chat not found or not shared.");
                 }
             } catch (err) {
-                console.error("Error fetching shared chat:", err);
+                
                 setError("Failed to load chat.");
             } finally {
                 setLoading(false);

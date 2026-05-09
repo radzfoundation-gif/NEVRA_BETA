@@ -145,7 +145,7 @@ export async function getLearningProgress(userId: string): Promise<LearningProgr
       updatedAt: data.updatedAt?.toDate() || new Date(),
     };
   } catch (error) {
-    console.error('Error getting learning progress:', error);
+    
     return null;
   }
 }
@@ -249,7 +249,7 @@ export async function updateTopicProgress(
 
     return true;
   } catch (error) {
-    console.error('Error updating topic progress:', error);
+    
     return false;
   }
 }
@@ -318,7 +318,7 @@ export async function recordStudySession(session: Omit<StudySession, 'id'>): Pro
 
     return sessionId;
   } catch (error) {
-    console.error('Error recording study session:', error);
+    
     return null;
   }
 }
@@ -428,7 +428,7 @@ export async function getWeeklyProgress(userId: string): Promise<{ date: string;
 
     return week;
   } catch (error) {
-    console.error('Error getting weekly progress:', error);
+    
     return [];
   }
 }

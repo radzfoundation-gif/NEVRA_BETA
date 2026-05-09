@@ -63,15 +63,9 @@ export class AgentMemoryEngine {
       }
       agentMemoryCache.set(cacheKey, existing);
 
-      if (WORKFLOW_CONFIG.logStages) {
-        console.log('💾 AgentMemoryEngine: Reflection saved to memory cache', {
-          sessionId,
-          intent: agentMemory.intent,
-          qualityScore: agentMemory.qualityScore,
-        });
-      }
+      // AgentMemoryEngine reflection saved silently
     } catch (error) {
-      console.error('AgentMemoryEngine: Error saving agent memory', error);
+      
     }
   }
 
@@ -96,16 +90,11 @@ export class AgentMemoryEngine {
         .filter(m => m.intent === intent)
         .slice(0, limit);
 
-      if (WORKFLOW_CONFIG.logStages && filtered.length > 0) {
-        console.log('🔍 AgentMemoryEngine: Retrieved agent memories', {
-          intent,
-          count: filtered.length,
-        });
-      }
+      // AgentMemoryEngine retrieved memories silently
 
       return filtered;
     } catch (error) {
-      console.error('AgentMemoryEngine: Error retrieving agent memory', error);
+      
       return [];
     }
   }

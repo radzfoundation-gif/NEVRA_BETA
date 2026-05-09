@@ -119,7 +119,7 @@ export class PhilosIntegrationService {
       updated_at: new Date().toISOString(),
     }, { onConflict: 'user_id,provider' });
 
-    console.log(`✅ [Philos] ${provider} integration connected for user ${userId}`);
+    // console.log(`✅ [Philos] ${provider} integration connected for user ${userId}`);
     return { success: true, provider };
   }
 
@@ -188,7 +188,7 @@ export class PhilosIntegrationService {
       .update({ is_active: false, access_token: null, refresh_token: null })
       .eq('user_id', userId)
       .eq('provider', provider);
-    console.log(`🔌 [Philos] ${provider} integration revoked for user ${userId}`);
+    // console.log(`🔌 [Philos] ${provider} integration revoked for user ${userId}`);
   }
 
   // List all active integrations for a user

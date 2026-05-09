@@ -160,7 +160,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, y: -10 }}
                         transition={{ duration: 0.15, ease: "easeOut" }}
-                        className="absolute bottom-full right-0 mb-2 w-[90vw] max-w-[280px] sm:w-[260px] bg-white border border-stone-200 shadow-xl rounded-[18px] overflow-hidden flex flex-col z-[100]"
+                        className="absolute bottom-full -right-4 sm:right-0 mb-2 w-[90vw] max-w-[280px] sm:w-[260px] bg-white border border-stone-200 shadow-xl rounded-[18px] overflow-hidden flex flex-col z-[100] origin-bottom-right"
                     >
                         <AnimatePresence mode="wait">
                             {!showMoreModels ? (

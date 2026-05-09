@@ -140,7 +140,7 @@ const WorkspaceMenu: React.FC<WorkspaceMenuProps> = ({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.95 }}
             transition={{ duration: 0.15 }}
-            className="absolute top-full right-0 mt-2 w-48 bg-[#1a1a1a] border border-white/10 rounded-xl shadow-xl overflow-hidden z-[102] backdrop-blur-xl"
+            className="absolute top-full right-0 sm:right-0 -mr-2 sm:mr-0 mt-2 w-48 bg-[#1a1a1a] border border-white/10 rounded-xl shadow-xl overflow-hidden z-[102] backdrop-blur-xl origin-top-right"
           >
             <div className="p-1">
               {menuItems.map((item) => (

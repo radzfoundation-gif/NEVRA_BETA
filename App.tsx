@@ -2,12 +2,16 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './lib/authContext';
 import { SettingsProvider } from './hooks/useSettings';
+import { UIProvider } from './components/UIContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import ErrorBoundary from './components/ErrorBoundary';
 
 import DynamicBackground from './components/ui/DynamicBackground';
 import InstallPrompt from './components/InstallPrompt';
 import SlidingCubeLoader from './components/ui/SlidingCubeLoader';
+import SettingsModal from './components/settings/SettingsModal';
+import ShortcutBrowser from './components/ShortcutBrowser';
+import GlobalUIWrapper from './components/GlobalUIWrapper';
 
 // Lazy load pages for better performance
 const Home = React.lazy(() => import('./components/pages/Home'));
@@ -26,16 +30,12 @@ const PricingPage = React.lazy(() => import('./components/pages/PricingPage'));
 
 const Studio = React.lazy(() => import('./components/pages/Studio'));
 
-// UserSyncProvider removed - Supabase handles user data directly
-const UserSyncProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  return <>{children}</>;
-};
-
 const AppContent: React.FC = () => {
     return (
     <>
       <DynamicBackground />
       <InstallPrompt />
+      <GlobalUIWrapper />
       <React.Suspense fallback={
         <div className="fixed inset-0 flex items-center justify-center bg-black z-50">
           <SlidingCubeLoader />
@@ -95,11 +95,13 @@ const App: React.FC = () => {
     <ErrorBoundary>
       <AuthProvider>
         <SettingsProvider>
-          <Router>
-            <ErrorBoundary>
-              <AppContent />
-            </ErrorBoundary>
-          </Router>
+          <UIProvider>
+            <Router>
+              <ErrorBoundary>
+                <AppContent />
+              </ErrorBoundary>
+            </Router>
+          </UIProvider>
         </SettingsProvider>
       </AuthProvider>
     </ErrorBoundary>

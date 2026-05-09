@@ -7,6 +7,7 @@ interface TokenBadgeProps {
     tokensLimit: number;
     isSubscribed: boolean;
     compact?: boolean;
+    showRealtime?: boolean;
 }
 
 const TokenBadge: React.FC<TokenBadgeProps> = ({
@@ -14,6 +15,7 @@ const TokenBadge: React.FC<TokenBadgeProps> = ({
     tokensLimit,
     isSubscribed,
     compact = false,
+    showRealtime = true,
 }) => {
     const tokensRemaining = Math.max(0, tokensLimit - tokensUsed);
     const percentage = Math.min((tokensUsed / tokensLimit) * 100, 100);

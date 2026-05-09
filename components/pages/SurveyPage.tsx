@@ -24,7 +24,7 @@ const SurveyPage = () => {
         if (selectedOption && user) {
             setIsSubmitting(true);
             try {
-                console.log('Saving survey response:', selectedOption);
+                
                 // Save to Firebase User Preferences
                 await updateUserPreferences(user.id, {
                     preferences: {
@@ -36,7 +36,7 @@ const SurveyPage = () => {
                 // Redirect to chat
                 navigate('/chat');
             } catch (error) {
-                console.error('Error saving survey:', error);
+                
                 // Fail gracefully - still redirect
                 navigate('/chat');
             } finally {

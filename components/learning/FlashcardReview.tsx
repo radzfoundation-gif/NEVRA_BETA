@@ -47,7 +47,7 @@ export default function FlashcardReview({
       setReviewedCount(0);
       setCorrectCount(0);
     } catch (error) {
-      console.error('Error loading flashcards:', error);
+      
     } finally {
       setLoading(false);
     }

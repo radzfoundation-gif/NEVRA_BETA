@@ -197,7 +197,7 @@ export function useOpenRouterStream(): UseOpenRouterStreamReturn {
                                 }));
                             }
                         } catch {
-                            console.warn('[useOpenRouterStream] Failed to parse delta:', eventData);
+                            // Failed to parse delta - silently continue
                         }
                     } else if (eventType === 'done') {
                         // Stream completed normally
@@ -264,7 +264,7 @@ export function useOpenRouterStream(): UseOpenRouterStreamReturn {
                     isStreaming: false,
                 }));
             } else {
-                console.error('[useOpenRouterStream] Error:', error);
+                // Stream error - handled by error state
                 setState(prev => ({
                     ...prev,
                     isStreaming: false,

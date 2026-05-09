@@ -53,15 +53,11 @@ export class MemoryEngine {
           await mcpClient.saveUserMemory(userId, memoryEntry);
 
           if (WORKFLOW_CONFIG.logStages) {
-            console.log('💾 MemoryEngine: Workflow result saved via MCP', {
-              sessionId,
-              intent: intentAnalysis.primaryIntent,
-              qualityScore: result.metadata?.qualityScore,
-            });
+            // MemoryEngine result saved via MCP silently
           }
           return;
         } catch (mcpError) {
-          console.warn('MCP save failed, falling back to direct save:', mcpError);
+          
         }
       }
 
@@ -69,14 +65,10 @@ export class MemoryEngine {
       await saveToMemory(memoryEntry);
 
       if (WORKFLOW_CONFIG.logStages) {
-        console.log('💾 MemoryEngine: Workflow result saved', {
-          sessionId,
-          intent: intentAnalysis.primaryIntent,
-          qualityScore: result.metadata?.qualityScore,
-        });
+        // MemoryEngine result saved silently
       }
     } catch (error) {
-      console.error('MemoryEngine: Error saving workflow result', error);
+      
       // Don't throw - memory save is non-critical
     }
   }
@@ -105,13 +97,10 @@ export class MemoryEngine {
           memories = await mcpClient.getUserMemories(userId, limit);
 
           if (WORKFLOW_CONFIG.logStages) {
-            console.log('🔍 MemoryEngine: Retrieved memories via MCP', {
-              total: memories.length,
-              userId,
-            });
+            // MemoryEngine retrieved memories via MCP silently
           }
         } catch (mcpError) {
-          console.warn('MCP retrieval failed, falling back to direct retrieval:', mcpError);
+          
         }
       }
 
@@ -124,16 +113,12 @@ export class MemoryEngine {
       const relevantMemories = this.rankByRelevance(memories, intentAnalysis);
 
       if (WORKFLOW_CONFIG.logStages) {
-        console.log('🔍 MemoryEngine: Retrieved relevant memories', {
-          total: memories.length,
-          relevant: relevantMemories.length,
-          intent: intentAnalysis.primaryIntent,
-        });
+        // MemoryEngine retrieved relevant memories silently
       }
 
       return relevantMemories;
     } catch (error) {
-      console.error('MemoryEngine: Error retrieving memory', error);
+      
       return [];
     }
   }
@@ -219,13 +204,10 @@ export class MemoryEngine {
       // This would update existing memory entries
       // Implementation depends on your database schema
       if (WORKFLOW_CONFIG.logStages) {
-        console.log('🔄 MemoryEngine: Memory updated', {
-          sessionId,
-          updates: Object.keys(updates),
-        });
+        // MemoryEngine memory updated silently
       }
     } catch (error) {
-      console.error('MemoryEngine: Error updating memory', error);
+      
     }
   }
 

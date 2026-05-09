@@ -1,5 +1,5 @@
 import dotenv from 'dotenv';
-console.log('🚀 [SERVER] Starting Version 3.0 - Hard Reset Applied');
+// // console.log('🚀 [SERVER] Starting Version 3.0 - Hard Reset Applied');
 import path from 'path';
 
 // Load .env and .env.local
@@ -33,9 +33,9 @@ const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.VITE_SUPABA
 const supabase = (SUPABASE_URL && SUPABASE_KEY) ? createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
 if (supabase) {
-  console.log('✅ Supabase connected:', SUPABASE_URL);
+  // // console.log('✅ Supabase connected:', SUPABASE_URL);
 } else {
-  console.warn('⚠️ Supabase not configured. Using file-based fallback.');
+  // // console.warn('⚠️ Supabase not configured. Using file-based fallback.');
 }
 
 // Initialize Philos Services (global scope for access in routes)
@@ -47,9 +47,9 @@ const initPhilosServices = async () => {
     const { PhilosIntegrationService } = await import('./philos/integrationService.js');
     philosMemory = new PhilosMemoryService(supabase);
     philosIntegration = new PhilosIntegrationService(supabase);
-    console.log('🧠 [Philos] Services initialized');
+    // // console.log('🧠 [Philos] Services initialized');
   } catch (e) {
-    console.error('❌ [Philos] Initialization failed:', e.message);
+    // // console.error('❌ [Philos] Initialization failed:', e.message);
   }
 };
 initPhilosServices();
@@ -82,8 +82,8 @@ const __dirname = path.dirname(__filename);
 // Debug logging helper (console only - Vercel serverless compatible)
 const debugLog = (data) => {
   try {
-    console.log('[DEBUG]', JSON.stringify({ ...data, timestamp: Date.now() }));
-  } catch (e) { console.error('Debug log error:', e); }
+    // // console.log('[DEBUG]', JSON.stringify({ ...data, timestamp: Date.now() }));
+  } catch (e) { // // console.error('Debug log error:', e); }
 };
 
 // Note: pdf-parse will be imported dynamically when needed
@@ -100,9 +100,9 @@ if (midtransServerKey) {
     serverKey: midtransServerKey,
     clientKey: midtransClientKey
   });
-  console.log('✅ Midtrans Snap initialized:', midtransIsProduction ? 'PRODUCTION' : 'SANDBOX');
+  // // console.log('✅ Midtrans Snap initialized:', midtransIsProduction ? 'PRODUCTION' : 'SANDBOX');
 } else {
-  console.warn('⚠️ MIDTRANS_SERVER_KEY not set. Payment integration will not work.');
+  // // console.warn('⚠️ MIDTRANS_SERVER_KEY not set. Payment integration will not work.');
 }
 
 // =====================================================
@@ -117,9 +117,9 @@ if (sumopodApiKey) {
     apiKey: sumopodApiKey,
     baseURL: sumopodBaseUrl + '/v1',
   });
-  console.log('✅ SumoPod AI client initialized:', sumopodBaseUrl);
+  // // console.log('✅ SumoPod AI client initialized:', sumopodBaseUrl);
 } else {
-  console.warn('⚠️ SUMOPOD_API_KEY not set. Redesign/Design features will not work.');
+  // // console.warn('⚠️ SUMOPOD_API_KEY not set. Redesign/Design features will not work.');
 }
 
 // =====================================================
@@ -138,10 +138,10 @@ if (openrouterApiKey) {
       'X-Title': 'Noir AI'
     }
   });
-  console.log('✅ OpenRouter AI client initialized');
-  console.log('🔑 OpenRouter Key Present:', !!openrouterApiKey); // Log status
+  // // console.log('✅ OpenRouter AI client initialized');
+  // // console.log('🔑 OpenRouter Key Present:', !!openrouterApiKey); // Log status
 } else {
-  console.warn('⚠️ OPENROUTER_API_KEY not set. Pro models will not work.');
+  // // console.warn('⚠️ OPENROUTER_API_KEY not set. Pro models will not work.');
 }
 
 const app = express();
@@ -201,7 +201,7 @@ if (!process.env.VERCEL && !fs.existsSync(uploadsDir)) {
       fs.mkdirSync(uploadsDir, { recursive: true });
     }
   } catch (e) {
-    console.warn('Could not create uploads directory:', e);
+    // // console.warn('Could not create uploads directory:', e);
   }
 }
 
@@ -241,7 +241,7 @@ const getCanvasAnalyzeUsage = async (userId) => {
   }
 
   // No file fallback - Supabase required for Vercel serverless
-  console.warn('⚠️ Supabase not available, returning default canvas usage');
+  // // console.warn('⚠️ Supabase not available, returning default canvas usage');
   return { used: 0, limit: CANVAS_ANALYZE_LIMIT, lastReset: new Date().toISOString() };
 };
 
@@ -269,15 +269,15 @@ const incrementCanvasAnalyzeUsage = async (userId) => {
           .from('canvas_usage')
           .insert({ user_id: userId, month, analyze_count: 1 });
       }
-      console.log(`📊 Supabase: Canvas usage updated for ${userId}`);
+      // // console.log(`📊 Supabase: Canvas usage updated for ${userId}`);
       return true;
     } catch (e) {
-      console.warn('Canvas usage increment failed on Supabase:', e.message);
+      // // console.warn('Canvas usage increment failed on Supabase:', e.message);
     }
   }
 
   // No file fallback - Supabase required for Vercel serverless
-  console.warn('⚠️ Supabase not available, canvas usage NOT incremented');
+  // // console.warn('⚠️ Supabase not available, canvas usage NOT incremented');
   return false;
 };
 
@@ -287,14 +287,14 @@ app.get('/api/cron/reset', (req, res) => {
   // const authHeader = req.headers['authorization'];
   // if (authHeader !== \`Bearer \${process.env.CRON_SECRET}\`) return res.status(401).json({ error: 'Unauthorized' });
 
-  console.log('🕒 Running Daily Usage Reset (Supabase-based)...');
+  // // console.log('🕒 Running Daily Usage Reset (Supabase-based)...');
   try {
     // Supabase handles daily resets via RLS and time-based queries
     // No file system operations needed in serverless environment
-    console.log('✅ Daily Reset: Supabase resets handled by database');
+    // // console.log('✅ Daily Reset: Supabase resets handled by database');
     res.json({ success: true, message: 'Daily reset completed via Supabase' });
   } catch (error) {
-    console.error('❌ Error during Daily Reset:', error);
+    // // console.error('❌ Error during Daily Reset:', error);
     res.status(500).json({ error: 'Failed to reset usage', details: error.message });
   }
 });
@@ -344,11 +344,13 @@ const checkFeatureUsage = async (userId, feature) => {
   if (!supabase) return { allowed: true, limit: 999, used: 0 };
 
   const tier = await getUserTier(userId);
-  const userLimits = FEATURE_LIMITS[tier] || FEATURE_LIMITS.free;
-  const config = userLimits[feature] || userLimits.chat;
+  const cost = FEATURE_COSTS[feature] || 1;
 
-  const periodKey = getPeriodString(config.period);
-  const storageKey = `${periodKey}_${feature}`; // stored in 'month' column
+  // Free tier has 20 daily credits, Pro is unlimited
+  const dailyLimit = tier === 'pro' ? 999999 : 20;
+
+  const d = new Date();
+  const storageKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}_${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
   try {
     const { data } = await supabase
@@ -360,17 +362,17 @@ const checkFeatureUsage = async (userId, feature) => {
 
     const used = data?.tokens_used || 0;
 
-    if (tier === 'pro') return { allowed: true, limit: config.limit, used, tier };
+    if (tier === 'pro') return { allowed: true, limit: dailyLimit, used, tier };
 
     return {
-      allowed: used < config.limit,
-      limit: config.limit,
+      allowed: (used + cost) <= dailyLimit,
+      limit: dailyLimit,
       used,
       tier
     };
   } catch (e) {
-    console.warn(`Usage check failed for ${userId}:`, e);
-    return { allowed: true, limit: config.limit, used: 0, tier: 'free' };
+    // // // console.warn(`Usage check failed for ${userId}:`, e);
+    return { allowed: true, limit: dailyLimit, used: 0, tier: 'free' };
   }
 };
 
@@ -379,11 +381,12 @@ const incrementFeatureUsage = async (userId, feature) => {
   if (!supabase) return;
 
   const tier = await getUserTier(userId);
-  const userLimits = FEATURE_LIMITS[tier] || FEATURE_LIMITS.free;
-  const config = userLimits[feature] || userLimits.chat;
+  if (tier === 'pro') return; // Pro users don't increment usage here if unlimited
 
-  const periodKey = getPeriodString(config.period);
-  const storageKey = `${periodKey}_${feature}`;
+  const cost = FEATURE_COSTS[feature] || 1;
+
+  const d = new Date();
+  const storageKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}_${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
   try {
     const { data } = await supabase
@@ -398,12 +401,12 @@ const incrementFeatureUsage = async (userId, feature) => {
     await supabase.from('token_usage').upsert({
       user_id: userId,
       month: storageKey,
-      tokens_used: current + 1,
+      tokens_used: current + cost,
       updated_at: new Date().toISOString()
     }, { onConflict: 'user_id, month' });
 
   } catch (e) {
-    console.error(`Usage increment failed for ${userId}:`, e);
+    // // // console.error(`Usage increment failed for ${userId}:`, e);
   }
 };
 
@@ -461,7 +464,7 @@ app.get('/api/user/usage', async (req, res) => {
       features: featureUsage
     });
   } catch (error) {
-    console.error('Error in /api/user/usage:', error);
+    // // console.error('Error in /api/user/usage:', error);
     res.status(500).json({ error: 'Failed to fetch usage', details: error.message });
   }
 });
@@ -495,7 +498,7 @@ app.get('/api/user/feature-usage', async (req, res) => {
       ...featureUsage
     });
   } catch (error) {
-    console.error('❌ Error fetching feature usage:', error);
+    // // console.error('❌ Error fetching feature usage:', error);
     res.status(500).json({ error: 'Failed to fetch feature usage', details: error.message, stack: error.stack });
   }
 });
@@ -550,7 +553,7 @@ app.post('/api/embed-document', async (req, res) => {
     }
     if (currentChunk) chunks.push(currentChunk.trim());
 
-    console.log(`[Embed] Processing ${chunks.length} chunks for user ${userId}`);
+    // // console.log(`[Embed] Processing ${chunks.length} chunks for user ${userId}`);
 
     // Embed each chunk
     const embeddings = [];
@@ -572,7 +575,7 @@ app.post('/api/embed-document', async (req, res) => {
     userKnowledge.push(...embeddings);
     knowledgeStore.set(userId, userKnowledge);
 
-    console.log(`[Embed] Stored ${embeddings.length} embeddings for user ${userId}`);
+    // // console.log(`[Embed] Stored ${embeddings.length} embeddings for user ${userId}`);
 
     res.json({
       success: true,
@@ -581,7 +584,7 @@ app.post('/api/embed-document', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('[Embed] Error:', error);
+    // // console.error('[Embed] Error:', error);
     res.status(500).json({ error: 'Failed to embed document' });
   }
 });
@@ -631,7 +634,7 @@ app.post('/api/search-knowledge', async (req, res) => {
     scored.sort((a, b) => b.score - a.score);
     const topResults = scored.slice(0, topK);
 
-    console.log(`[Search] Found ${topResults.length} results for query: "${query.substring(0, 50)}..."`);
+    // // console.log(`[Search] Found ${topResults.length} results for query: "${query.substring(0, 50)}..."`);
 
     res.json({
       results: topResults.map(r => ({
@@ -642,7 +645,7 @@ app.post('/api/search-knowledge', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('[Search] Error:', error);
+    // // console.error('[Search] Error:', error);
     res.status(500).json({ error: 'Failed to search knowledge base' });
   }
 });
@@ -658,7 +661,7 @@ app.post('/api/generate-image', async (req, res) => {
       return res.status(400).json({ error: 'Prompt is required' });
     }
 
-    console.log(`[ImageGen] Generating image for: "${prompt.substring(0, 50)}..." with model: ${model}`);
+    // // console.log(`[ImageGen] Generating image for: "${prompt.substring(0, 50)}..." with model: ${model}`);
 
     const hfKey = process.env.VITE_HF_API_KEY || process.env.HF_API_KEY;
 
@@ -675,7 +678,7 @@ app.post('/api/generate-image', async (req, res) => {
 
       // New HF Router URL format: https://router.huggingface.co/{provider}/models/{model_id}
       const apiUrl = `https://router.huggingface.co/${provider}/models/${hfModel}`;
-      console.log(`[ImageGen] Calling HF Router: ${apiUrl}`);
+      // // console.log(`[ImageGen] Calling HF Router: ${apiUrl}`);
 
       const response = await fetch(apiUrl, {
         method: 'POST',
@@ -688,7 +691,7 @@ app.post('/api/generate-image', async (req, res) => {
 
       if (!response.ok) {
         const errText = await response.text();
-        console.error(`[ImageGen] HF Error: ${response.status} - ${errText}`);
+        // // console.error(`[ImageGen] HF Error: ${response.status} - ${errText}`);
         throw new Error(`Hugging Face API Error: ${response.status} ${response.statusText} - ${errText}`);
       }
 
@@ -696,7 +699,7 @@ app.post('/api/generate-image', async (req, res) => {
       const base64 = Buffer.from(buffer).toString('base64');
       const finalUrl = `data:image/jpeg;base64,${base64}`;
 
-      console.log(`[ImageGen] ✅ Image generated successfully via HF (${hfModel})`);
+      // // console.log(`[ImageGen] ✅ Image generated successfully via HF (${hfModel})`);
       return res.json({ success: true, image: finalUrl });
     } else {
        // Fallback to pollinations
@@ -707,7 +710,7 @@ app.post('/api/generate-image', async (req, res) => {
     }
 
   } catch (error) {
-    console.error('[ImageGen] Error:', error);
+    // // console.error('[ImageGen] Error:', error);
     res.status(500).json({ error: 'Failed to generate image', details: error.message });
   }
 });
@@ -754,10 +757,10 @@ app.post('/api/redesign', async (req, res) => {
             .replace(/\s+/g, " ")
             .substring(0, 15000); // Limit context
           scrapedContext = `\n\nWEBSITE CONTEXT(from ${targetUrl}): \nTitle: ${title} \nContent: ${cleanText} `;
-          console.log(`[Redesign] Scraped ${targetUrl}: ${cleanText.length} chars`);
+          // // console.log(`[Redesign] Scraped ${targetUrl}: ${cleanText.length} chars`);
         }
       } catch (e) {
-        console.warn(`[Redesign] Failed to scrape ${targetUrl}: `, e.message);
+        // // console.warn(`[Redesign] Failed to scrape ${targetUrl}: `, e.message);
       }
     }
 
@@ -837,14 +840,14 @@ OUTPUT REQUIREMENTS:
       systemPrompt += `\n\nCONTEXT FROM URL: ${scrapedContext}`;
     }
 
-    console.log(`[NoirLabs] Processing request: "${prompt.substring(0, 50)}..." via ${targetModelId} (Mode: ${designMode})`);
+    // // console.log(`[NoirLabs] Processing request: "${prompt.substring(0, 50)}..." via ${targetModelId} (Mode: ${designMode})`);
 
     let htmlContent = '';
     const suggestions = [];
 
     // BRANCH: Image Generation (GPT Image 1) vs Code Generation (Gemini/GPT-4)
     if (targetModelId === 'gpt-image-1') {
-      console.log(`[NoirLabs] Generating IMAGE via ${targetModelId}...`);
+      // // console.log(`[NoirLabs] Generating IMAGE via ${targetModelId}...`);
 
       try {
         const imageResponse = await sumopodClient.images.generate({
@@ -877,7 +880,7 @@ OUTPUT REQUIREMENTS:
         suggestions.push("Generated DALL-E 3 / GPU Image");
 
       } catch (imgError) {
-        console.error('[NoirLabs] Image Gen Error:', imgError);
+        // // console.error('[NoirLabs] Image Gen Error:', imgError);
         // Fallback to text error in HTML
         throw imgError;
       }
@@ -934,13 +937,13 @@ OUTPUT REQUIREMENTS:
           content: htmlContent,
           type: image ? 'redesign' : (targetModelId === 'gpt-image-1' ? 'image-gen' : 'creation')
         });
-        console.log(`[Redesign] Saved to history for user ${userId}`);
+        // // console.log(`[Redesign] Saved to history for user ${userId}`);
       } catch (dbErr) {
-        console.error('[Redesign] Failed to save to DB:', dbErr.message);
+        // // console.error('[Redesign] Failed to save to DB:', dbErr.message);
       }
     }
 
-    console.log(`[Redesign] Successfully generated content (${htmlContent.length} chars)`);
+    // // console.log(`[Redesign] Successfully generated content (${htmlContent.length} chars)`);
 
     res.json({
       html: htmlContent,
@@ -949,12 +952,12 @@ OUTPUT REQUIREMENTS:
     });
 
   } catch (error) {
-    console.error('[NoirLabs] CRITICAL ERROR:', error);
+    // // console.error('[NoirLabs] CRITICAL ERROR:', error);
 
     // Detailed error logging for API provider errors
     if (error.response) {
-      console.error('[NoirLabs] Provider Response Status:', error.response.status);
-      console.error('[NoirLabs] Provider Response Data:', JSON.stringify(error.response.data, null, 2));
+      // // console.error('[NoirLabs] Provider Response Status:', error.response.status);
+      // // console.error('[NoirLabs] Provider Response Data:', JSON.stringify(error.response.data, null, 2));
     }
 
     const errorMessage = error.response?.data?.error?.message || error.message || 'Unknown error occurred during generation';
@@ -1075,7 +1078,7 @@ FORMATTING RULES:
       }
     }
 
-    console.log(`[Generate] Processing request for model: ${targetModel}`);
+    // // console.log(`[Generate] Processing request for model: ${targetModel}`);
 
     // --- MCP TOOL INTEGRATION ---
     const allMcpTools = await mcpManager.listAllTools();
@@ -1108,7 +1111,7 @@ FORMATTING RULES:
       currentMessages.push(message);
 
       if (message.tool_calls && message.tool_calls.length > 0) {
-        console.log(`[Generate] Model requested ${message.tool_calls.length} tool calls`);
+        // // console.log(`[Generate] Model requested ${message.tool_calls.length} tool calls`);
 
         for (const toolCall of message.tool_calls) {
           const fullToolName = toolCall.function.name;
@@ -1119,7 +1122,7 @@ FORMATTING RULES:
             const actualToolName = parts.slice(2).join('__');
             const args = JSON.parse(toolCall.function.arguments);
 
-            console.log(`[Generate] Executing MCP tool: ${actualToolName} on server ${serverId}`);
+            // // console.log(`[Generate] Executing MCP tool: ${actualToolName} on server ${serverId}`);
 
             try {
               const result = await mcpManager.executeTool(serverId, actualToolName, args);
@@ -1129,7 +1132,7 @@ FORMATTING RULES:
                 content: JSON.stringify(result)
               });
             } catch (toolError) {
-              console.error(`[Generate] Tool execution error:`, toolError.message);
+              // // console.error(`[Generate] Tool execution error:`, toolError.message);
               currentMessages.push({
                 role: 'tool',
                 tool_call_id: toolCall.id,
@@ -1153,7 +1156,7 @@ FORMATTING RULES:
     });
 
   } catch (error) {
-    console.error('[Generate] Error:', error);
+    // // console.error('[Generate] Error:', error);
     res.status(500).json({
       error: 'Failed to generate response',
       details: error.message || 'Creating chat completion failed',
@@ -1183,7 +1186,7 @@ app.post('/api/youtube-transcript', async (req, res) => {
       return res.status(400).json({ error: 'Invalid YouTube URL' });
     }
 
-    console.log(`[YouTube] Extracting transcript for video: ${videoId}`);
+    // // console.log(`[YouTube] Extracting transcript for video: ${videoId}`);
 
     // Use youtube-transcript library (already imported at top)
     const transcript = await YoutubeTranscript.fetchTranscript(videoId);
@@ -1200,10 +1203,10 @@ app.post('/api/youtube-transcript', async (req, res) => {
         title = oembedData.title || title;
       }
     } catch (e) {
-      console.warn('[YouTube] Could not fetch video title');
+      // // console.warn('[YouTube] Could not fetch video title');
     }
 
-    console.log(`[YouTube] Extracted ${fullTranscript.length} chars from "${title}"`);
+    // // console.log(`[YouTube] Extracted ${fullTranscript.length} chars from "${title}"`);
 
     res.json({
       transcript: fullTranscript,
@@ -1212,7 +1215,7 @@ app.post('/api/youtube-transcript', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('[YouTube] Error:', error);
+    // // console.error('[YouTube] Error:', error);
     res.status(500).json({
       error: 'Failed to extract YouTube transcript',
       details: error.message
@@ -1229,7 +1232,7 @@ app.post('/api/generate-video', async (req, res) => {
       return res.status(400).json({ error: 'Prompt is required' });
     }
 
-    console.log(`[Video] Generating video for user ${userId || 'anonymous'}: "${prompt}"`);
+    // // console.log(`[Video] Generating video for user ${userId || 'anonymous'}: "${prompt}"`);
 
     // For now, we'll return a placeholder that tells the user it's in development
     // or simulate a success with a stock video if we want to show the UI works.
@@ -1253,7 +1256,7 @@ app.post('/api/generate-video', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('[Video] Error:', error);
+    // // console.error('[Video] Error:', error);
     res.status(500).json({
       error: 'Failed to generate video',
       details: error.message
@@ -1270,7 +1273,7 @@ app.post('/api/fetch-url', async (req, res) => {
       return res.status(400).json({ error: 'URL is required' });
     }
 
-    console.log(`[URL] Fetching content from: ${url}`);
+    // // console.log(`[URL] Fetching content from: ${url}`);
 
     const response = await fetch(url);
     const html = await response.text();
@@ -1288,7 +1291,7 @@ app.post('/api/fetch-url', async (req, res) => {
       .trim()
       .substring(0, 30000); // Limit content
 
-    console.log(`[URL] Extracted ${cleanText.length} chars from "${title}"`);
+    // // console.log(`[URL] Extracted ${cleanText.length} chars from "${title}"`);
 
     res.json({
       content: cleanText,
@@ -1297,7 +1300,7 @@ app.post('/api/fetch-url', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('[URL] Error:', error);
+    // // console.error('[URL] Error:', error);
     res.status(500).json({
       error: 'Failed to fetch URL content',
       details: error.message
@@ -1312,7 +1315,7 @@ app.post('/api/extract-pdf', upload.single('file'), async (req, res) => {
       return res.status(400).json({ error: 'PDF file is required' });
     }
 
-    console.log(`[PDF] Extracting text from: ${req.file.originalname}`);
+    // // console.log(`[PDF] Extracting text from: ${req.file.originalname}`);
 
     const pdf = require('pdf-parse');
     const dataBuffer = fs.readFileSync(req.file.path);
@@ -1323,7 +1326,7 @@ app.post('/api/extract-pdf', upload.single('file'), async (req, res) => {
       pdfData = await pdf(dataBuffer);
     } catch (e) {
       if (e.message.includes("invoked without 'new'") || e.message.includes("is not a function")) {
-        console.log('[PDF] Retrying with "new" keyword...');
+        // // console.log('[PDF] Retrying with "new" keyword...');
         pdfData = await new pdf(dataBuffer);
       } else {
         throw e;
@@ -1333,7 +1336,7 @@ app.post('/api/extract-pdf', upload.single('file'), async (req, res) => {
     // Clean up uploaded file
     fs.unlinkSync(req.file.path);
 
-    console.log(`[PDF] Extracted ${pdfData.text.length} chars from "${req.file.originalname}"`);
+    // // console.log(`[PDF] Extracted ${pdfData.text.length} chars from "${req.file.originalname}"`);
 
     res.json({
       text: pdfData.text,
@@ -1342,7 +1345,7 @@ app.post('/api/extract-pdf', upload.single('file'), async (req, res) => {
     });
 
   } catch (error) {
-    console.error('[PDF] Error:', error);
+    // // console.error('[PDF] Error:', error);
     // Clean up file if exists
     if (req.file && fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path);
@@ -1361,7 +1364,7 @@ app.post('/api/transcribe-audio', upload.single('file'), async (req, res) => {
       return res.status(400).json({ error: 'Audio file is required' });
     }
 
-    console.log(`[Audio] Processing: ${req.file.originalname}`);
+    // // console.log(`[Audio] Processing: ${req.file.originalname}`);
 
     // Use SumoPod (OpenAI compatible) Whisper
     // Ensure sumopodClient is available
@@ -1369,7 +1372,7 @@ app.post('/api/transcribe-audio', upload.single('file'), async (req, res) => {
       throw new Error('SumoPod client not initialized');
     }
 
-    console.log(`[Audio] Sending to SumoPod Whisper...`);
+    // // console.log(`[Audio] Sending to SumoPod Whisper...`);
 
     // Read file as buffer and use toFile to include proper metadata
     const fileBuffer = fs.readFileSync(req.file.path);
@@ -1380,7 +1383,7 @@ app.post('/api/transcribe-audio', upload.single('file'), async (req, res) => {
     let filename = req.file.originalname;
     if (filename.endsWith('.ogg') || filename.endsWith('.opus')) {
       filename = filename.replace(/\.(ogg|opus)$/, '.mp3');
-      console.log(`[Audio] Renamed to: ${filename} for compatibility`);
+      // // console.log(`[Audio] Renamed to: ${filename} for compatibility`);
     }
 
     const transcription = await sumopodClient.audio.transcriptions.create({
@@ -1389,7 +1392,7 @@ app.post('/api/transcribe-audio', upload.single('file'), async (req, res) => {
       prompt: "Please add proper punctuation including periods, commas, question marks, and exclamation marks.",
     });
 
-    console.log(`[Audio] Transcription complete (${transcription.text?.length || 0} chars)`);
+    // // console.log(`[Audio] Transcription complete (${transcription.text?.length || 0} chars)`);
 
     // Clean up uploaded file (with small delay to ensure stream is closed)
     setTimeout(() => {
@@ -1398,7 +1401,7 @@ app.post('/api/transcribe-audio', upload.single('file'), async (req, res) => {
           fs.unlinkSync(req.file.path);
         }
       } catch (e) {
-        console.warn('[Audio] Cleanup warning:', e.message);
+        // // console.warn('[Audio] Cleanup warning:', e.message);
       }
     }, 500);
 
@@ -1408,7 +1411,7 @@ app.post('/api/transcribe-audio', upload.single('file'), async (req, res) => {
     });
 
   } catch (error) {
-    console.error('[Audio] Error:', error);
+    // // console.error('[Audio] Error:', error);
     if (req.file && fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path);
     }
@@ -1487,14 +1490,14 @@ app.post('/api/payment/create-transaction', async (req, res) => {
 
     const transaction = await snap.createTransaction(parameter);
 
-    console.log(`✅ Payment transaction created: ${orderId}`);
+    // // console.log(`✅ Payment transaction created: ${orderId}`);
     res.json({
       token: transaction.token,
       orderId: orderId,
       redirectUrl: transaction.redirect_url,
     });
   } catch (error) {
-    console.error('Payment create error:', error);
+    // // console.error('Payment create error:', error);
     res.status(500).json({ error: 'Failed to create transaction', details: error.message });
   }
 });
@@ -1516,13 +1519,13 @@ app.post('/api/payment/activate', async (req, res) => {
     const success = await saveSubscription(userId, 'pro', expiresAt.toISOString(), orderId);
 
     if (success) {
-      console.log(`✅ Pro subscription activated for ${userId} until ${expiresAt.toISOString()}`);
+      // // console.log(`✅ Pro subscription activated for ${userId} until ${expiresAt.toISOString()}`);
       res.json({ success: true, tier: 'pro', expiresAt: expiresAt.toISOString() });
     } else {
       throw new Error('Failed to save subscription');
     }
   } catch (error) {
-    console.error('Activation error:', error);
+    // // console.error('Activation error:', error);
     res.status(500).json({ error: 'Failed to activate subscription', details: error.message });
   }
 });
@@ -1535,38 +1538,38 @@ app.post('/api/payment/webhook', async (req, res) => {
     const transactionStatus = notification.transaction_status;
     const fraudStatus = notification.fraud_status;
 
-    console.log(`📬 Midtrans webhook: ${orderId} - ${transactionStatus}`);
+    // // console.log(`📬 Midtrans webhook: ${orderId} - ${transactionStatus}`);
 
     // Extract userId from orderId (format: NOIR-PRO-timestamp-userId)
     const parts = orderId.split('-');
     const userId = parts.length >= 4 ? parts[3] : null;
 
     if (!userId) {
-      console.error('Invalid order ID format:', orderId);
+      // // console.error('Invalid order ID format:', orderId);
       return res.status(400).json({ error: 'Invalid order ID' });
     }
 
     // Check transaction status
-    console.log(`🔍 Processing status: ${transactionStatus} for user: ${userId}`);
+    // // console.log(`🔍 Processing status: ${transactionStatus} for user: ${userId}`);
     if (transactionStatus === 'capture' && (fraudStatus === 'accept' || !fraudStatus)) {
       // Credit card payment success
       const expiresAt = new Date();
       expiresAt.setMonth(expiresAt.getMonth() + 1);
       await saveSubscription(userId, 'pro', expiresAt.toISOString(), orderId);
-      console.log(`✅ Webhook: Pro activated for ${userId} (Credit Card)`);
+      // // console.log(`✅ Webhook: Pro activated for ${userId} (Credit Card)`);
     } else if (transactionStatus === 'settlement') {
       // Bank transfer, e-wallet success
       const expiresAt = new Date();
       expiresAt.setMonth(expiresAt.getMonth() + 1);
       await saveSubscription(userId, 'pro', expiresAt.toISOString(), orderId);
-      console.log(`✅ Webhook: Pro activated for ${userId} (Settlement)`);
+      // // console.log(`✅ Webhook: Pro activated for ${userId} (Settlement)`);
     } else if (['deny', 'cancel', 'expire'].includes(transactionStatus)) {
-      console.log(`❌ Payment failed for ${userId}: ${transactionStatus}`);
+      // // console.log(`❌ Payment failed for ${userId}: ${transactionStatus}`);
     }
 
     res.status(200).json({ received: true });
   } catch (error) {
-    console.error('Webhook error:', error);
+    // // console.error('Webhook error:', error);
     res.status(500).json({ error: 'Webhook processing failed' });
   }
 });
@@ -1578,10 +1581,10 @@ const SUMOPOD_BASE_URL = process.env.SUMOPOD_BASE_URL?.trim(); // REQUIRED: Get 
 const SUMOPOD_MODEL_ID = process.env.SUMOPOD_MODEL_ID?.trim(); // REQUIRED: Get from SumoPod dashboard
 
 if (SUMOPOD_API_KEY && !SUMOPOD_BASE_URL) {
-  console.warn('⚠️ SUMOPOD_BASE_URL not set! Please add it to .env file. Get the correct base URL from https://sumopod.com/dashboard/ai/quickstart');
+  // // console.warn('⚠️ SUMOPOD_BASE_URL not set! Please add it to .env file. Get the correct base URL from https://sumopod.com/dashboard/ai/quickstart');
 }
 if (SUMOPOD_API_KEY && !SUMOPOD_MODEL_ID) {
-  console.warn('⚠️ SUMOPOD_MODEL_ID not set! Please add it to .env file. Get the model ID from SumoPod dashboard');
+  // // console.warn('⚠️ SUMOPOD_MODEL_ID not set! Please add it to .env file. Get the model ID from SumoPod dashboard');
 }
 
 const PROVIDER_KEYS = {
@@ -1590,7 +1593,7 @@ const PROVIDER_KEYS = {
 
 
 // Debug: Log API key status (without exposing actual keys)
-console.log('🔑 API Key Status:', {
+// // console.log('🔑 API Key Status:', {
   SUMOPOD_API_KEY: SUMOPOD_API_KEY ? `Set (${SUMOPOD_API_KEY.substring(0, 10)}...)` : 'NOT SET',
   SUMOPOD_BASE_URL: SUMOPOD_BASE_URL,
   SUMOPOD_MODEL_ID: SUMOPOD_MODEL_ID,
@@ -1620,8 +1623,8 @@ const MODELS = {
 
 // Validate model ID
 if (!SUMOPOD_MODEL_ID) {
-  console.warn('⚠️ SUMOPOD_MODEL_ID not set! Using default: gemini/gemini-2.5-flash-lite');
-  console.warn('   To use a different model, set SUMOPOD_MODEL_ID in .env file.');
+  // // console.warn('⚠️ SUMOPOD_MODEL_ID not set! Using default: gemini/gemini-2.5-flash-lite');
+  // // console.warn('   To use a different model, set SUMOPOD_MODEL_ID in .env file.');
 }
 
 // Max tokens configuration based on subscription tier
@@ -1658,7 +1661,7 @@ const getUserSubscription = async (userId) => {
     }
     return data;
   } catch (error) {
-    console.error('Error fetching subscription:', error);
+    // // console.error('Error fetching subscription:', error);
     return null;
   }
 };
@@ -1682,13 +1685,13 @@ const saveSubscription = async (userId, tier, expiresAt = null, orderId = null) 
       }, { onConflict: 'user_id' });
 
       if (!error) {
-        console.log(`✅ Supabase: Subscription saved for ${userId}: ${tier} (mapped to ${dbTier})`);
+        // // console.log(`✅ Supabase: Subscription saved for ${userId}: ${tier} (mapped to ${dbTier})`);
         return true;
       } else {
-        console.error('Supabase upsert error:', error);
+        // // console.error('Supabase upsert error:', error);
       }
     } catch (e) {
-      console.warn('Supabase subscription save failed:', e.message);
+      // // console.warn('Supabase subscription save failed:', e.message);
     }
   }
   return false;
@@ -1723,8 +1726,8 @@ const MAX_TOKENS = {
 // SumoPod client already initialized at the top of the file
 // Using Gemini 3 Pro for redesign and Flash Lite for chat
 if (SUMOPOD_API_KEY && (!SUMOPOD_BASE_URL || !SUMOPOD_MODEL_ID)) {
-  console.error('❌ SumoPod Client: Missing configuration! Please set SUMOPOD_BASE_URL and SUMOPOD_MODEL_ID in .env file.');
-  console.error('   Get these values from: https://sumopod.com/dashboard/ai/quickstart');
+  // // console.error('❌ SumoPod Client: Missing configuration! Please set SUMOPOD_BASE_URL and SUMOPOD_MODEL_ID in .env file.');
+  // // console.error('   Get these values from: https://sumopod.com/dashboard/ai/quickstart');
 }
 
 // Helper: Truncate history to fit within token limit (reduced for speed)
@@ -1746,7 +1749,7 @@ const autoWebSearch = async (query, maxResults = 3) => {
   const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
 
   if (!TAVILY_API_KEY) {
-    console.log('[AutoSearch] No Tavily API key, skipping web search');
+    // // console.log('[AutoSearch] No Tavily API key, skipping web search');
     return null;
   }
 
@@ -1762,13 +1765,13 @@ const autoWebSearch = async (query, maxResults = 3) => {
   );
 
   if (isInternalPrompt) {
-    console.log('[AutoSearch] Internal prompt detected, skipping web search');
+    // // console.log('[AutoSearch] Internal prompt detected, skipping web search');
     return null;
   }
 
   // Limit query length - Tavily has limits
   if (query.length > 200) {
-    console.log('[AutoSearch] Query too long, skipping web search');
+    // // console.log('[AutoSearch] Query too long, skipping web search');
     return null;
   }
 
@@ -1787,12 +1790,12 @@ const autoWebSearch = async (query, maxResults = 3) => {
   const needsSearch = currentInfoKeywords.some(keyword => queryLower.includes(keyword));
 
   if (!needsSearch) {
-    console.log('[AutoSearch] Query does not need web search');
+    // // console.log('[AutoSearch] Query does not need web search');
     return null;
   }
 
   try {
-    console.log(`[AutoSearch] Searching for: ${query}`);
+    // // console.log(`[AutoSearch] Searching for: ${query}`);
     const response = await fetch('https://api.tavily.com/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1806,12 +1809,12 @@ const autoWebSearch = async (query, maxResults = 3) => {
     });
 
     if (!response.ok) {
-      console.error('[AutoSearch] Tavily API error:', response.statusText);
+      // // console.error('[AutoSearch] Tavily API error:', response.statusText);
       return null;
     }
 
     const data = await response.json();
-    console.log(`[AutoSearch] Found ${data.results?.length || 0} results`);
+    // // console.log(`[AutoSearch] Found ${data.results?.length || 0} results`);
 
     // Format search results as context
     let searchContext = '\\n\\n📡 WEB SEARCH RESULTS (REAL-TIME INFORMATION):\\n';
@@ -1832,7 +1835,7 @@ const autoWebSearch = async (query, maxResults = 3) => {
 
     return searchContext;
   } catch (error) {
-    console.error('[AutoSearch] Error:', error);
+    // // console.error('[AutoSearch] Error:', error);
     return null;
   }
 };
@@ -1879,7 +1882,7 @@ const OPENROUTER_STREAM_MODEL_MAPPING = {
 };
 
 app.post('/api/chat/stream', async (req, res) => {
-  console.log('[Stream] Streaming endpoint called');
+  // // console.log('[Stream] Streaming endpoint called');
 
   // 1. Validate Request (API Key check moved to specific provider block)
   const { model, messages } = req.body || {};
@@ -1913,7 +1916,7 @@ app.post('/api/chat/stream', async (req, res) => {
     }
   }
 
-  console.log(`[Stream] Starting stream for provider: ${provider}, model: ${targetModel}, requested: ${model}`);
+  // // console.log(`[Stream] Starting stream for provider: ${provider}, model: ${targetModel}, requested: ${model}`);
 
   // =====================================================
   // NOIR PHILOS SUPER AGENT PIPELINE (3-Phase)
@@ -1936,7 +1939,7 @@ app.post('/api/chat/stream', async (req, res) => {
   req.on('close', () => {
     // INFO: specific environment issue causing premature close events. 
     // Disabling abort for now to ensure stream completion.
-    console.log('[Stream] Client connection closed (abort disabled)');
+    // // console.log('[Stream] Client connection closed (abort disabled)');
     // controller.abort(); 
   });
 
@@ -1944,7 +1947,7 @@ app.post('/api/chat/stream', async (req, res) => {
   let mcpTools = [];
   let detectedCategories = [];
   try {
-    console.log('[Stream] Starting MCP tool discovery for Skill Scout...');
+    // // console.log('[Stream] Starting MCP tool discovery for Skill Scout...');
     res.write(`event: status\ndata: ${JSON.stringify({ message: 'Scanning available skills...' })}\n\n`);
 
     const lastUserMessage = messages[messages.length - 1]?.content || '';
@@ -1952,7 +1955,7 @@ app.post('/api/chat/stream', async (req, res) => {
     detectedCategories = categories;
     
     if (matchedTools.length > 0) {
-      console.log(`[Stream] Skill Scout found ${matchedTools.length} relevant tools for: ${categories.join(', ')}`);
+      // // console.log(`[Stream] Skill Scout found ${matchedTools.length} relevant tools for: ${categories.join(', ')}`);
       res.write(`event: skill_match\ndata: ${JSON.stringify({ 
         message: `Skill Scout found: ${categories.join(', ')}`, 
         categories,
@@ -1960,7 +1963,7 @@ app.post('/api/chat/stream', async (req, res) => {
       })}\n\n`);
       res.write(`event: status\ndata: ${JSON.stringify({ message: `Found ${matchedTools.length} skill(s)`, tools: matchedTools.map(t => t.name) })}\n\n`);
     } else {
-      console.log('[Stream] Skill Scout: No matching skills found for this query.');
+      // // console.log('[Stream] Skill Scout: No matching skills found for this query.');
       res.write(`event: status\ndata: ${JSON.stringify({ message: 'No specific skills found, using core intelligence.' })}\n\n`);
     }
 
@@ -1974,9 +1977,9 @@ app.post('/api/chat/stream', async (req, res) => {
       },
       _meta: { serverId: tool.serverId, serverName: tool.serverName, originalName: tool.name }
     }));
-    console.log(`[Stream] Total ${mcpTools.length} MCP tools listed for possible injection.`);
+    // // console.log(`[Stream] Total ${mcpTools.length} MCP tools listed for possible injection.`);
   } catch (mcpError) {
-    console.error('[Stream] MCP Discovery Error:', mcpError);
+    // // console.error('[Stream] MCP Discovery Error:', mcpError);
     res.write(`event: status\ndata: ${JSON.stringify({ message: 'Skill scan skipped' })}\n\n`);
   }
 
@@ -1987,7 +1990,7 @@ app.post('/api/chat/stream', async (req, res) => {
         throw new Error('SumoPod client not initialized');
       }
 
-      console.log(`[Stream] Using SumoPod provider logic for ${targetModel}`);
+      // // console.log(`[Stream] Using SumoPod provider logic for ${targetModel}`);
       const categories = detectedCategories;
 
       if (mcpTools.length > 0) {
@@ -2033,7 +2036,7 @@ app.post('/api/chat/stream', async (req, res) => {
 
             // Check if model wants to call tools
             if (probeMessage?.tool_calls && probeMessage.tool_calls.length > 0) {
-              console.log(`[Stream] Model requested ${probeMessage.tool_calls.length} tool call(s)`);
+              // // console.log(`[Stream] Model requested ${probeMessage.tool_calls.length} tool call(s)`);
               currentMessages.push(probeMessage);
 
               for (const toolCall of probeMessage.tool_calls) {
@@ -2053,7 +2056,7 @@ app.post('/api/chat/stream', async (req, res) => {
                   // Emit real tool_call event
                   res.write(`event: tool_call\ndata: ${JSON.stringify({ tool: actualToolName, serverId, args })}\n\n`);
                   res.write(`event: status\ndata: ${JSON.stringify({ message: `Running skill: ${actualToolName}...` })}\n\n`);
-                  console.log(`[Stream] Executing MCP tool: ${actualToolName} on server ${serverId}`);
+                  // // console.log(`[Stream] Executing MCP tool: ${actualToolName} on server ${serverId}`);
 
                   try {
                     const result = await mcpManager.executeTool(serverId, actualToolName, args);
@@ -2064,9 +2067,9 @@ app.post('/api/chat/stream', async (req, res) => {
                     });
                     // Emit real tool_result event
                     res.write(`event: tool_result\ndata: ${JSON.stringify({ tool: actualToolName, success: true })}\n\n`);
-                    console.log(`[Stream] Tool ${actualToolName} executed successfully`);
+                    // // console.log(`[Stream] Tool ${actualToolName} executed successfully`);
                   } catch (toolError) {
-                    console.error(`[Stream] Tool execution error:`, toolError.message);
+                    // // console.error(`[Stream] Tool execution error:`, toolError.message);
                     currentMessages.push({
                       role: 'tool',
                       tool_call_id: toolCall.id,
@@ -2094,7 +2097,7 @@ app.post('/api/chat/stream', async (req, res) => {
             break;
           } catch (probeErr) {
             // If tool-calling probe fails (e.g. model doesn't support tools), fall through to normal streaming
-            console.warn('[Stream] Tool probe failed, falling back to normal stream:', probeErr.message);
+            // // console.warn('[Stream] Tool probe failed, falling back to normal stream:', probeErr.message);
             break;
           }
         } else {
@@ -2113,7 +2116,7 @@ app.post('/api/chat/stream', async (req, res) => {
           stream: true,
         }, { signal: controller.signal });
 
-        console.log(`[Stream] Stream created successfully for model: ${targetModel}`);
+        // // console.log(`[Stream] Stream created successfully for model: ${targetModel}`);
         let chunkCount = 0;
         let contentLength = 0;
 
@@ -2128,18 +2131,18 @@ app.post('/api/chat/stream', async (req, res) => {
           
           // Check for error in chunk
           if (chunk.error) {
-            console.error(`[Stream] Error in chunk: ${JSON.stringify(chunk.error)}`);
+            // // console.error(`[Stream] Error in chunk: ${JSON.stringify(chunk.error)}`);
             res.write(`event: error\ndata: ${JSON.stringify({ message: chunk.error.message || 'Model returned an error' })}\n\n`);
             res.end();
             return;
           }
         }
         
-        console.log(`[Stream] Finished streaming ${chunkCount} chunks, ${contentLength} chars total`);
+        // // console.log(`[Stream] Finished streaming ${chunkCount} chunks, ${contentLength} chars total`);
         
         // If we got 0 content, send an error so the frontend knows
         if (contentLength === 0) {
-          console.error(`[Stream] WARNING: SumoPod returned 0 content chunks for model ${targetModel}`);
+          // // console.error(`[Stream] WARNING: SumoPod returned 0 content chunks for model ${targetModel}`);
           res.write(`event: error\ndata: ${JSON.stringify({ message: `Model "${targetModel}" returned empty response. The model may be unavailable or overloaded. Please try again.` })}\n\n`);
         }
         
@@ -2147,7 +2150,7 @@ app.post('/api/chat/stream', async (req, res) => {
         res.end();
         return;
       } catch (streamErr) {
-        console.error(`[Stream] SumoPod streaming error for model ${targetModel}:`, streamErr.message);
+        // // console.error(`[Stream] SumoPod streaming error for model ${targetModel}:`, streamErr.message);
         // If response hasn't ended, send error to client
         if (!res.writableEnded) {
           res.write(`event: error\ndata: ${JSON.stringify({ message: `SumoPod stream error: ${streamErr.message}` })}\n\n`);
@@ -2161,7 +2164,7 @@ app.post('/api/chat/stream', async (req, res) => {
     // --- OPENROUTER STREAMING ---
     // Validate API Key for OpenRouter
     if (!openrouterApiKey) {
-      console.error('[Stream] Missing OPENROUTER_API_KEY');
+      // // console.error('[Stream] Missing OPENROUTER_API_KEY');
       res.write(`event: error\ndata: ${JSON.stringify({ message: 'Server configuration error: OPENROUTER_API_KEY not set' })}\n\n`);
       res.end();
       return;
@@ -2191,10 +2194,10 @@ app.post('/api/chat/stream', async (req, res) => {
       const contentType = upstreamResponse.headers.get('content-type');
       if (contentType?.includes('application/json')) {
         const errorData = await upstreamResponse.json();
-        console.error('[Stream] OpenRouter error:', errorData);
+        // // console.error('[Stream] OpenRouter error:', errorData);
         res.write(`event: error\ndata: ${JSON.stringify({ message: errorData.error?.message || 'OpenRouter API error' })}\n\n`);
       } else {
-        console.error('[Stream] OpenRouter non-JSON error');
+        // // console.error('[Stream] OpenRouter non-JSON error');
         res.write(`event: error\ndata: ${JSON.stringify({ message: 'OpenRouter service error' })}\n\n`);
       }
       res.end();
@@ -2235,7 +2238,7 @@ app.post('/api/chat/stream', async (req, res) => {
 
         // Skip comment lines (e.g., ": OPENROUTER PROCESSING")
         if (trimmedLine.startsWith(':')) {
-          console.log('[Stream] Skipping comment:', trimmedLine.substring(0, 50));
+          // // console.log('[Stream] Skipping comment:', trimmedLine.substring(0, 50));
           continue;
         }
 
@@ -2255,7 +2258,7 @@ app.post('/api/chat/stream', async (req, res) => {
 
             // Check for mid-stream error
             if (parsed.error) {
-              console.error('[Stream] Mid-stream error:', parsed.error);
+              // // console.error('[Stream] Mid-stream error:', parsed.error);
               res.write(`event: error\ndata: ${JSON.stringify({ message: parsed.error.message || 'Stream error' })}\n\n`);
               continue;
             }
@@ -2263,7 +2266,7 @@ app.post('/api/chat/stream', async (req, res) => {
             // Check for finish_reason error
             const finishReason = parsed.choices?.[0]?.finish_reason;
             if (finishReason === 'error') {
-              console.error('[Stream] Finish reason error');
+              // // console.error('[Stream] Finish reason error');
               res.write(`event: error\ndata: ${JSON.stringify({ message: 'Generation stopped due to error' })}\n\n`);
               continue;
             }
@@ -2276,13 +2279,13 @@ app.post('/api/chat/stream', async (req, res) => {
 
             // Handle usage chunk (choices empty but has usage) - just skip
             if (parsed.usage && (!parsed.choices || parsed.choices.length === 0)) {
-              console.log('[Stream] Usage chunk received');
+              // // console.log('[Stream] Usage chunk received');
               continue;
             }
 
           } catch (parseError) {
             // JSON parse failed - skip this line
-            console.warn('[Stream] Failed to parse JSON:', dataContent.substring(0, 100));
+            // // console.warn('[Stream] Failed to parse JSON:', dataContent.substring(0, 100));
           }
         }
       }
@@ -2292,7 +2295,7 @@ app.post('/api/chat/stream', async (req, res) => {
 
   } catch (error) {
     if (error.name === 'AbortError') {
-      console.log('[Stream] Request aborted by client');
+      // // console.log('[Stream] Request aborted by client');
       // Don't send response if already disconnected
       if (!res.writableEnded) {
         res.end();
@@ -2300,10 +2303,10 @@ app.post('/api/chat/stream', async (req, res) => {
       return;
     }
 
-    console.error('[Stream] Unexpected error:', error);
+    // // console.error('[Stream] Unexpected error:', error);
     try {
       fs.appendFileSync('server_error.log', `[${new Date().toISOString()}] Stream Error: ${error.stack || error}\n`);
-    } catch (e) { console.error('Failed to write log:', e); }
+    } catch (e) { // // console.error('Failed to write log:', e); }
 
     if (!res.writableEnded) {
       // DEBUG: Return actual error to client
@@ -2325,7 +2328,7 @@ app.post('/api/search', async (req, res) => {
   const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
 
   if (!TAVILY_API_KEY) {
-    console.warn('⚠️ TAVILY_API_KEY not set. Using DuckDuckGo fallback.');
+    // // console.warn('⚠️ TAVILY_API_KEY not set. Using DuckDuckGo fallback.');
     const mockResults = [
       {
         title: `Search results for: ${query}`,
@@ -2338,7 +2341,7 @@ app.post('/api/search', async (req, res) => {
   }
 
   try {
-    console.log(`🔍 [Search] "${query}" (Depth: ${searchDepth}, Results: ${maxResults})`);
+    // // console.log(`🔍 [Search] "${query}" (Depth: ${searchDepth}, Results: ${maxResults})`);
     const response = await fetch('https://api.tavily.com/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -2373,7 +2376,7 @@ app.post('/api/search', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ [Search] Error:', error);
+    // // console.error('❌ [Search] Error:', error);
     res.status(500).json({ error: 'Failed to perform search', details: error.message });
   }
 });
@@ -2405,7 +2408,7 @@ app.post('/api/generate', async (req, res) => {
   const images = body.images || [];
   const userId = body.userId; // Get userId from request
 
-  console.log(`[${provider}] /api/generate called`, {
+  // // console.log(`[${provider}] /api/generate called`, {
     hasPrompt: !!prompt,
     hasSystemPrompt: !!systemPrompt,
     mode,
@@ -2426,7 +2429,7 @@ app.post('/api/generate', async (req, res) => {
         ? `Deep Dive limit exceeded (${usageCheck.limit} prompts/day). Deep Dive uses GPT-5 for advanced reasoning.`
         : `Daily chat limit exceeded (${usageCheck.limit} prompts/day). Please upgrade to Pro for unlimited access.`;
 
-      console.warn(`[TokenLimit] User ${userId} exceeded ${usageCheck.tier} ${featureToCheck} limit (${usageCheck.used}/${usageCheck.limit})`);
+      // // console.warn(`[TokenLimit] User ${userId} exceeded ${usageCheck.tier} ${featureToCheck} limit (${usageCheck.used}/${usageCheck.limit})`);
       return sendResponse(403, {
         error: limitMessage,
         code: isDeepDive ? 'DEEP_DIVE_LIMIT_EXCEEDED' : 'TOKEN_LIMIT_EXCEEDED',
@@ -2434,18 +2437,18 @@ app.post('/api/generate', async (req, res) => {
       });
     }
 
-    console.log(`[TokenLimit] User ${userId}: ${usageCheck.used}/${usageCheck.limit} ${featureToCheck} (Tier: ${usageCheck.tier})`);
+    // // console.log(`[TokenLimit] User ${userId}: ${usageCheck.used}/${usageCheck.limit} ${featureToCheck} (Tier: ${usageCheck.tier})`);
   }
   // -------------------------
 
   if (!prompt || !systemPrompt) {
-    console.error(`[${provider}] Missing required fields:`, { hasPrompt: !!prompt, hasSystemPrompt: !!systemPrompt });
+    // // console.error(`[${provider}] Missing required fields:`, { hasPrompt: !!prompt, hasSystemPrompt: !!systemPrompt });
     return sendResponse(400, { error: 'Missing prompt or systemPrompt' });
   }
 
   // Normalize ALL providers to groq (SumoPod) - only provider configured
   const effectiveProvider = 'groq';
-  console.log(`[SumoPod] Normalized from '${provider}' -> '${effectiveProvider}'`);
+  // // console.log(`[SumoPod] Normalized from '${provider}' -> '${effectiveProvider}'`);
 
   if (!PROVIDER_KEYS[effectiveProvider]) {
     return sendResponse(500, { error: `SumoPod API key not configured. Please set SUMOPOD_API_KEY, SUMOPOD_BASE_URL, and SUMOPOD_MODEL_ID in your environment variables.` });
@@ -2485,7 +2488,7 @@ Always provide information based on your training data AND the current date cont
       const searchResults = await autoWebSearch(prompt);
       if (searchResults) {
         webSearchContext = searchResults;
-        console.log('[Generate] Added web search context to prompt');
+        // // console.log('[Generate] Added web search context to prompt');
       }
     }
 
@@ -2531,7 +2534,7 @@ Always provide information based on your training data AND the current date cont
     const userTier = await getUserTier(userId);
     const baseMaxTokens = getMaxTokensForTier(userTier, mode);
 
-    console.log(`[${provider}] Using SumoPod ⚡ with model: ${MODELS.groq}, tier: ${userTier}, max_tokens: ${baseMaxTokens}`);
+    // // console.log(`[${provider}] Using SumoPod ⚡ with model: ${MODELS.groq}, tier: ${userTier}, max_tokens: ${baseMaxTokens}`);
 
     const messages = [
       ...messagesBase,
@@ -2555,10 +2558,10 @@ Always provide information based on your training data AND the current date cont
           }
         }));
         if (mcpTools.length > 0) {
-          console.log(`[Generate] Found ${mcpTools.length} MCP tools`);
+          // // console.log(`[Generate] Found ${mcpTools.length} MCP tools`);
         }
       } catch (mcpErr) {
-        console.warn('[Generate] MCP tool scan failed (non-fatal):', mcpErr.message);
+        // // console.warn('[Generate] MCP tool scan failed (non-fatal):', mcpErr.message);
       }
 
       // Smart Model Routing based on frontend selection
@@ -2586,7 +2589,7 @@ Always provide information based on your training data AND the current date cont
       if (useOpenRouter && openrouterClient) {
         // Use OpenRouter for Pro models
         const openrouterModelId = OPENROUTER_MODEL_MAPPING[selectedModel];
-        console.log(`[AI] 🚀 Using OpenRouter model: ${openrouterModelId} (${selectedModel})`);
+        // // console.log(`[AI] 🚀 Using OpenRouter model: ${openrouterModelId} (${selectedModel})`);
 
         const temperature = selectedModel === 'gpt-5' || selectedModel === 'grok' ? 1 : 0.7;
 
@@ -2600,7 +2603,7 @@ Always provide information based on your training data AND the current date cont
             signal: controller.signal,
           });
         } catch (orErr) {
-          console.error(`[OpenRouter] Error:`, orErr);
+          // // console.error(`[OpenRouter] Error:`, orErr);
           return sendResponse(500, {
             error: `OpenRouter API Error: ${orErr?.message || String(orErr)}`,
             detail: orErr?.error || orErr?.message,
@@ -2609,7 +2612,7 @@ Always provide information based on your training data AND the current date cont
       } else {
         // Use SumoPod for Gemini Flash (free tier)
         const sumopodModelId = 'gemini/gemini-2.5-flash-lite';
-        console.log(`[AI] ⚡ Using SumoPod model: ${sumopodModelId}`);
+        // // console.log(`[AI] ⚡ Using SumoPod model: ${sumopodModelId}`);
 
         const temperature = 0.5;
 
@@ -2634,7 +2637,7 @@ Always provide information based on your training data AND the current date cont
           const msg = completion.choices[0]?.message;
 
           if (msg?.tool_calls && msg.tool_calls.length > 0) {
-            console.log(`[Generate] Model requested ${msg.tool_calls.length} tool call(s)`);
+            // // console.log(`[Generate] Model requested ${msg.tool_calls.length} tool call(s)`);
             currentMsgs.push(msg);
 
             for (const tc of msg.tool_calls) {
@@ -2646,12 +2649,12 @@ Always provide information based on your training data AND the current date cont
                 let args;
                 try { args = JSON.parse(tc.function.arguments); } catch { args = {}; }
 
-                console.log(`[Generate] Executing MCP tool: ${toolName} on server ${serverId}`);
+                // // console.log(`[Generate] Executing MCP tool: ${toolName} on server ${serverId}`);
                 try {
                   const result = await mcpManager.executeTool(serverId, toolName, args);
                   currentMsgs.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(result) });
                 } catch (toolErr) {
-                  console.error(`[Generate] Tool error:`, toolErr.message);
+                  // // console.error(`[Generate] Tool error:`, toolErr.message);
                   currentMsgs.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify({ error: toolErr.message }) });
                 }
               }
@@ -2669,7 +2672,7 @@ Always provide information based on your training data AND the current date cont
       const errorStatus = sdkErr?.status || sdkErr?.response?.status || 500;
       const errorMsg = sdkErr?.error?.message || sdkErr?.message || String(sdkErr);
 
-      console.error(`[${provider}] SumoPod SDK error:`, sdkErr);
+      // // console.error(`[${provider}] SumoPod SDK error:`, sdkErr);
       return sendResponse(errorStatus, {
         error: `SumoPod API Error: ${errorMsg}`,
         detail: sdkErr?.error || errorMsg,
@@ -2677,7 +2680,7 @@ Always provide information based on your training data AND the current date cont
     }
 
     if (!content) {
-      console.error(`[${provider}] No content in response`);
+      // // console.error(`[${provider}] No content in response`);
       return sendResponse(500, {
         error: `${provider.toUpperCase()} response missing content`
       });
@@ -2688,7 +2691,7 @@ Always provide information based on your training data AND the current date cont
       const isDeepDive = body.deepDive === true || mode === 'deep_dive';
       const featureUsed = isDeepDive ? 'deep_dive' : 'chat';
       await incrementFeatureUsage(userId, featureUsed);
-      console.log(`[TokenLimit] Incremented ${featureUsed} usage for User ${userId}`);
+      // // console.log(`[TokenLimit] Incremented ${featureUsed} usage for User ${userId}`);
     }
 
     return sendResponse(200, { content });
@@ -2697,7 +2700,7 @@ Always provide information based on your training data AND the current date cont
     clearTimeout(timeout);
 
     // Log error details for debugging
-    console.error(`[${provider}] Error in /api/generate:`, {
+    // // console.error(`[${provider}] Error in /api/generate:`, {
       name: err?.name,
       message: err?.message,
       provider,
@@ -2763,7 +2766,7 @@ async function handlePhilosPipeline(req, res, messages) {
         const searchData = await searchRes.json();
         searchResults = searchData.results || [];
       }
-    } catch (e) { console.warn('[Philos] Web search failed', e.message); }
+    } catch (e) { // // console.warn('[Philos] Web search failed', e.message); }
 
     // PHASE 3: Multi-Model Synthesis (Consensus Step)
     res.write(`event: status\ndata: ${JSON.stringify({ message: "Phase 3: Synthesizing final response from multiple models..." })}\n\n`);
@@ -2827,7 +2830,7 @@ Original Prompt: "${lastUserMessage}"` }
     }
 
   } catch (err) {
-    console.error('[Philos Pipeline] Error:', err);
+    // // console.error('[Philos Pipeline] Error:', err);
     res.write(`event: error\ndata: ${JSON.stringify({ message: err.message })}\n\n`);
     res.end();
   }
@@ -2949,7 +2952,7 @@ app.post('/api/deploy', async (req, res) => {
       });
     }
   } catch (error) {
-    console.error('Deployment error:', error);
+    // // console.error('Deployment error:', error);
     return res.status(500).json({
       error: `Deployment failed: ${error.message || 'Unknown error'}`
     });
@@ -3009,7 +3012,7 @@ app.post('/api/deploy/status', async (req, res) => {
       });
     }
   } catch (error) {
-    console.error('Status check error:', error);
+    // // console.error('Status check error:', error);
     return res.status(500).json({ error: 'Failed to get deployment status' });
   }
 });
@@ -3071,7 +3074,7 @@ app.get('/api/github/callback', async (req, res) => {
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
     res.redirect(`${frontendUrl}/?github_token=${tokenData.access_token}&state=${state}`);
   } catch (error) {
-    console.error('GitHub OAuth error:', error);
+    // // console.error('GitHub OAuth error:', error);
     res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/?github_error=server_error`);
   }
 });
@@ -3107,7 +3110,7 @@ app.post('/api/github/repos', async (req, res) => {
       }))
     });
   } catch (error) {
-    console.error('GitHub repos error:', error);
+    // // console.error('GitHub repos error:', error);
     res.status(500).json({ error: 'Failed to fetch repositories' });
   }
 });
@@ -3149,7 +3152,7 @@ app.post('/api/github/create-repo', async (req, res) => {
       defaultBranch: repo.default_branch,
     });
   } catch (error) {
-    console.error('GitHub create repo error:', error);
+    // // console.error('GitHub create repo error:', error);
     res.status(500).json({ error: 'Failed to create repository' });
   }
 });
@@ -3297,7 +3300,7 @@ app.post('/api/github/push', async (req, res) => {
       commitSha: commitData.sha,
     });
   } catch (error) {
-    console.error('GitHub push error:', error);
+    // // console.error('GitHub push error:', error);
     res.status(500).json({ error: error.message || 'Failed to push to GitHub' });
   }
 });
@@ -3366,7 +3369,7 @@ app.post('/api/search', async (req, res) => {
       searchTime: tavilyData.query_time || 0,
     });
   } catch (error) {
-    console.error('Web search error:', error);
+    // // console.error('Web search error:', error);
     res.status(500).json({
       error: 'Web search failed. Please check server logs.',
 
@@ -3411,7 +3414,7 @@ app.post('/api/parse-document', upload.single('file'), async (req, res) => {
         try {
           // pdf-parse v2.x - import PDFParse class from explicit ESM path
           const pdfParseModule = await import('pdf-parse');
-          console.log('pdf-parse module keys:', Object.keys(pdfParseModule));
+          // // console.log('pdf-parse module keys:', Object.keys(pdfParseModule));
 
           const PDFParse = pdfParseModule.PDFParse;
           if (!PDFParse) {
@@ -3439,7 +3442,7 @@ app.post('/api/parse-document', upload.single('file'), async (req, res) => {
           // Clean up parser
           await parser.destroy();
         } catch (pdfError) {
-          console.error('PDF parsing failed:', pdfError.message);
+          // // console.error('PDF parsing failed:', pdfError.message);
           // Fallback: return basic file info
           content = `[PDF file: ${fileName}]\n\nPDF parsing failed. The content could not be extracted.\nError: ${pdfError.message}`;
           pages = 0;
@@ -3525,7 +3528,7 @@ app.post('/api/parse-document', upload.single('file'), async (req, res) => {
       throw parseError;
     }
   } catch (error) {
-    console.error('Document parsing error:', error);
+    // // console.error('Document parsing error:', error);
     res.status(500).json({
       error: 'Failed to parse document',
       message: error.message || 'An error occurred while parsing the document'
@@ -3564,7 +3567,7 @@ app.post('/api/transcript', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('YouTube Transcript Error:', error);
+    // // console.error('YouTube Transcript Error:', error);
     res.status(500).json({
       error: 'Failed to fetch transcript',
       details: error.message
@@ -3598,10 +3601,10 @@ app.post('/api/waitlist', async (req, res) => {
   verificationCodes.set(email, { code, timestamp: Date.now() });
 
   // Log to console for dev/testing (in case email fails or isn't set up)
-  console.log(`[Waitlist] 🔐 Verification Code for ${email}: ${code}`);
+  // // console.log(`[Waitlist] 🔐 Verification Code for ${email}: ${code}`);
 
   // Log to console only (Vercel serverless compatible)
-  console.log(`[Waitlist] ${new Date().toISOString()} - ${email} - Code: ${code}`);
+  // // console.log(`[Waitlist] ${new Date().toISOString()} - ${email} - Code: ${code}`);
   // TODO: Store in Supabase waitlist table for persistence
 
 
@@ -3621,13 +3624,13 @@ app.post('/api/waitlist', async (req, res) => {
                       <p>This code will expire in 10 minutes.</p>
                      </div>`
       });
-      console.log(`[Waitlist] Email sent to ${email}`);
+      // // console.log(`[Waitlist] Email sent to ${email}`);
     } catch (err) {
-      console.error('[Waitlist] Email send failed:', err);
+      // // console.error('[Waitlist] Email send failed:', err);
       // Return success anyway so user can manually get code from logs if testing local
     }
   } else {
-    console.warn('[Waitlist] Email credentials not set. Code logged to console.');
+    // // console.warn('[Waitlist] Email credentials not set. Code logged to console.');
   }
 
   res.json({ success: true, message: 'Verification code sent' });
@@ -3656,7 +3659,7 @@ app.post('/api/verify-waitlist', async (req, res) => {
 
   // Success
   verificationCodes.delete(email); // Consume code
-  console.log(`[Waitlist] Verified: ${email}`);
+  // // console.log(`[Waitlist] Verified: ${email}`);
 
   res.json({ success: true, verified: true });
 });
@@ -3757,7 +3760,7 @@ app.post('/api/execute-code', async (req, res) => {
       });
     }
   } catch (error) {
-    console.error('Code execution error:', error);
+    // // console.error('Code execution error:', error);
     res.status(500).json({
       error: error?.message || 'Code execution failed',
       output: '',
@@ -3905,7 +3908,7 @@ IMPORTANT:
       updatedAt: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('Planning error:', error);
+    // // console.error('Planning error:', error);
     res.status(500).json({
       error: error?.message || 'Planning failed',
       id: Date.now().toString(),
@@ -3930,7 +3933,7 @@ app.get('/api/currency/detect', async (req, res) => {
         countryCode = data.country_code || 'US';
       }
     } catch (error) {
-      console.warn('Failed to detect IP location:', error);
+      // // console.warn('Failed to detect IP location:', error);
     }
 
     const currency = countryCode === 'ID' ? 'IDR' : 'USD';
@@ -3942,7 +3945,7 @@ app.get('/api/currency/detect', async (req, res) => {
       exchangeRate,
     });
   } catch (error) {
-    console.error('Currency detection error:', error);
+    // // console.error('Currency detection error:', error);
     res.json({
       currency: 'USD',
       countryCode: 'US',
@@ -3962,20 +3965,23 @@ app.get('/api/user/feature-usage', async (req, res) => {
     const usageData = await getUserUsage(userId);
     const tier = await getUserTier(userId);
 
+    // Free tier has 20 daily credits, Pro is unlimited
+    const dailyLimit = tier === 'pro' ? 999999 : 20;
+
     // Calculate remaining credits
-    let remaining = usageData.limit - usageData.used;
+    let remaining = dailyLimit - usageData.used;
     if (remaining < 0) remaining = 0;
     if (tier === 'pro') remaining = 999999; // effectively unlimited
 
     res.json({
       used: usageData.used,
-      limit: usageData.limit,
+      limit: dailyLimit,
       remaining,
       tier,
       credits: remaining // explicit credit count
     });
   } catch (error) {
-    console.error('Error fetching feature usage:', error);
+    // // // console.error('Error fetching feature usage:', error);
     res.status(500).json({ error: 'Failed to fetch usage' });
   }
 });
@@ -4009,7 +4015,7 @@ app.post('/api/user/feature-usage/increment', abuseLimiter, async (req, res) => 
       remaining: tier === 'pro' ? 999999 : Math.max(0, usageData.limit - (usageData.used + cost))
     });
   } catch (error) {
-    console.error('Error incrementing usage:', error);
+    // // console.error('Error incrementing usage:', error);
     res.status(500).json({ error: 'Failed to update usage' });
   }
 });
@@ -4017,7 +4023,7 @@ app.post('/api/user/feature-usage/increment', abuseLimiter, async (req, res) => 
 app.post('/api/payment/checkout', async (req, res) => {
   const { plan, currency, amount, userId } = req.body || {};
 
-  console.log('💳 Payment checkout request:', { plan, currency, amount, userId });
+  // // console.log('💳 Payment checkout request:', { plan, currency, amount, userId });
 
   if (!plan || plan !== 'premium') {
     return res.status(400).json({ error: 'Invalid plan' });
@@ -4028,7 +4034,7 @@ app.post('/api/payment/checkout', async (req, res) => {
   }
 
   if (!snap || !process.env.MIDTRANS_SERVER_KEY) {
-    console.error('❌ Midtrans not configured! MIDTRANS_SERVER_KEY:', process.env.MIDTRANS_SERVER_KEY ? 'SET' : 'NOT SET');
+    // // console.error('❌ Midtrans not configured! MIDTRANS_SERVER_KEY:', process.env.MIDTRANS_SERVER_KEY ? 'SET' : 'NOT SET');
     return res.status(500).json({ error: 'Payment system is not configured. Please contact support.' });
   }
 
@@ -4064,7 +4070,7 @@ app.post('/api/payment/checkout', async (req, res) => {
     // Create Snap transaction
     const transaction = await snap.createTransaction(parameter);
 
-    console.log('✅ Midtrans Snap transaction created:', orderId);
+    // // console.log('✅ Midtrans Snap transaction created:', orderId);
 
     res.json({
       checkout_url: transaction.redirect_url,
@@ -4072,7 +4078,7 @@ app.post('/api/payment/checkout', async (req, res) => {
       order_id: orderId
     });
   } catch (error) {
-    console.error('❌ Payment checkout error:', {
+    // // console.error('❌ Payment checkout error:', {
       message: error?.message,
       stack: error?.stack,
       response: error?.response?.data
@@ -4089,7 +4095,7 @@ app.post('/api/payment/webhook', async (req, res) => {
   try {
     const notification = req.body;
 
-    console.log('📬 Midtrans notification received:', {
+    // // console.log('📬 Midtrans notification received:', {
       order_id: notification.order_id,
       transaction_status: notification.transaction_status,
       fraud_status: notification.fraud_status
@@ -4114,10 +4120,10 @@ app.post('/api/payment/webhook', async (req, res) => {
       isSuccess = true;
     } else if (transactionStatus === 'pending') {
       // Payment pending
-      console.log('⏳ Payment pending for order:', orderId);
+      // // console.log('⏳ Payment pending for order:', orderId);
     } else if (transactionStatus === 'deny' || transactionStatus === 'cancel' || transactionStatus === 'expire') {
       // Payment failed
-      console.log('❌ Payment failed for order:', orderId);
+      // // console.log('❌ Payment failed for order:', orderId);
     }
 
     if (isSuccess) {
@@ -4132,18 +4138,18 @@ app.post('/api/payment/webhook', async (req, res) => {
       const activated = saveSubscription(userId, 'pro', expiryDate.toISOString());
 
       if (activated) {
-        console.log(`✅ Subscription activated for user ${userId}`);
-        console.log(`   Order ID: ${orderId}`);
-        console.log(`   Transaction ID: ${notification.transaction_id}`);
-        console.log(`   Expires: ${expiryDate.toISOString()}`);
+        // // console.log(`✅ Subscription activated for user ${userId}`);
+        // // console.log(`   Order ID: ${orderId}`);
+        // // console.log(`   Transaction ID: ${notification.transaction_id}`);
+        // // console.log(`   Expires: ${expiryDate.toISOString()}`);
       } else {
-        console.error(`❌ Failed to activate subscription for user ${userId}`);
+        // // console.error(`❌ Failed to activate subscription for user ${userId}`);
       }
     }
 
     res.json({ received: true });
   } catch (error) {
-    console.error('Error processing Midtrans notification:', error);
+    // // console.error('Error processing Midtrans notification:', error);
     res.status(500).json({ error: 'Webhook processing failed' });
   }
 });
@@ -4153,7 +4159,7 @@ app.post('/api/payment/webhook', async (req, res) => {
 app.post('/api/payment/activate', async (req, res) => {
   const { userId, orderId } = req.body;
 
-  console.log('📥 Activation request received:', { userId, orderId });
+  // // console.log('📥 Activation request received:', { userId, orderId });
 
   if (!userId) {
     return res.status(400).json({ error: 'User ID is required' });
@@ -4165,10 +4171,10 @@ app.post('/api/payment/activate', async (req, res) => {
 
   try {
     // Step 1: Verify payment status with Midtrans
-    console.log('🔍 Verifying payment with Midtrans for order:', orderId);
+    // // console.log('🔍 Verifying payment with Midtrans for order:', orderId);
 
     if (!snap) {
-      console.error('❌ Midtrans not configured!');
+      // // console.error('❌ Midtrans not configured!');
       return res.status(500).json({ error: 'Payment system not configured' });
     }
 
@@ -4201,7 +4207,7 @@ app.post('/api/payment/activate', async (req, res) => {
       transactionStatus = statusData.transaction_status;
       const fraudStatus = statusData.fraud_status;
 
-      console.log('📊 Midtrans verification result:', {
+      // // console.log('📊 Midtrans verification result:', {
         order_id: orderId,
         transaction_status: transactionStatus,
         fraud_status: fraudStatus
@@ -4211,7 +4217,7 @@ app.post('/api/payment/activate', async (req, res) => {
       if (transactionStatus === 'settlement' ||
         (transactionStatus === 'capture' && fraudStatus === 'accept')) {
         paymentVerified = true;
-        console.log('✅ Payment verified successfully');
+        // // console.log('✅ Payment verified successfully');
       } else if (transactionStatus === 'pending') {
         return res.status(402).json({
           error: 'Payment is still pending',
@@ -4219,7 +4225,7 @@ app.post('/api/payment/activate', async (req, res) => {
           message: 'Please wait for payment confirmation'
         });
       } else {
-        console.warn('⚠️ Payment not successful:', transactionStatus);
+        // // console.warn('⚠️ Payment not successful:', transactionStatus);
         return res.status(403).json({
           error: 'Payment verification failed',
           status: transactionStatus,
@@ -4227,12 +4233,12 @@ app.post('/api/payment/activate', async (req, res) => {
         });
       }
     } catch (verifyError) {
-      console.error('❌ Midtrans verification error:', verifyError);
+      // // console.error('❌ Midtrans verification error:', verifyError);
 
       // In development/testing, allow activation without strict verification
       // Remove this in production!
       if (process.env.NODE_ENV === 'development' && orderId.startsWith('TEST-')) {
-        console.warn('⚠️ Development mode: Allowing test order without verification');
+        // // console.warn('⚠️ Development mode: Allowing test order without verification');
         paymentVerified = true;
       } else {
         return res.status(500).json({
@@ -4258,10 +4264,10 @@ app.post('/api/payment/activate', async (req, res) => {
     const activated = saveSubscription(userId, 'pro', expiryDate.toISOString());
 
     if (activated) {
-      console.log(`✅ [Verified] Subscription activated for user ${userId}`);
-      console.log(`   Order ID: ${orderId}`);
-      console.log(`   Transaction Status: ${transactionStatus}`);
-      console.log(`   Expires: ${expiryDate.toISOString()}`);
+      // // console.log(`✅ [Verified] Subscription activated for user ${userId}`);
+      // // console.log(`   Order ID: ${orderId}`);
+      // // console.log(`   Transaction Status: ${transactionStatus}`);
+      // // console.log(`   Expires: ${expiryDate.toISOString()}`);
 
       res.json({
         success: true,
@@ -4273,7 +4279,7 @@ app.post('/api/payment/activate', async (req, res) => {
       throw new Error('Failed to save subscription');
     }
   } catch (error) {
-    console.error('Activation error:', error);
+    // // console.error('Activation error:', error);
     res.status(500).json({ error: 'Failed to activate subscription' });
   }
 });
@@ -4305,7 +4311,7 @@ app.get('/api/payment/subscription', async (req, res) => {
       });
     }
   } catch (error) {
-    console.error('Error fetching subscription:', error);
+    // // console.error('Error fetching subscription:', error);
     res.status(500).json({ error: 'Failed to fetch subscription status' });
   }
 });
@@ -4374,7 +4380,7 @@ app.post('/api/workflow', async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Workflow error:', error);
+    // // console.error('Workflow error:', error);
     return res.status(500).json({
       error: 'Workflow execution failed',
       message: error.message
@@ -4430,7 +4436,7 @@ If no image is provided, just create a professional HTML document/table based so
       }
     ];
 
-    console.log(`[PDFGen] Requesting HTML generation for user ${userId}...`);
+    // // console.log(`[PDFGen] Requesting HTML generation for user ${userId}...`);
     
     // Use Gemini Flash or Pro for vision
     const targetModelId = process.env.SUMOPOD_REDESIGN_MODEL_ID || process.env.SUMOPOD_MODEL_ID || 'gemini/gemini-pro';
@@ -4447,12 +4453,12 @@ If no image is provided, just create a professional HTML document/table based so
     htmlContent = htmlContent.replace(/```html\s*/g, '').replace(/```\s*$/g, '').trim();
 
     // 2. Send generated HTML back to the client for client-side PDF rendering
-    console.log(`[PDFGen] HTML generated (${htmlContent.length} bytes). Sending to client...`);
+    // // console.log(`[PDFGen] HTML generated (${htmlContent.length} bytes). Sending to client...`);
     
     res.json({ success: true, html: htmlContent });
 
   } catch (error) {
-    console.error('[PDFGen] Error:', error);
+    // // console.error('[PDFGen] Error:', error);
     
     // Check if it's an API Error from OpenAI SDK (budget limit or invalid key)
     if (error.status === 400 || error.status === 401 || error.status === 429) {
@@ -4492,7 +4498,7 @@ app.post('/api/payment/portal', async (req, res) => {
       res.status(404).json({ error: 'No active subscription found' });
     }
   } catch (error) {
-    console.error('Error fetching subscription info:', error);
+    // // console.error('Error fetching subscription info:', error);
     res.status(500).json({ error: 'Failed to fetch subscription info' });
   }
 });
@@ -4528,7 +4534,7 @@ app.post('/api/canvas/analyze', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Canvas analyze error:', error);
+    // // console.error('Canvas analyze error:', error);
     res.status(500).json({ error: 'Failed to analyze canvas' });
   }
 });
@@ -4549,7 +4555,7 @@ app.get('/api/canvas/usage', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error getting canvas usage:', error);
+    // // console.error('Error getting canvas usage:', error);
     res.status(500).json({ error: 'Failed to get usage' });
   }
 });
@@ -4568,12 +4574,12 @@ if (process.env.VERCEL !== '1' && !process.env.VERCEL_ENV) {
         import('../lib/knowledge/scheduler/KnowledgeScheduler.js').then(({ KnowledgeScheduler }) => {
           const intervalMinutes = parseInt(process.env.KNOWLEDGE_SCHEDULER_INTERVAL || '60', 10);
           KnowledgeScheduler.start(intervalMinutes);
-          console.log(`📅 Knowledge Scheduler: Started (interval: ${intervalMinutes} minutes)`);
+          // // console.log(`📅 Knowledge Scheduler: Started (interval: ${intervalMinutes} minutes)`);
         }).catch(err => {
-          console.warn('⚠️ Knowledge Scheduler: Failed to start', err.message);
+          // // console.warn('⚠️ Knowledge Scheduler: Failed to start', err.message);
         });
       } catch (error) {
-        console.warn('⚠️ Knowledge Scheduler: Not available', error.message);
+        // // console.warn('⚠️ Knowledge Scheduler: Not available', error.message);
       }
     }
 
@@ -4584,7 +4590,7 @@ if (process.env.VERCEL !== '1' && !process.env.VERCEL_ENV) {
         await KnowledgeScheduler.runPipeline();
         res.json({ success: true, message: 'Knowledge pipeline triggered' });
       } catch (error) {
-        console.error('Knowledge trigger error:', error);
+        // // console.error('Knowledge trigger error:', error);
         res.status(500).json({ error: 'Failed to trigger knowledge pipeline' });
       }
     });
@@ -4596,7 +4602,7 @@ if (process.env.VERCEL !== '1' && !process.env.VERCEL_ENV) {
         await KnowledgeScheduler.runForSource(sourceId);
         res.json({ success: true, message: `Processed source: ${sourceId}` });
       } catch (error) {
-        console.error('Knowledge source processing error:', error);
+        // // console.error('Knowledge source processing error:', error);
         res.status(500).json({ error: error.message || 'Failed to process source' });
       }
     });
@@ -4608,7 +4614,7 @@ if (process.env.VERCEL !== '1' && !process.env.VERCEL_ENV) {
         const sources = SourceRegistry.getAllSources();
         res.json({ sources });
       } catch (error) {
-        console.error('Knowledge sources error:', error);
+        // // console.error('Knowledge sources error:', error);
         res.status(500).json({ error: 'Failed to get sources' });
       }
     });
@@ -4684,7 +4690,7 @@ if (process.env.VERCEL !== '1' && !process.env.VERCEL_ENV) {
     const mapping = OPENCLAW_MODEL_MAP[model] || OPENCLAW_MODEL_MAP['noir-default'];
     const { provider, modelId } = mapping;
 
-    console.log(`[OpenClaw] Request: model=${model} → provider=${provider}, modelId=${modelId}, stream=${stream}`);
+    // // console.log(`[OpenClaw] Request: model=${model} → provider=${provider}, modelId=${modelId}, stream=${stream}`);
 
     // Select the right client
     const client = provider === 'sumopod' ? sumopodClient : openrouterClient;
@@ -4731,7 +4737,7 @@ if (process.env.VERCEL !== '1' && !process.env.VERCEL_ENV) {
 
         res.write('data: [DONE]\n\n');
         res.end();
-        console.log(`[OpenClaw] ✅ Stream completed for ${model}`);
+        // // console.log(`[OpenClaw] ✅ Stream completed for ${model}`);
 
       } else {
         // === NON-STREAMING MODE ===
@@ -4758,12 +4764,12 @@ if (process.env.VERCEL !== '1' && !process.env.VERCEL_ENV) {
         };
 
         res.json(response);
-        console.log(`[OpenClaw] ✅ Response sent for ${model} (${content.length} chars)`);
+        // // console.log(`[OpenClaw] ✅ Response sent for ${model} (${content.length} chars)`);
       }
 
     } catch (err) {
       const errorMsg = err?.error?.message || err?.message || String(err);
-      console.error(`[OpenClaw] ❌ Error:`, errorMsg);
+      // // console.error(`[OpenClaw] ❌ Error:`, errorMsg);
 
       // If headers already sent (mid-stream error), send error as SSE
       if (res.headersSent) {
@@ -4786,12 +4792,12 @@ if (process.env.VERCEL !== '1' && !process.env.VERCEL_ENV) {
     }
   });
 
-  console.log(`🔗 [OpenClaw] Bridge ${OPENCLAW_API_KEY ? '✅ Enabled' : '❌ No API Key'} → /v1/chat/completions`);
+  // // console.log(`🔗 [OpenClaw] Bridge ${OPENCLAW_API_KEY ? '✅ Enabled' : '❌ No API Key'} → /v1/chat/completions`);
 
   // Start server locally (not on Vercel)
   if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
     app.listen(PORT, () => {
-      console.log(`API proxy listening on ${PORT}`);
+      // // console.log(`API proxy listening on ${PORT}`);
     });
   }
 }

@@ -16,7 +16,7 @@ export class PhilosMemoryService {
       .insert({ user_id: userId, content, type, tags, importance })
       .select()
       .single();
-    if (error) console.error('[Philos Memory] Save error:', error.message);
+    if (error) // console.error('[Philos Memory] Save error:', error.message);
     return data;
   }
 
@@ -49,7 +49,7 @@ export class PhilosMemoryService {
         .slice(0, limit)
         .map(m => m.content);
     } catch (e) {
-      console.error('[Philos Memory] Query error:', e.message);
+      // console.error('[Philos Memory] Query error:', e.message);
       return [];
     }
   }
@@ -171,6 +171,6 @@ Example: [{"content": "Likes dark mode", "tags": ["preference"]}]`;
         }
     }
   } catch (e) {
-    console.warn('[Philos] Memory extraction failed:', e.message);
+    // console.warn('[Philos] Memory extraction failed:', e.message);
   }
 }

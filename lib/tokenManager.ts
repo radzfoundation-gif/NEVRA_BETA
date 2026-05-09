@@ -35,14 +35,14 @@ export async function checkTokens(userId: string, cost: number): Promise<boolean
         });
 
         if (error) {
-            console.error('[Token Check] RPC error:', error);
+            
             throw error;
         }
 
         const balance = (data as number) || 0;
         return balance >= cost;
     } catch (error) {
-        console.error('[Token Check] Error:', error);
+        
         return false;
     }
 }
@@ -73,12 +73,12 @@ export async function deductTokens(
         });
 
         if (deductError) {
-            console.error('[Token Deduct] RPC error:', deductError);
+            
             throw deductError;
         }
 
         if (!success) {
-            console.warn(`[Token Deduct] Insufficient tokens for user ${userId}`);
+            
             return false;
         }
 
@@ -93,14 +93,14 @@ export async function deductTokens(
         });
 
         if (logError) {
-            console.error('[Token Deduct] Logging error:', logError);
+            
             // Don't fail the deduction if logging fails
         }
 
-        console.log(`✅ Deducted ${cost} tokens from user ${userId} (${requestType})`);
+        
         return true;
     } catch (error) {
-        console.error('[Token Deduct] Error:', error);
+        
         return false;
     }
 }
@@ -128,7 +128,7 @@ export async function getTokenBalance(userId: string): Promise<{
             resetAt: new Date(data?.tokens_reset_at || Date.now()),
         };
     } catch (error) {
-        console.error('[Get Token Balance] Error:', error);
+        
         return {
             balance: 0,
             plan: 'free',
@@ -177,7 +177,7 @@ export async function getUserUsage(userId: string) {
             recentUsage: recentUsage || [],
         };
     } catch (error) {
-        console.error('[Get User Usage] Error:', error);
+        
         return {
             plan: 'free',
             tokensRemaining: 0,
@@ -212,10 +212,10 @@ export async function addTokens(
 
         if (error) throw error;
 
-        console.log(`✅ Added ${amount} tokens to user ${userId} (${reason})`);
+        
         return true;
     } catch (error) {
-        console.error('[Add Tokens] Error:', error);
+        
         return false;
     }
 }
@@ -235,7 +235,7 @@ export async function isUserPro(userId: string): Promise<boolean> {
 
         return data?.plan === 'pro' || data?.plan === 'enterprise';
     } catch (error) {
-        console.error('[Is User Pro] Error:', error);
+        
         return false;
     }
 }

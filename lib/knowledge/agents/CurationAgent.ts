@@ -49,12 +49,7 @@ export class CurationAgent extends BaseAgent {
     const { content, watcherResult } = input;
 
     try {
-      if (WORKFLOW_CONFIG.logStages) {
-        console.log('📚 CurationAgent: Curating content', {
-          source: content.sourceName,
-          title: content.title.substring(0, 50),
-        });
-      }
+      // CurationAgent curating content silently
 
       // Create curation prompt
       const curationPrompt = this.createCurationPrompt(content, watcherResult);
@@ -67,17 +62,11 @@ export class CurationAgent extends BaseAgent {
       // Parse curated content
       const curated = this.parseCuratedContent(curatedText, content, watcherResult);
 
-      if (WORKFLOW_CONFIG.logStages) {
-        console.log('✅ CurationAgent: Curation completed', {
-          qualityScore: curated.qualityScore,
-          tags: curated.tags.length,
-          keyPoints: curated.keyPoints.length,
-        });
-      }
+      // CurationAgent completed silently
 
       return curated;
     } catch (error) {
-      console.error('CurationAgent error:', error);
+      
       return this.createDefaultCurated(content, watcherResult);
     }
   }

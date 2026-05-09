@@ -364,7 +364,7 @@ class DesignSystemManager {
         }
       }
     } catch (error) {
-      console.error('Failed to load design systems from storage:', error);
+      
     }
   }
 
@@ -379,7 +379,7 @@ class DesignSystemManager {
       };
       localStorage.setItem('noir_ai_design_systems', JSON.stringify(data));
     } catch (error) {
-      console.error('Failed to save design systems to storage:', error);
+      
     }
   }
 }

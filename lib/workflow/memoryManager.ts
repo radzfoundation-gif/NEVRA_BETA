@@ -33,12 +33,10 @@ export async function saveToMemory(
     }
 
     if (WORKFLOW_CONFIG.logStages) {
-      console.log('💾 Memory: Workflow result logged', {
-        sessionId: memoryEntry.sessionId,
-      });
+      // Memory logged silently
     }
   } catch (error) {
-    console.error('Memory save error:', error);
+    
   }
 }
 
@@ -59,7 +57,7 @@ export async function retrieveRelevantMemory(
     const memories = await getUserMemories(userId, limit);
     return memories as MemoryEntry[];
   } catch (error) {
-    console.error('Memory retrieval error:', error);
+    
     return [];
   }
 }

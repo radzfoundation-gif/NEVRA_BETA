@@ -312,13 +312,13 @@ export const generateCode = async (
         } catch (e) {
           // If JSON parse fails, try as text
           const text = await resp.text();
-          console.error(`[${provider}] Non-JSON error response:`, text.slice(0, 500));
+          
           errorData = { error: `API returned HTML instead of JSON. Status: ${resp.status}` };
         }
       } else {
         // Response is HTML or other non-JSON format
         const text = await resp.text();
-        console.error(`[${provider}] HTML error response:`, text.slice(0, 500));
+        
         errorData = {
           error: `API Error (${resp.status}): Server returned HTML instead of JSON. This usually means the API endpoint is incorrect, API key is invalid, or the service is unavailable.`
         };
@@ -332,14 +332,14 @@ export const generateCode = async (
     const contentType = resp.headers.get('content-type') || '';
     if (!contentType.includes('application/json')) {
       const text = await resp.text();
-      console.error(`[${provider}] Non-JSON response:`, text.slice(0, 500));
+      
       throw new Error(`API returned ${contentType} instead of JSON. Response: ${text.slice(0, 200)}`);
     }
 
     const data = await resp.json();
     return data.content || "";
   } catch (error) {
-    console.error(`${provider} Error:`, error);
+    
     const errorMessage = error instanceof Error
       ? error.message
       : typeof error === 'string'

@@ -314,11 +314,11 @@ const ChatInterface: React.FC = () => {
   }, [location.state]);
 
   // Token Limit Hooks
-  const { hasExceeded, isSubscribed, refreshLimit, tokensUsed, incrementTokenUsage, loading: tokenLoading, checkFeatureLimit, incrementFeatureUsage, featureUsage, credits, softLimitReached } = useTokenLimit();
+  const { hasExceeded, isSubscribed, refreshLimit, tokensUsed, incrementTokenUsage, loading: tokenLoading, checkFeatureLimit, incrementFeatureUsage, credits, softLimitReached } = useTokenLimit();
 
   // Check chat limit before sending message
-  const checkChatLimit = (): boolean => {
-    const chatStatus = checkFeatureLimit('chat');
+  const checkChatLimit = async (): Promise<boolean> => {
+    const chatStatus = await checkFeatureLimit('chat');
     if (chatStatus.exceeded) {
       setShowSubscriptionPopup(true);
       return false;
@@ -1667,7 +1667,7 @@ const ChatInterface: React.FC = () => {
     if ((!text.trim() && imagesToSend.length === 0 && (!attachmentsOverride || attachmentsOverride.length === 0)) || isTyping) return;
 
     // Check credit limit
-    if (!checkChatLimit()) return;
+    if (!await checkChatLimit()) return;
 
     // Track session start time for progress tracking
     const sessionStartTime = Date.now();

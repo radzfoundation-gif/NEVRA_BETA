@@ -149,7 +149,7 @@ export class ComponentLibrary {
         });
       }
     } catch (error) {
-      console.error('Error loading component library:', error);
+      
     }
   }
 
@@ -161,7 +161,7 @@ export class ComponentLibrary {
       const components = Array.from(this.components.values());
       localStorage.setItem('noir_ai_component_library', JSON.stringify(components));
     } catch (error) {
-      console.error('Error saving component library:', error);
+      
     }
   }
 }

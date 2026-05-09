@@ -49,7 +49,7 @@ const FeedbackPopup: React.FC<FeedbackPopupProps> = ({ isOpen, onClose }) => {
             // 4. Close popup
             onClose();
         } catch (error) {
-            console.error('Error sending feedback:', error);
+            
         } finally {
             setIsSubmitting(false);
         }

@@ -28,7 +28,7 @@ const McpSettings: React.FC = () => {
             const data = await res.json();
             setServers(data);
         } catch (err) {
-            console.error('Failed to fetch MCP servers:', err);
+            
         } finally {
             setLoading(false);
         }
@@ -64,7 +64,7 @@ const McpSettings: React.FC = () => {
             await fetch(`/api/mcp/servers/${id}`, { method: 'DELETE' });
             fetchServers();
         } catch (err) {
-            console.error('Failed to remove server:', err);
+            
         }
     };
 

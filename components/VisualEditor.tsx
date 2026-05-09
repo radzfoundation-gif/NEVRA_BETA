@@ -45,7 +45,7 @@ const VisualEditor: React.FC<VisualEditorProps> = ({
         const parsed = parseComponents(code);
         setComponents(parsed);
       } catch (error) {
-        console.error('Error parsing components:', error);
+        
       }
     }
   }, [code, isActive]);

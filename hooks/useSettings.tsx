@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, createContext, useContext, ReactNode } from 'react';
+import { useUser } from '../lib/authContext';
+import { getUserPreferences, updateUserPreferences } from '../lib/supabaseDatabase';
 
 export interface Settings {
     theme: 'light' | 'dark' | 'system';
@@ -32,30 +34,65 @@ const SettingsContext = createContext<{
     updateSetting: <K extends keyof Settings>(key: K, value: Settings[K]) => void;
     isLoaded: boolean;
     effectiveTheme: 'light' | 'dark';
+    isSyncing: boolean;
 } | null>(null);
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
+    const { user, isSignedIn } = useUser();
     const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
     const [isLoaded, setIsLoaded] = useState(false);
+    const [isSyncing, setIsSyncing] = useState(false);
 
+    // Load initial settings
     useEffect(() => {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) {
-            try {
-                const parsed = JSON.parse(saved);
-                setSettings({ ...DEFAULT_SETTINGS, ...parsed });
-            } catch (e) {
-                setSettings(DEFAULT_SETTINGS);
+        const loadSettings = async () => {
+            let initialSettings = DEFAULT_SETTINGS;
+            
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved) {
+                try {
+                    initialSettings = { ...DEFAULT_SETTINGS, ...JSON.parse(saved) };
+                } catch (e) {}
             }
-        }
-        setIsLoaded(true);
-    }, []);
 
+            if (isSignedIn && user?.id) {
+                setIsSyncing(true);
+                try {
+                    const cloudPrefs = await getUserPreferences(user.id);
+                    if (cloudPrefs && cloudPrefs.preferences) {
+                        initialSettings = { 
+                            ...initialSettings, 
+                            ...cloudPrefs.preferences,
+                            theme: (cloudPrefs.theme as Settings['theme']) || initialSettings.theme 
+                        };
+                    }
+                } catch (e) {} finally {
+                    setIsSyncing(false);
+                }
+            }
+            setSettings(initialSettings);
+            setIsLoaded(true);
+        };
+        loadSettings();
+    }, [isSignedIn, user?.id]);
+
+    // Save settings
     useEffect(() => {
-        if (isLoaded) {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+        if (!isLoaded) return;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+
+        if (isSignedIn && user?.id) {
+            const timer = setTimeout(async () => {
+                try {
+                    await updateUserPreferences(user.id, {
+                        theme: settings.theme,
+                        preferences: settings
+                    });
+                } catch (e) {}
+            }, 1000);
+            return () => clearTimeout(timer);
         }
-    }, [settings, isLoaded]);
+    }, [settings, isLoaded, isSignedIn, user?.id]);
 
     useEffect(() => {
         if (!isLoaded) return;
@@ -96,7 +133,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     }, [settings.theme]);
 
     return (
-        <SettingsContext.Provider value={{ settings, updateSetting, isLoaded, effectiveTheme }}>
+        <SettingsContext.Provider value={{ settings, updateSetting, isLoaded, effectiveTheme, isSyncing }}>
             {children}
         </SettingsContext.Provider>
     );

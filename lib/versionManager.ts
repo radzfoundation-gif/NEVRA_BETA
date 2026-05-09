@@ -136,7 +136,7 @@ export class VersionManager {
       })));
       localStorage.setItem('noir_ai_versions', data);
     } catch (error) {
-      console.error('Error persisting versions:', error);
+      
     }
   }
 
@@ -154,7 +154,7 @@ export class VersionManager {
         }));
       }
     } catch (error) {
-      console.error('Error loading versions:', error);
+      
     }
   }
 }

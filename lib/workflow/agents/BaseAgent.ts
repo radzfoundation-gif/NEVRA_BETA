@@ -84,7 +84,7 @@ export abstract class BaseAgent implements IAgent {
             : baseWait + jitter;
 
           if (attempt < effectiveMaxRetries - 1) {
-            console.warn(`${this.getName()}: Rate limited/Server error (${response.status}), retrying in ${Math.round(waitTime)}ms (attempt ${attempt + 1}/${effectiveMaxRetries})`);
+            
             await new Promise(resolve => setTimeout(resolve, waitTime));
             continue;
           }
@@ -114,7 +114,7 @@ export abstract class BaseAgent implements IAgent {
             const baseWait = Math.min(1000 * Math.pow(2, attempt), 30000);
             const jitter = Math.random() * 1000;
             const waitTime = baseWait + jitter;
-            console.warn(`${this.getName()}: Rate limited (caught), retrying in ${Math.round(waitTime)}ms (attempt ${attempt + 1}/${effectiveMaxRetries})`);
+            
             await new Promise(resolve => setTimeout(resolve, waitTime));
             continue;
           }

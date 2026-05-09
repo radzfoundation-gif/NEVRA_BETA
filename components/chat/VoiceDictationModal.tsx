@@ -84,7 +84,7 @@ export default function VoiceDictationModal({
             };
 
             recognition.onerror = (event: any) => {
-                console.error("Speech Rec Error:", event.error);
+                
                 if (event.error === 'not-allowed') {
                     setError("Microphone permission denied.");
                     setIsListening(false);
@@ -121,12 +121,12 @@ export default function VoiceDictationModal({
                 drawVisualizer();
 
             } catch (err) {
-                console.warn("Visualizer init failed (maybe mic conflict?):", err);
+                
                 // Fallback: Use fake visualizer if real one fails (simulated)
             }
 
         } catch (e: any) {
-            console.error(e);
+            
             setError(e.message || "Failed to start.");
             setIsListening(false);
         }

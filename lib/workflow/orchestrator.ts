@@ -35,7 +35,7 @@ function updateState(
   context.onStateChange?.(state, details);
 
   if (WORKFLOW_CONFIG.logStages) {
-    console.log(`🔄 State: ${state}`, details || {});
+    
   }
 }
 
@@ -73,11 +73,7 @@ export async function executeWorkflow(
     stateMachine.transition('IDLE');
 
     if (WORKFLOW_CONFIG.logStages) {
-      console.log('🚀 Workflow: Starting execution', {
-        mode: context.mode,
-        provider: context.provider,
-        hasImages: (context.images?.length || 0) > 0,
-      });
+      // Workflow starting execution silently
     }
 
     // Stage 1: INPUT NORMALIZER
@@ -86,11 +82,7 @@ export async function executeWorkflow(
     stagesExecuted.push('normalize');
 
     if (WORKFLOW_CONFIG.logStages) {
-      console.log('✅ Input Normalizer: Completed', {
-        language: normalizedInput.language,
-        wordCount: normalizedInput.wordCount,
-        hasCodeBlocks: normalizedInput.hasCodeBlocks,
-      });
+      // Input Normalizer completed silently
     }
 
     // Stage 2: INTENT ANALYZER
@@ -103,11 +95,7 @@ export async function executeWorkflow(
     stagesExecuted.push('intent_analyze');
 
     if (WORKFLOW_CONFIG.logStages) {
-      console.log('✅ Intent Analyzer: Completed', {
-        primaryIntent: intentAnalysis.primaryIntent,
-        confidence: intentAnalysis.confidence,
-        requirements: intentAnalysis.requirements,
-      });
+      // Intent Analyzer completed silently
     }
 
     // Stage 3: USER PROFILE ENGINE
@@ -117,12 +105,7 @@ export async function executeWorkflow(
     stagesExecuted.push('user_profile');
 
     if (WORKFLOW_CONFIG.logStages) {
-      console.log('✅ User Profile Engine: Completed', {
-        hasProfile: !!userProfile,
-        userName: userProfile?.userName,
-        preferredFramework: userProfile?.history.preferredFramework,
-        behavior: userProfile?.behavior.detailLevel,
-      });
+      // User Profile Engine completed silently
     }
 
     // Stage 3.5: CONTEXT AWARENESS ENGINE
@@ -140,12 +123,7 @@ export async function executeWorkflow(
     stagesExecuted.push('context_awareness');
 
     if (WORKFLOW_CONFIG.logStages) {
-      console.log('✅ Context Awareness Engine: Completed', {
-        userName: contextAwareness?.user.name,
-        currentState: contextAwareness?.current.state,
-        pastWorkflows: contextAwareness?.past.recentWorkflows.length || 0,
-        plannedTasks: contextAwareness?.future.plannedTasks.length || 0,
-      });
+      // Context Awareness Engine completed silently
     }
 
     // Stage 4: DECISION ENGINE
@@ -159,33 +137,18 @@ export async function executeWorkflow(
     stagesExecuted.push('decision');
 
     if (WORKFLOW_CONFIG.logStages) {
-      console.log('✅ Decision Engine: Completed', {
-        routing: routingDecision,
-        skipStages: workflowDecision.skipStages,
-        qualityThreshold: workflowDecision.qualityThreshold,
-        priority: workflowDecision.priority,
-        reasoning: workflowDecision.reasoning,
-      });
+      // Decision Engine completed silently
     }
 
     // Validate agent routing against config
     if (routingDecision.executorModel !== WORKFLOW_CONFIG.defaultExecutorModel) {
-      console.warn('⚠️ WARNING: Executor using non-default model:', {
-        expected: WORKFLOW_CONFIG.defaultExecutorModel,
-        actual: routingDecision.executorModel
-      });
+      // Executor using non-default model silently
     }
     if (routingDecision.plannerModel !== WORKFLOW_CONFIG.defaultPlannerModel) {
-      console.warn('⚠️ WARNING: Planner using non-default model:', {
-        expected: WORKFLOW_CONFIG.defaultPlannerModel,
-        actual: routingDecision.plannerModel
-      });
+      // Planner using non-default model silently
     }
     if (routingDecision.reviewerModel !== WORKFLOW_CONFIG.defaultReviewerModel) {
-      console.warn('⚠️ WARNING: Reviewer using non-default model:', {
-        expected: WORKFLOW_CONFIG.defaultReviewerModel,
-        actual: routingDecision.reviewerModel
-      });
+      // Reviewer using non-default model silently
     }
 
     // Stage 5: MEMORY RETRIEVAL
@@ -225,18 +188,7 @@ export async function executeWorkflow(
     };
 
     if (WORKFLOW_CONFIG.logStages) {
-      console.log('✅ Agent Factory: Created agents', {
-        plannerModel: routingDecision.plannerModel, // GPT-OSS-20B
-        executorModel: routingDecision.executorModel, // DEVSTRAL
-        reviewerModel: routingDecision.reviewerModel, // GPT-OSS-20B
-        skipStages: workflowDecision.skipStages,
-        agents: {
-          planner: agents.planner?.getName(),
-          executor: agents.executor.getName(),
-          reviewer: agents.reviewer?.getName(),
-        },
-        memoryEntries: relevantMemory.length,
-      });
+      // Agent Factory created agents silently
     }
 
     // Stage 7: PLANNING (if not skipped) - ALWAYS GPT-OSS-20B via PlannerAgent
@@ -277,13 +229,10 @@ export async function executeWorkflow(
         stagesExecuted.push('plan');
 
         if (WORKFLOW_CONFIG.logStages) {
-          console.log('✅ PlannerAgent: Plan created using GPT-OSS-20B', {
-            tasks: plan.tasks.length,
-            steps: plan.executionSteps.length,
-          });
+          // PlannerAgent plan created silently
         }
       } catch (error) {
-        console.error('Planning failed, continuing without plan:', error);
+        
         // Continue without plan
       }
     }
@@ -302,30 +251,19 @@ export async function executeWorkflow(
 
       // Circuit breaker - prevent infinite loop (highest priority check)
       if (totalAttempts > MAX_TOTAL_ATTEMPTS) {
-        console.error('⚠️ Circuit breaker: Max total attempts exceeded', {
-          totalAttempts,
-          executionAttempts,
-          revisionAttempts,
-          maxTotal: MAX_TOTAL_ATTEMPTS
-        });
+      // Circuit breaker triggered - max attempts exceeded
         break;
       }
 
       // Safety check: execution attempts
       if (executionAttempts > workflowDecision.maxRetries + 1) {
-        console.error('⚠️ Max execution attempts exceeded, stopping loop', {
-          executionAttempts,
-          maxRetries: workflowDecision.maxRetries
-        });
+      // Max execution attempts exceeded - stopping loop
         break;
       }
 
       // Safety check: revision attempts
       if (revisionAttempts > workflowDecision.maxRevisions) {
-        console.error('⚠️ Max revision attempts exceeded, stopping loop', {
-          revisionAttempts,
-          maxRevisions: workflowDecision.maxRevisions
-        });
+      // Max revision attempts exceeded - stopping loop
         break;
       }
 
@@ -359,11 +297,7 @@ export async function executeWorkflow(
       totalTokensUsed += executionResult.metadata.tokensUsed;
 
       if (WORKFLOW_CONFIG.logStages) {
-        console.log('✅ ExecutorAgent: Execution completed using DEVSTRAL', {
-          attempt: executionAttempts,
-          hasCode: !!executionResult.code,
-          hasFiles: !!executionResult.files,
-        });
+        // ExecutorAgent execution completed silently
       }
 
       // Stage 9: REVIEW & DECISION (if not skipped) - ALWAYS GPT-OSS-20B via ReviewerAgent
@@ -403,11 +337,7 @@ export async function executeWorkflow(
           stagesExecuted.push('review');
 
           if (WORKFLOW_CONFIG.logStages) {
-            console.log('✅ ReviewerAgent: Review completed using GPT-OSS-20B', {
-              qualityScore: review.qualityScore,
-              rejected: review.rejected,
-              issues: review.issues.length,
-            });
+            // ReviewerAgent review completed silently
           }
 
           // Use Review Decision Engine for intelligent decision making
@@ -420,15 +350,7 @@ export async function executeWorkflow(
           );
 
           if (WORKFLOW_CONFIG.logStages) {
-            console.log('✅ ReviewDecisionEngine: Decision made', {
-              approved: reviewDecision.approved,
-              rejected: reviewDecision.rejected,
-              needsRevision: reviewDecision.needsRevision,
-              qualityScore: reviewDecision.qualityScore,
-              confidence: reviewDecision.confidence,
-              nextAction: reviewDecision.nextAction,
-              recommendations: reviewDecision.recommendations,
-            });
+            // ReviewDecisionEngine decision made silently
           }
 
           // Check if needs revision
@@ -444,12 +366,7 @@ export async function executeWorkflow(
               context.onStatusUpdate?.('revising', `Revision ${revisionAttempts}/${workflowDecision.maxRevisions}: ${reviewDecision.revisionReason || 'Quality too low'}`);
 
               if (WORKFLOW_CONFIG.logStages) {
-                console.log('🔄 Review Decision: REVISION NEEDED', {
-                  attempt: revisionAttempts,
-                  reason: reviewDecision.revisionReason,
-                  qualityScore: reviewDecision.qualityScore,
-                  recommendations: reviewDecision.recommendations,
-                });
+                // Review Decision: REVISION NEEDED silently
               }
 
               // Wait before retry
@@ -493,11 +410,7 @@ export async function executeWorkflow(
               executionAttempts = 0;
             } else {
               if (WORKFLOW_CONFIG.logStages) {
-                console.warn('⚠️ Max revisions reached, accepting current result', {
-                  revisionAttempts,
-                  maxRevisions: workflowDecision.maxRevisions,
-                  qualityScore: reviewDecision.qualityScore,
-                });
+                // Max revisions reached silently
               }
               executionResult.metadata.qualityScore = reviewDecision.qualityScore;
               shouldRetry = false;
@@ -518,7 +431,7 @@ export async function executeWorkflow(
             shouldRetry = false;
           }
         } catch (error) {
-          console.error('Review failed, continuing without review:', error);
+          
           // Continue without review
           shouldRetry = false;
         }
@@ -537,10 +450,7 @@ export async function executeWorkflow(
           await new Promise(resolve => setTimeout(resolve, WORKFLOW_CONFIG.retryDelay));
 
           if (WORKFLOW_CONFIG.logStages) {
-            console.log('🔄 Executor failed - Retrying', {
-              attempt: executionAttempts,
-              maxRetries: workflowDecision.maxRetries,
-            });
+            // Executor failed - Retrying silently
           }
         }
       }
@@ -603,13 +513,7 @@ export async function executeWorkflow(
         });
 
         if (WORKFLOW_CONFIG.logStages) {
-          console.log('✅ SelfReflectionAgent: Reflection completed', {
-            whatWorked: reflection.whatWorked.length,
-            whatFailed: reflection.whatFailed.length,
-            whatToImprove: reflection.whatToImprove.length,
-            lessonsLearned: reflection.lessonsLearned.length,
-            qualityScore: reflection.qualityScore,
-          });
+          // SelfReflectionAgent reflection completed silently
         }
       } catch (error: any) {
         // Self-reflection is non-critical - log and continue
@@ -619,9 +523,9 @@ export async function executeWorkflow(
           errorMessage.includes('rate limit');
 
         if (isRateLimit) {
-          console.warn('⚠️ SelfReflectionAgent: Rate limited, skipping reflection (non-critical)');
+          
         } else {
-          console.error('⚠️ SelfReflectionAgent: Reflection failed (non-critical):', errorMessage);
+          
         }
 
         // Continue without reflection - workflow should not fail
@@ -638,7 +542,7 @@ export async function executeWorkflow(
         reflection,
         result
       ).catch(error => {
-        console.error('Agent memory save error (non-critical):', error);
+        
       });
     }
 
@@ -652,26 +556,14 @@ export async function executeWorkflow(
         result,
         intentAnalysis
       ).catch(error => {
-        console.error('Memory save error (non-critical):', error);
+        
       });
     }
 
     context.onStatusUpdate?.('completed', 'Completed!');
 
     if (WORKFLOW_CONFIG.logStages) {
-      console.log('✅ Workflow: Completed', {
-        executionTime: result.metadata.executionTime,
-        qualityScore: result.metadata.qualityScore,
-        stagesExecuted: result.metadata.stagesExecuted,
-        executionAttempts,
-        revisionAttempts,
-        finalState: result.metadata.finalState,
-        reflection: reflection ? {
-          whatWorked: reflection.whatWorked.length,
-          whatFailed: reflection.whatFailed.length,
-          whatToImprove: reflection.whatToImprove.length,
-        } : null,
-      });
+      // Workflow completed silently
     }
 
     return result;
@@ -680,8 +572,7 @@ export async function executeWorkflow(
     const errorMessage = error instanceof Error ? error.message : String(error);
     const errorStack = error instanceof Error ? error.stack : undefined;
 
-    console.error('Workflow error:', {
-      message: errorMessage,
+    // Workflow error - handled by error state
       stack: errorStack,
       stagesExecuted,
       executionAttempts,

@@ -27,7 +27,7 @@ class MCPClient {
 
         // Skip MCP connection in browser environment
         if (typeof window !== 'undefined') {
-            console.warn('⚠️ MCP Client: Skipping connection in browser environment');
+            
             return;
         }
 
@@ -68,9 +68,9 @@ class MCPClient {
             await this.client.connect(this.transport);
             this.connected = true;
 
-            console.log('✅ MCP Client connected to server');
+            
         } catch (error) {
-            console.error('❌ Failed to connect to MCP server:', error);
+            
             throw error;
         }
     }
@@ -107,7 +107,7 @@ class MCPClient {
 
             return null;
         } catch (error) {
-            console.error(`Error reading resource ${uri}:`, error);
+            
             throw error;
         }
     }
@@ -149,7 +149,7 @@ class MCPClient {
 
             return null;
         } catch (error) {
-            console.error(`Error calling tool ${name}:`, error);
+            
             throw error;
         }
     }
@@ -196,7 +196,7 @@ class MCPClient {
         if (this.client && this.connected) {
             await this.client.close();
             this.connected = false;
-            console.log('MCP Client disconnected');
+            
         }
     }
 }

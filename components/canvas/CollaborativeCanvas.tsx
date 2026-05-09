@@ -43,7 +43,7 @@ export const CollaborativeCanvas: React.FC<CollaborativeCanvasProps> = ({
                     setCanvasUsage(data);
                 }
             } catch (error) {
-                console.error('Error fetching canvas usage:', error);
+                
             }
         };
         fetchUsage();
@@ -62,7 +62,7 @@ export const CollaborativeCanvas: React.FC<CollaborativeCanvasProps> = ({
                 roomId,
                 () => {
                     if (mounted) {
-                        console.log('✅ YJS synced!');
+                        
                         setConnectionStatus('connected');
                     }
                 },
@@ -154,7 +154,7 @@ export const CollaborativeCanvas: React.FC<CollaborativeCanvasProps> = ({
 
             onAnalyze(blob);
         } catch (error) {
-            console.error("Failed to export canvas:", error);
+            
         }
     }, [excalidrawAPI, onAnalyze, user?.id, canvasUsage]);
 

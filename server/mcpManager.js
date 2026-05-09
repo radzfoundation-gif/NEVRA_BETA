@@ -19,12 +19,12 @@ class McpManager {
             // Hot-reload when config changes (e.g. from CLI or UI)
             fs.watch(CONFIG_PATH, (eventType) => {
                 if (eventType === 'change') {
-                    console.log('[MCP] Config changed, reloading servers...');
+                    // console.log('[MCP] Config changed, reloading servers...');
                     this.loadServers();
                 }
             });
         } catch (e) {
-            console.warn('[MCP] Could not setup file watcher:', e.message);
+            // console.warn('[MCP] Could not setup file watcher:', e.message);
         }
     }
 
@@ -51,7 +51,7 @@ class McpManager {
                 this.servers = newServers;
             }
         } catch (error) {
-            console.error('[MCP] Failed to load servers config:', error);
+            // console.error('[MCP] Failed to load servers config:', error);
         }
     }
 
@@ -59,7 +59,7 @@ class McpManager {
         try {
             fs.writeFileSync(CONFIG_PATH, JSON.stringify(this.servers, null, 2));
         } catch (error) {
-            console.error('[MCP] Failed to save servers config:', error);
+            // console.error('[MCP] Failed to save servers config:', error);
         }
     }
 
@@ -83,10 +83,10 @@ class McpManager {
 
             if (isCommand) {
                 if (process.env.VERCEL) {
-                    console.warn(`[MCP] Skipping local server ${server.name} on Vercel (command-based transport not supported)`);
+                    // console.warn(`[MCP] Skipping local server ${server.name} on Vercel (command-based transport not supported)`);
                     return false;
                 }
-                console.log(`[MCP] Starting local server: ${server.name} via command...`);
+                // console.log(`[MCP] Starting local server: ${server.name} via command...`);
                 const [cmd, ...args] = server.url.split(' ');
                 transport = new StdioClientTransport({
                     command: cmd,
@@ -95,11 +95,11 @@ class McpManager {
             } else {
                 // Validate URL before connecting to avoid filling terminal with HTML if it's a repo link
                 if (server.url.includes('github.com') && !server.url.includes('/raw/')) {
-                    console.warn(`[MCP] Skipping invalid MCP URL (GitHub repo): ${server.url}`);
+                    // console.warn(`[MCP] Skipping invalid MCP URL (GitHub repo): ${server.url}`);
                     return false;
                 }
 
-                console.log(`[MCP] Connecting to ${server.name} at ${server.url}...`);
+                // console.log(`[MCP] Connecting to ${server.name} at ${server.url}...`);
                 transport = new StreamableHTTPClientTransport(new URL(server.url));
             }
 
@@ -110,10 +110,10 @@ class McpManager {
 
             await client.connect(transport);
             this.clients.set(server.id, { client, name: server.name });
-            console.log(`[MCP] Connected to ${server.name} (${isCommand ? 'Local' : 'Remote'})`);
+            // console.log(`[MCP] Connected to ${server.name} (${isCommand ? 'Local' : 'Remote'})`);
             return true;
         } catch (error) {
-            console.error(`[MCP] Failed to connect to ${server.name}:`, error.message);
+            // console.error(`[MCP] Failed to connect to ${server.name}:`, error.message);
             return false;
         }
     }
@@ -157,7 +157,7 @@ class McpManager {
                 }));
                 allTools.push(...tools);
             } catch (error) {
-                console.error(`[MCP] Failed to list tools for ${info.name}:`, error.message);
+                // console.error(`[MCP] Failed to list tools for ${info.name}:`, error.message);
                 // We don't throw here to allow other healthy servers to still provide tools
             }
         }
@@ -292,7 +292,7 @@ class McpManager {
         } catch (error) {
             // Handle task-based execution requirement (-32600)
             if (error.code === -32600 || (error.message && error.message.includes('task-based execution'))) {
-                console.warn(`[MCP] Tool ${toolName} requires task-based execution, attempting fallback...`);
+                // console.warn(`[MCP] Tool ${toolName} requires task-based execution, attempting fallback...`);
                 try {
                     // Try experimental task-based execution if available
                     if (info.client.experimental?.tasks?.callToolStream) {
@@ -319,7 +319,7 @@ class McpManager {
                         }] 
                     };
                 } catch (taskError) {
-                    console.error(`[MCP] Task-based execution also failed for ${toolName}:`, taskError.message);
+                    // console.error(`[MCP] Task-based execution also failed for ${toolName}:`, taskError.message);
                     return { 
                         content: [{ 
                             type: 'text', 
@@ -328,7 +328,7 @@ class McpManager {
                     };
                 }
             }
-            console.error(`[MCP] Error executing tool ${toolName} on ${info.name}:`, error.message);
+            // console.error(`[MCP] Error executing tool ${toolName} on ${info.name}:`, error.message);
             throw error;
         }
     }

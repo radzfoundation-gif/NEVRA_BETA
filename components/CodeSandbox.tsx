@@ -132,7 +132,7 @@ const CodeSandbox: React.FC<CodeSandboxProps> = ({
               onChange={(e) => handleCodeChange(e.target.value)}
               placeholder={language === 'python'
                 ? '# NOIR AI Python Compiler\n# Write Python 3 code in this online editor and run it.\n\nprint("Hello, NOIR AI!")'
-                : `// Enter ${language} code here...\n\nconsole.log("Hello, World!");`}
+                : `// Enter ${language} code here...\n\n`}
               className="w-full h-full bg-transparent text-sm font-mono text-white p-4 resize-none focus:outline-none placeholder-gray-600"
               style={{
                 fontFamily: 'Monaco, Menlo, "Ubuntu Mono", Consolas, "source-code-pro", monospace',

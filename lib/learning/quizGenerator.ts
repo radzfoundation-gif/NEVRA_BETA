@@ -95,13 +95,13 @@ RETURN FORMAT (JSON):
         const quizData = JSON.parse(content);
         return formatQuiz(quizData, topic, difficulty);
       } catch (e) {
-        console.warn('Failed to parse quiz JSON directly, trying fallback...');
+        
       }
     }
 
     return null;
   } catch (error) {
-    console.error('Error generating quiz:', error);
+    
     return null;
   }
 }
@@ -152,7 +152,7 @@ Generate 5-8 questions that test the key concepts from this conversation.`;
 
     return generateQuiz(topic, 'medium', 5, provider);
   } catch (error) {
-    console.error('Error generating quiz from conversation:', error);
+    
     return null;
   }
 }

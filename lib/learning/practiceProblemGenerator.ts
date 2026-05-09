@@ -76,7 +76,7 @@ RETURN FORMAT (JSON):
     const problemData = JSON.parse(jsonMatch[1]);
     return formatPracticeProblem(problemData, topic);
   } catch (error) {
-    console.error('Error generating practice problem:', error);
+    
     return null;
   }
 }

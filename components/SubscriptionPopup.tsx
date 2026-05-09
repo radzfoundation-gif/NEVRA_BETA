@@ -71,7 +71,7 @@ const SubscriptionPopup: React.FC<SubscriptionPopupProps> = ({
             if (window.snap) {
                 window.snap.pay(token, {
                     onSuccess: async (result) => {
-                        console.log('Payment success:', result);
+                        
                         await fetch('/api/payment/activate', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -81,11 +81,11 @@ const SubscriptionPopup: React.FC<SubscriptionPopupProps> = ({
                         setShowSuccess(true);
                     },
                     onPending: (result) => {
-                        console.log('Payment pending:', result);
+                        
                         setError('Payment pending. Please complete your payment.');
                     },
                     onError: (result) => {
-                        console.error('Payment error:', result);
+                        
                         setError('Payment failed. Please try again.');
                     },
                     onClose: () => {
@@ -96,7 +96,7 @@ const SubscriptionPopup: React.FC<SubscriptionPopupProps> = ({
                 throw new Error('Midtrans Snap not loaded');
             }
         } catch (err) {
-            console.error('Upgrade error:', err);
+            
             setError(err instanceof Error ? err.message : 'Failed to start payment');
             setLoading(false);
         }

@@ -36,7 +36,7 @@ export const CanvasBoard: React.FC<CanvasBoardProps> = ({ onAnalyze, isAnalyzing
                     setCanvasUsage(data);
                 }
             } catch (error) {
-                console.error('Error fetching canvas usage:', error);
+                
             }
         };
         fetchUsage();
@@ -101,7 +101,7 @@ export const CanvasBoard: React.FC<CanvasBoardProps> = ({ onAnalyze, isAnalyzing
             // Call the original analyze callback
             onAnalyze(blob);
         } catch (error) {
-            console.error("Failed to export canvas:", error);
+            
         }
     }, [excalidrawAPI, onAnalyze, user?.id, canvasUsage]);
 

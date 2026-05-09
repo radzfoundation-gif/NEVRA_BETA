@@ -59,7 +59,7 @@ export default function QuizPanel({
         setError('Failed to generate quiz. Please try again.');
       }
     } catch (err) {
-      console.error('Error generating quiz:', err);
+      
       setError(err instanceof Error ? err.message : 'Failed to generate quiz');
     } finally {
       setLoading(false);

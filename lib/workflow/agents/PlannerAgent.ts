@@ -29,13 +29,7 @@ export class PlannerAgent extends BaseAgent {
     const { prompt, preprocessed } = input;
 
     try {
-      if (WORKFLOW_CONFIG.logStages) {
-        console.log('📋 PlannerAgent: Starting planning', {
-          model: this.model,
-          intent: preprocessed.intent,
-          complexity: preprocessed.context.complexity,
-        });
-      }
+      // PlannerAgent starting planning silently
 
       // Create enhanced planning prompt
       const enhancedPrompt = this.createPlanningPrompt(prompt, preprocessed);
@@ -51,17 +45,11 @@ export class PlannerAgent extends BaseAgent {
         reviewChecklist: this.createReviewChecklist(preprocessed),
       };
 
-      if (WORKFLOW_CONFIG.logStages) {
-        console.log('✅ PlannerAgent: Plan created', {
-          tasks: enhancedPlan.tasks.length,
-          steps: enhancedPlan.executionSteps.length,
-          criteria: enhancedPlan.qualityCriteria.length,
-        });
-      }
+      // PlannerAgent plan created silently
 
       return enhancedPlan;
     } catch (error) {
-      console.error('PlannerAgent error:', error);
+      
       return this.createFallbackPlan(prompt, preprocessed);
     }
   }

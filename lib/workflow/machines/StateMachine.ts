@@ -87,13 +87,13 @@ export class StateMachine {
     const transition = this.transitions.get(key);
 
     if (!transition) {
-      console.warn(`Invalid state transition: ${this.currentState} -> ${to}`);
+      
       return false;
     }
 
     // Check condition if exists
     if (transition.condition && !transition.condition()) {
-      console.warn(`State transition condition not met: ${this.currentState} -> ${to}`);
+      
       return false;
     }
 
@@ -150,7 +150,7 @@ export class StateMachine {
         try {
           callback(details);
         } catch (error) {
-          console.error('State listener error:', error);
+          
         }
       });
     }

@@ -90,7 +90,7 @@ RETURN FORMAT (JSON):
     const pathData = JSON.parse(jsonMatch[1]);
     return formatLearningPath(pathData);
   } catch (error) {
-    console.error('Error generating learning path:', error);
+    
     return null;
   }
 }

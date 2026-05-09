@@ -48,11 +48,11 @@ try {
     // If db initialization failed, use mock
     if (!db) {
         useFirebaseMock = true;
-        console.warn('🔥 Firebase not initialized, using localStorage mock');
+        
     }
 } catch (error) {
     useFirebaseMock = true;
-    console.warn('🔥 Firebase initialization failed, using localStorage mock:', error);
+    
 }
 
 // Helper to detect offline errors and switch to mock
@@ -98,10 +98,10 @@ export async function syncUser(clerkUser: any): Promise<FirebaseUser | null> {
                 const count = snapshot.data().count;
                 if (count < 10) {
                     initialTokens = 500;
-                    console.log(`🎉 First 10 User Bonus! User #${count + 1} gets 500 tokens.`);
+                    
                 }
             } catch (cntErr) {
-                console.warn('Failed to count users for bonus, defaulting to 100 tokens', cntErr);
+                
             }
 
             const userData: FirebaseUser = {
@@ -137,11 +137,11 @@ export async function syncUser(clerkUser: any): Promise<FirebaseUser | null> {
         }
     } catch (error) {
         if (isOfflineError(error)) {
-            console.warn('🔥 Firebase offline, switching to mock');
+            
             useFirebaseMock = true;
             return syncUser(clerkUser); // Retry with mock
         }
-        console.error('Error syncing user:', error);
+        
         return null;
     }
 }
@@ -164,11 +164,11 @@ export async function getUser(userId: string): Promise<FirebaseUser | null> {
         return null;
     } catch (error) {
         if (isOfflineError(error)) {
-            console.warn('🔥 Firebase offline, switching to mock');
+            
             useFirebaseMock = true;
             return getUser(userId); // Retry with mock
         }
-        console.error('Error getting user:', error);
+        
         return null;
     }
 }
@@ -203,7 +203,7 @@ export async function createChatSession(
             ...sessionData
         } as FirebaseChatSession;
     } catch (error) {
-        console.error('Error creating chat session:', error);
+        
         return null;
     }
 }
@@ -225,7 +225,7 @@ export async function getUserSessions(userId: string): Promise<FirebaseChatSessi
             ...doc.data()
         })) as FirebaseChatSession[];
     } catch (error) {
-        console.error('Error getting user sessions:', error);
+        
         return [];
     }
 }
@@ -246,7 +246,7 @@ export async function getChatSession(sessionId: string): Promise<FirebaseChatSes
         }
         return null;
     } catch (error) {
-        console.error('Error getting chat session:', error);
+        
         return null;
     }
 }
@@ -266,7 +266,7 @@ export async function updateChatSession(
         });
         return true;
     } catch (error) {
-        console.error('Error updating chat session:', error);
+        
         return false;
     }
 }
@@ -289,7 +289,7 @@ export async function deleteChatSession(sessionId: string): Promise<boolean> {
 
         return true;
     } catch (error) {
-        console.error('Error deleting chat session:', error);
+        
         return false;
     }
 }
@@ -352,7 +352,7 @@ export async function saveMessage(
             ...messageData
         } as FirebaseMessage;
     } catch (error) {
-        console.error('Error saving message:', error);
+        
         return null;
     }
 }
@@ -373,7 +373,7 @@ export async function getSessionMessages(sessionId: string): Promise<FirebaseMes
             ...doc.data()
         })) as FirebaseMessage[];
     } catch (error) {
-        console.error('Error getting session messages:', error);
+        
         return [];
     }
 }
@@ -437,7 +437,7 @@ export async function trackAIUsage(
 
         return true;
     } catch (error) {
-        console.error('Error tracking AI usage:', error);
+        
         return false;
     }
 }
@@ -460,7 +460,7 @@ export async function getUserAIUsage(userId: string, limitCount: number = 100): 
             ...doc.data()
         })) as FirebaseAIUsage[];
     } catch (error) {
-        console.error('Error getting AI usage:', error);
+        
         return [];
     }
 }
@@ -488,11 +488,11 @@ export async function getUserPreferences(userId: string): Promise<FirebaseUserPr
         return null;
     } catch (error) {
         if (isOfflineError(error)) {
-            console.warn('🔥 Firebase offline, switching to mock');
+            
             useFirebaseMock = true;
             return getUserPreferences(userId); // Retry with mock
         }
-        console.error('Error getting user preferences:', error);
+        
         return null;
     }
 }
@@ -513,7 +513,7 @@ export async function updateUserPreferences(
         }, { merge: true });
         return true;
     } catch (error) {
-        console.error('Error updating user preferences:', error);
+        
         return false;
     }
 }
@@ -539,7 +539,7 @@ export async function saveUserMemory(
         });
         return true;
     } catch (error) {
-        console.error('Error saving user memory:', error);
+        
         return false;
     }
 }
@@ -564,7 +564,7 @@ export async function getUserMemories(
             ...doc.data()
         }));
     } catch (error) {
-        console.error('Error getting user memories:', error);
+        
         return [];
     }
 }

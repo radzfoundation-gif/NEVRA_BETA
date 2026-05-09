@@ -37,6 +37,6 @@ export async function playNotificationSound(type: 'complete' | 'error' = 'comple
             oscillator.stop(ctx.currentTime + 0.3);
         }
     } catch (e) {
-        console.warn('Could not play notification sound:', e);
+        
     }
 }

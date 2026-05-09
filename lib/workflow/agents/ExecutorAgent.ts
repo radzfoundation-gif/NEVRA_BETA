@@ -30,13 +30,7 @@ export class ExecutorAgent extends BaseAgent {
     const startTime = Date.now();
 
     try {
-      if (WORKFLOW_CONFIG.logStages) {
-        console.log('⚙️ ExecutorAgent: Starting execution', {
-          model: this.model,
-          hasPlan: !!plan,
-          mode: context.mode,
-        });
-      }
+      // ExecutorAgent starting execution silently
 
       // Create execution prompt based on plan or direct request
       const executionPrompt = plan
@@ -118,19 +112,12 @@ export class ExecutorAgent extends BaseAgent {
         executionResult.code = undefined;
       }
 
-      if (WORKFLOW_CONFIG.logStages) {
-        console.log('✅ ExecutorAgent: Execution completed', {
-          executionTime,
-          hasCode: !!executionResult.code,
-          hasFiles: !!executionResult.files,
-          hasExplanation: !!executionResult.explanation,
-        });
-      }
+      // ExecutorAgent execution completed silently
 
       return executionResult;
     } catch (error) {
       const executionTime = Date.now() - startTime;
-      console.error('ExecutorAgent error:', error);
+      
 
       return {
         code: context.mode === 'builder'

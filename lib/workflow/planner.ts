@@ -28,16 +28,12 @@ export async function createExecutionPlan(
     };
 
     if (WORKFLOW_CONFIG.logStages) {
-      console.log('📋 Planner: Created enhanced plan', {
-        tasks: enhancedPlan.tasks.length,
-        steps: enhancedPlan.executionSteps.length,
-        criteria: enhancedPlan.qualityCriteria.length,
-      });
+      // Planner created enhanced plan silently
     }
 
     return enhancedPlan;
   } catch (error) {
-    console.error('Planner error:', error);
+    
     
     // Fallback to basic plan
     const fallbackPlan = createFallbackEnhancedPlan(prompt, context);

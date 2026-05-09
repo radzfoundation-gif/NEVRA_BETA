@@ -186,13 +186,13 @@ const ChatInput: React.FC<ChatInputProps> = ({
     const [showStyleSubmenu, setShowStyleSubmenu] = useState(false);
     const [showSkillSubmenu, setShowSkillSubmenu] = useState(false);
     const [showVisualSubmenu, setShowVisualSubmenu] = useState<'image' | 'video' | null>(null);
-    const [userSkills, setUserSkills] = useState<Array<{id: string; name: string; enabled: boolean}>>([]);
+    const [userSkills, setUserSkills] = useState<Array<{id: string; name: string; enabled: boolean; system_prompt: string}>>([]);
 
     // Load skills from Supabase
     useEffect(() => {
         if (!user?.id) return;
         getSkills(user.id)
-            .then(data => setUserSkills(data.map(s => ({ id: s.id, name: s.name, enabled: s.enabled }))))
+            .then(data => setUserSkills(data.map(s => ({ id: s.id, name: s.name, enabled: s.enabled, system_prompt: s.system_prompt }))))
             .catch(() => {});
     }, [user?.id]);
 
@@ -371,13 +371,73 @@ const ChatInput: React.FC<ChatInputProps> = ({
                 ref={combinedInputRef}
                 className="hidden"
                 multiple
-                accept="image/*,.pdf,.docx,.txt,.md,.csv,.doc"
-                onChange={(e) => {
+                accept="image/*,.pdf,.docx,.txt,.md,.csv,.doc,.zip"
+                onChange={async (e) => {
                     const files = Array.from(e.target.files || []);
                     if (!files.length) return;
                     
+                    const zipFiles = files.filter(f => f.name.endsWith('.zip') || f.type === 'application/zip' || f.type === 'application/x-zip-compressed');
                     const images = files.filter(f => f.type.startsWith('image/'));
-                    const docs = files.filter(f => !f.type.startsWith('image/'));
+                    const docs = files.filter(f => !f.type.startsWith('image/') && !zipFiles.includes(f));
+
+                    if (zipFiles.length > 0 && user?.id) {
+                        try {
+                            const JSZip = (await import('jszip')).default;
+                            for (const file of zipFiles) {
+                                const zip = await JSZip.loadAsync(file);
+                                const metadataFile = zip.file('metadata.json') || zip.file('skill.json') || zip.file('manifest.json');
+                                
+                                let skillData: any = null;
+                                if (metadataFile) {
+                                    const metadataStr = await metadataFile.async('string');
+                                    skillData = JSON.parse(metadataStr);
+                                } else {
+                                    // Try to infer from files if no metadata
+                                    const textFiles = Object.values(zip.files).filter(f => !f.dir && (f.name.endsWith('.txt') || f.name.endsWith('.md')));
+                                    if (textFiles.length > 0) {
+                                        const content = await textFiles[0].async('string');
+                                        skillData = {
+                                            name: file.name.replace('.zip', ''),
+                                            description: 'Imported from ZIP',
+                                            systemPrompt: content
+                                        };
+                                    }
+                                }
+
+                                if (skillData && skillData.name && skillData.systemPrompt) {
+                                    const { createSkill } = await import('@/lib/skillsApi');
+                                    await createSkill(user.id, {
+                                        name: skillData.name,
+                                        description: skillData.description || 'Imported Skill',
+                                        systemPrompt: skillData.systemPrompt
+                                    });
+                                    setAlertConfig({
+                                        isOpen: true,
+                                        title: 'Skill Imported',
+                                        message: `Successfully imported skill: ${skillData.name}`,
+                                        type: 'info'
+                                    });
+                                    // Refresh skills
+                                    getSkills(user.id).then(data => setUserSkills(data.map(s => ({ id: s.id, name: s.name, enabled: s.enabled, system_prompt: s.system_prompt }))));
+                                } else {
+                                    setAlertConfig({
+                                        isOpen: true,
+                                        title: 'Import Failed',
+                                        message: `Could not find valid skill data in ${file.name}. Ensure it contains a metadata.json or text file.`,
+                                        type: 'info'
+                                    });
+                                }
+                            }
+                        } catch (error) {
+                            // Error extracting zip - handled with user alert
+                            setAlertConfig({
+                                isOpen: true,
+                                title: 'Import Error',
+                                message: 'Failed to process ZIP file.',
+                                type: 'info'
+                            });
+                        }
+                    }
 
                     if (images.length) {
                         handleFileChange({ target: { files: images } } as unknown as React.ChangeEvent<HTMLInputElement>);
@@ -521,7 +581,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
 
                             {/* Tools Dropdown */}
                             {showToolsMenu && (
-                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 md:left-0 md:translate-x-0 mb-2 flex items-end gap-1 z-50">
+                                <div className="absolute bottom-full left-0 md:left-0 mb-2 flex flex-col md:flex-row items-start md:items-end gap-1 z-50">
                                     {/* Main menu */}
                                     <div className="w-[85vw] max-w-[224px] sm:w-56 bg-white border border-stone-200 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-150 py-1.5">
                                         {TOOL_GROUPS.map((group, groupIdx) => (

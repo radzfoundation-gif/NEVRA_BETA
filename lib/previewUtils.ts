@@ -87,7 +87,7 @@ export const extractTextFromErrorHtml = (html: string): string => {
         // Final fallback: return original HTML (will be displayed as-is)
         return html;
     } catch (error) {
-        console.error('Error extracting text from HTML:', error);
+        
         // Try simple regex extraction as fallback
         const simpleText = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
         return simpleText.length > 0 ? simpleText : html;
@@ -385,7 +385,7 @@ export const createReactPreviewHTML = (componentCode: string, framework?: string
           React.Fragment, React.createElement
         );
       } catch (error) {
-        console.error('Error:', error);
+        
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(React.createElement('div', { 
           className: 'p-8 text-red-400'
@@ -406,7 +406,7 @@ export const getIframeSrc = (code: string, entryPath?: string, framework?: strin
 
     // Check if code is empty or only contains whitespace/newlines
     if (!cleanedCode || cleanedCode.length === 0 || /^[\s\n\r\t]+$/.test(cleanedCode)) {
-        console.warn('⚠️ getIframeSrc called with empty or whitespace-only code');
+        
         return 'data:text/html;charset=utf-8,<!DOCTYPE html><html><body><p>No code to display</p></body></html>';
     }
 
@@ -425,7 +425,7 @@ export const getIframeSrc = (code: string, entryPath?: string, framework?: strin
         let htmlCode = cleanedCode;
         if (isReactFile || isFrameworkProject) {
             htmlCode = createReactPreviewHTML(cleanedCode, framework);
-            console.log('⚛️ Using direct React execution for preview');
+            
         } else {
             // Wrap plain content in HTML
             // Ensure code doesn't start/end with only newlines
@@ -446,7 +446,7 @@ ${contentCode}
 
         // Final validation: ensure htmlCode is not empty
         if (!htmlCode || htmlCode.trim().length === 0) {
-            console.warn('⚠️ Generated HTML code is empty');
+            
             return 'data:text/html;charset=utf-8,<!DOCTYPE html><html><body><p>No code to display</p></body></html>';
         }
 
@@ -454,7 +454,7 @@ ${contentCode}
         const dataUrl = `data:text/html;charset=utf-8,${encoded}`;
         return dataUrl;
     } catch (error) {
-        console.error('❌ Error encoding iframe src:', error);
+        
         return 'data:text/html;charset=utf-8,<!DOCTYPE html><html><body><p>Error loading preview</p></body></html>';
     }
 };

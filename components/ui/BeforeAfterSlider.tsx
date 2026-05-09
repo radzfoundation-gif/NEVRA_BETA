@@ -102,7 +102,7 @@ export function BeforeAfterSlider({
                         setIframeLoaded(true);
                     }
                 } catch (e) {
-                    console.error('Error writing to iframe:', e);
+                    
                 }
             };
 

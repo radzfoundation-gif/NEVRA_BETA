@@ -72,7 +72,7 @@ export async function createNote(
 
     return note.id;
   } catch (error) {
-    console.error('Error creating note:', error);
+    
     return null;
   }
 }
@@ -151,7 +151,7 @@ export async function getUserNotes(userId: string, options?: {
       } as Note;
     });
   } catch (error) {
-    console.error('Error getting notes:', error);
+    
     return [];
   }
 }
@@ -179,7 +179,7 @@ export async function getNote(noteId: string): Promise<Note | null> {
       updatedAt: data.updatedAt?.toDate() || new Date(),
     } as Note;
   } catch (error) {
-    console.error('Error getting note:', error);
+    
     return null;
   }
 }
@@ -213,7 +213,7 @@ export async function updateNote(
 
     return true;
   } catch (error) {
-    console.error('Error updating note:', error);
+    
     return false;
   }
 }
@@ -232,7 +232,7 @@ export async function deleteNote(noteId: string): Promise<boolean> {
     await deleteDoc(noteRef);
     return true;
   } catch (error) {
-    console.error('Error deleting note:', error);
+    
     return false;
   }
 }
@@ -255,7 +255,7 @@ export async function searchNotes(
       return titleMatch || contentMatch || tagMatch;
     });
   } catch (error) {
-    console.error('Error searching notes:', error);
+    
     return [];
   }
 }

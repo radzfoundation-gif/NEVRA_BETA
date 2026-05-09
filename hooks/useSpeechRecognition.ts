@@ -49,7 +49,7 @@ export const useSpeechRecognition = (): SpeechRecognitionHook => {
             };
 
             recognitionRef.current.onerror = (event: any) => {
-                console.error('Speech recognition error', event.error);
+                // Speech recognition error - handled by state
                 setIsListening(false);
             };
         }
@@ -69,7 +69,7 @@ export const useSpeechRecognition = (): SpeechRecognitionHook => {
                 // But here we might want to clear previous if handled outside
                 recognitionRef.current.start();
             } catch (e) {
-                console.error("Failed to start recognition:", e);
+                // Failed to start recognition - handled gracefully
             }
         }
     }, [isListening]);

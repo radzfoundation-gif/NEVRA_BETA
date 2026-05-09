@@ -56,7 +56,7 @@ export async function checkTokenLimit(userId: string, _token?: string | null): P
             isSubscribed: false,
         };
     } catch (error) {
-        console.error('Error checking token limit (Supabase):', error);
+        
         // Fail open
         return {
             hasExceeded: false,
@@ -90,10 +90,10 @@ export async function trackAIUsage(
             0
         );
 
-        console.log(`[TokenLimit] Charged ${tokensToCharge} tokens for ${provider} (Supabase)`);
+        
         return true;
     } catch (error) {
-        console.error('Error tracking usage:', error);
+        
         return false;
     }
 }
@@ -130,6 +130,6 @@ export async function upgradeSubscription(
     _userId: string,
     _plan: 'premium' | 'pro' | 'enterprise'
 ): Promise<boolean> {
-    console.log(`[TokenLimit] Upgrade subscription logic moved to API endpoints`);
+    
     return true;
 }

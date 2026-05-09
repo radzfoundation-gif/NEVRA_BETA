@@ -14,11 +14,7 @@ export async function reviewOutput(
 ): Promise<ReviewResult> {
   try {
     if (WORKFLOW_CONFIG.logStages) {
-      console.log('🔍 Reviewer: Starting review', {
-        hasPlan: !!plan,
-        mode: context.mode,
-        provider,
-      });
+      // Reviewer starting review silently
     }
 
     // Create review prompt
@@ -48,16 +44,12 @@ export async function reviewOutput(
     const reviewData = parseReviewResponse(reviewText, executionResult, plan);
 
     if (WORKFLOW_CONFIG.logStages) {
-      console.log('✅ Reviewer: Review completed', {
-        qualityScore: reviewData.qualityScore,
-        issues: reviewData.issues.length,
-        suggestions: reviewData.suggestions.length,
-      });
+      // Reviewer review completed silently
     }
 
     return reviewData;
   } catch (error) {
-    console.error('Reviewer error:', error);
+    
     
     // Return basic review on error
     return createBasicReview(executionResult, plan);

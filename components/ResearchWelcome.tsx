@@ -206,11 +206,11 @@ export function ResearchWelcome({
     const [withReasoning, setWithReasoning] = useState(false);
 
     // Usage limits hook
-    const { checkFeatureLimit, incrementFeatureUsage, isSubscribed, credits, softLimitReached, featureUsage } = useTokenLimit();
+    const { checkFeatureLimit, incrementFeatureUsage, isSubscribed, credits, softLimitReached, tokensUsed, maxCredits } = useTokenLimit();
 
     // Check convert limit before processing
-    const checkConvertLimit = (): boolean => {
-        const { exceeded } = checkFeatureLimit('convert');
+    const checkConvertLimit = async (): Promise<boolean> => {
+        const { exceeded } = await checkFeatureLimit('convert');
         if (exceeded) {
             setShowSubscriptionPopup(true);
             return false;
@@ -365,7 +365,7 @@ export function ResearchWelcome({
                 });
             }
         } catch (error) {
-            console.error('Image generation error:', error);
+            
             alert('Failed to generate image. Please try again.');
         } finally {
             setIsProcessing(false);
@@ -415,7 +415,7 @@ export function ResearchWelcome({
                 });
             }
         } catch (error) {
-            console.error('Video generation error:', error);
+            
             alert('Failed to generate video. Please try again.');
         } finally {
             setIsProcessing(false);
@@ -528,7 +528,7 @@ export function ResearchWelcome({
                     }]);
                 }
             } catch (error) {
-                console.error('File upload error:', error);
+                
             } finally {
                 setIsProcessing(false);
                 setProcessingMessage('');
@@ -578,7 +578,7 @@ export function ResearchWelcome({
                 alert(`Transcription failed: ${errData.error?.message || 'Unknown error'}`);
             }
         } catch (error) {
-            console.error('Audio transcription error:', error);
+            
             alert('Audio transcription failed. Please try again.');
         } finally {
             setIsProcessing(false);
@@ -631,7 +631,7 @@ export function ResearchWelcome({
                 alert(`YouTube analysis failed: ${errData.error?.message || 'Unknown error'}`);
             }
         } catch (error) {
-            console.error('YouTube analysis error:', error);
+            
             alert('Failed to analyze YouTube video. Please try again.');
         } finally {
             setIsProcessing(false);
@@ -683,7 +683,7 @@ export function ResearchWelcome({
                 alert(`URL analysis failed: ${errData.error?.message || 'Unknown error'}`);
             }
         } catch (error) {
-            console.error('URL fetch error:', error);
+            
             alert('Failed to analyze webpage. Please try again.');
         } finally {
             setIsProcessing(false);
@@ -725,7 +725,7 @@ export function ResearchWelcome({
                 });
             }
         } catch (e) {
-            console.error(e);
+            
             alert('Error embedding document');
         } finally {
             setIsProcessing(false);
@@ -1295,7 +1295,7 @@ export function ResearchWelcome({
 
                             {/* Tools Dropdown */}
                             {showToolsMenu && (
-                                <div className="absolute bottom-full left-0 mb-2 flex items-end gap-1 z-50">
+                                <div className="absolute bottom-full left-0 mb-2 flex flex-col sm:flex-row items-start sm:items-end gap-1 z-50">
                                     {/* Main menu */}
                                     <div className="w-[85vw] max-w-[224px] sm:w-56 bg-white border border-stone-200 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-150 py-1.5">
                                         {TOOL_GROUPS.map((group, groupIdx) => (
@@ -1544,8 +1544,8 @@ export function ResearchWelcome({
             <SubscriptionPopup
                 isOpen={showSubscriptionPopup}
                 onClose={() => setShowSubscriptionPopup(false)}
-                tokensUsed={featureUsage.convert.used}
-                tokensLimit={featureUsage.convert.limit}
+                tokensUsed={tokensUsed}
+                tokensLimit={maxCredits}
             />
 
             <VoiceDictationModal

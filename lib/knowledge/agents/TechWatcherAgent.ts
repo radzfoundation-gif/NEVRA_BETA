@@ -43,12 +43,7 @@ export class TechWatcherAgent extends BaseAgent {
     const { content } = input;
 
     try {
-      if (WORKFLOW_CONFIG.logStages) {
-        console.log('👁️ TechWatcherAgent: Analyzing content', {
-          source: content.sourceName,
-          title: content.title.substring(0, 50),
-        });
-      }
+      // TechWatcherAgent analyzing content silently
 
       // Create analysis prompt
       const analysisPrompt = this.createAnalysisPrompt(content);
@@ -61,17 +56,11 @@ export class TechWatcherAgent extends BaseAgent {
       // Parse analysis
       const result = this.parseAnalysis(analysisText, content);
 
-      if (WORKFLOW_CONFIG.logStages) {
-        console.log('✅ TechWatcherAgent: Analysis completed', {
-          relevance: result.relevance,
-          importance: result.importance,
-          shouldCurate: result.shouldCurate,
-        });
-      }
+      // TechWatcherAgent analysis completed silently
 
       return result;
     } catch (error) {
-      console.error('TechWatcherAgent error:', error);
+      
       return this.createDefaultResult(content);
     }
   }

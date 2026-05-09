@@ -29,15 +29,9 @@ export class VectorStore {
         embeddings: embeddings || undefined,
       } as NormalizedKnowledge);
 
-      if (WORKFLOW_CONFIG.logStages) {
-        console.log('💾 VectorStore: Knowledge stored in memory', {
-          id: knowledge.id,
-          title: knowledge.title.substring(0, 50),
-          tags: knowledge.tags.length,
-        });
-      }
+      // Knowledge stored in memory silently
     } catch (error) {
-      console.error('VectorStore: Error storing knowledge', error);
+      
     }
   }
 
@@ -76,7 +70,7 @@ export class VectorStore {
 
       return results.slice(0, limit);
     } catch (error) {
-      console.error('VectorStore: Error searching', error);
+      
       return [];
     }
   }

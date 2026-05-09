@@ -60,7 +60,7 @@ const APIIntegrationWizard: React.FC<APIIntegrationWizardProps> = ({
         })));
       }
     } catch (error) {
-      console.error('Failed to load API connections:', error);
+      
     }
   };
 
@@ -68,7 +68,7 @@ const APIIntegrationWizard: React.FC<APIIntegrationWizardProps> = ({
     try {
       localStorage.setItem('noir_ai_api_connections', JSON.stringify(conns));
     } catch (error) {
-      console.error('Failed to save API connections:', error);
+      
     }
   };
 

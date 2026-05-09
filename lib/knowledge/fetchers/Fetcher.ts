@@ -171,7 +171,7 @@ export class GitHubFetcher extends BaseFetcher {
 
       return contents;
     } catch (error) {
-      console.error(`GitHubFetcher error for ${source.id}:`, error);
+      
       return [];
     }
   }
@@ -207,7 +207,7 @@ export class BlogFetcher extends BaseFetcher {
         },
       }];
     } catch (error) {
-      console.error(`BlogFetcher error for ${source.id}:`, error);
+      
       return [];
     }
   }
@@ -243,7 +243,7 @@ export class DocsFetcher extends BaseFetcher {
         },
       }];
     } catch (error) {
-      console.error(`DocsFetcher error for ${source.id}:`, error);
+      
       return [];
     }
   }

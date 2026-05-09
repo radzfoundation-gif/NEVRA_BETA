@@ -80,7 +80,7 @@ const GitHubIntegration: React.FC<GitHubIntegrationProps> = ({
       const reposList = await listRepositories(githubToken);
       setRepos(reposList);
     } catch (error) {
-      console.error('Error loading repositories:', error);
+      
     } finally {
       setIsLoading(false);
     }
@@ -91,7 +91,7 @@ const GitHubIntegration: React.FC<GitHubIntegrationProps> = ({
       const { authUrl } = await authenticateGitHub();
       window.location.href = authUrl;
     } catch (error) {
-      console.error('GitHub auth error:', error);
+      
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       alert('Failed to connect to GitHub: ' + errorMessage);
     }

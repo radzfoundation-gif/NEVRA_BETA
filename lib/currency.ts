@@ -73,7 +73,7 @@ export async function detectCurrency(): Promise<CurrencyInfo> {
           };
         }
       } catch (error) {
-        console.warn(`Failed to fetch from ${service}:`, error);
+        
         continue;
       }
     }
@@ -85,7 +85,7 @@ export async function detectCurrency(): Promise<CurrencyInfo> {
       countryCode: 'US',
     };
   } catch (error) {
-    console.error('Error detecting currency:', error);
+    
     // Default to USD
     return {
       currency: 'USD',

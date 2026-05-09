@@ -49,13 +49,7 @@ export class SelfReflectionAgent extends BaseAgent {
     const { executionResult, reviewResult, plan, workflowResult, intentAnalysis } = input;
 
     try {
-      if (WORKFLOW_CONFIG.logStages) {
-        console.log('🤔 SelfReflectionAgent: Starting reflection', {
-          model: this.model,
-          hasReview: !!reviewResult,
-          hasPlan: !!plan,
-        });
-      }
+      // SelfReflectionAgent starting reflection silently
 
       // Create reflection prompt
       const reflectionPrompt = this.createReflectionPrompt(
@@ -89,18 +83,11 @@ export class SelfReflectionAgent extends BaseAgent {
       // Parse reflection response
       const reflection = this.parseReflectionResponse(reflectionText, executionResult, reviewResult);
 
-      if (WORKFLOW_CONFIG.logStages) {
-        console.log('✅ SelfReflectionAgent: Reflection completed', {
-          whatWorked: reflection.whatWorked.length,
-          whatFailed: reflection.whatFailed.length,
-          whatToImprove: reflection.whatToImprove.length,
-          qualityScore: reflection.qualityScore,
-        });
-      }
+      // SelfReflectionAgent reflection completed silently
 
       return reflection;
     } catch (error) {
-      console.error('SelfReflectionAgent error:', error);
+      
       return this.createBasicReflection(executionResult, reviewResult);
     }
   }

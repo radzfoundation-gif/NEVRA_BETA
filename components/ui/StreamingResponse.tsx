@@ -104,7 +104,7 @@ const StreamingResponse: React.FC<StreamingResponseProps> = ({ content, isStream
                 // Remove sources block from content to prevent display issues
                 processedContent = processedContent.replace(sourcesMatch[0], '');
             } catch (e) {
-                console.error("Failed to parse sources JSON", e);
+                
             }
         }
 

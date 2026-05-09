@@ -54,7 +54,7 @@ export async function performWebSearch(
       searchTime: data.searchTime || 0,
     };
   } catch (error) {
-    console.error('Web search error:', error);
+    
     throw error;
   }
 }

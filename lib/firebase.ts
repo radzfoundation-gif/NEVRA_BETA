@@ -22,8 +22,8 @@ let db: Firestore | null = null;
 let auth: Auth | null = null;
 
 if (missingKeys.length > 0) {
-    console.warn('⚠️ Firebase not configured (using Supabase instead). Missing:', missingKeys.join(', '));
-    console.log('💡 This is OK - Supabase is the primary database now.');
+    
+    
 } else {
     try {
         // Initialize Firebase only if all credentials are present
@@ -35,10 +35,10 @@ if (missingKeys.length > 0) {
         if (import.meta.env.DEV && import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true') {
             connectFirestoreEmulator(db, 'localhost', 8080);
             connectAuthEmulator(auth, 'http://localhost:9099');
-            console.log('🔥 Connected to Firebase Emulators');
+            
         }
     } catch (error) {
-        console.error('Firebase initialization failed:', error);
+        
     }
 }
 

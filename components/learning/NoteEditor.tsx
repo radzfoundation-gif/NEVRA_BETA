@@ -69,7 +69,7 @@ export default function NoteEditor({
       onSave?.(savedNote);
       onClose?.();
     } catch (error) {
-      console.error('Error saving note:', error);
+      
       alert('Failed to save note. Please try again.');
     } finally {
       setSaving(false);

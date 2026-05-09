@@ -65,11 +65,11 @@ export async function generatePlan(
       updatedAt: new Date(data.updatedAt || Date.now()),
     };
   } catch (error: any) {
-    console.error('Planning error:', error);
+    
 
     // If timeout or network error, use fallback immediately
     if (error.name === 'AbortError' || error.message?.includes('timeout') || error.message?.includes('network')) {
-      console.warn('Planning timeout, using fallback plan');
+      
       return createFallbackPlan(prompt);
     }
 

@@ -30,7 +30,7 @@ export async function createYJSConnection(
         const { data: { session }, error } = await supabase.auth.getSession();
 
         if (error || !session) {
-            console.error('[YJS] Not authenticated');
+            
             return null;
         }
 
@@ -64,23 +64,23 @@ export async function createYJSConnection(
 
         // Connection status listeners
         provider.on('status', (event: { status: string }) => {
-            console.log(`[YJS] Connection status: ${event.status}`);
+            
             onStatusChange?.(event.status as any);
         });
 
         provider.on('sync', (isSynced: boolean) => {
             if (isSynced) {
-                console.log(`[YJS] Synced with room: ${roomId}`);
+                
                 onSynced?.();
             }
         });
 
         provider.on('connection-close', (event: any) => {
-            console.warn('[YJS] Connection closed:', event.code, event.reason);
+            
         });
 
         provider.on('connection-error', (event: any) => {
-            console.error('[YJS] Connection error:', event.error);
+            
         });
 
         // Destroy function to clean up
@@ -88,7 +88,7 @@ export async function createYJSConnection(
             provider.disconnect();
             provider.destroy();
             doc.destroy();
-            console.log(`[YJS] Disconnected from room: ${roomId}`);
+            
         };
 
         return {
@@ -98,7 +98,7 @@ export async function createYJSConnection(
             destroy,
         };
     } catch (error) {
-        console.error('[YJS] Failed to create connection:', error);
+        
         return null;
     }
 }

@@ -257,10 +257,10 @@ const PreviewContainer: React.FC<PreviewContainerProps> = ({
                                                 minHeight: 0
                                             }}
                                             onError={(e) => {
-                                                console.error('❌ Iframe error:', e);
+                                                
                                             }}
                                             onLoad={() => {
-                                                console.log('✅ Preview iframe loaded successfully');
+                                                
                                             }}
                                         />
                                     );
@@ -283,9 +283,9 @@ const PreviewContainer: React.FC<PreviewContainerProps> = ({
                                                 fileManager.setEntry('index.html');
                                                 setSelectedFile('index.html');
                                                 setRefreshKey(k => k + 1);
-                                                console.log('✅ Restored code from message');
+                                                
                                             } else {
-                                                console.warn('⚠️ No code found in messages');
+                                                
                                             }
                                         }}
                                         className="px-4 py-2 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 rounded-lg text-sm text-purple-300 transition-colors"

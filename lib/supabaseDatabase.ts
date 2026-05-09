@@ -45,9 +45,9 @@ export async function syncUser(clerkUser: any): Promise<User | null> {
         // If error is 401/403/42501, it likely means missing/invalid Auth token or RLS policy.
         // We log this as a warning, not an error, to avoid spamming the console.
         if (error?.code === '401' || error?.status === 401 || error?.code === '42501') {
-            console.warn('[Supabase] Sync failed (Auth/RLS). Ensure Clerk JWT template "supabase" is valid and RLS policies allow upsert.');
+            
         } else {
-            console.error('Error syncing user:', error);
+            
         }
         return null;
     }
@@ -67,7 +67,7 @@ export async function getUser(userId: string): Promise<User | null> {
         if (error) throw error;
         return data;
     } catch (error) {
-        console.error('Error getting user:', error);
+        
         return null;
     }
 }
@@ -100,7 +100,7 @@ export async function ensureSubscription(userId: string): Promise<Subscription |
         if (error) throw error;
         return data;
     } catch (error) {
-        console.error('Error ensuring subscription:', error);
+        
         return null;
     }
 }
@@ -123,7 +123,7 @@ export async function getSubscription(userId: string): Promise<any | null> {
         if (error && error.code !== 'PGRST116') throw error;
         return data || null;
     } catch (error) {
-        console.error('Error getting subscription:', error);
+        
         return null;
     }
 }
@@ -147,7 +147,7 @@ export async function getUserTier(userId: string): Promise<'free' | 'pro'> {
 
         return 'free';
     } catch (error) {
-        console.error('Error getting user tier:', error);
+        
         return 'free';
     }
 }
@@ -165,7 +165,7 @@ export async function updateSubscription(userId: string, updates: Partial<Subscr
         if (error) throw error;
         return true;
     } catch (error) {
-        console.error('Error updating subscription:', error);
+        
         return false;
     }
 }
@@ -191,7 +191,7 @@ export async function activateProSubscription(userId: string, orderId: string, m
         if (error) throw error;
         return true;
     } catch (error) {
-        console.error('Error activating Pro subscription:', error);
+        
         return false;
     }
 }
@@ -219,7 +219,7 @@ export async function createChatSession(
         if (error) throw error;
         return data;
     } catch (error) {
-        console.error('Error creating chat session:', error);
+        
         return null;
     }
 }
@@ -249,7 +249,7 @@ export async function getUserSessions(userId: string): Promise<ChatSession[]> {
         if (error) throw error;
         return data || [];
     } catch (error) {
-        console.error('Error getting user sessions:', error);
+        
         return [];
     }
 }
@@ -268,7 +268,7 @@ export async function getChatSession(sessionId: string): Promise<ChatSession | n
         if (error) throw error;
         return data;
     } catch (error) {
-        console.error('Error getting chat session:', error);
+        
         return null;
     }
 }
@@ -286,7 +286,7 @@ export async function updateChatSession(sessionId: string, updates: Partial<Chat
         if (error) throw error;
         return true;
     } catch (error) {
-        console.error('Error updating chat session:', error);
+        
         return false;
     }
 }
@@ -305,7 +305,7 @@ export async function deleteChatSession(sessionId: string): Promise<boolean> {
         if (error) throw error;
         return true;
     } catch (error) {
-        console.error('Error deleting chat session:', error);
+        
         return false;
     }
 }
@@ -324,7 +324,7 @@ export async function shareChatSession(sessionId: string): Promise<string | null
 
         return sessionId;
     } catch (error) {
-        console.error('Error sharing chat session:', error);
+        
         return null;
     }
 }
@@ -401,7 +401,7 @@ export async function saveMessage(
 
         return data;
     } catch (error) {
-        console.error('Error saving message:', error);
+        
         return null;
     }
 }
@@ -420,7 +420,7 @@ export async function getSessionMessages(sessionId: string): Promise<Message[]> 
         if (error) throw error;
         return data || [];
     } catch (error) {
-        console.error('Error getting session messages:', error);
+        
         return [];
     }
 }
@@ -446,7 +446,7 @@ export async function getTokenUsage(userId: string): Promise<TokenUsage | null> 
         if (error && error.code !== 'PGRST116') throw error;
         return data || null;
     } catch (error) {
-        console.error('Error getting token usage:', error);
+        
         return null;
     }
 }
@@ -482,7 +482,7 @@ export async function incrementTokenUsage(userId: string, amount: number): Promi
 
         return true;
     } catch (error) {
-        console.error('Error incrementing token usage:', error);
+        
         return false;
     }
 }
@@ -530,7 +530,7 @@ export async function getCanvasUsage(userId: string): Promise<CanvasUsage | null
         if (error && error.code !== 'PGRST116') throw error;
         return data || null;
     } catch (error) {
-        console.error('Error getting canvas usage:', error);
+        
         return null;
     }
 }
@@ -565,7 +565,7 @@ export async function incrementCanvasUsage(userId: string): Promise<boolean> {
 
         return true;
     } catch (error) {
-        console.error('Error incrementing canvas usage:', error);
+        
         return false;
     }
 }
@@ -610,7 +610,7 @@ export async function getUserPreferences(userId: string): Promise<UserPreference
         if (error && error.code !== 'PGRST116') throw error;
         return data || null;
     } catch (error) {
-        console.error('Error getting user preferences:', error);
+        
         return null;
     }
 }
@@ -627,7 +627,7 @@ export async function updateUserPreferences(userId: string, updates: Partial<Use
         if (error) throw error;
         return true;
     } catch (error) {
-        console.error('Error updating user preferences:', error);
+        
         return false;
     }
 }
@@ -666,7 +666,7 @@ export async function logAIUsage(
 
         return true;
     } catch (error) {
-        console.error('Error logging AI usage:', error);
+        
         return false;
     }
 }
@@ -713,7 +713,7 @@ export async function uploadFile(
 
         return publicUrl;
     } catch (error) {
-        console.error('Error uploading file:', error);
+        
         return null;
     }
 }
@@ -731,7 +731,7 @@ export async function updateChatSessionMetadata(sessionId: string, metadata: Rec
         if (error) throw error;
         return true;
     } catch (error) {
-        console.error('Error updating session metadata:', error);
+        
         return false;
     }
 }
@@ -766,7 +766,7 @@ export async function saveComparisonChoice(
         if (error) throw error;
         return true;
     } catch (error) {
-        console.error('Error saving comparison choice:', error);
+        
         return false;
     }
 }
