@@ -5,7 +5,7 @@ import {
   Code, Play, Layout, Smartphone, Monitor, Download,
   X, Settings, ChevronRight, ChevronDown, FileCode,
   Folder, Terminal as TerminalIcon, RefreshCw, Globe,
-  CheckCircle2, Loader2, GraduationCap, Brain, Bot, Paperclip, Image as ImageIcon, Trash2, AlertTriangle, Phone, Lock, Camera, ImagePlus, Clock, Undo2, Redo2, Github, Search, FileText, Terminal, MoreVertical, Copy, Eye, ZoomIn, ZoomOut, Type, Palette, Save, Sparkles, Zap, ThumbsUp, ThumbsDown, Check, BarChart3, Share, RefreshCcw, MoreHorizontal, Youtube, Pencil, PanelLeft
+  CheckCircle2, Loader2, GraduationCap, Brain, Bot, Paperclip, Image as ImageIcon, Trash2, AlertTriangle, Phone, Lock, Camera, ImagePlus, Clock, Undo2, Redo2, Github, Search, FileText, Terminal, MoreVertical, Copy, Eye, ZoomIn, ZoomOut, Type, Palette, Save, Sparkles, Zap, ThumbsUp, ThumbsDown, Check, BarChart3, Share, RefreshCcw, MoreHorizontal, Youtube, Pencil, PanelLeft, ArrowRight
 } from 'lucide-react';
 import { Link, useLocation, useParams, useNavigate } from 'react-router-dom';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -751,6 +751,7 @@ const ChatInterface: React.FC = () => {
   const [messageFeedback, setMessageFeedback] = useState<Record<string, 'like' | 'dislike'>>({});
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
   const [regenerateMenuOpen, setRegenerateMenuOpen] = useState<string | null>(null);
+  const [messageMoreMenuOpen, setMessageMoreMenuOpen] = useState<string | null>(null);
 
   // Handle Regenerate Message
   const handleRegenerate = async (messageId: string) => {
@@ -4294,34 +4295,6 @@ const ChatInterface: React.FC = () => {
                               </>
                             )}
                           </button>
-                          {[
-                            { label: 'Continue', prompt: 'Continue the previous answer with the next useful section.' },
-                            { label: 'Summarize', prompt: `Summarize this answer clearly:\n\n${msg.content}` },
-                            { label: 'Shorter', prompt: `Make this answer shorter:\n\n${msg.content}` },
-                            { label: 'Longer', prompt: `Expand this answer with more useful detail:\n\n${msg.content}` },
-                            { label: 'Simpler', prompt: `Explain this in simpler language:\n\n${msg.content}` },
-                            { label: 'To document', prompt: `Turn this into a polished document:\n\n${msg.content}` },
-                            { label: 'To code', prompt: `Turn this into implementation-ready code where possible:\n\n${msg.content}` },
-                          ].map((action) => (
-                            <button
-                              key={action.label}
-                              onClick={() => {
-                                setInput(action.prompt);
-                                setTimeout(() => handleSend(action.prompt), 0);
-                              }}
-                              className="rounded-full border border-zinc-200 bg-white/70 px-2.5 py-1 text-xs text-zinc-500 transition hover:border-blue-200 hover:text-blue-700"
-                              title={action.label}
-                            >
-                              {action.label}
-                            </button>
-                          ))}
-                          <button
-                            onClick={() => { setSaveModalMessage(msg); setSaveProjectId(projects[0]?.id || ''); }}
-                            className="rounded-full border border-zinc-200 bg-white/70 px-2.5 py-1 text-xs text-zinc-500 transition hover:border-blue-200 hover:text-blue-700"
-                            title="Save to project"
-                          >
-                            Save
-                          </button>
                           <button
                             onClick={async () => {
                               const newFeedback = messageFeedback[msg.id] === 'like' ? null : 'like';
@@ -4409,12 +4382,48 @@ const ChatInterface: React.FC = () => {
                               </div>
                             )}
                           </div>
-                          <button
-                            className="flex items-center gap-1.5 px-2 py-1 text-xs text-gray-500 hover:text-white rounded hover:bg-white/5 transition-colors"
-                            title="More"
-                          >
-                            <MoreHorizontal size={14} />
-                          </button>
+                          <div className="relative">
+                            <button
+                              onClick={() => setMessageMoreMenuOpen(messageMoreMenuOpen === msg.id ? null : msg.id)}
+                              className="flex items-center gap-1.5 px-2 py-1 text-xs text-gray-500 hover:text-zinc-800 rounded hover:bg-zinc-100 transition-colors"
+                              title="More actions"
+                            >
+                              <MoreHorizontal size={14} />
+                            </button>
+                            {messageMoreMenuOpen === msg.id && (
+                              <div className="absolute bottom-full right-0 mb-2 w-52 overflow-hidden rounded-xl border border-zinc-200 bg-white py-1 text-xs text-zinc-700 shadow-xl z-50">
+                                {[
+                                  { label: 'Continue', prompt: 'Continue the previous answer with the next useful section.' },
+                                  { label: 'Summarize', prompt: `Summarize this answer clearly:\n\n${msg.content}` },
+                                  { label: 'Shorter', prompt: `Make this answer shorter:\n\n${msg.content}` },
+                                  { label: 'Longer', prompt: `Expand this answer with more useful detail:\n\n${msg.content}` },
+                                  { label: 'Simpler', prompt: `Explain this in simpler language:\n\n${msg.content}` },
+                                  { label: 'To document', prompt: `Turn this into a polished document:\n\n${msg.content}` },
+                                  { label: 'To code', prompt: `Turn this into implementation-ready code where possible:\n\n${msg.content}` },
+                                ].map((action) => (
+                                  <button
+                                    key={action.label}
+                                    onClick={() => {
+                                      setMessageMoreMenuOpen(null);
+                                      setInput(action.prompt);
+                                      setTimeout(() => handleSend(action.prompt), 0);
+                                    }}
+                                    className="flex w-full items-center justify-between px-3 py-2 text-left hover:bg-zinc-50"
+                                  >
+                                    <span>{action.label}</span>
+                                    <ArrowRight size={12} className="text-zinc-400" />
+                                  </button>
+                                ))}
+                                <div className="my-1 border-t border-zinc-100" />
+                                <button
+                                  onClick={() => { setMessageMoreMenuOpen(null); setSaveModalMessage(msg); setSaveProjectId(projects[0]?.id || ''); }}
+                                  className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-zinc-50"
+                                >
+                                  <Save size={13} /> Save to Project
+                                </button>
+                              </div>
+                            )}
+                          </div>
 
                           {appMode === 'builder' && msg.code && (
                             <>
@@ -5563,6 +5572,101 @@ const ChatInterface: React.FC = () => {
                     </button>
                   </div>
                 </div>
+              )}
+
+              {/* Mobile Glass Canvas — Fullscreen Popup */}
+              {glassCanvas && glassCanvas.state !== 'closed' && (
+                <motion.div
+                  key="mobile-glass-canvas"
+                  initial={{ opacity: 0, y: 24 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 24 }}
+                  transition={{ duration: 0.22, ease: 'easeOut' }}
+                  className="fixed inset-0 z-[60] flex flex-col bg-white"
+                >
+                  <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 pt-safe">
+                    <div className="min-w-0 flex-1 pr-3">
+                      <div className="text-sm font-semibold text-zinc-900 truncate">{glassCanvas.title}</div>
+                      <div className="text-[11px] text-zinc-500 truncate">Canvas: {glassCanvas.type} • {activeWorkflow.label}</div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        onClick={() => navigator.clipboard?.writeText(glassCanvas.content || messages.filter(m => m.role === 'ai').slice(-1)[0]?.content || '')}
+                        className="rounded-lg border border-zinc-200 px-3 py-2 text-xs font-medium text-zinc-700 active:bg-zinc-100"
+                      >
+                        Copy
+                      </button>
+                      {glassCanvas.type === 'document' && (
+                        <button
+                          onClick={downloadGlassCanvasPdf}
+                          className="rounded-lg border border-zinc-200 px-3 py-2 text-xs font-medium text-zinc-700 active:bg-zinc-100"
+                        >
+                          PDF
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setGlassCanvas(prev => prev ? { ...prev, state: 'closed' } : prev)}
+                        aria-label="Close canvas"
+                        className="rounded-lg border border-zinc-200 p-2 text-zinc-700 active:bg-zinc-100"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex-1 overflow-auto p-4 pb-safe">
+                    {(() => {
+                      if (glassCanvas.state === 'opening') {
+                        return (
+                          <div className="flex h-full min-h-[60vh] items-center justify-center">
+                            <div className="flex flex-col items-center gap-5 text-center">
+                              <div className="relative h-24 w-24">
+                                <div className="absolute inset-0 rounded-[28px] bg-zinc-50 shadow-inner" />
+                                <div className="absolute inset-5 grid grid-cols-4 gap-1.5">
+                                  {Array.from({ length: 16 }).map((_, index) => (
+                                    <motion.span
+                                      key={index}
+                                      className="rounded-[3px] bg-zinc-900"
+                                      animate={{ opacity: [0.18, 1, 0.18], scale: [0.82, 1.12, 0.82] }}
+                                      transition={{ duration: 1.6, repeat: Infinity, delay: index * 0.055, ease: 'easeInOut' }}
+                                    />
+                                  ))}
+                                </div>
+                                <motion.div
+                                  className="absolute -right-1 -top-1 h-5 w-5 rounded-full bg-sky-400"
+                                  animate={{ y: [0, -4, 0], opacity: [0.7, 1, 0.7] }}
+                                  transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+                                />
+                              </div>
+                              <div>
+                                <div className="text-sm font-semibold text-zinc-900">Dreaming interface...</div>
+                                <div className="mt-1 text-xs text-zinc-500">UseGlass is building code and preparing preview.</div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+                      const raw = glassCanvas.content || messages.filter(m => m.role === 'ai').slice(-1)[0]?.content || '';
+                      const isHtml = /<\/?(html|body|div|table|h[1-6]|p|section|article|header|footer|main)\b/i.test(raw.trim());
+                      if (isHtml && raw.trim().length > 0) {
+                        return (
+                          <iframe
+                            key={glassCanvas.lastUpdated?.toString() || 'canvas-iframe-mobile'}
+                            srcDoc={raw}
+                            title="Canvas preview"
+                            sandbox="allow-same-origin"
+                            className="h-full w-full rounded-2xl border border-zinc-200 bg-white"
+                            style={{ minHeight: '70vh' }}
+                          />
+                        );
+                      }
+                      return (
+                        <pre className="whitespace-pre-wrap rounded-2xl bg-zinc-50 p-4 text-sm text-zinc-800">
+                          {raw || 'Canvas ready. Main generated output will appear here.'}
+                        </pre>
+                      );
+                    })()}
+                  </div>
+                </motion.div>
               )}
 
               <div className="flex-1 relative overflow-hidden overflow-x-hidden">

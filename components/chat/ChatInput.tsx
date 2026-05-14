@@ -705,7 +705,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
                             <button
                                 onClick={() => setShowToolsMenu(!showToolsMenu)}
                                 className={cn(
-                                    "w-8 h-8 flex items-center justify-center rounded-full transition-all",
+                                    "w-10 h-10 md:w-8 md:h-8 flex items-center justify-center rounded-full transition-all",
                                     isTyping ? "opacity-30 cursor-not-allowed" : showToolsMenu
                                         ? "bg-white text-stone-800 shadow-sm"
                                         : "text-stone-500 hover:text-stone-900 hover:bg-white/80"
@@ -932,7 +932,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
                                 disabled={!isTyping && !input.trim() && attachedImages.length === 0 && attachedFiles.length === 0 ? false : false}
                                 whileTap={{ scale: 0.92 }}
                                 className={cn(
-                                    "w-9 h-9 flex items-center justify-center rounded-full bg-zinc-950 text-white shadow-sm transition-colors hover:bg-zinc-800",
+                                    "w-10 h-10 md:w-9 md:h-9 flex items-center justify-center rounded-full bg-zinc-950 text-white shadow-sm transition-colors hover:bg-zinc-800",
                                     isTyping && "hover:bg-red-600"
                                 )}
                                 title={isTyping ? "Stop generating" : input.trim() || attachedImages.length > 0 || attachedFiles.length > 0 ? "Send message" : "Voice Input"}

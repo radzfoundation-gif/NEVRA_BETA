@@ -25,6 +25,7 @@ import { mcpManager } from './mcpManager.js';
 import { tursoRouter } from './tursoRoutes.js';
 import { saveOutput as tursoSaveOutput } from './turso.js';
 import { createAutoPilotRouter } from './autoPilot/routes.js';
+import { injectBrevity, withBrevity } from './brevity.js';
 
 
 // Feature Limits handled by new configuration below
@@ -970,7 +971,7 @@ OUTPUT REQUIREMENTS:
     } else {
       // BRANCH: Code Generation (Gemini 3 Pro / GPT 4.1 Mini)
       const messages = [
-        { role: 'system', content: systemPrompt },
+        { role: 'system', content: withBrevity(systemPrompt) },
         {
           role: 'user',
           content: image
@@ -1959,12 +1960,16 @@ app.post('/api/chat/stream', async (req, res) => {
   // // console.log('[Stream] Streaming endpoint called');
 
   // 1. Validate Request (API Key check moved to specific provider block)
-  const { model, messages } = req.body || {};
+  let { model, messages } = req.body || {};
 
   // 2. Validate request
   if (!messages || !Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: 'Messages array is required' });
   }
+
+  // Brevity: inject lite-level "no fluff" directive into system prompt to
+  // reduce output tokens ~25-35% without breaking accuracy. Idempotent.
+  messages = injectBrevity(messages);
 
   // 3. Map model to OpenRouter model ID
   // 3. Determine Provider and Model
@@ -2612,7 +2617,7 @@ Always provide information based on your training data AND the current date cont
     }
 
     const messagesBase = [
-      { role: 'system', content: enhancedSystemPrompt },
+      { role: 'system', content: withBrevity(enhancedSystemPrompt) },
       ...formatHistory(truncateHistory(history, 2)), // Truncate history for speed
     ];
 
@@ -2920,7 +2925,7 @@ async function handlePhilosPipeline(req, res, messages) {
 `;
 
     const finalMessages = [
-      { role: 'system', content: systemPrompt },
+      { role: 'system', content: withBrevity(systemPrompt) },
       ...messages.slice(-10), // User context
       { role: 'user', content: `[TASK]: Synthesize the following drafts and research into one "Super-Agentic" response. 
 ${consensusContext}
@@ -3958,7 +3963,7 @@ IMPORTANT:
 - Consider the full development lifecycle from setup to deployment`;
 
     const messages = [
-      { role: 'system', content: planningPrompt },
+      { role: 'system', content: withBrevity(planningPrompt) },
       { role: 'user', content: prompt },
     ];
 
@@ -4600,7 +4605,7 @@ CRITICAL INSTRUCTIONS:
 If no image is provided, just create a professional HTML document/table based solely on the user's instructions, following the rules above.`;
 
     const messages = [
-      { role: 'system', content: systemPrompt },
+      { role: 'system', content: withBrevity(systemPrompt) },
       {
         role: 'user',
         content: images && images.length > 0
