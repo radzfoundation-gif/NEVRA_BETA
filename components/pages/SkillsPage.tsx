@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '@/lib/authContext';
 import { getSkills, createSkill, updateSkill, deleteSkill, UserSkill } from '@/lib/skillsApi';
 import Sidebar from '../Sidebar';
+import ConnectorsList from '../connectors/ConnectorsList';
 
 const SkillsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -43,6 +44,14 @@ const SkillsPage: React.FC = () => {
                     ))}
                 </div>
             )}
+
+            <section className="mt-10">
+                <div className="mb-4">
+                    <h2 className="text-xl font-bold text-zinc-900">Glass Connectors</h2>
+                    <p className="text-sm text-zinc-500">Connect UseGlass AI to your tools.</p>
+                </div>
+                <ConnectorsList variant="page" />
+            </section>
         </div>
       </div>
     </div>

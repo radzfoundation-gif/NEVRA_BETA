@@ -11,13 +11,13 @@ const DesignDashboard = () => (
                         <Paintbrush className="text-white" size={24} />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold tracking-tight">Noir Studio</h1>
+                        <h1 className="text-2xl font-bold tracking-tight">UseGlass Studio</h1>
                         <p className="text-zinc-400 text-sm">Design & Canvas Mode</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-4">
                     <div className="px-3 py-1 rounded-full bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 text-xs font-mono">
-                        design.noirai.dev
+                        design.useglass.ai
                     </div>
                     <a href="/" className="flex items-center gap-2 text-sm text-zinc-400 hover:text-white transition-colors">
                         Back to Chat <ExternalLink size={14} />

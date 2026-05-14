@@ -216,7 +216,7 @@ const PricingPage: React.FC = () => {
           day: 'numeric'
         });
 
-        alert(`🎉 Subscription Aktif!\n\nTier: Noir Pro\nAktif sejak: ${new Date(data.subscription.activatedAt).toLocaleDateString('id-ID')}\nBerlaku hingga: ${expiryDate}\n\nNikmati unlimited tokens dan semua fitur premium!`);
+        alert(`🎉 Subscription Aktif!\n\nTier: UseGlass Pro\nAktif sejak: ${new Date(data.subscription.activatedAt).toLocaleDateString('id-ID')}\nBerlaku hingga: ${expiryDate}\n\nNikmati unlimited tokens dan semua fitur premium!`);
       }
 
       setLoadingPlan(null);

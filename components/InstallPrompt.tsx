@@ -62,11 +62,11 @@ const InstallPrompt = () => {
 
                         <div className="flex gap-4 relative z-0">
                             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-black to-zinc-800 flex items-center justify-center shrink-0 shadow-lg p-1">
-                                <img src="/owl-logo.png" alt="App Icon" className="w-full h-full object-contain" />
+                                <img src="/useglass-logo.png" alt="App Icon" className="w-full h-full object-contain" />
                             </div>
 
                             <div className="flex-1">
-                                <h3 className="font-semibold text-zinc-900 dark:text-white text-sm mb-1">Install Noir AI</h3>
+                                <h3 className="font-semibold text-zinc-900 dark:text-white text-sm mb-1">Install UseGlass AI</h3>
                                 <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed mb-3">
                                     Add to your home screen for the best fullscreen experience and quick access.
                                 </p>
@@ -101,3 +101,4 @@ const InstallPrompt = () => {
 };
 
 export default InstallPrompt;
+

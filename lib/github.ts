@@ -147,7 +147,7 @@ export async function pushToRepository(
         token,
         repo,
         files,
-        commitMessage: commitMessage || 'Update from NOIR AI',
+        commitMessage: commitMessage || 'Update from UseGlass AI',
         branch: branch || 'main',
       }),
     });
@@ -285,7 +285,7 @@ export function exportProjectForGitHub(
       exported.push({
         path: 'package.json',
         content: JSON.stringify({
-          name: 'noir-ai-project',
+          name: 'useglass-ai-project',
           version: '1.0.0',
           private: true,
           scripts: {
@@ -309,7 +309,7 @@ export function exportProjectForGitHub(
     if (!files.some(f => f.path.includes('README.md'))) {
       exported.push({
         path: 'README.md',
-        content: '# NOIR AI Project\n\nGenerated with NOIR AI Builder.\n',
+        content: '# UseGlass AI Project\n\nGenerated with UseGlass AI Builder.\n',
       });
     }
 

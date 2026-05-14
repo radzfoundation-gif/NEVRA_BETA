@@ -40,7 +40,7 @@ interface StreamingChatProps {
 
 export function StreamingChat({
     model = 'sonar',
-    systemPrompt = 'You are Noir AI, a helpful and knowledgeable assistant.',
+    systemPrompt = 'You are UseGlass AI, a helpful and knowledgeable assistant.',
     onMessageComplete,
     className = '',
     placeholder = 'Ask anything...',
@@ -281,7 +281,7 @@ export function StreamingChat({
                 </div>
 
                 <p className="text-center text-xs text-gray-400 mt-2">
-                    Noir is AI and can make mistakes. Double-check important info.
+                    UseGlass is AI and can make mistakes. Double-check important info.
                 </p>
             </div>
         </div>

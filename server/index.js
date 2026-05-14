@@ -21,22 +21,16 @@ import { createRequire } from 'module';
 import midtransClient from 'midtrans-client';
 import { YoutubeTranscript } from 'youtube-transcript/dist/youtube-transcript.esm.js';
 import nodemailer from 'nodemailer';
-import { createClient } from '@supabase/supabase-js';
 import { mcpManager } from './mcpManager.js';
+import { tursoRouter } from './tursoRoutes.js';
+import { saveOutput as tursoSaveOutput } from './turso.js';
+import { createAutoPilotRouter } from './autoPilot/routes.js';
 
 
 // Feature Limits handled by new configuration below
 
-// Supabase Client for Backend
-const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
-const supabase = (SUPABASE_URL && SUPABASE_KEY) ? createClient(SUPABASE_URL, SUPABASE_KEY) : null;
-
-if (supabase) {
-  // // console.log('✅ Supabase connected:', SUPABASE_URL);
-} else {
-  // // console.warn('⚠️ Supabase not configured. Using file-based fallback.');
-}
+// Turso-only mode: Supabase backend client removed.
+const supabase = null;
 
 // Initialize Philos Services (global scope for access in routes)
 let philosMemory = null;
@@ -83,7 +77,9 @@ const __dirname = path.dirname(__filename);
 const debugLog = (data) => {
   try {
     // // console.log('[DEBUG]', JSON.stringify({ ...data, timestamp: Date.now() }));
-  } catch (e) { // // console.error('Debug log error:', e); }
+  } catch (e) {
+    // Ignore debug logging failures.
+  }
 };
 
 // Note: pdf-parse will be imported dynamically when needed
@@ -123,6 +119,25 @@ if (sumopodApiKey) {
 }
 
 // =====================================================
+// 9ROUTER AI CLIENT (Local FREE provider for development)
+// https://github.com/decolua/9router  →  http://localhost:20128/v1
+// =====================================================
+const ninerouterApiKey = process.env.NINEROUTER_API_KEY?.trim();
+const ninerouterBaseUrl = process.env.NINEROUTER_BASE_URL?.trim() || 'http://localhost:20128/v1';
+const ninerouterDefaultModel = process.env.NINEROUTER_DEFAULT_MODEL?.trim() || 'kr/claude-sonnet-4.5';
+
+let ninerouterClient = null;
+if (ninerouterApiKey) {
+  ninerouterClient = new OpenAI({
+    apiKey: ninerouterApiKey,
+    baseURL: ninerouterBaseUrl,
+  });
+  console.log('✅ 9Router AI client initialized:', ninerouterBaseUrl, '(default model:', ninerouterDefaultModel, ')');
+} else {
+  console.warn('⚠️ NINEROUTER_API_KEY not set. 9Router (dev provider) disabled.');
+}
+
+// =====================================================
 // OPENROUTER AI CLIENT (Pro Models - Claude, GPT, Grok, etc.)
 // =====================================================
 const openrouterApiKey = process.env.OPENROUTER_API_KEY?.trim();
@@ -134,8 +149,8 @@ if (openrouterApiKey) {
     apiKey: openrouterApiKey,
     baseURL: openrouterBaseUrl,
     defaultHeaders: {
-      'HTTP-Referer': process.env.FRONTEND_URL || 'https://noir.biz.id',
-      'X-Title': 'Noir AI'
+      'HTTP-Referer': process.env.FRONTEND_URL || 'https://useglass.ai',
+      'X-Title': 'UseGlass AI'
     }
   });
   // // console.log('✅ OpenRouter AI client initialized');
@@ -145,6 +160,28 @@ if (openrouterApiKey) {
 }
 
 const app = express();
+
+const getUseGlassAIConfigIssue = () => {
+  const missing = [];
+  const hasOpenRouter = !!process.env.OPENROUTER_API_KEY?.trim();
+  const hasNineRouter = !!process.env.NINEROUTER_API_KEY?.trim();
+  if (hasOpenRouter || hasNineRouter) return null;
+  if (!process.env.SUMOPOD_API_KEY?.trim()) missing.push('SUMOPOD_API_KEY (or OPENROUTER_API_KEY)');
+  if (!process.env.SUMOPOD_BASE_URL?.trim()) missing.push('SUMOPOD_BASE_URL');
+  if (!process.env.SUMOPOD_MODEL_ID?.trim()) missing.push('SUMOPOD_MODEL_ID');
+
+  if (missing.length === 0 && sumopodClient) return null;
+
+  return {
+    error: 'UseGlass AI provider is not configured.',
+    code: 'AI_PROVIDER_NOT_CONFIGURED',
+    message: `Missing required environment variable(s): ${missing.join(', ') || 'SUMOPOD client initialization failed'}.`,
+    setup: {
+      required: ['SUMOPOD_API_KEY', 'SUMOPOD_BASE_URL', 'SUMOPOD_MODEL_ID'],
+      note: 'Add these values to your backend environment, restart the API server, then send the prompt again.'
+    }
+  };
+};
 
 // 1. CORS Configuration (MUST BE FIRST)
 app.use(
@@ -176,6 +213,27 @@ const limiter = rateLimit({
 });
 
 const PORT = process.env.PORT || 8788;
+
+app.use('/api/turso', tursoRouter);
+
+// =====================================================
+// AUTO PILOT ROUTER (intent → tool/mode/style/skill → AI generation)
+// Provider priority (dev): 9Router → OpenRouter → SumoPod
+// Override via AUTO_PILOT_PROVIDER env (9router | openrouter | sumopod)
+// =====================================================
+app.use(
+  '/api/auto-pilot',
+  createAutoPilotRouter({
+    openrouterClient,
+    sumopodClient,
+    ninerouterClient,
+    defaultModel:
+      process.env.NINEROUTER_DEFAULT_MODEL ||
+      process.env.SUMOPOD_MODEL_ID ||
+      'kr/claude-opus-4.7',
+    saveOutput: tursoSaveOutput,
+  }),
+);
 
 // Stricter Abuse Limiter (e.g. for heavy AI endpoints)
 const abuseLimiter = rateLimit({
@@ -341,6 +399,10 @@ const getPeriodString = (period) => {
 
 // Check Feature Usage (Supabase Only)
 const checkFeatureUsage = async (userId, feature) => {
+  // Dev bypass: all credit/feature limits disabled via env flag
+  if (process.env.DISABLE_CREDIT_LIMITS === 'true') {
+    return { allowed: true, limit: 999999, used: 0, tier: 'pro', limitsDisabled: true };
+  }
   if (!supabase) return { allowed: true, limit: 999, used: 0 };
 
   const tier = await getUserTier(userId);
@@ -475,6 +537,21 @@ app.get('/api/user/feature-usage', async (req, res) => {
     const { userId } = req.query;
     if (!userId) return res.status(400).json({ error: 'userId required' });
 
+    // Dev bypass: report unlimited credits when limits are disabled
+    if (process.env.DISABLE_CREDIT_LIMITS === 'true') {
+      return res.json({
+        tier: 'pro',
+        limitsDisabled: true,
+        chat: { used: 0, limit: 999999, exceeded: false, period: 'day' },
+        convert: { used: 0, limit: 999999, exceeded: false, period: 'month' },
+        redesign: { used: 0, limit: 999999, exceeded: false, period: 'month' },
+        youtube: { used: 0, limit: 999999, exceeded: false, period: 'day' },
+        audio: { used: 0, limit: 999999, exceeded: false, period: 'day' },
+        image: { used: 0, limit: 999999, exceeded: false, period: 'day' },
+        knowledge: { used: 0, limit: 999999, exceeded: false, period: 'month' },
+      });
+    }
+
     const userTier = await getUserTier(userId);
     const isProUser = userTier === 'pro';
 
@@ -507,6 +584,11 @@ app.get('/api/user/feature-usage', async (req, res) => {
 app.post('/api/user/feature-usage/increment', async (req, res) => {
   const { userId, featureType } = req.body;
   if (!userId || !featureType) return res.status(400).json({ error: 'userId and featureType required' });
+
+  // Dev bypass: skip credit deduction entirely when limits are disabled
+  if (process.env.DISABLE_CREDIT_LIMITS === 'true') {
+    return res.json({ success: true, message: 'limits disabled', limitsDisabled: true });
+  }
 
   const userTier = await getUserTier(userId);
   if (userTier === 'pro') {
@@ -764,7 +846,7 @@ app.post('/api/redesign', async (req, res) => {
       }
     }
 
-    // Noir Labs Model Routing
+    // UseGlass Labs Model Routing
     let targetModelId = process.env.SUMOPOD_REDESIGN_MODEL_ID || process.env.SUMOPOD_MODEL_ID || 'gemini/gemini-3-pro-preview';
 
     // Explicit model selection from frontend
@@ -1013,7 +1095,7 @@ app.post('/api/generate-legacy-unused', async (req, res) => {
       let startIndex = 0;
 
       // Enforce clean formatting and prevent [1] citations unless grounded
-      const defaultSystemPrompt = `You are Noir AI, a helpful AI assistant.
+      const defaultSystemPrompt = `You are UseGlass AI, a helpful AI assistant.
 FORMATTING RULES:
 - Use standard Markdown formatting.
 - Use **Bold** for emphasis and headers.
@@ -1466,7 +1548,7 @@ app.post('/api/payment/create-transaction', async (req, res) => {
       return res.status(400).json({ error: 'User ID required' });
     }
 
-    const orderId = `NOIR-PRO-${Date.now()}-${userId.slice(-6)}`;
+    const orderId = `USEGLASS-PRO-${Date.now()}-${userId.slice(-6)}`;
 
     const parameter = {
       transaction_details: {
@@ -1478,13 +1560,13 @@ app.post('/api/payment/create-transaction', async (req, res) => {
         email: userEmail || 'user@example.com',
       },
       item_details: [{
-        id: 'noir-pro-monthly',
+        id: 'useglass-pro-monthly',
         price: amount || 50000,
         quantity: 1,
-        name: 'Noir Pro - Monthly Subscription',
+        name: 'UseGlass Pro - Monthly Subscription',
       }],
       callbacks: {
-        finish: 'https://www.noir.biz.id/',
+        finish: process.env.FRONTEND_URL || 'https://useglass.ai/',
       },
     };
 
@@ -1540,7 +1622,7 @@ app.post('/api/payment/webhook', async (req, res) => {
 
     // // console.log(`📬 Midtrans webhook: ${orderId} - ${transactionStatus}`);
 
-    // Extract userId from orderId (format: NOIR-PRO-timestamp-userId)
+    // Extract userId from orderId (format: USEGLASS-PRO-timestamp-userId)
     const parts = orderId.split('-');
     const userId = parts.length >= 4 ? parts[3] : null;
 
@@ -1592,15 +1674,7 @@ const PROVIDER_KEYS = {
 };
 
 
-// Debug: Log API key status (without exposing actual keys)
-// // console.log('🔑 API Key Status:', {
-  SUMOPOD_API_KEY: SUMOPOD_API_KEY ? `Set (${SUMOPOD_API_KEY.substring(0, 10)}...)` : 'NOT SET',
-  SUMOPOD_BASE_URL: SUMOPOD_BASE_URL,
-  SUMOPOD_MODEL_ID: SUMOPOD_MODEL_ID,
-  Provider: {
-    groq: PROVIDER_KEYS.groq ? '✅ Configured (SumoPod)' : 'Missing',
-  }
-});
+// Debug: API key status intentionally disabled to avoid noisy logs and leaking config.
 
 // SumoPod models - Smart Routing per Tech Spec
 const SUMOPOD_MODELS = {
@@ -1919,7 +1993,7 @@ app.post('/api/chat/stream', async (req, res) => {
   // // console.log(`[Stream] Starting stream for provider: ${provider}, model: ${targetModel}, requested: ${model}`);
 
   // =====================================================
-  // NOIR PHILOS SUPER AGENT PIPELINE (3-Phase)
+  // USEGLASS PHILOS SUPER AGENT PIPELINE (3-Phase)
   // =====================================================
   if (model === 'philos') {
     return handlePhilosPipeline(req, res, messages);
@@ -2178,8 +2252,8 @@ app.post('/api/chat/stream', async (req, res) => {
       headers: {
         'Authorization': `Bearer ${openrouterApiKey}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': process.env.OPENROUTER_SITE_URL || 'https://noir.ai',
-        'X-Title': process.env.OPENROUTER_SITE_NAME || 'Noir AI',
+        'HTTP-Referer': process.env.OPENROUTER_SITE_URL || 'https://useglass.ai',
+        'X-Title': process.env.OPENROUTER_SITE_NAME || 'UseGlass AI',
       },
       body: JSON.stringify({
         model: targetModel,
@@ -2306,7 +2380,9 @@ app.post('/api/chat/stream', async (req, res) => {
     // // console.error('[Stream] Unexpected error:', error);
     try {
       fs.appendFileSync('server_error.log', `[${new Date().toISOString()}] Stream Error: ${error.stack || error}\n`);
-    } catch (e) { // // console.error('Failed to write log:', e); }
+    } catch (e) {
+      // Ignore file logging failures.
+    }
 
     if (!res.writableEnded) {
       // DEBUG: Return actual error to client
@@ -2408,12 +2484,17 @@ app.post('/api/generate', async (req, res) => {
   const images = body.images || [];
   const userId = body.userId; // Get userId from request
 
-  // // console.log(`[${provider}] /api/generate called`, {
-    hasPrompt: !!prompt,
-    hasSystemPrompt: !!systemPrompt,
-    mode,
-    historyLength: history?.length || 0,
-    imagesCount: images?.length || 0
+  debugLog({
+    location: 'server/index.js:/api/generate',
+    message: 'Generate request received',
+    data: {
+      provider,
+      mode,
+      hasPrompt: !!prompt,
+      hasSystemPrompt: !!systemPrompt,
+      historyLength: history?.length || 0,
+      imagesCount: images?.length || 0
+    }
   });
 
   // --- TOKEN LIMIT CHECK ---
@@ -2450,8 +2531,20 @@ app.post('/api/generate', async (req, res) => {
   const effectiveProvider = 'groq';
   // // console.log(`[SumoPod] Normalized from '${provider}' -> '${effectiveProvider}'`);
 
-  if (!PROVIDER_KEYS[effectiveProvider]) {
-    return sendResponse(500, { error: `SumoPod API key not configured. Please set SUMOPOD_API_KEY, SUMOPOD_BASE_URL, and SUMOPOD_MODEL_ID in your environment variables.` });
+  const aiConfigIssue = getUseGlassAIConfigIssue();
+  if (aiConfigIssue) {
+    return sendResponse(503, aiConfigIssue);
+  }
+
+  // Accept any configured provider (9Router / OpenRouter / SumoPod). Legacy
+  // PROVIDER_KEYS only tracks SumoPod, so we explicitly check the others too.
+  const hasAnyProvider =
+    !!PROVIDER_KEYS[effectiveProvider] ||
+    !!ninerouterClient ||
+    !!openrouterClient ||
+    !!sumopodClient;
+  if (!hasAnyProvider) {
+    return sendResponse(503, getUseGlassAIConfigIssue() || { error: 'UseGlass AI provider is not configured.', code: 'AI_PROVIDER_NOT_CONFIGURED' });
   }
 
   // SumoPod supports image input
@@ -2498,7 +2591,7 @@ Always provide information based on your training data AND the current date cont
       enhancedSystemPrompt = systemPrompt + `
 
 ⚠️ IMPORTANT FOR SUMOPOD IN TUTOR MODE:
-- You are NOIR AI TUTOR, a world-class AI Educator and Mentor
+- You are USEGLASS AI TUTOR, a world-class AI Educator and Mentor
 - Be patient, encouraging, and clear in your explanations
 - Use Socratic questions, analogies, and step-by-step reasoning
 - Help users achieve deep understanding, not just rote answers
@@ -2510,7 +2603,7 @@ Always provide information based on your training data AND the current date cont
       enhancedSystemPrompt = systemPrompt + `
 
 ⚠️ IMPORTANT FOR SUMOPOD:
-- You MUST follow all NOIR AI guidelines exactly as specified above
+- You MUST follow all USEGLASS AI guidelines exactly as specified above
 - Generate code that matches the exact format and structure required
 - Use the same component patterns, styling approach, and architecture
 - Ensure your output is production-ready and follows all design system requirements
@@ -2525,9 +2618,9 @@ Always provide information based on your training data AND the current date cont
 
     let content;
 
-    // Only SumoPod provider
-    if (!sumopodClient) {
-      return sendResponse(500, { error: 'SumoPod client not available. Please configure SUMOPOD_API_KEY, SUMOPOD_BASE_URL, and SUMOPOD_MODEL_ID.' });
+    // Provider fallback: prefer 9Router in dev, else OpenRouter, else SumoPod
+    if (!sumopodClient && !openrouterClient && !ninerouterClient) {
+      return sendResponse(500, { error: 'No AI provider configured. Set NINEROUTER_API_KEY (dev) or OPENROUTER_API_KEY (prod) in .env.local.' });
     }
 
     // Get user tier and calculate max tokens
@@ -2582,13 +2675,40 @@ Always provide information based on your training data AND the current date cont
 
       // Determine which client to use based on selected model
       // Override: force 'claude-sonnet-4-5' to use Sumopod (via Gemini)
-      const useOpenRouter = selectedModel !== 'gemini-flash' && selectedModel !== 'claude-sonnet-4-5' && OPENROUTER_MODEL_MAPPING[selectedModel];
+      const useOpenRouter = (!sumopodClient && openrouterClient) || (selectedModel !== 'gemini-flash' && selectedModel !== 'claude-sonnet-4-5' && OPENROUTER_MODEL_MAPPING[selectedModel]);
 
       let completion;
 
-      if (useOpenRouter && openrouterClient) {
+      const isDevEnv = (process.env.NODE_ENV || 'development') !== 'production';
+      // Fast Thinking (sonar/sonnet) — always route to 9Router when available
+      const isFastThinking = selectedModel === 'sonar' || selectedModel === 'sonnet' || selectedModel === 'gemini-flash';
+      const prefer9Router = ninerouterClient && (isDevEnv || isFastThinking);
+
+      const NINEROUTER_MODEL_MAPPING = {
+        'sonar': process.env.NINEROUTER_FAST_MODEL?.trim() || 'kr/claude-sonnet-4.5',
+        'sonnet': process.env.NINEROUTER_FAST_MODEL?.trim() || 'kr/claude-sonnet-4.5',
+        'gemini-flash': process.env.NINEROUTER_FAST_MODEL?.trim() || 'kr/claude-sonnet-4.5',
+      };
+
+      if (prefer9Router) {
+        const ninerouterModelId = NINEROUTER_MODEL_MAPPING[selectedModel] || (body.model && body.model.includes('/') ? body.model : ninerouterDefaultModel);
+        const temperature = 0.5;
+        try {
+          completion = await ninerouterClient.chat.completions.create({
+            model: ninerouterModelId,
+            messages,
+            temperature,
+            max_tokens: baseMaxTokens,
+          }, { signal: controller.signal });
+        } catch (nrErr) {
+          return sendResponse(500, {
+            error: `9Router API Error: ${nrErr?.message || String(nrErr)}`,
+            detail: nrErr?.error || nrErr?.message,
+          });
+        }
+      } else if (useOpenRouter && openrouterClient) {
         // Use OpenRouter for Pro models
-        const openrouterModelId = OPENROUTER_MODEL_MAPPING[selectedModel];
+        const openrouterModelId = OPENROUTER_MODEL_MAPPING[selectedModel] || OPENROUTER_MODEL_MAPPING['sonar'];
         // // console.log(`[AI] 🚀 Using OpenRouter model: ${openrouterModelId} (${selectedModel})`);
 
         const temperature = selectedModel === 'gpt-5' || selectedModel === 'grok' ? 1 : 0.7;
@@ -2699,13 +2819,16 @@ Always provide information based on your training data AND the current date cont
     // Clear timeout in case of error
     clearTimeout(timeout);
 
-    // Log error details for debugging
-    // // console.error(`[${provider}] Error in /api/generate:`, {
-      name: err?.name,
-      message: err?.message,
-      provider,
-      mode,
-      hasPrompt: !!prompt
+    debugLog({
+      location: 'server/index.js:/api/generate',
+      message: 'Generate request failed',
+      data: {
+        name: err?.name,
+        message: err?.message,
+        provider,
+        mode,
+        hasPrompt: !!prompt
+      }
     });
 
     if (err?.name === 'AbortError' || err?.message?.includes('aborted')) {
@@ -2727,7 +2850,7 @@ Always provide information based on your training data AND the current date cont
 
 // Health check endpoints
 // =====================================================
-// NOIR PHILOS PIPELINE HELPER
+// USEGLASS PHILOS PIPELINE HELPER
 // =====================================================
 async function handlePhilosPipeline(req, res, messages) {
   const userId = req.body.userId || 'local-user';
@@ -2744,7 +2867,7 @@ async function handlePhilosPipeline(req, res, messages) {
     // PHASE 1: Thinking / Deep Understanding
     res.write(`event: status\ndata: ${JSON.stringify({ message: "Phase 1: Analyzing intent and recalling memories..." })}\n\n`);
     
-    let systemPrompt = "You are Noir Philos, a deeply intuitive and personalized AI companion.";
+    let systemPrompt = "You are UseGlass Philos, a deeply intuitive and personalized AI companion.";
     if (philosMemory) {
       const memoryContext = await philosMemory.buildSystemPrompt(userId, lastUserMessage);
       systemPrompt = memoryContext;
@@ -2766,7 +2889,9 @@ async function handlePhilosPipeline(req, res, messages) {
         const searchData = await searchRes.json();
         searchResults = searchData.results || [];
       }
-    } catch (e) { // // console.warn('[Philos] Web search failed', e.message); }
+    } catch (e) {
+      // Continue without web search context if the search helper fails.
+    }
 
     // PHASE 3: Multi-Model Synthesis (Consensus Step)
     res.write(`event: status\ndata: ${JSON.stringify({ message: "Phase 3: Synthesizing final response from multiple models..." })}\n\n`);
@@ -2837,7 +2962,7 @@ Original Prompt: "${lastUserMessage}"` }
 }
 
 app.get('/', (_req, res) => {
-  res.type('text/html').send('<h1>Noir AI API OK</h1>');
+  res.type('text/html').send('<h1>UseGlass AI API OK</h1>');
 });
 
 app.get('/api/health', (_req, res) => {
@@ -2871,7 +2996,7 @@ app.post('/api/deploy', async (req, res) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          name: projectName || `noir-${Date.now()}`,
+          name: projectName || `useglass-${Date.now()}`,
           files: [
             {
               file: '/index.html',
@@ -2911,7 +3036,7 @@ app.post('/api/deploy', async (req, res) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          name: projectName || `noir-${Date.now()}`,
+          name: projectName || `useglass-${Date.now()}`,
         }),
       });
 
@@ -3167,7 +3292,7 @@ app.post('/api/github/push', async (req, res) => {
   try {
     const repoFullName = typeof repo === 'string' ? repo : repo.fullName;
     const targetBranch = branch || 'main';
-    const message = commitMessage || 'Update from NOIR AI';
+    const message = commitMessage || 'Update from USEGLASS AI';
 
     // Get current tree SHA
     const refResponse = await fetch(`https://api.github.com/repos/${repoFullName}/git/ref/heads/${targetBranch}`, {
@@ -3612,12 +3737,12 @@ app.post('/api/waitlist', async (req, res) => {
   if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
     try {
       await transporter.sendMail({
-        from: '"Noir AI" <noreply@noir-ai.com>',
+        from: '"UseGlass AI" <noreply@useglass.ai>',
         to: email,
-        subject: 'Your Noir AI Verification Code',
-        text: `Hello ${name || 'User'},\n\nYour verification code for Noir AI is: ${code}\n\nThis code will expire in 10 minutes.\n\nWelcome to the future of intelligence.`,
+        subject: 'Your UseGlass AI Verification Code',
+        text: `Hello ${name || 'User'},\n\nYour verification code for UseGlass AI is: ${code}\n\nThis code will expire in 10 minutes.\n\nWelcome to your transparent workspace for intelligent creation.`,
         html: `<div style="font-family: sans-serif; padding: 20px;">
-                      <h1>Welcome to Noir AI</h1>
+                      <h1>Welcome to UseGlass AI</h1>
                       <p>Hello ${name || 'User'},</p>
                       <p>Your verification code is:</p>
                       <h2 style="background: #eee; padding: 10px; display: inline-block; letter-spacing: 5px;">${code}</h2>
@@ -3961,6 +4086,18 @@ app.get('/api/user/feature-usage', async (req, res) => {
   const { userId } = req.query;
   if (!userId) return res.status(400).json({ error: 'User ID required' });
 
+  // Dev bypass: report unlimited credits when limits are disabled
+  if (process.env.DISABLE_CREDIT_LIMITS === 'true') {
+    return res.json({
+      used: 0,
+      limit: 999999,
+      remaining: 999999,
+      tier: 'pro',
+      credits: 999999,
+      limitsDisabled: true,
+    });
+  }
+
   try {
     const usageData = await getUserUsage(userId);
     const tier = await getUserTier(userId);
@@ -3990,6 +4127,19 @@ app.get('/api/user/feature-usage', async (req, res) => {
 app.post('/api/user/feature-usage/increment', abuseLimiter, async (req, res) => {
   const { userId, featureType } = req.body;
   if (!userId || !featureType) return res.status(400).json({ error: 'Missing parameters' });
+
+  // Dev bypass: skip credit deduction entirely when limits are disabled
+  if (process.env.DISABLE_CREDIT_LIMITS === 'true') {
+    return res.json({
+      success: true,
+      used: 0,
+      limit: 999999,
+      remaining: 999999,
+      tier: 'pro',
+      credits: 999999,
+      limitsDisabled: true,
+    });
+  }
 
   try {
     const cost = FEATURE_COSTS[featureType] || 1; // Default to 1 if unknown (chat)
@@ -4040,7 +4190,7 @@ app.post('/api/payment/checkout', async (req, res) => {
 
   try {
     // Generate unique order ID
-    const orderId = `NOIR-${userId.substring(0, 8)}-${Date.now()}`;
+    const orderId = `USEGLASS-${userId.substring(0, 8)}-${Date.now()}`;
 
     // Midtrans Snap parameter
     const parameter = {
@@ -4055,10 +4205,10 @@ app.post('/api/payment/checkout', async (req, res) => {
         // Add customer details if available from userId
       },
       item_details: [{
-        id: 'noir-premium',
+        id: 'useglass-premium',
         price: Math.round(amount),
         quantity: 1,
-        name: 'Noir Premium Subscription - Monthly'
+        name: 'UseGlass Premium Subscription - Monthly'
       }],
       callbacks: {
         finish: `${process.env.FRONTEND_URL || req.headers.origin || 'http://localhost:5173'}/pricing?success=true`,
@@ -4078,10 +4228,13 @@ app.post('/api/payment/checkout', async (req, res) => {
       order_id: orderId
     });
   } catch (error) {
-    // // console.error('❌ Payment checkout error:', {
-      message: error?.message,
-      stack: error?.stack,
-      response: error?.response?.data
+    debugLog({
+      location: 'server/index.js:/api/payment/checkout',
+      message: 'Payment checkout error',
+      data: {
+        message: error?.message,
+        response: error?.response?.data
+      }
     });
     res.status(500).json({
       error: error?.message || 'Payment checkout failed',
@@ -4095,10 +4248,14 @@ app.post('/api/payment/webhook', async (req, res) => {
   try {
     const notification = req.body;
 
-    // // console.log('📬 Midtrans notification received:', {
-      order_id: notification.order_id,
-      transaction_status: notification.transaction_status,
-      fraud_status: notification.fraud_status
+    debugLog({
+      location: 'server/index.js:/api/payment/webhook',
+      message: 'Midtrans notification received',
+      data: {
+        order_id: notification.order_id,
+        transaction_status: notification.transaction_status,
+        fraud_status: notification.fraud_status
+      }
     });
 
     // Verify notification (optional but recommended)
@@ -4127,7 +4284,7 @@ app.post('/api/payment/webhook', async (req, res) => {
     }
 
     if (isSuccess) {
-      // Extract userId from orderId (format: NOIR-{userId}-{timestamp})
+      // Extract userId from orderId (format: USEGLASS-{userId}-{timestamp})
       const userId = orderId.split('-')[1];
 
       // Calculate expiry (30 days from now for monthly subscription)
@@ -4207,10 +4364,14 @@ app.post('/api/payment/activate', async (req, res) => {
       transactionStatus = statusData.transaction_status;
       const fraudStatus = statusData.fraud_status;
 
-      // // console.log('📊 Midtrans verification result:', {
-        order_id: orderId,
-        transaction_status: transactionStatus,
-        fraud_status: fraudStatus
+      debugLog({
+        location: 'server/index.js:/api/payment/activate',
+        message: 'Midtrans verification result',
+        data: {
+          order_id: orderId,
+          transaction_status: transactionStatus,
+          fraud_status: fraudStatus
+        }
       });
 
       // Verify payment is successful
@@ -4356,8 +4517,8 @@ app.post('/api/workflow', async (req, res) => {
         provider,
         images,
         systemPrompt: mode === 'builder'
-          ? 'You are NOIR BUILDER, an elite Frontend Engineer.'
-          : 'You are NOIR TUTOR, a world-class AI Educator.',
+          ? 'You are USEGLASS BUILDER, an elite Frontend Engineer.'
+          : 'You are USEGLASS TUTOR, a world-class AI Educator.',
       }),
     });
 
@@ -4401,27 +4562,42 @@ app.post('/api/generate-pdf', async (req, res) => {
     if (!prompt) {
       return res.status(400).json({ error: 'Instructions are required' });
     }
-    if (!sumopodClient) {
-      return res.status(500).json({ error: 'AI service not configured.' });
+
+    // Pick whichever AI client is configured. Priority: 9Router (dev) → OpenRouter → SumoPod.
+    const aiClient = ninerouterClient || openrouterClient || sumopodClient;
+    if (!aiClient) {
+      return res.status(503).json({
+        error: 'AI service not configured.',
+        message: 'Set NINEROUTER_API_KEY (dev), OPENROUTER_API_KEY, or SUMOPOD_API_KEY in the server environment.',
+      });
     }
 
     // 1. Ask Gemini to generate HTML based on images and prompt
-    const systemPrompt = `You are an expert Document and UI Designer.
-Your task is to analyze the provided images (which may include a blank table/form structure and attendance/data lists) and REPLICATE the structure using HTML and Tailwind CSS.
-THEN, you must fill in that structure with the data provided in the user's instructions and the reference images.
+    const systemPrompt = `You are an expert Document and UI Designer producing PRINT-READY A4 documents.
+
+Your task is to analyze the provided images (which may include a blank table/form structure and attendance/data lists) and REPLICATE the structure using HTML.
+THEN, fill in that structure with the data provided in the user's instructions and the reference images.
 
 CRITICAL INSTRUCTIONS:
-1. **OUTPUT FORMAT**: Return ONLY valid, complete HTML code. Do not include markdown formatting like \`\`\`html.
-2. **STYLING**: Use Tailwind CSS (via CDN) for styling. Ensure the document looks like a professional, printable A4 page (white background, black text, clean borders).
-3. **ACCURACY**: Replicate the columns, rows, and headers exactly as seen in the structural image.
+1. **OUTPUT FORMAT**: Return ONLY valid, complete, self-contained HTML. Do NOT include markdown fences like \`\`\`html.
+2. **STYLING — INLINE CSS ONLY**: Do NOT use Tailwind, CDN scripts, or external stylesheets. The HTML is converted to PDF by a headless renderer that does NOT execute JavaScript, so JIT compilers like Tailwind CDN will not work — every visual rule must be reachable through:
+   - a single <style> block in <head>, OR
+   - inline style="..." attributes
+3. **ACCURACY**: Replicate columns, rows, and headers exactly as seen in the structural image (when provided).
 4. **DATA INJECTION**: Fill the table/form with the specific data requested by the user from the images.
-5. **A4 FORMATTING**: Add this to your styles to ensure it prints well as a PDF:
-   <style>
-     @page { size: A4; margin: 20mm; }
-     body { background: white; color: black; font-family: sans-serif; }
-   </style>
+5. **A4 FORMATTING**: Always include this in your <style> block:
+   @page { size: A4; margin: 20mm; }
+   body { background: white; color: #111; font-family: 'Helvetica', 'Arial', sans-serif; line-height: 1.5; }
+   h1 { font-size: 22pt; margin-bottom: 8pt; }
+   h2 { font-size: 16pt; margin: 16pt 0 6pt; }
+   p { margin: 0 0 8pt; }
+   table { width: 100%; border-collapse: collapse; margin: 12pt 0; }
+   th, td { border: 1px solid #444; padding: 6pt 8pt; text-align: left; vertical-align: top; }
+   th { background: #f3f3f3; }
+6. **WIDTH**: The body must render correctly at 794px wide (A4 portrait at 96dpi). Avoid fixed widths greater than 760px.
+7. **NO BLANK OUTPUT**: At minimum produce a styled <h1> title and one paragraph or table — never return an empty body.
 
-If no image is provided, just create a professional HTML document/table based solely on the user's instructions.`;
+If no image is provided, just create a professional HTML document/table based solely on the user's instructions, following the rules above.`;
 
     const messages = [
       { role: 'system', content: systemPrompt },
@@ -4437,20 +4613,79 @@ If no image is provided, just create a professional HTML document/table based so
     ];
 
     // // console.log(`[PDFGen] Requesting HTML generation for user ${userId}...`);
-    
-    // Use Gemini Flash or Pro for vision
-    const targetModelId = process.env.SUMOPOD_REDESIGN_MODEL_ID || process.env.SUMOPOD_MODEL_ID || 'gemini/gemini-pro';
 
-    const completion = await sumopodClient.chat.completions.create({
+    // Pick the right model for whichever client is active.
+    let targetModelId;
+    if (aiClient === ninerouterClient) {
+      // 9Router default. Vision-capable model preferred when images are present.
+      const visionModel = process.env.NINEROUTER_VISION_MODEL?.trim() || 'gc/gemini-3-pro-preview';
+      const textModel = process.env.NINEROUTER_DEFAULT_MODEL?.trim() || 'kr/claude-opus-4.7';
+      targetModelId = (images && images.length > 0) ? visionModel : textModel;
+    } else if (aiClient === openrouterClient) {
+      targetModelId = (images && images.length > 0)
+        ? (process.env.OPENROUTER_VISION_MODEL?.trim() || 'google/gemini-2.0-flash-exp:free')
+        : (process.env.OPENROUTER_MODEL?.trim() || 'anthropic/claude-3.5-sonnet');
+    } else {
+      targetModelId = process.env.SUMOPOD_REDESIGN_MODEL_ID || process.env.SUMOPOD_MODEL_ID || 'gemini/gemini-pro';
+    }
+
+    const completion = await aiClient.chat.completions.create({
       model: targetModelId,
       messages: messages,
       temperature: 0.2, // Low temp for more accurate structured output
     });
 
     let htmlContent = completion.choices[0].message.content;
-    
+
+    const escapeHtml = (value = '') => String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+
+    const buildFallbackDocument = (rawPrompt = '') => {
+      const cleanPrompt = String(rawPrompt || '').replace(/\b(buatkan|buat|generate|create|bikin|pdf|dokumen|document)\b/gi, '').trim();
+      const title = cleanPrompt ? `Makalah ${cleanPrompt}` : 'Dokumen UseGlass AI';
+      return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${escapeHtml(title)}</title>
+  <style>
+    @page { size: A4; margin: 20mm; }
+    body { background: #fff; color: #111; font-family: Arial, Helvetica, sans-serif; line-height: 1.6; font-size: 12pt; }
+    h1 { font-size: 22pt; margin: 0 0 10pt; text-align: center; }
+    h2 { font-size: 15pt; margin: 18pt 0 8pt; }
+    p { margin: 0 0 10pt; }
+    .meta { color: #555; text-align: center; margin-bottom: 20pt; }
+  </style>
+</head>
+<body>
+  <h1>${escapeHtml(title)}</h1>
+  <p class="meta">Dibuat dengan UseGlass AI</p>
+  <h2>Pendahuluan</h2>
+  <p>Dokumen ini disusun berdasarkan permintaan: ${escapeHtml(rawPrompt)}.</p>
+  <h2>Pembahasan</h2>
+  <p>Isi utama dokumen menjelaskan topik secara terstruktur, ringkas, dan siap dikembangkan menjadi versi final.</p>
+  <h2>Kesimpulan</h2>
+  <p>Dokumen ini dapat diedit kembali melalui instruksi lanjutan di UseGlass AI sebelum diekspor atau disimpan ke project.</p>
+</body>
+</html>`;
+    };
+
     // Clean up markdown artifacts if present
-    htmlContent = htmlContent.replace(/```html\s*/g, '').replace(/```\s*$/g, '').trim();
+    htmlContent = String(htmlContent || '').replace(/```html\s*/g, '').replace(/```\s*$/g, '').trim();
+
+    const hasRenderableHtml = /<\/?(html|body|main|article|section|div|h1|h2|p|table)\b/i.test(htmlContent);
+    const looksLikeStatusOnly = /(PDF\s+berhasil|berhasil\s+di-generate|download|folder download|cek folder)/i.test(htmlContent) && htmlContent.length < 900;
+    const bodyText = htmlContent.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+
+    if (!hasRenderableHtml || looksLikeStatusOnly || bodyText.length < 40) {
+      htmlContent = buildFallbackDocument(prompt);
+    } else if (!/<html\b/i.test(htmlContent)) {
+      htmlContent = `<!doctype html><html><head><meta charset="utf-8" /><style>@page{size:A4;margin:20mm}body{background:#fff;color:#111;font-family:Arial,Helvetica,sans-serif;line-height:1.6;font-size:12pt}h1{font-size:22pt}h2{font-size:15pt;margin-top:18pt}p{margin:0 0 10pt}table{width:100%;border-collapse:collapse;margin:12pt 0}th,td{border:1px solid #444;padding:6pt 8pt;text-align:left;vertical-align:top}th{background:#f3f3f3}</style></head><body>${htmlContent}</body></html>`;
+    }
 
     // 2. Send generated HTML back to the client for client-side PDF rendering
     // // console.log(`[PDFGen] HTML generated (${htmlContent.length} bytes). Sending to client...`);
@@ -4667,7 +4902,7 @@ if (process.env.VERCEL !== '1' && !process.env.VERCEL_ENV) {
       id,
       object: 'model',
       created: Math.floor(Date.now() / 1000),
-      owned_by: 'noir-ai',
+      owned_by: 'useglass-ai',
     }));
     res.json({ object: 'list', data: models });
   });

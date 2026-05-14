@@ -1,5 +1,5 @@
 /**
- * Design System Manager for NOIR AI Builder
+ * Design System Manager for UseGlass AI Builder
  * Manages design tokens (colors, typography, spacing, effects) that can be reused across projects
  */
 

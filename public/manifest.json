@@ -1,6 +1,6 @@
 {
-    "name": "Noir AI",
-    "short_name": "Noir",
+    "name": "UseGlass AI",
+    "short_name": "UseGlass",
     "start_url": "/",
     "display": "standalone",
     "background_color": "#ffffff",
@@ -8,15 +8,16 @@
     "orientation": "portrait-primary",
     "icons": [
         {
-            "src": "/owl-logo.png",
+            "src": "/useglass-logo.png",
             "sizes": "192x192",
             "type": "image/png"
         },
         {
-            "src": "/owl-logo.png",
+            "src": "/useglass-logo.png",
             "sizes": "512x512",
             "type": "image/png",
             "purpose": "any maskable"
         }
     ]
 }
+

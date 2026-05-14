@@ -1,5 +1,5 @@
 /**
- * Agentic Planning for NOIR AI Builder
+ * Agentic Planning for UseGlass AI Builder
  * AI creates a plan before generating code, similar to v0.app
  */
 

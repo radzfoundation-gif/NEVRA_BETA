@@ -1,10 +1,12 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { supabase } from './supabase';
-import type { User, Session } from '@supabase/supabase-js';
-
-// =====================================================
-// Types (Clerk-compatible API)
-// =====================================================
+﻿import React from 'react';
+import {
+    ClerkProvider,
+    useAuth as useClerkAuth,
+    useClerk,
+    useSignIn,
+    useSignUp,
+    useUser as useClerkUser,
+} from '@clerk/clerk-react';
 
 interface ClerkCompatibleUser {
     id: string;
@@ -17,225 +19,154 @@ interface ClerkCompatibleUser {
     nickname: string | null;
 }
 
-interface AuthContextType {
-    // Clerk-compatible properties
-    user: ClerkCompatibleUser | null;
-    isLoaded: boolean;
-    isSignedIn: boolean;
+const publishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
-    // Supabase-specific (useful for direct access)
-    supabaseUser: User | null;
-    session: Session | null;
+const toCompatibleUser = (clerkUser: any): ClerkCompatibleUser | null => {
+    if (!clerkUser) return null;
+    const primaryEmail = clerkUser.primaryEmailAddress?.emailAddress || clerkUser.emailAddresses?.[0]?.emailAddress || '';
+    const nickname = (clerkUser.unsafeMetadata?.nickname || clerkUser.publicMetadata?.nickname || clerkUser.username || clerkUser.firstName || '') as string;
+    return {
+        id: clerkUser.id,
+        emailAddresses: (clerkUser.emailAddresses || []).map((email: any) => ({ emailAddress: email.emailAddress })),
+        fullName: clerkUser.fullName || [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(' ') || primaryEmail,
+        firstName: clerkUser.firstName || null,
+        lastName: clerkUser.lastName || null,
+        imageUrl: clerkUser.imageUrl || null,
+        primaryEmailAddress: primaryEmail ? { emailAddress: primaryEmail } : undefined,
+        nickname: nickname || null,
+    };
+};
 
-    // Actions
-    signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
-    signUp: (email: string, password: string, fullName?: string) => Promise<{ error: Error | null }>;
-    signOut: () => Promise<void>;
-    signInWithGoogle: () => Promise<void>;
-    resetPassword: (email: string) => Promise<{ error: Error | null }>;
-    updateProfile: (data: { nickname?: string; fullName?: string }) => Promise<{ error: Error | null }>;
+const MissingClerkKey: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+    <div className="min-h-screen bg-zinc-50 text-zinc-900">
+        <div className="mx-auto flex min-h-screen max-w-xl flex-col items-center justify-center p-6 text-center">
+            <h1 className="text-2xl font-semibold">Clerk belum dikonfigurasi</h1>
+            <p className="mt-3 text-sm leading-6 text-zinc-600">
+                Tambahkan <code className="rounded bg-zinc-100 px-1 py-0.5">VITE_CLERK_PUBLISHABLE_KEY</code> ke <code className="rounded bg-zinc-100 px-1 py-0.5">.env.local</code>, lalu restart dev server.
+            </p>
+            <div className="mt-6 w-full rounded-2xl border border-zinc-200 bg-white p-4 text-left text-sm text-zinc-600">
+                <p>Contoh:</p>
+                <pre className="mt-2 overflow-x-auto rounded-xl bg-zinc-950 p-3 text-xs text-white">VITE_CLERK_PUBLISHABLE_KEY=pk_test_...</pre>
+            </div>
+        </div>
+    </div>
+);
+
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    if (!publishableKey) return <MissingClerkKey>{children}</MissingClerkKey>;
+    return (
+        <ClerkProvider publishableKey={publishableKey} afterSignOutUrl="/">
+            {children}
+        </ClerkProvider>
+    );
+};
+
+export function useUser() {
+    const { user, isLoaded, isSignedIn } = useClerkUser();
+    const compatibleUser = React.useMemo(() => toCompatibleUser(user), [user?.id, user?.updatedAt]);
+    return { user: compatibleUser, isLoaded, isSignedIn: Boolean(isSignedIn) };
 }
 
-// =====================================================
-// Context
-// =====================================================
+export function useSession() {
+    const auth = useClerkAuth();
+    return {
+        session: auth.sessionId ? { access_token: auth.sessionId, user: { id: auth.userId } } : null,
+        isLoaded: auth.isLoaded,
+    };
+}
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+export function useAuth() {
+    const clerkAuth = useClerkAuth();
+    const clerk = useClerk();
+    const { signIn, setActive: setSignInActive } = useSignIn();
+    const { signUp, setActive: setSignUpActive } = useSignUp();
+    const { user } = useClerkUser();
 
-// =====================================================
-// Provider
-// =====================================================
-
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-    const [supabaseUser, setSupabaseUser] = useState<User | null>(null);
-    const [session, setSession] = useState<Session | null>(null);
-    const [isLoaded, setIsLoaded] = useState(false);
-
-    // Convert Supabase User to Clerk-compatible format
-    const toClerkUser = (user: User | null): ClerkCompatibleUser | null => {
-        if (!user) return null;
-
-        const email = user.email || '';
-        const metadata = user.user_metadata || {};
-
-        return {
-            id: user.id,
-            emailAddresses: [{ emailAddress: email }],
-            fullName: metadata.full_name || metadata.name || null,
-            firstName: metadata.first_name || (metadata.full_name?.split(' ')[0]) || null,
-            lastName: metadata.last_name || (metadata.full_name?.split(' ').slice(1).join(' ')) || null,
-            imageUrl: metadata.avatar_url || metadata.picture || null,
-            primaryEmailAddress: { emailAddress: email },
-            nickname: metadata.nickname || null,
-        };
+    const signInWithPassword = async (email: string, password: string) => {
+        try {
+            if (!signIn) throw new Error('Clerk sign-in is not ready');
+            const result = await signIn.create({ identifier: email, password });
+            if (result.status === 'complete') {
+                await setSignInActive({ session: result.createdSessionId });
+                return { error: null };
+            }
+            return { error: new Error('Sign in requires additional verification in Clerk.') };
+        } catch (error: any) {
+            return { error: new Error(error?.errors?.[0]?.message || error?.message || 'Unable to sign in') };
+        }
     };
 
-    // Initialize auth state
-    useEffect(() => {
-        // Get initial session
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            setSession(session);
-            setSupabaseUser(session?.user ?? null);
-            setIsLoaded(true);
-        });
-
-        // Listen for auth changes
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(
-            async (_event, session) => {
-                if (session) {
-                    setSession(session);
-                    setSupabaseUser(session.user);
-                    setIsLoaded(true);
-
-                    // Clean up URL (remove # and auth params)
-                    const url = new URL(window.location.href);
-                    if (url.hash && url.hash === '#') {
-                        window.history.replaceState(null, '', ' ');
-                    }
-                } else {
-                    setSession(null);
-                    setSupabaseUser(null);
-                    setIsLoaded(true);
-                }
+    const signUpWithPassword = async (email: string, password: string, fullName?: string) => {
+        try {
+            if (!signUp) throw new Error('Clerk sign-up is not ready');
+            const [firstName, ...rest] = (fullName || '').trim().split(' ').filter(Boolean);
+            const result = await signUp.create({
+                emailAddress: email,
+                password,
+                firstName: firstName || undefined,
+                lastName: rest.join(' ') || undefined,
+            });
+            if (result.status === 'complete') {
+                await setSignUpActive({ session: result.createdSessionId });
+                return { error: null };
             }
-        );
-
-        return () => subscription.unsubscribe();
-    }, []);
-
-    // Sign in with email/password
-    const signIn = useCallback(async (email: string, password: string) => {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        return { error: error ? new Error(error.message) : null };
-    }, []);
-
-    // Sign up with email/password
-    const signUp = useCallback(async (email: string, password: string, fullName?: string) => {
-        const { error } = await supabase.auth.signUp({
-            email,
-            password,
-            options: {
-                data: {
-                    full_name: fullName || '',
-                }
-            }
-        });
-        return { error: error ? new Error(error.message) : null };
-    }, []);
-
-    // Sign out
-    const signOut = useCallback(async () => {
-        await supabase.auth.signOut();
-    }, []);
-
-    // Sign in with Google OAuth
-    const signInWithGoogle = useCallback(async () => {
-        await supabase.auth.signInWithOAuth({
-            provider: 'google',
-            options: {
-                redirectTo: `${window.location.origin}/`,
-            }
-        });
-    }, []);
-
-    // Reset password
-    const resetPassword = useCallback(async (email: string) => {
-        const { error } = await supabase.auth.resetPasswordForEmail(email, {
-            redirectTo: `${window.location.origin}/reset-password`,
-        });
-        return { error: error ? new Error(error.message) : null };
-    }, []);
-
-    const updateProfile = useCallback(async (data: { nickname?: string; fullName?: string }) => {
-        const updates: any = {};
-        if (data.nickname) updates.nickname = data.nickname;
-        if (data.fullName) updates.full_name = data.fullName;
-
-        const { data: { user }, error } = await supabase.auth.updateUser({
-            data: updates
-        });
-
-        if (user) {
-            setSupabaseUser(user);
+            await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
+            return { error: new Error('Check your email for the Clerk verification code, then complete verification in Clerk.') };
+        } catch (error: any) {
+            return { error: new Error(error?.errors?.[0]?.message || error?.message || 'Unable to sign up') };
         }
+    };
 
-        return { error: error ? new Error(error.message) : null };
-    }, []);
+    const signInWithGoogle = async () => {
+        await clerk.openSignIn({ redirectUrl: window.location.href, signUpUrl: '/sign-up' });
+    };
 
-    const value: AuthContextType = {
-        user: toClerkUser(supabaseUser),
-        isLoaded,
-        isSignedIn: !!supabaseUser,
-        supabaseUser,
-        session,
-        signIn,
-        signUp,
-        signOut,
+    const resetPassword = async (email: string) => {
+        try {
+            if (!signIn) throw new Error('Clerk sign-in is not ready');
+            await signIn.create({ strategy: 'reset_password_email_code', identifier: email });
+            return { error: null };
+        } catch (error: any) {
+            return { error: new Error(error?.errors?.[0]?.message || error?.message || 'Unable to send reset email') };
+        }
+    };
+
+    const updateProfile = async (data: { nickname?: string; fullName?: string }) => {
+        try {
+            if (!user) throw new Error('Not signed in');
+            const updates: any = {};
+            if (data.fullName) {
+                const [firstName, ...rest] = data.fullName.trim().split(' ');
+                updates.firstName = firstName;
+                updates.lastName = rest.join(' ') || undefined;
+            }
+            if (data.nickname) updates.unsafeMetadata = { ...user.unsafeMetadata, nickname: data.nickname };
+            await user.update(updates);
+            await user.reload();
+            return { error: null };
+        } catch (error: any) {
+            return { error: new Error(error?.errors?.[0]?.message || error?.message || 'Unable to update profile') };
+        }
+    };
+
+    return {
+        userId: clerkAuth.userId,
+        isLoaded: clerkAuth.isLoaded,
+        isSignedIn: Boolean(clerkAuth.isSignedIn),
+        signOut: () => clerk.signOut(),
+        getToken: clerkAuth.getToken,
+        signIn: signInWithPassword,
+        signUp: signUpWithPassword,
         signInWithGoogle,
         resetPassword,
         updateProfile,
     };
-
-    return (
-        <AuthContext.Provider value={value}>
-            {children}
-        </AuthContext.Provider>
-    );
 }
 
-// =====================================================
-// Hooks (Clerk-compatible API)
-// =====================================================
-
-/**
- * useUser - Clerk-compatible hook
- * Returns { user, isLoaded, isSignedIn }
- */
-export function useUser() {
-    const context = useContext(AuthContext);
-    if (context === undefined) {
-        throw new Error('useUser must be used within an AuthProvider');
-    }
-    return {
-        user: context.user,
-        isLoaded: context.isLoaded,
-        isSignedIn: context.isSignedIn,
-    };
+export function useAuthContext() {
+    const userState = useUser();
+    const authState = useAuth();
+    return { ...userState, ...authState, supabaseUser: null, session: null };
 }
 
-/**
- * useAuth - Clerk-compatible hook
- * Returns { isLoaded, isSignedIn, signIn, signOut, signUp }
- */
-export function useAuth() {
-    const context = useContext(AuthContext);
-    if (context === undefined) {
-        throw new Error('useAuth must be used within an AuthProvider');
-    }
-    return {
-        isLoaded: context.isLoaded,
-        isSignedIn: context.isSignedIn,
-        signIn: context.signIn,
-        signOut: context.signOut,
-        signUp: context.signUp,
-        signInWithGoogle: context.signInWithGoogle,
-        resetPassword: context.resetPassword,
-        updateProfile: context.updateProfile,
-    };
-}
-
-/**
- * useSession - Get raw Supabase session
- */
-export function useSession() {
-    const context = useContext(AuthContext);
-    if (context === undefined) {
-        throw new Error('useSession must be used within an AuthProvider');
-    }
-    return {
-        session: context.session,
-        isLoaded: context.isLoaded,
-    };
-}
-
-export default AuthProvider;
+export default null;

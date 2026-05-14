@@ -73,7 +73,7 @@ const McpSettings: React.FC = () => {
             <div>
                 <h3 className="text-lg font-medium text-zinc-900 mb-1">MCP Connectors</h3>
                 <p className="text-sm text-zinc-500">
-                    Connect to external Model Context Protocol (MCP) servers to give Noir AI new capabilities and access to your data.
+                    Connect to external Model Context Protocol (MCP) servers to give UseGlass AI new capabilities and access to your data.
                 </p>
             </div>
 

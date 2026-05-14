@@ -1,6 +1,6 @@
-# Noir AI | Intelligent Workspace
+# UseGlass AI | Intelligent Workspace
 
-Noir AI is an advanced AI-powered SaaS platform that integrates multiple generative AI capabilities into a unified workspace. It features intelligent chat, UI/UX design generation, collaborative whiteboarding, and a personalized knowledge base.
+UseGlass AI is an advanced AI-powered SaaS platform that integrates multiple generative AI capabilities into a unified workspace. It features intelligent chat, UI/UX design generation, collaborative whiteboarding, and a personalized knowledge base.
 
 ## 🚀 Key Features
 
@@ -37,7 +37,7 @@ Noir AI is an advanced AI-powered SaaS platform that integrates multiple generat
 ### 1. Clone & Install
 ```bash
 git clone <repository-url>
-cd NoirAI
+cd UseGlassAI
 npm install
 ```
 
@@ -99,4 +99,4 @@ npm run dev
 5.  Open a Pull Request.
 
 ---
-© 2024 Noir AI. All rights reserved.
+© 2024 UseGlass AI. All rights reserved.

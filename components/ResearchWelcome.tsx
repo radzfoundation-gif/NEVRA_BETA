@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Globe, ArrowUp, Link as LinkIcon, Layers, Plus, Paperclip, ChevronDown, Check, Sparkles, LayoutGrid, Mic, Youtube, FileText, X, Loader2, Wrench, AlertTriangle, Image as ImageIcon, PenTool, Code, LineChart, Hammer, GraduationCap, AudioLines, Lightbulb, ChevronRight, Target, BookOpen, PenLine, CircleDashed, Brain, Search, Palette, Folder, Github, Plug, SquareTerminal, Wand2, Camera, Play } from 'lucide-react';
+import { Globe, ArrowUp, Link as LinkIcon, Layers, Plus, Paperclip, ChevronDown, Check, Sparkles, LayoutGrid, Mic, Youtube, FileText, X, Loader2, Wrench, AlertTriangle, Image as ImageIcon, PenTool, Code, LineChart, Hammer, GraduationCap, AudioLines, Lightbulb, ChevronRight, Target, BookOpen, PenLine, CircleDashed, Brain, Search, Palette, Folder, Github, Plug, SquareTerminal, Wand2, Camera, Play, MessageSquare, Bot, LayoutTemplate, Code2, Calendar, Mail, Database, Slack, MessageCircle, Zap } from 'lucide-react';
 import ModelSelector, { ModelType } from './ui/ModelSelector';
 import { cn, getApiUrl } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -11,6 +11,7 @@ import VoiceDictationModal from './chat/VoiceDictationModal';
 import { useUser } from '@/lib/authContext';
 import { getSkills } from '@/lib/skillsApi';
 import { getModelDisplayName } from '@/lib/ai';
+import { routeGlassIntent } from '@/lib/glassAutoRouter';
 
 const TOOL_GROUPS = [
     [
@@ -21,7 +22,6 @@ const TOOL_GROUPS = [
     ],
     [
         { id: 'skills', label: 'Skills', icon: SquareTerminal, hasChevron: true },
-        { id: 'connectors', label: 'Add connectors', icon: Plug },
     ],
     [
         { id: 'web', label: 'Web search', icon: Globe },
@@ -29,13 +29,37 @@ const TOOL_GROUPS = [
     ]
 ];
 
-const WRITING_STYLES = [
-    { id: 'normal', label: 'Normal', prompt: '' },
-    { id: 'learning', label: 'Learning', prompt: 'Explain in a clear, educational way with examples.' },
-    { id: 'concise', label: 'Concise', prompt: 'Be brief and to the point. No fluff.' },
-    { id: 'explanatory', label: 'Explanatory', prompt: 'Explain thoroughly with context and reasoning.' },
-    { id: 'formal', label: 'Formal', prompt: 'Use formal, professional language.' },
+export type WorkflowModeId = 'think' | 'research' | 'create' | 'build' | 'code' | 'analyze' | 'launch' | 'automate';
+export type GlassStyleId = 'normal' | 'calm-teacher' | 'professional' | 'concise' | 'deep-thinker' | 'creative-writer' | 'startup-founder' | 'senior-engineer' | 'critical-reviewer' | 'friendly-assistant' | 'research-analyst' | 'minimal' | 'motivator';
+
+export const WORKFLOW_MODES: Array<{ id: WorkflowModeId; label: string; flow: string; description: string; suggestions: string[] }> = [
+    { id: 'think', label: 'Think Mode', flow: 'Understand → Plan → Structure → Recommend', description: 'Memahami tujuan, membuat rencana, roadmap, dan next action.', suggestions: ['Buat rencana produk dari ide ini', 'Pecah masalah ini menjadi langkah-langkah', 'Buat roadmap belajar saya', 'Bantu validasi ide startup ini'] },
+    { id: 'research', label: 'Research Mode', flow: 'Search → Compare → Verify → Summarize', description: 'Riset topik, kompetitor, pasar, produk, dan sumber informasi.', suggestions: ['Riset tren AI workspace', 'Bandingkan produk kompetitor', 'Buat market research untuk ide saya', 'Cari peluang dan risiko pasar'] },
+    { id: 'create', label: 'Create Mode', flow: 'Understand tone → Generate draft → Improve → Finalize', description: 'Writing, copywriting, storytelling, artikel, script, dan branding.', suggestions: ['Buat copywriting landing page', 'Tulis artikel dari outline ini', 'Buat script video pendek', 'Buat caption promosi'] },
+    { id: 'build', label: 'Build Mode', flow: 'Plan structure → Generate layout → Improve UX → Finalize', description: 'Membuat UI, layout, halaman web, product structure, dan app flow.', suggestions: ['Buat landing page glassmorphism', 'Buat dashboard AI workspace', 'Buat pricing page SaaS', 'Buat UI prompt input modern'] },
+    { id: 'code', label: 'Code Mode', flow: 'Analyze problem → Detect issue → Generate fix → Review solution', description: 'Generate, debug, explain, refactor, convert, fix, dan review code.', suggestions: ['Fix error terminal ini', 'Buat komponen UI', 'Jelaskan kode ini', 'Refactor kode ini'] },
+    { id: 'analyze', label: 'Analyze Mode', flow: 'Inspect → Critique → Improve → Validate', description: 'Review output, audit kualitas, risiko, dan kritik konstruktif.', suggestions: ['Review PRD ini', 'Cari kelemahan ide saya', 'Audit UX halaman ini', 'Kritik landing page saya'] },
+    { id: 'launch', label: 'Launch Mode', flow: 'Prepare → Optimize → Launch → Monitor', description: 'Checklist launch, GTM, monetization, deployment, dan marketing plan.', suggestions: ['Buat launch checklist', 'Buat GTM strategy', 'Buat pricing strategy', 'Buat plan promosi 7 hari'] },
+    { id: 'automate', label: 'Automate Mode', flow: 'Plan workflow → Execute steps → Monitor progress → Generate result', description: 'Automation, multi-step task, SOP, orchestration, dan chained tasks.', suggestions: ['Buat workflow otomatis', 'Buat SOP kerja harian', 'Buat task chain untuk konten', 'Buat sistem follow-up user'] },
 ];
+
+export const GLASS_STYLES: Array<{ id: GlassStyleId; label: string; prompt: string; description: string }> = [
+    { id: 'normal', label: 'Normal', description: 'Seimbang, natural, jelas.', prompt: 'Use a balanced, natural, clear style.' },
+    { id: 'calm-teacher', label: 'Calm Teacher', description: 'Sabar, sederhana, step-by-step.', prompt: 'Use simple language, explain step by step, add light analogies, avoid unexplained technical terms.' },
+    { id: 'professional', label: 'Professional', description: 'Formal, rapi, cocok bisnis.', prompt: 'Use formal, polished, structured business-ready language.' },
+    { id: 'concise', label: 'Concise', description: 'Pendek dan langsung.', prompt: 'Be brief, direct, use minimal bullets, avoid rambling.' },
+    { id: 'deep-thinker', label: 'Deep Thinker', description: 'Analisis mendalam.', prompt: 'Provide deep analysis, options, risks, tradeoffs, and recommendations.' },
+    { id: 'creative-writer', label: 'Creative Writer', description: 'Kreatif untuk branding/copy.', prompt: 'Use creative wording, strong copywriting, multiple idea angles, and vivid phrasing.' },
+    { id: 'startup-founder', label: 'Startup Founder', description: 'Produk, growth, MVP, launch.', prompt: 'Think like a startup founder: focus on MVP, positioning, growth, monetization, pricing, and launch.' },
+    { id: 'senior-engineer', label: 'Senior Engineer', description: 'Teknis dan maintainable.', prompt: 'Use senior engineering judgment: architecture, debugging, best practices, maintainability, scalability, and edge cases.' },
+    { id: 'critical-reviewer', label: 'Critical Reviewer', description: 'Cari kelemahan dan solusi.', prompt: 'Review critically, identify weaknesses and risks, then give sharp actionable fixes.' },
+    { id: 'friendly-assistant', label: 'Friendly Assistant', description: 'Santai dan mudah dicerna.', prompt: 'Use a relaxed, friendly, easy-to-understand tone.' },
+    { id: 'research-analyst', label: 'Research Analyst', description: 'Objektif, terstruktur, data-driven.', prompt: 'Be objective, structured, evidence-oriented, insight-driven, and clear about confidence.' },
+    { id: 'minimal', label: 'Minimal', description: 'Sangat singkat.', prompt: 'Answer with only the core points, extremely short.' },
+    { id: 'motivator', label: 'Motivator', description: 'Supportive dan actionable.', prompt: 'Be supportive, encouraging, and actionable while staying practical.' },
+];
+
+const WRITING_STYLES = GLASS_STYLES;
 
 
 // Custom Shark Icon for Deep Research
@@ -56,7 +80,59 @@ const SharkIcon = ({ size = 16, className = "" }: { size?: number, className?: s
     </svg>
 );
 
+type GlassWelcomeMode = 'chat' | 'search' | 'agents' | 'builder' | 'code' | 'omni' | 'documents';
+
+export interface GlassSkill {
+    id: string;
+    name: string;
+    description: string;
+    category: string;
+    instructions: string;
+    bestFor: string;
+    examples: string[];
+}
+
+export interface GlassConnector {
+    id: string;
+    name: string;
+    description: string;
+    category: string;
+    status: 'connected' | 'disconnected' | 'coming soon';
+    capabilities: string[];
+    permissions: string;
+    examples: string[];
+    icon: React.ElementType;
+}
+
+export const BUILT_IN_GLASS_SKILLS: GlassSkill[] = [
+    { id: 'prd-writer', name: 'PRD Writer', category: 'Product', description: 'Turns ideas into clear product requirement documents.', bestFor: 'Product specs, feature scope, acceptance criteria', instructions: 'Act as a senior product manager. Produce structured PRDs with goals, users, requirements, edge cases, and acceptance criteria.', examples: ['Buat PRD untuk fitur AI workspace', 'Tulis acceptance criteria untuk billing'] },
+    { id: 'saas-planner', name: 'SaaS Planner', category: 'Business', description: 'Plans SaaS products from idea to launch.', bestFor: 'MVP planning, roadmap, pricing, launch strategy', instructions: 'Act as a SaaS strategist. Break work into market, product, growth, monetization, risks, and milestones.', examples: ['Buat roadmap SaaS AI', 'Rancang MVP untuk UseGlass AI'] },
+    { id: 'ui-reviewer', name: 'UI Reviewer', category: 'Design', description: 'Reviews UI for clarity, hierarchy, accessibility, and polish.', bestFor: 'Landing pages, dashboards, app screens', instructions: 'Act as a senior UI/UX reviewer. Give prioritized critique and actionable improvements.', examples: ['Review layout landing page ini', 'Perbaiki hierarchy dashboard'] },
+    { id: 'code-debugger', name: 'Code Debugger', category: 'Code', description: 'Finds root causes and gives safe code fixes.', bestFor: 'Build errors, runtime bugs, refactors', instructions: 'Act as a debugging engineer. Identify root cause, explain why, provide minimal fix, and list verification steps.', examples: ['Fix npm run build error', 'Debug React crash setelah login'] },
+    { id: 'academic-writer', name: 'Academic Writer', category: 'Writing', description: 'Writes clear academic answers with structure and citations guidance.', bestFor: 'Essays, discussion posts, research summaries', instructions: 'Act as an academic writing assistant. Use formal structure, balanced claims, and cite-needed notes without fabricating sources.', examples: ['Buat jawaban diskusi kuliah', 'Ringkas paper secara akademik'] },
+    { id: 'brand-copywriter', name: 'Brand Copywriter', category: 'Marketing', description: 'Creates sharp brand messaging and conversion copy.', bestFor: 'Hero copy, landing pages, ads, positioning', instructions: 'Act as a brand copywriter. Write concise, differentiated copy with clear value proposition and CTA.', examples: ['Buat hero copy UseGlass AI', 'Tulis tagline SaaS AI'] },
+    { id: 'prompt-engineer', name: 'Prompt Engineer', category: 'AI', description: 'Improves prompts into reliable reusable instructions.', bestFor: 'Prompt templates, agents, system prompts', instructions: 'Act as a prompt engineer. Rewrite prompts with goal, context, task, constraints, output format, and evaluation criteria.', examples: ['Improve prompt riset kompetitor', 'Buat prompt agent planner'] },
+    { id: 'business-analyst', name: 'Business Analyst', category: 'Business', description: 'Analyzes markets, competitors, users, and business risks.', bestFor: 'Competitive research, market insight, SWOT', instructions: 'Act as a business analyst. Structure answers with assumptions, analysis, risks, opportunities, and recommendations.', examples: ['Riset kompetitor UseGlass AI', 'Buat SWOT ide startup saya'] },
+    { id: 'study-assistant', name: 'Study Assistant', category: 'Learning', description: 'Turns topics into simple explanations and study plans.', bestFor: 'Learning plans, summaries, quizzes', instructions: 'Act as a patient tutor. Explain simply, use examples, check understanding, and create practice tasks.', examples: ['Buat rencana belajar React', 'Jelaskan konsep database'] },
+    { id: 'content-creator', name: 'Content Creator', category: 'Content', description: 'Plans and writes content across channels.', bestFor: 'Social posts, scripts, content calendars', instructions: 'Act as a content strategist. Produce hooks, outlines, drafts, and repurposing plans.', examples: ['Buat workflow konten 7 hari', 'Tulis thread launch produk'] },
+];
+
+export const GLASS_CONNECTORS: GlassConnector[] = [
+    { id: 'google-drive', name: 'Google Drive', category: 'Files', status: 'coming soon', icon: Folder, description: 'Read and search Drive files when connected.', capabilities: ['search', 'read', 'sync'], permissions: 'Requires file read permission after OAuth setup.', examples: ['Cari dokumen PRD terakhir', 'Ringkas file proposal'] },
+    { id: 'github', name: 'GitHub', category: 'Code', status: 'disconnected', icon: Github, description: 'Use repository context for code tasks.', capabilities: ['search', 'read'], permissions: 'Repository access required. Writes disabled until explicitly connected.', examples: ['Cek penyebab error build repo saya', 'Review PR ini'] },
+    { id: 'gmail', name: 'Gmail', category: 'Email', status: 'coming soon', icon: Mail, description: 'Search and summarize email context.', capabilities: ['search', 'read'], permissions: 'Email read permission required.', examples: ['Ringkas email klien minggu ini'] },
+    { id: 'google-calendar', name: 'Google Calendar', category: 'Calendar', status: 'coming soon', icon: Calendar, description: 'Use schedule context for planning.', capabilities: ['read', 'sync'], permissions: 'Calendar read permission required.', examples: ['Buat jadwal kerja minggu ini'] },
+    { id: 'notion', name: 'Notion', category: 'Docs', status: 'coming soon', icon: FileText, description: 'Search Notion pages and notes.', capabilities: ['search', 'read', 'sync'], permissions: 'Workspace page permission required.', examples: ['Cari catatan roadmap'] },
+    { id: 'slack', name: 'Slack', category: 'Team', status: 'coming soon', icon: Slack, description: 'Summarize channel context.', capabilities: ['search', 'read'], permissions: 'Workspace channel permission required.', examples: ['Ringkas diskusi channel produk'] },
+    { id: 'discord', name: 'Discord', category: 'Community', status: 'coming soon', icon: MessageCircle, description: 'Read community discussion context.', capabilities: ['search', 'read'], permissions: 'Server permission required.', examples: ['Ringkas feedback komunitas'] },
+    { id: 'supabase-database', name: 'Supabase Database', category: 'Database', status: 'coming soon', icon: Database, description: 'Inspect database context when connected.', capabilities: ['read', 'deep research'], permissions: 'Database read credentials required.', examples: ['Analisis schema database'] },
+    { id: 'web-search', name: 'Web Search', category: 'Research', status: 'connected', icon: Globe, description: 'Use web context for research answers.', capabilities: ['search', 'read', 'deep research'], permissions: 'Uses public web search only.', examples: ['Riset tren AI SaaS terbaru'] },
+    { id: 'local-documents', name: 'Local Documents', category: 'Files', status: 'disconnected', icon: FileText, description: 'Use uploaded local documents as context.', capabilities: ['read', 'sync'], permissions: 'Only files uploaded in this session are used.', examples: ['Ringkas dokumen yang saya upload'] },
+];
+
 interface ResearchWelcomeProps {
+    mode?: GlassWelcomeMode;
+    onModeChange?: (mode: GlassWelcomeMode) => void;
     onSearch: (query: string, attachments?: AttachmentData[], model?: ModelType, reasoning?: boolean, featureType?: string) => void;
     initialQuery?: string;
     className?: string;
@@ -64,6 +140,16 @@ interface ResearchWelcomeProps {
     userName?: string;
     isWebSearchEnabled?: boolean;
     onToggleWebSearch?: (enabled: boolean) => void;
+    compact?: boolean;
+    activeSkillId?: string | null;
+    onSkillChange?: (skillId: string | null) => void;
+    activeConnectorId?: string | null;
+    onConnectorChange?: (connectorId: string | null) => void;
+    activeWorkflowMode?: WorkflowModeId;
+    onWorkflowModeChange?: (mode: WorkflowModeId) => void;
+    activeGlassStyle?: GlassStyleId;
+    onGlassStyleChange?: (style: GlassStyleId) => void;
+    activeCanvasType?: 'web' | 'document' | 'code' | 'presentation' | 'general' | null;
 }
 
 interface AttachmentData {
@@ -80,8 +166,163 @@ export function ResearchWelcome({
     hasApiKey = true,
     userName,
     isWebSearchEnabled = false,
-    onToggleWebSearch
+    onToggleWebSearch,
+    onModeChange,
+    mode = 'chat',
+    compact = false,
+    activeSkillId = null,
+    onSkillChange,
+    activeConnectorId = null,
+    onConnectorChange,
+    activeWorkflowMode: controlledWorkflowMode,
+    onWorkflowModeChange,
+    activeGlassStyle: controlledGlassStyle,
+    onGlassStyleChange,
+    activeCanvasType = null
 }: ResearchWelcomeProps) {
+
+    const modeConfig = {
+        chat: {
+            eyebrow: 'Glass Chat',
+            title: 'Start thinking with UseGlass AI',
+            description: 'Ask anything, choose a mode, and turn ideas into useful outputs.',
+            placeholder: 'Ask UseGlass AI anything...',
+            icon: MessageSquare,
+            reasoning: false,
+            web: false,
+        },
+        search: {
+            eyebrow: 'Glass Search',
+            title: 'Research deeply with sources',
+            description: 'Ask a research question and get summaries, comparisons, source cards, and next questions.',
+            placeholder: 'Research competitor AI tools, market trends, papers, or products...',
+            icon: Search,
+            reasoning: true,
+            web: true,
+        },
+        agents: {
+            eyebrow: 'Glass Agents',
+            title: 'Run an AI agent workflow',
+            description: 'Describe the task. The agent will plan, work, review, and return a final deliverable.',
+            placeholder: 'Ask an agent to research, code, plan, write, debug, or study...',
+            icon: Bot,
+            reasoning: true,
+            web: false,
+        },
+        builder: {
+            eyebrow: 'Glass Builder',
+            title: 'Build UI from a prompt',
+            description: 'Describe a landing page, dashboard, auth page, component, or SaaS screen.',
+            placeholder: 'Create a glassmorphism SaaS landing page for...',
+            icon: LayoutTemplate,
+            reasoning: false,
+            web: false,
+        },
+        code: {
+            eyebrow: 'Glass Code',
+            title: 'Generate, debug, and explain code',
+            description: 'Paste a task, code snippet, or terminal error and get a fix with explanation.',
+            placeholder: 'Paste an error log or ask for code generation...',
+            icon: Code2,
+            reasoning: false,
+            web: false,
+        },
+        omni: {
+            eyebrow: 'Glass Omni',
+            title: 'Build a full AI workflow',
+            description: 'Combine chat, research, planning, builder, code, and agents in one guided flow.',
+            placeholder: 'Create an end-to-end workflow for building an AI SaaS...',
+            icon: Sparkles,
+            reasoning: true,
+            web: true,
+        },
+        documents: {
+            eyebrow: 'Glass Documents',
+            title: 'Chat with documents',
+            description: 'Upload, summarize, extract notes, and ask questions about your files.',
+            placeholder: 'Summarize this document or extract action items...',
+            icon: FileText,
+            reasoning: true,
+            web: false,
+        },
+    }[mode];
+    const ModeIcon = modeConfig.icon;
+    const [localWorkflowMode, setLocalWorkflowMode] = useState<WorkflowModeId>('think');
+    const activeWorkflowMode = controlledWorkflowMode || localWorkflowMode;
+    const setActiveWorkflowMode = (nextMode: WorkflowModeId) => { setLocalWorkflowMode(nextMode); onWorkflowModeChange?.(nextMode); };
+    const [showWorkflowMenu, setShowWorkflowMenu] = useState(false);
+    const [showCanvasHint, setShowCanvasHint] = useState(false);
+
+
+    const modeOptions: Array<{ id: GlassWelcomeMode; label: string; icon: React.ElementType; color: string }> = [
+        { id: 'chat', label: 'Glass Chat', icon: MessageSquare, color: 'bg-zinc-950 text-white border-zinc-900' },
+        { id: 'search', label: 'Glass Search', icon: Search, color: 'bg-blue-50 text-blue-700 border-blue-100' },
+        { id: 'agents', label: 'Glass Agents', icon: Bot, color: 'bg-violet-50 text-violet-700 border-violet-100' },
+        { id: 'builder', label: 'Glass Builder', icon: LayoutTemplate, color: 'bg-cyan-50 text-cyan-700 border-cyan-100' },
+        { id: 'code', label: 'Glass Code', icon: Code2, color: 'bg-emerald-50 text-emerald-700 border-emerald-100' },
+        { id: 'omni', label: 'Glass Omni', icon: Sparkles, color: 'bg-orange-50 text-orange-700 border-orange-100' },
+    ];
+    const activeModeOption = modeOptions.find(option => option.id === mode) || modeOptions[0];
+    const ActiveModeIcon = activeModeOption.icon;
+    const modeDescriptions: Record<GlassWelcomeMode, string> = {
+        chat: 'Unified AI conversation workspace',
+        search: 'Deep research with sources',
+        agents: 'Autonomous AI workflow agents',
+        builder: 'Prompt-to-app and UI builder',
+        code: 'Coding assistant and debugger',
+        omni: 'End-to-end AI SaaS workflow',
+        documents: 'Document workspace',
+    };
+
+    const activeSkill = BUILT_IN_GLASS_SKILLS.find(skill => skill.id === activeSkillId || skill.name === activeSkillId) || null;
+    const activeConnector = GLASS_CONNECTORS.find(connector => connector.id === activeConnectorId || connector.name === activeConnectorId) || null;
+    const activeWorkflow = WORKFLOW_MODES.find(item => item.id === activeWorkflowMode) || WORKFLOW_MODES[0];
+
+    const modeSuggestions: Record<GlassWelcomeMode, Array<{ label: string; query: string; icon: React.ReactNode }>> = {
+        chat: [
+            { label: 'Jelaskan sesuatu dengan sederhana', query: 'Jelaskan sesuatu dengan sederhana: ', icon: <MessageSquare size={16} /> },
+            { label: 'Bantu saya brainstorming ide', query: 'Bantu saya brainstorming ide untuk ', icon: <Lightbulb size={16} /> },
+            { label: 'Tulis ulang teks ini lebih profesional', query: 'Tulis ulang teks ini agar lebih profesional: ', icon: <PenLine size={16} /> },
+            { label: 'Buat rencana belajar', query: 'Buat rencana belajar untuk ', icon: <GraduationCap size={16} /> },
+        ],
+        search: [
+            { label: 'Riset tren AI SaaS terbaru', query: 'Riset tren AI SaaS terbaru dan rangkum insight pentingnya.', icon: <Search size={16} /> },
+            { label: 'Bandingkan beberapa produk AI', query: 'Bandingkan beberapa produk AI berikut: ', icon: <Layers size={16} /> },
+            { label: 'Cari insight pasar untuk ide startup', query: 'Cari insight pasar untuk ide startup: ', icon: <LineChart size={16} /> },
+            { label: 'Buat ringkasan riset kompetitor', query: 'Buat ringkasan riset kompetitor untuk ', icon: <BookOpen size={16} /> },
+        ],
+        agents: [
+            { label: 'Jalankan Research Agent untuk ide saya', query: 'Jalankan Research Agent untuk ide saya: ', icon: <Bot size={16} /> },
+            { label: 'Jalankan SaaS Planner Agent', query: 'Jalankan SaaS Planner Agent untuk ', icon: <Target size={16} /> },
+            { label: 'Buat workflow konten 7 hari', query: 'Buat workflow konten 7 hari untuk ', icon: <PenTool size={16} /> },
+            { label: 'Analisis masalah bisnis saya', query: 'Analisis masalah bisnis saya dan buat rencana aksi: ', icon: <Brain size={16} /> },
+        ],
+        builder: [
+            { label: 'Buat landing page glassmorphism', query: 'Buat landing page glassmorphism untuk ', icon: <LayoutTemplate size={16} /> },
+            { label: 'Buat dashboard AI agent', query: 'Buat dashboard AI agent dengan ', icon: <LayoutGrid size={16} /> },
+            { label: 'Buat pricing page SaaS', query: 'Buat pricing page SaaS untuk ', icon: <FileText size={16} /> },
+            { label: 'Buat login page modern', query: 'Buat login page modern dengan style ', icon: <Palette size={16} /> },
+        ],
+        code: [
+            { label: 'Debug error kode saya', query: 'Debug error kode saya berikut: ', icon: <Wrench size={16} /> },
+            { label: 'Buat komponen UI', query: 'Buat komponen UI untuk ', icon: <Code2 size={16} /> },
+            { label: 'Jelaskan kode ini', query: 'Jelaskan kode ini dengan sederhana: ', icon: <BookOpen size={16} /> },
+            { label: 'Refactor kode ini agar lebih bersih', query: 'Refactor kode ini agar lebih bersih: ', icon: <Sparkles size={16} /> },
+        ],
+        omni: [
+            { label: 'Buat workflow membangun SaaS AI', query: 'Buat workflow membangun SaaS AI dari ide sampai launch.', icon: <Sparkles size={16} /> },
+            { label: 'Dari ide sampai landing page', query: 'Bantu saya dari ide sampai landing page untuk ', icon: <LayoutTemplate size={16} /> },
+            { label: 'Riset, rancang, dan buat rencana produk', query: 'Riset, rancang, dan buat rencana produk untuk ', icon: <Brain size={16} /> },
+            { label: 'Buat roadmap produk dari nol', query: 'Buat roadmap produk dari nol untuk ', icon: <Target size={16} /> },
+        ],
+        documents: [
+            { label: 'Ringkas dokumen', query: 'Ringkas dokumen ini: ', icon: <FileText size={16} /> },
+            { label: 'Extract action items', query: 'Extract action items dari dokumen ini: ', icon: <Check size={16} /> },
+            { label: 'Buat Q&A dokumen', query: 'Buat Q&A dari dokumen ini: ', icon: <BookOpen size={16} /> },
+            { label: 'Buat catatan dokumen', query: 'Buat catatan ringkas dari dokumen ini: ', icon: <PenLine size={16} /> },
+        ],
+    };
+
     const [query, setQuery] = useState(initialQuery);
 
     // Sync query if initialQuery changes (e.g., from localStorage after mount)
@@ -94,6 +335,8 @@ export function ResearchWelcome({
     const [isFocused, setIsFocused] = useState(false);
     const [attachments, setAttachments] = useState<AttachmentData[]>([]);
     const [showToolsMenu, setShowToolsMenu] = useState(false);
+    const [showModeToolsMenu, setShowModeToolsMenu] = useState(false);
+    const [autoPilot, setAutoPilot] = useState(true);
     const [showAIToolsMenu, setShowAIToolsMenu] = useState(false);
     const [showYouTubeInput, setShowYouTubeInput] = useState(false);
     const [showUrlInput, setShowUrlInput] = useState(false);
@@ -108,7 +351,9 @@ export function ResearchWelcome({
     const [showStyleSubmenu, setShowStyleSubmenu] = useState(false);
     const [showSkillSubmenu, setShowSkillSubmenu] = useState(false);
     const [userSkills, setUserSkills] = useState<Array<{ id: string; name: string; enabled: boolean }>>([]);
-    const [activeStyle, setActiveStyle] = useState<string | null>(null);
+    const [localActiveStyle, setLocalActiveStyle] = useState<GlassStyleId>('normal');
+    const activeStyle = controlledGlassStyle || localActiveStyle;
+    const setActiveStyle = (styleId: GlassStyleId) => { setLocalActiveStyle(styleId); onGlassStyleChange?.(styleId); };
     const toolsMenuRef = useRef<HTMLDivElement>(null);
 
     // Load skills from Supabase
@@ -146,7 +391,7 @@ export function ResearchWelcome({
                 setAlertConfig({
                     isOpen: true,
                     title: 'Screenshots',
-                    message: 'Fitur tangkapan layar langsung akan segera hadir di Noir!',
+                    message: 'Fitur tangkapan layar langsung akan segera hadir di UseGlass!',
                     type: 'development'
                 });
                 break;
@@ -155,7 +400,7 @@ export function ResearchWelcome({
                 setAlertConfig({
                     isOpen: true,
                     title: 'Projects',
-                    message: 'Noir Workspace akan segera hadir! Nantikan fitur kolaborasi proyek yang lebih canggih.',
+                    message: 'UseGlass Workspace akan segera hadir! Nantikan fitur kolaborasi proyek yang lebih canggih.',
                     type: 'development'
                 });
                 break;
@@ -164,16 +409,7 @@ export function ResearchWelcome({
                 setAlertConfig({
                     isOpen: true,
                     title: 'GitHub Integration',
-                    message: 'Hubungkan repositori GitHub Anda langsung ke Noir untuk analisis kode yang lebih mendalam.',
-                    type: 'development'
-                });
-                break;
-            case 'connectors':
-                setShowToolsMenu(false);
-                setAlertConfig({
-                    isOpen: true,
-                    title: 'Connectors',
-                    message: 'Hubungkan Noir dengan aplikasi favorit Anda untuk sinkronisasi data real-time.',
+                    message: 'Hubungkan repositori GitHub Anda langsung ke UseGlass untuk analisis kode yang lebih mendalam.',
                     type: 'development'
                 });
                 break;
@@ -195,7 +431,7 @@ export function ResearchWelcome({
     const handleSelectStyle = (styleId: string) => {
         const style = WRITING_STYLES.find(s => s.id === styleId);
         if (!style) return;
-        setActiveStyle(styleId === 'normal' ? null : styleId);
+        setActiveStyle(styleId as GlassStyleId);
         setShowStyleSubmenu(false);
         setShowToolsMenu(false);
     };
@@ -203,7 +439,12 @@ export function ResearchWelcome({
 
     // Model Selector State
     const [selectedModel, setSelectedModel] = useState<ModelType>('sonnet');
-    const [withReasoning, setWithReasoning] = useState(false);
+    const [withReasoning, setWithReasoning] = useState(modeConfig.reasoning);
+
+    useEffect(() => {
+        setWithReasoning(modeConfig.reasoning);
+        if (modeConfig.web && onToggleWebSearch) onToggleWebSearch(true);
+    }, [mode, modeConfig.reasoning, modeConfig.web, onToggleWebSearch]);
 
     // Usage limits hook
     const { checkFeatureLimit, incrementFeatureUsage, isSubscribed, credits, softLimitReached, tokensUsed, maxCredits } = useTokenLimit();
@@ -231,7 +472,7 @@ export function ResearchWelcome({
     const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         setQuery(e.target.value);
         e.target.style.height = 'auto';
-        e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
+        e.target.style.height = `${Math.min(e.target.scrollHeight, 96)}px`;
     };
 
     const [showImageGenInput, setShowImageGenInput] = useState(false);
@@ -433,7 +674,24 @@ export function ResearchWelcome({
                 } else if (isVideoRequest(query)) {
                     handleVideoGeneration(query);
                 } else {
-                    onSearch(query, attachments, selectedModel, withReasoning);
+                    const routingResult = routeGlassIntent(query, { webSearchConnected: true });
+                    navigate('/chat/new', {
+                        state: {
+                            initialPrompt: query,
+                            initialAttachments: attachments,
+                            model: selectedModel,
+                            reasoning: withReasoning || routingResult.selectedTool === 'search' || routingResult.selectedTool === 'omni',
+                            glassMode: routingResult.selectedTool,
+                            workflowMode: routingResult.selectedWorkflowMode,
+                            glassStyle: routingResult.selectedStyle,
+                            activeSkillId: routingResult.selectedSkill,
+                            activeConnectorId: routingResult.selectedConnector === 'Web Search' ? 'web-search' : null,
+                            canvasType: routingResult.canvasType,
+                            routingResult,
+                            autoMode: true,
+                            autoSend: true
+                        }
+                    });
                 }
             }
         }
@@ -733,60 +991,7 @@ export function ResearchWelcome({
         }
     };
 
-    // Suggestions
-    const suggestions = [
-        {
-            icon: <SharkIcon size={16} className={cn("transition-colors", withReasoning ? "text-purple-500" : "text-stone-400")} />,
-            label: "Research",
-            query: "Can you deep research about ",
-            action: () => setWithReasoning(true),
-            options: [
-                { title: "In-depth technology analysis", prompt: "Conduct an in-depth research and analysis of [Technology]: " },
-                { title: "Market competitive landscape", prompt: "Research the current competitive landscape for [Industry]: " },
-                { title: "Scientific breakthrough review", prompt: "Find and analyze recent scientific breakthroughs in [Field]: " },
-                { title: "Comprehensive case study", prompt: "Perform a comprehensive research-based case study on [Topic]: " }
-            ]
-        },
-        {
-            icon: <ImageIcon size={16} className="text-pink-500" />,
-            label: "Generate Image",
-            query: "Generate an image of ",
-            action: () => {
-                setQuery("Generate an image of ");
-                // Focus will be handled by the textarea ref if available
-            },
-        },
-        {
-            icon: <Play size={16} className="text-blue-500" />,
-            label: "Generate Video",
-            query: "Generate a video of ",
-            action: () => {
-                setQuery("Generate a video of ");
-            },
-        },
-        {
-            icon: <FileText size={16} className="text-stone-400" />,
-            label: "Summarize",
-            query: "Please summarize ",
-            options: [
-                { title: "Summarize an article", prompt: "Can you summarize the following article, highlighting the main points? " },
-                { title: "Extract action items", prompt: "Please extract the key action items from this text: " },
-                { title: "Explain like I'm 5", prompt: "Summarize this complex topic as if you were explaining it to a 5-year-old: " },
-                { title: "Executive summary", prompt: "Create a brief executive summary for the following document: " }
-            ]
-        },
-        {
-            icon: <Lightbulb size={16} className="text-stone-400" />,
-            label: "Brainstorm",
-            query: "Help me brainstorm ideas for ",
-            options: [
-                { title: "Startup ideas", prompt: "Brainstorm 5 innovative startup ideas in the field of " },
-                { title: "Content creation", prompt: "Give me 10 engaging blog post topics about " },
-                { title: "Problem solving", prompt: "I'm facing this problem: [describe]. Can you brainstorm potential creative solutions?" },
-                { title: "Marketing campaign", prompt: "Brainstorm a creative marketing campaign for " }
-            ]
-        },
-    ];
+    const suggestions = modeSuggestions[mode] || modeSuggestions.chat;
 
     return (
         <div className={cn(
@@ -1143,56 +1348,90 @@ export function ResearchWelcome({
                 transition={{ duration: 0.8, ease: "easeOut" }}
                 className="flex flex-col items-center w-full z-10 font-sans"
             >
-                {/* Maintenance notice */}
-                <div className="mb-4 md:mb-6 flex justify-center px-4">
-                    <span
-                        className="inline-flex items-center gap-2 text-center text-xs font-medium text-amber-900 bg-amber-50 border border-amber-200/80 px-3.5 py-1.5 rounded-full max-w-xl leading-snug"
-                        role="status"
-                    >
-                        <Wrench size={14} className="shrink-0 text-amber-700" strokeWidth={1.8} />
-                        Noir is under maintenance — we&apos;re fixing things. Thanks for your patience.
-                    </span>
-                </div>
-
-                {/* Upgrade Pill */}
-                <div className="mb-6 md:mb-12 flex justify-center">
-                    {!isSubscribed ? (
-                        <button
-                            onClick={() => setShowSubscriptionPopup(true)}
-                            className="text-xs font-medium text-stone-500 hover:text-stone-800 bg-stone-100 hover:bg-stone-200 px-3 py-1 rounded-full transition-colors"
-                        >
-                            Free plan · <span className="text-stone-700">Upgrade</span>
-                        </button>
-                    ) : (
-                        <span className="text-xs font-medium text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full">
-                            Pro Plan Active
+                {/* Brand */}
+                {!compact && (
+                    <div className="mb-8 flex items-center justify-center gap-3 text-center">
+                        <span className="flex h-14 w-14 items-center justify-center overflow-visible bg-transparent">
+                            <img src="/useglass-logo.png" alt="UseGlass AI" className="h-14 w-14 object-contain" />
                         </span>
-                    )}
-                </div>
-
-                {/* Soft Limit Warning */}
-                {softLimitReached && (
-                    <div className="mb-6 px-4 py-2 bg-yellow-500/10 border border-yellow-500/20 rounded-full flex items-center gap-2 text-yellow-600 text-sm font-medium animate-pulse shadow-sm backdrop-blur-sm">
-                        <AlertTriangle size={14} />
-                        <span>⚡ {credits} Credits remaining for today. Reset at 00:00.</span>
+                        <span className="text-4xl font-semibold tracking-[-0.04em] text-zinc-950 md:text-5xl">UseGlass</span>
                     </div>
                 )}
 
-                {/* Greeting & Title */}
-                <h1 className="flex items-center text-center gap-3 text-2xl md:text-[44px] text-stone-800 tracking-tight font-serif mb-5 md:mb-12" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
-                    <span>{userName ? `${greeting.replace('?', `, ${userName}?`).replace('.', `, ${userName}.`)}` : greeting}</span>
-                </h1>
-
                 {/* Main Input Card — Clean Layout */}
                 <div className={cn(
-                    "w-full max-w-3xl bg-white rounded-2xl border transition-all duration-200 relative",
+                    "w-full max-w-[760px] bg-[#f4f4f3] transition-all duration-200 relative",
+                    attachments.length > 0 || query.length > 80 || query.includes('\n') ? "rounded-[28px]" : "rounded-[999px]",
                     isFocused
-                        ? "shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] border-stone-300"
-                        : "shadow-[0_2px_12px_-4px_rgba(0,0,0,0.05)] border-stone-200"
+                        ? "shadow-[0_10px_30px_-22px_rgba(20,20,19,0.55)] ring-1 ring-stone-200/70"
+                        : "shadow-[0_4px_18px_-16px_rgba(20,20,19,0.35)] ring-1 ring-transparent"
                 )}>
+
+
                     {/* Web Search & Deep Research Indicators */}
                     <AnimatePresence mode="wait">
-                        <div className="flex flex-wrap items-center gap-2 px-4 pt-2">
+                        {false && (mode !== 'chat' || activeWorkflowMode !== 'think' || activeStyle !== 'normal' || !!activeSkill || !!activeConnector || !!activeCanvasType || isWebSearchEnabled || withReasoning) && (
+                        <div className="flex max-w-full flex-nowrap items-center gap-2 overflow-x-auto px-4 pt-2">
+                            {mode !== 'chat' && <button
+                                type="button"
+                                onClick={() => onModeChange?.('chat')}
+                                className={cn(
+                                    "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition",
+                                    activeModeOption.color
+                                )}
+                                title="Reset to Glass Chat"
+                            >
+                                <ActiveModeIcon size={12} />
+                                {activeModeOption.label}
+                                {mode !== 'chat' && <X size={12} className="ml-1 opacity-70" />}
+                            </button>}
+                            {activeStyle !== 'normal' && <button
+                                type="button"
+                                onClick={() => setShowModeToolsMenu(true)}
+                                className="inline-flex items-center gap-1.5 rounded-md border border-sky-100 bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700 transition hover:bg-sky-100"
+                                title={activeWorkflow.flow}
+                            >
+                                <Brain size={12} />
+                                {activeWorkflow.label}
+                            </button>}
+                            {activeWorkflowMode !== 'think' && <button
+                                type="button"
+                                onClick={() => setShowModeToolsMenu(true)}
+                                className="inline-flex items-center gap-1.5 rounded-md border border-orange-100 bg-orange-50 px-2.5 py-1 text-xs font-medium text-orange-700 transition hover:bg-orange-100"
+                                title={(GLASS_STYLES.find(s => s.id === activeStyle) || GLASS_STYLES[0]).description}
+                            >
+                                <Wand2 size={12} />
+                                {(GLASS_STYLES.find(s => s.id === activeStyle) || GLASS_STYLES[0]).label}
+                            </button>}
+                            {activeCanvasType && (
+                                <span className="inline-flex items-center gap-1.5 rounded-md border border-cyan-100 bg-cyan-50 px-2.5 py-1 text-xs font-medium text-cyan-700">
+                                    <LayoutTemplate size={12} />
+                                    Canvas: {activeCanvasType}
+                                </span>
+                            )}                            {activeSkill && (
+                                <button
+                                    type="button"
+                                    onClick={() => onSkillChange?.(null)}
+                                    className="inline-flex items-center gap-1.5 rounded-md border border-violet-100 bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700 transition hover:bg-violet-100"
+                                    title={activeSkill.instructions}
+                                >
+                                    <SquareTerminal size={12} />
+                                    Skill: {activeSkill.name}
+                                    <X size={12} className="ml-1" />
+                                </button>
+                            )}
+                            {activeConnector && (
+                                <button
+                                    type="button"
+                                    onClick={() => onConnectorChange?.(null)}
+                                    className="inline-flex items-center gap-1.5 rounded-md border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 transition hover:bg-emerald-100"
+                                    title={activeConnector.permissions}
+                                >
+                                    {React.createElement(activeConnector.icon, { size: 12 })}
+                                    Connector: {activeConnector.name}
+                                    <X size={12} className="ml-1" />
+                                </button>
+                            )}
                             {isWebSearchEnabled && (
                                 <motion.div
                                     initial={{ height: 0, opacity: 0 }}
@@ -1224,38 +1463,28 @@ export function ResearchWelcome({
                                     </div>
                                 </motion.div>
                             )}
-
-                            {activeStyle && (
-                                <motion.div
-                                    initial={{ height: 0, opacity: 0 }}
-                                    animate={{ height: 'auto', opacity: 1 }}
-                                    exit={{ height: 0, opacity: 0 }}
-                                >
-                                    <button
-                                        onClick={() => setActiveStyle(null)}
-                                        className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-orange-50 text-orange-600 border border-orange-100/50 rounded-md text-xs font-medium hover:bg-orange-100 transition-colors"
-                                    >
-                                        <Wand2 size={12} />
-                                        Style: {WRITING_STYLES.find(s => s.id === activeStyle)?.label}
-                                        <X size={12} className="ml-1" />
-                                    </button>
-                                </motion.div>
-                            )}
                         </div>
+                        )}
                     </AnimatePresence>
 
                     {/* Attachments Preview */}
                     {attachments.length > 0 && (
-                        <div className="px-4 pt-4 flex flex-wrap gap-2">
+                        <div className="flex flex-wrap gap-3 px-3 pt-3">
                             {attachments.map((att, i) => (
-                                <div key={i} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-stone-50 border border-stone-200 text-sm">
-                                    {att.type === 'youtube' && <Youtube size={14} className="text-stone-500" />}
-                                    {att.type === 'audio' && <Mic size={14} className="text-stone-500" />}
-                                    {att.type === 'url' && <LinkIcon size={14} className="text-stone-500" />}
-                                    {att.type === 'file' && <FileText size={14} className="text-stone-500" />}
-                                    <span className="text-stone-700 font-medium truncate max-w-[100px] sm:max-w-[150px]">{att.name}</span>
-                                    <button onClick={() => removeAttachment(i)} className="text-stone-400 hover:text-red-500">
-                                        <X size={14} />
+                                <div key={i} className={cn("relative shrink-0", att.mimeType?.startsWith('image/') ? "rounded-xl border border-zinc-200 bg-white p-1 shadow-sm" : "flex items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-sm shadow-sm")}>
+                                    {att.mimeType?.startsWith('image/') ? (
+                                        <img src={att.content} alt={att.name} className="h-28 w-28 rounded-lg object-cover" />
+                                    ) : (
+                                        <>
+                                            {att.type === 'youtube' && <Youtube size={14} className="text-stone-500" />}
+                                            {att.type === 'audio' && <Mic size={14} className="text-stone-500" />}
+                                            {att.type === 'url' && <LinkIcon size={14} className="text-stone-500" />}
+                                            {att.type === 'file' && <FileText size={14} className="text-stone-500" />}
+                                            <span className="max-w-[100px] truncate font-medium text-stone-700 sm:max-w-[150px]">{att.name}</span>
+                                        </>
+                                    )}
+                                    <button onClick={() => removeAttachment(i)} className={cn(att.mimeType?.startsWith('image/') ? "absolute -right-2 -top-2 z-10 rounded-full bg-zinc-950 p-1.5 text-white shadow-md transition-all hover:bg-zinc-700" : "text-stone-400 hover:text-red-500")}>
+                                        <X size={att.mimeType?.startsWith('image/') ? 12 : 14} strokeWidth={2.5} />
                                     </button>
                                 </div>
                             ))}
@@ -1263,41 +1492,160 @@ export function ResearchWelcome({
                     )}
 
                     {/* Text Area */}
-                    <div className="p-4 pt-4 pb-2">
+                    <div className={cn(
+                        attachments.length > 0 || query.length > 80 || query.includes('\n')
+                            ? "px-5 pt-4 pb-1 sm:px-6 sm:pt-4 sm:pb-1"
+                            : "flex h-[58px] items-center pl-14 pr-32 sm:pl-16 sm:pr-44"
+                    )}>
                         <textarea
                             value={query}
                             onChange={handleInput}
                             onKeyDown={handleKeyDown}
                             onFocus={() => setIsFocused(true)}
                             onBlur={() => setIsFocused(false)}
-                            placeholder="How can I help you today?"
-                            className="w-full bg-transparent border-none text-[15px] text-stone-800 placeholder-stone-400 focus:outline-none resize-none min-h-[36px] max-h-[400px] leading-relaxed font-normal"
-                            style={{ height: '36px' }}
+                            placeholder="What do you want to know?"
+                            className="block h-[22px] max-h-44 min-h-[22px] w-full resize-none overflow-y-auto border-none bg-transparent py-0 text-[16px] font-medium leading-[22px] text-stone-800 placeholder-stone-500 focus:outline-none break-words scrollbar-none"
+                            style={{ height: '22px' }}
                         />
                     </div>
 
                     {/* Bottom Bar — Clean Layout */}
-                    <div className="w-full flex items-center justify-between px-3 pb-3">
-                        {/* Left: + Button with Dropdown */}
-                        <div className="flex items-center gap-1 relative" ref={toolsMenuRef}>
+                    <div className={cn(
+                        "pointer-events-none flex items-center justify-between px-4",
+                        attachments.length > 0 || query.length > 80 || query.includes('\n')
+                            ? "pb-3 pt-1"
+                            : "absolute inset-x-0 bottom-1/2 translate-y-1/2"
+                    )}>
+                        {/* Left: attachments and tool mode buttons */}
+                        <div className="pointer-events-auto flex items-center gap-1 relative" ref={toolsMenuRef}>
                             <button
-                                onClick={() => setShowToolsMenu(!showToolsMenu)}
+                                onClick={() => { setShowToolsMenu(!showToolsMenu); setShowModeToolsMenu(false); }}
                                 className={cn(
-                                    "w-8 h-8 flex items-center justify-center rounded-lg transition-all",
-                                    showToolsMenu
-                                        ? "bg-stone-200 text-stone-700"
-                                        : "text-stone-400 hover:text-stone-700 hover:bg-stone-100"
+                                    "w-8 h-8 flex items-center justify-center rounded-full transition-all",
+                                    showToolsMenu ? "bg-white text-stone-800 shadow-sm" : "text-stone-500 hover:text-stone-900 hover:bg-white/80"
                                 )}
                                 title="Attach menu"
                             >
-                                <Plus size={20} strokeWidth={1.8} />
+                                <Plus size={21} strokeWidth={1.9} />
                             </button>
 
-                            {/* Tools Dropdown */}
+                            {false && showModeToolsMenu && (
+                                <div className="absolute left-0 top-full mt-3 z-[80] sm:left-[-8px]">
+                                    <div className="w-[92vw] max-w-[360px] sm:w-[360px] max-h-[42vh] overflow-y-auto bg-white/95 backdrop-blur-xl border border-stone-200 rounded-3xl shadow-[0_18px_60px_rgba(0,0,0,0.16)] animate-in fade-in slide-in-from-top-2 duration-150 py-2">
+                                        <div className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wide text-stone-400">Advanced overrides</div>
+                                        <div className="mx-3 mb-2 rounded-2xl border border-sky-100 bg-sky-50 px-3 py-2 text-[11px] leading-4 text-sky-700">
+                                            Auto Mode aktif. Override hanya kalau mau paksa mode tertentu.
+                                        </div>
+                                        <div className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wide text-stone-400">Tool override</div>
+                                        <div className="flex flex-col gap-1 px-1.5">
+                                            {modeOptions.map((toolMode) => {
+                                                const ToolIcon = toolMode.icon;
+                                                const selected = toolMode.id === mode;
+                                                return (
+                                                    <button key={toolMode.id} onClick={() => { onModeChange?.(toolMode.id); setWithReasoning(toolMode.id === 'search' || toolMode.id === 'agents' || toolMode.id === 'omni' || toolMode.id === 'documents'); if ((toolMode.id === 'search' || toolMode.id === 'omni') && onToggleWebSearch) onToggleWebSearch(true); setShowModeToolsMenu(false); }} className={cn("flex w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left transition", selected ? "bg-stone-950 text-white" : "text-stone-700 hover:bg-stone-50")}>
+                                                        <ToolIcon size={16} className="mt-0.5 shrink-0" strokeWidth={1.8} />
+                                                        <span className="min-w-0">
+                                                            <span className="block text-sm font-semibold">{toolMode.label}</span>
+                                                            <span className={cn("block text-[11px] leading-4", selected ? "text-white/70" : "text-stone-500")}>{modeDescriptions[toolMode.id]}</span>
+                                                        </span>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+
+                                        <div className="my-2 h-px bg-stone-100 mx-3" />
+                                        <div className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wide text-sky-600">Workflow Modes</div>
+                                        <div className="flex flex-col gap-1 px-1.5">
+                                            {WORKFLOW_MODES.map((workflow) => {
+                                                const selected = workflow.id === activeWorkflowMode;
+                                                return (
+                                                    <button key={workflow.id} onClick={() => { setActiveWorkflowMode(workflow.id); setShowModeToolsMenu(false); }} className={cn("flex w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left transition", selected ? "bg-sky-50 text-sky-800 ring-1 ring-sky-100" : "text-stone-700 hover:bg-stone-50")} title={workflow.flow}>
+                                                        <Brain size={16} className="mt-0.5 shrink-0" />
+                                                        <span className="min-w-0">
+                                                            <span className="block text-sm font-semibold">{workflow.label}</span>
+                                                            <span className="block text-[11px] leading-4 text-stone-500">{workflow.description}</span>
+                                                            <span className="mt-1 block text-[10px] text-stone-400">{workflow.flow}</span>
+                                                        </span>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+
+                                        <div className="my-2 h-px bg-stone-100 mx-3" />
+                                        <div className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wide text-orange-600">Glass Styles</div>
+                                        <div className="flex flex-col gap-1 px-1.5">
+                                            {GLASS_STYLES.map((style) => {
+                                                const selected = style.id === activeStyle;
+                                                return (
+                                                    <button key={style.id} onClick={() => { setActiveStyle(style.id); setShowModeToolsMenu(false); }} className={cn("flex w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left transition", selected ? "bg-orange-50 text-orange-800 ring-1 ring-orange-100" : "text-stone-700 hover:bg-stone-50")} title={style.prompt}>
+                                                        <Wand2 size={16} className="mt-0.5 shrink-0" />
+                                                        <span className="min-w-0">
+                                                            <span className="block text-sm font-semibold">{style.label}</span>
+                                                            <span className="block text-[11px] leading-4 text-stone-500">{style.description}</span>
+                                                        </span>
+                                                    </button>
+                                                );
+                                            })}
+                                            <button type="button" onClick={() => setAlertConfig({ isOpen: true, title: 'My Styles', message: 'Create My Style is coming soon. For now, use built-in Glass Styles or keep a local style instruction in your prompt.', type: 'development' })} className="mx-1.5 rounded-xl border border-dashed border-stone-200 px-3 py-2 text-left text-xs text-stone-500 hover:bg-stone-50">
+                                                Create My Style <span className="ml-1 rounded-full bg-stone-100 px-1.5 py-0.5 text-[10px]">Coming soon</span>
+                                            </button>
+                                        </div>
+
+                                        <div className="my-2 h-px bg-stone-100 mx-3" />
+                                        <div className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wide text-violet-500">Skill override</div>
+                                        <div className="flex flex-col gap-1 px-1.5">
+                                            {BUILT_IN_GLASS_SKILLS.map((skill) => {
+                                                const selected = skill.id === activeSkillId;
+                                                return (
+                                                    <button key={skill.id} onClick={() => { onSkillChange?.(selected ? null : skill.id); setShowModeToolsMenu(false); }} className={cn("flex w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left transition", selected ? "bg-violet-50 text-violet-800 ring-1 ring-violet-100" : "text-stone-700 hover:bg-stone-50")} title={skill.instructions}>
+                                                        <SquareTerminal size={16} className="mt-0.5 shrink-0" />
+                                                        <span className="min-w-0">
+                                                            <span className="block text-sm font-semibold">{skill.name}</span>
+                                                            <span className="block text-[11px] leading-4 text-stone-500">{skill.description}</span>
+                                                            <span className="mt-1 inline-flex rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-medium text-stone-500">{skill.category}</span>
+                                                        </span>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+
+                                        <div className="my-2 h-px bg-stone-100 mx-3" />
+                                        <div className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wide text-emerald-600">Connector override</div>
+                                        <div className="flex flex-col gap-1 px-1.5">
+                                            {GLASS_CONNECTORS.map((connector) => {
+                                                const ConnectorIcon = connector.icon;
+                                                const selected = connector.id === activeConnectorId;
+                                                return (
+                                                    <button key={connector.id} onClick={() => { onConnectorChange?.(selected ? null : connector.id); setShowModeToolsMenu(false); }} className={cn("flex w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left transition", selected ? "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-100" : "text-stone-700 hover:bg-stone-50")} title={connector.permissions}>
+                                                        <ConnectorIcon size={16} className="mt-0.5 shrink-0" />
+                                                        <span className="min-w-0">
+                                                            <span className="flex items-center gap-2 text-sm font-semibold">{connector.name}<span className={cn("rounded-full px-1.5 py-0.5 text-[9px] uppercase", connector.status === 'connected' ? "bg-emerald-100 text-emerald-700" : connector.status === 'coming soon' ? "bg-amber-100 text-amber-700" : "bg-stone-100 text-stone-500")}>{connector.status}</span></span>
+                                                            <span className="block text-[11px] leading-4 text-stone-500">{connector.description}</span>
+                                                            <span className="mt-1 block text-[10px] text-stone-400">{connector.capabilities.join(', ')}</span>
+                                                        </span>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
                             {showToolsMenu && (
-                                <div className="absolute bottom-full left-0 mb-2 flex flex-col sm:flex-row items-start sm:items-end gap-1 z-50">
-                                    {/* Main menu */}
+                                <div className="absolute bottom-full left-0 mb-3 z-50">
                                     <div className="w-[85vw] max-w-[224px] sm:w-56 bg-white border border-stone-200 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-150 py-1.5">
+                                        <button type="button" onClick={() => setAutoPilot((value) => !value)} className="mx-1.5 mb-1 flex w-[calc(100%-12px)] items-center justify-between rounded-xl px-3 py-2 text-left text-[13px] text-stone-700 transition-colors hover:bg-stone-50">
+                                            <span>Auto Pilot</span>
+                                            <span className={cn("relative h-4 w-7 rounded-full transition-colors duration-300", autoPilot ? "bg-blue-500" : "bg-stone-200")}>
+                                                <span className={cn("absolute left-0.5 top-0.5 h-3 w-3 rounded-full bg-white shadow-sm transition-transform duration-300", autoPilot && "translate-x-3")} />
+                                            </span>
+                                        </button>
+                                        {softLimitReached && (
+                                            <div className="mx-1.5 mb-1 flex w-[calc(100%-12px)] items-center gap-2 rounded-xl px-3 py-2 text-[12px] text-stone-500">
+                                                <AlertTriangle size={14} /> {credits} credits left
+                                            </div>
+                                        )}
+                                        <div className="mx-3 mb-1 h-px bg-stone-100" />
                                         {TOOL_GROUPS.map((group, groupIdx) => (
                                             <React.Fragment key={groupIdx}>
                                                 <div className="flex flex-col">
@@ -1307,101 +1655,23 @@ export function ResearchWelcome({
                                                         const isStyleActive = tool.id === 'styles' && !!activeStyle;
                                                         const isActive = isWebActive || isStyleActive;
                                                         return (
-                                                            <button
-                                                                key={tool.id}
-                                                                onClick={() => handleToolSelect(tool.id)}
-                                                                className={cn(
-                                                                    "w-full flex items-center gap-3 px-3 py-2 text-[13px] transition-colors mx-1.5 rounded-lg text-left",
-                                                                    (tool.id === 'styles' && showStyleSubmenu) || (tool.id === 'skills' && showSkillSubmenu) ? "bg-stone-100" : "hover:bg-stone-50"
-                                                                )}
-                                                                style={{ width: 'calc(100% - 12px)' }}
-                                                            >
-                                                                <div className={cn("flex justify-center items-center w-5", isActive ? "text-blue-500" : "text-stone-700")}>
-                                                                    <Icon size={16} strokeWidth={1.8} />
-                                                                </div>
+                                                            <button key={tool.id} onClick={() => handleToolSelect(tool.id)} className={cn("w-full flex items-center gap-3 px-3 py-2 text-[13px] transition-colors mx-1.5 rounded-lg text-left", (tool.id === 'styles' && showStyleSubmenu) || (tool.id === 'skills' && showSkillSubmenu) ? "bg-stone-100" : "hover:bg-stone-50")} style={{ width: 'calc(100% - 12px)' }}>
+                                                                <div className={cn("flex justify-center items-center w-5", isActive ? "text-blue-500" : "text-stone-700")}><Icon size={16} strokeWidth={1.8} /></div>
                                                                 <span className={cn("flex-1", isActive ? "text-blue-600 font-medium" : "text-stone-700")}>{tool.label}</span>
-                                                                {tool.id === 'styles' ? (
-                                                                    <ChevronRight size={14} className={cn("text-stone-400 ml-auto transition-transform duration-150", showStyleSubmenu && "rotate-90")} strokeWidth={2} />
-                                                                ) : tool.id === 'skills' ? (
-                                                                    <ChevronRight size={14} className={cn("text-stone-400 ml-auto transition-transform duration-150", showSkillSubmenu && "rotate-90")} strokeWidth={2} />
-                                                                ) : (tool as any).hasChevron ? (
-                                                                    <ChevronRight size={14} className="text-stone-400 ml-auto" strokeWidth={2} />
-                                                                ) : isWebActive ? (
-                                                                    <Check size={16} className="text-blue-500 ml-auto" strokeWidth={2.5} />
-                                                                ) : null}
+                                                                {tool.id === 'styles' || tool.id === 'skills' || (tool as any).hasChevron ? <ChevronRight size={14} className="text-stone-400 ml-auto" strokeWidth={2} /> : isWebActive ? <Check size={16} className="text-blue-500 ml-auto" strokeWidth={2.5} /> : null}
                                                             </button>
                                                         );
                                                     })}
                                                 </div>
-                                                {groupIdx < TOOL_GROUPS.length - 1 && (
-                                                    <div className="h-px bg-stone-100 my-1.5 mx-3" />
-                                                )}
+                                                {groupIdx < TOOL_GROUPS.length - 1 && <div className="h-px bg-stone-100 my-1.5 mx-3" />}
                                             </React.Fragment>
                                         ))}
                                     </div>
-
-                                    {/* Skill submenu */}
-                                    {showSkillSubmenu && (
-                                        <div className="w-44 bg-white border border-stone-200 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden animate-in fade-in slide-in-from-left-1 duration-150 py-1.5">
-                                            {userSkills.filter(s => s.enabled).length === 0 ? (
-                                                <div className="px-3 py-3 text-[12px] text-stone-400 text-center">
-                                                    Belum ada skill aktif
-                                                </div>
-                                            ) : (
-                                                userSkills.filter(s => s.enabled).map(skill => (
-                                                    <div key={skill.id} className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] mx-1.5 rounded-lg" style={{ width: 'calc(100% - 12px)' }}>
-                                                        <SquareTerminal size={14} className="text-stone-400 shrink-0" strokeWidth={1.8} />
-                                                        <span className="text-stone-700 truncate">{skill.name}</span>
-                                                    </div>
-                                                ))
-                                            )}
-                                            <div className="h-px bg-stone-100 my-1.5 mx-3" />
-                                            <button
-                                                onClick={() => { setShowSkillSubmenu(false); setShowToolsMenu(false); navigate('/skills'); }}
-                                                className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] hover:bg-stone-50 transition-colors mx-1.5 rounded-lg text-left"
-                                                style={{ width: 'calc(100% - 12px)' }}
-                                            >
-                                                <Wrench size={14} className="text-stone-500 shrink-0" strokeWidth={1.8} />
-                                                <span className="text-stone-700">Manage skills</span>
-                                            </button>
-                                        </div>
-                                    )}
-
-                                    {/* Style submenu */}
-                                    {showStyleSubmenu && (
-                                        <div className="w-44 bg-white border border-stone-200 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden animate-in fade-in slide-in-from-left-1 duration-150 py-1.5">
-                                            {WRITING_STYLES.map((style) => {
-                                                const isSelected = activeStyle === style.id || (!activeStyle && style.id === 'normal');
-                                                return (
-                                                    <button
-                                                        key={style.id}
-                                                        onClick={() => handleSelectStyle(style.id)}
-                                                        className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] hover:bg-stone-50 transition-colors mx-1.5 rounded-lg text-left"
-                                                        style={{ width: 'calc(100% - 12px)' }}
-                                                    >
-                                                        <Wand2 size={14} className={isSelected ? "text-blue-500" : "text-stone-400"} strokeWidth={1.8} />
-                                                        <span className={cn("flex-1", isSelected ? "text-blue-600 font-medium" : "text-stone-700")}>{style.label}</span>
-                                                        {isSelected && <Check size={13} className="text-blue-500 shrink-0" strokeWidth={2.5} />}
-                                                    </button>
-                                                );
-                                            })}
-                                            <div className="h-px bg-stone-100 my-1.5 mx-3" />
-                                            <button
-                                                onClick={() => { setShowStyleSubmenu(false); setShowToolsMenu(false); setAlertConfig({ isOpen: true, title: 'Custom Styles', message: 'Fitur buat & edit style kustom akan segera hadir!', type: 'development' }); }}
-                                                className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] hover:bg-stone-50 transition-colors mx-1.5 rounded-lg text-left"
-                                                style={{ width: 'calc(100% - 12px)' }}
-                                            >
-                                                <Plus size={14} className="text-stone-500 shrink-0" strokeWidth={2} />
-                                                <span className="text-stone-700">Create &amp; edit styles</span>
-                                            </button>
-                                        </div>
-                                    )}
                                 </div>
                             )}
                         </div>
-
                         {/* Right: Model Name, Voice, Send */}
-                        <div className="flex items-center gap-1.5">
+                        <div className="pointer-events-auto flex items-center gap-1.5">
                             {/* Model Name Label */}
                             <ModelSelector
                                 selectedModel={selectedModel}
@@ -1411,14 +1681,16 @@ export function ResearchWelcome({
                                 onReasoningToggle={() => setWithReasoning(!withReasoning)}
                                 isSubscribed={isSubscribed}
                             >
-                                <button className="flex items-center gap-1.5 px-2 py-1.5 text-stone-500 hover:text-stone-800 transition-colors text-xs font-semibold">
-                                    <span>
+                                <button className="flex items-center gap-1.5 px-2 py-1.5 text-stone-500 hover:text-stone-800 transition-colors text-[13px] font-semibold">
+                                    {query.trim() ? (
+                                        <Zap size={16} className="text-zinc-950" fill="currentColor" strokeWidth={2.2} />
+                                    ) : <span>
                                         {(() => {
                                             const names: Record<string, string> = {
                                                 'sonnet': 'Fast Thinking',
                                                 'sonar': 'Fast Thinking',
                                                 'opus': 'Pro',
-                                                'philos': 'Noir Philos',
+                                                'philos': 'Glass Philos',
                                                 'haiku': 'Haiku',
                                             };
                                             const name = names[selectedModel] ?? getModelDisplayName(selectedModel);
@@ -1433,23 +1705,46 @@ export function ResearchWelcome({
                                                 </span>
                                             );
                                         })()}
-                                    </span>
-                                    <ChevronDown size={12} strokeWidth={2.5} />
+                                    </span>}
+                                    {!query.trim() && <ChevronDown size={12} strokeWidth={2.5} />}
                                 </button>
                             </ModelSelector>
 
-                            {/* Voice Button */}
-                            <button
-                                onClick={() => setShowDictation(true)}
-                                className="w-8 h-8 flex items-center justify-center text-stone-400 hover:text-stone-700 rounded-lg transition-colors hover:bg-stone-100"
-                                title="Voice Input"
+                            {/* Voice / Send Button */}
+                            <motion.button
+                                onClick={() => {
+                                    if (query.trim() || attachments.length > 0) {
+                                        if (isImageRequest(query)) handleImageGeneration(query);
+                                        else if (isVideoRequest(query)) handleVideoGeneration(query);
+                                        else {
+                                            const routingResult = routeGlassIntent(query, { webSearchConnected: true });
+                                            navigate('/chat/new', { state: { initialPrompt: query, initialAttachments: attachments, model: selectedModel, reasoning: withReasoning || routingResult.selectedTool === 'search' || routingResult.selectedTool === 'omni', glassMode: routingResult.selectedTool, workflowMode: routingResult.selectedWorkflowMode, glassStyle: routingResult.selectedStyle, activeSkillId: routingResult.selectedSkill, activeConnectorId: routingResult.selectedConnector === 'Web Search' ? 'web-search' : null, canvasType: routingResult.canvasType, routingResult, autoMode: true, autoSend: true } });
+                                        }
+                                    } else {
+                                        setShowDictation(true);
+                                    }
+                                }}
+                                disabled={isProcessing}
+                                whileTap={{ scale: 0.92 }}
+                                className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-950 text-white shadow-sm transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40"
+                                title={query.trim() || attachments.length > 0 ? "Send prompt" : "Voice input"}
                             >
-                                <Mic size={16} strokeWidth={2} />
-                            </button>
+                                <AnimatePresence mode="wait" initial={false}>
+                                    {query.trim() || attachments.length > 0 ? (
+                                        <motion.span key="send" initial={{ opacity: 0, scale: 0.65, rotate: -45 }} animate={{ opacity: 1, scale: 1, rotate: 0 }} exit={{ opacity: 0, scale: 0.65, rotate: 45 }} transition={{ type: 'spring', stiffness: 420, damping: 24 }}>
+                                            <ArrowUp size={18} strokeWidth={2.5} />
+                                        </motion.span>
+                                    ) : (
+                                        <motion.span key="voice" initial={{ opacity: 0, scale: 0.65, rotate: 45 }} animate={{ opacity: 1, scale: 1, rotate: 0 }} exit={{ opacity: 0, scale: 0.65, rotate: -45 }} transition={{ type: 'spring', stiffness: 420, damping: 24 }}>
+                                            <AudioLines size={18} strokeWidth={1.8} />
+                                        </motion.span>
+                                    )}
+                                </AnimatePresence>
+                            </motion.button>
 
                             {/* Send Button - Only visible when typing or attachments added */}
                             <AnimatePresence>
-                                {(query.trim() || attachments.length > 0) && (
+                                {false && (query.trim() || attachments.length > 0) && (
                                     <motion.button
                                         initial={{ scale: 0, opacity: 0 }}
                                         animate={{ scale: 1, opacity: 1 }}
@@ -1457,7 +1752,10 @@ export function ResearchWelcome({
                                         onClick={() => {
                                             if (isImageRequest(query)) handleImageGeneration(query);
                                             else if (isVideoRequest(query)) handleVideoGeneration(query);
-                                            else onSearch(query, attachments, selectedModel, withReasoning);
+                                            else {
+                                                const routingResult = routeGlassIntent(query, { webSearchConnected: true });
+                                                navigate('/chat/new', { state: { initialPrompt: query, initialAttachments: attachments, model: selectedModel, reasoning: withReasoning || routingResult.selectedTool === 'search' || routingResult.selectedTool === 'omni', glassMode: routingResult.selectedTool, workflowMode: routingResult.selectedWorkflowMode, glassStyle: routingResult.selectedStyle, activeSkillId: routingResult.selectedSkill, activeConnectorId: routingResult.selectedConnector === 'Web Search' ? 'web-search' : null, canvasType: routingResult.canvasType, routingResult, autoMode: true, autoSend: true } });
+                                            }
                                         }}
                                         disabled={isProcessing}
                                         className={cn(
@@ -1476,7 +1774,7 @@ export function ResearchWelcome({
                 </div>
 
                 {/* Suggestions Pills */}
-                <div className="flex flex-wrap items-center justify-center gap-1.5 md:gap-2 mt-3 md:mt-4 max-w-3xl">
+                {!compact && <div className="flex flex-wrap items-center justify-center gap-1.5 md:gap-2 mt-3 md:mt-4 max-w-3xl">
                     {suggestions.map((suggestion, i) => (
                         <button
                             key={i}
@@ -1496,7 +1794,7 @@ export function ResearchWelcome({
                             {suggestion.label}
                         </button>
                     ))}
-                </div>
+                </div>}
 
                 {/* Feature Options Dropdown */}
                 <AnimatePresence>
@@ -1517,7 +1815,13 @@ export function ResearchWelcome({
                                 </button>
                             </div>
                             <div className="flex flex-col">
-                                {selectedFeature.options?.map((opt: any, i: number) => (
+                                {(selectedFeature.options || [
+                                    { title: selectedFeature.query || selectedFeature.label, prompt: selectedFeature.query || selectedFeature.label },
+                                    { title: `Buat versi lengkap: ${selectedFeature.label}`, prompt: `${selectedFeature.query || selectedFeature.label} secara lengkap dan terstruktur.` },
+                                    { title: `Buat outline untuk: ${selectedFeature.label}`, prompt: `Buat outline untuk ${selectedFeature.query || selectedFeature.label}.` },
+                                    { title: `Berikan contoh praktis: ${selectedFeature.label}`, prompt: `Berikan contoh praktis untuk ${selectedFeature.query || selectedFeature.label}.` },
+                                    { title: `Buat langkah berikutnya: ${selectedFeature.label}`, prompt: `Buat langkah berikutnya untuk ${selectedFeature.query || selectedFeature.label}.` },
+                                ]).map((opt: any, i: number) => (
                                     <button
                                         key={i}
                                         onClick={() => {
@@ -1567,3 +1871,10 @@ export function ResearchWelcome({
         </div>
     );
 }
+
+
+
+
+
+
+

@@ -27,6 +27,7 @@ export default defineConfig(({ mode }) => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
+        'd3-shape': path.resolve(__dirname, 'node_modules/d3-shape/src/index.js'),
       }
     },
     optimizeDeps: {

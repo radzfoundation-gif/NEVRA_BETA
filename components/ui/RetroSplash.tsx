@@ -21,8 +21,8 @@ export default function RetroSplash({ onComplete }: { onComplete: () => void }) 
                 className="flex items-center justify-center"
             >
                 <motion.img 
-                    src="/owl-logo.png" 
-                    alt="Noir Owl Logo" 
+                    src="/useglass-logo.png" 
+                    alt="UseGlass Owl Logo" 
                     className="w-24 h-24 object-contain opacity-90"
                     animate={{ 
                         opacity: [0.7, 1, 0.7], 
@@ -38,3 +38,4 @@ export default function RetroSplash({ onComplete }: { onComplete: () => void }) 
         </div>
     );
 }
+

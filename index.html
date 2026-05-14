@@ -7,36 +7,36 @@
     content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover" />
 
   <!-- Primary Meta Tags -->
-  <title>Noir AI | The Ultimate Intelligent App</title>
-  <meta name="title" content="Noir AI | The Ultimate Intelligent App" />
+  <title>UseGlass AI | The Ultimate Intelligent App</title>
+  <meta name="title" content="UseGlass AI | The Ultimate Intelligent App" />
   <meta name="description"
-    content="Noir AI accelerates full-stack development with intelligent AI. Build web applications instantly with Builder Mode or learn anything with AI-powered Tutor Mode." />
-  <meta name="keywords" content="AI, Artificial Intelligence, Web Development, Prompt Engineering, Learn Coding, Noir AI" />
-  <meta name="author" content="Noir AI" />
+    content="UseGlass AI accelerates full-stack development with intelligent AI. Build web applications instantly with Builder Mode or learn anything with AI-powered Tutor Mode." />
+  <meta name="keywords" content="AI, Artificial Intelligence, Web Development, Prompt Engineering, Learn Coding, UseGlass AI" />
+  <meta name="author" content="UseGlass AI" />
   <meta name="google-site-verification" content="I_Coo88O19HmeiByo1TTe8bIxNldP5yz6G7IjqRAaTQ" />
 
   <!-- Open Graph -->
   <meta property="og:type" content="website" />
-  <meta property="og:url" content="https://noir.biz.id/" />
-  <meta property="og:title" content="Noir AI | The Ultimate Intelligent App" />
-  <meta property="og:description" content="Noir AI accelerates full-stack development. Build applications instantly or learn with AI Tutor Mode." />
-  <meta property="og:image" content="https://noir.biz.id/owl-logo.png" />
+  <meta property="og:url" content="https://useglass.ai/" />
+  <meta property="og:title" content="UseGlass AI | The Ultimate Intelligent App" />
+  <meta property="og:description" content="UseGlass AI accelerates full-stack development. Build applications instantly or learn with AI Tutor Mode." />
+  <meta property="og:image" content="https://useglass.ai/useglass-logo.png" />
 
   <!-- Twitter -->
   <meta property="twitter:card" content="summary_large_image" />
-  <meta property="twitter:url" content="https://noir.biz.id/" />
-  <meta property="twitter:title" content="Noir AI | The Ultimate Intelligent App" />
-  <meta property="twitter:description" content="Noir AI accelerates full-stack development. Build applications instantly or learn with AI Tutor Mode." />
-  <meta property="twitter:image" content="https://noir.biz.id/owl-logo.png" />
+  <meta property="twitter:url" content="https://useglass.ai/" />
+  <meta property="twitter:title" content="UseGlass AI | The Ultimate Intelligent App" />
+  <meta property="twitter:description" content="UseGlass AI accelerates full-stack development. Build applications instantly or learn with AI Tutor Mode." />
+  <meta property="twitter:image" content="https://useglass.ai/useglass-logo.png" />
 
   <!-- Favicons and PWA Setup -->
-  <link rel="icon" type="image/png" href="/owl-logo.png" />
+  <link rel="icon" type="image/png" href="/useglass-logo.png" />
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#ffffff" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Noir AI" />
-  <link rel="apple-touch-icon" href="/owl-logo.png" />
+  <meta name="apple-mobile-web-app-title" content="UseGlass AI" />
+  <link rel="apple-touch-icon" href="/useglass-logo.png" />
 
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -94,15 +94,19 @@
   <script type="module" src="/index.tsx"></script>
   <script>
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js')
-          .then(registration => {
-            console.log('SW registered: ', registration);
-          })
-          .catch(registrationError => {
-            console.log('SW registration failed: ', registrationError);
-          });
-      });
+      const isLocalDev = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
+      if (isLocalDev) {
+        navigator.serviceWorker.getRegistrations?.().then(registrations => {
+          registrations.forEach(registration => registration.unregister());
+          if (window.caches) caches.keys().then(keys => keys.forEach(key => caches.delete(key)));
+        });
+      } else {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then(registration => console.log('SW registered: ', registration))
+            .catch(registrationError => console.log('SW registration failed: ', registrationError));
+        });
+      }
     }
   </script>
 </body>

@@ -1,5 +1,5 @@
 /**
- * Mobile App Generation for NOIR AI Builder
+ * Mobile App Generation for UseGlass AI Builder
  * Generate React Native and Flutter code from web components
  */
 

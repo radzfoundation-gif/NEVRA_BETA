@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useUser, useSession } from '@/lib/authContext';
-import { ChatSession } from '@/lib/supabase';
+import { ChatSession, supabase } from '@/lib/supabase';
 import {
     getUserSessions,
     deleteChatSession,
@@ -14,6 +14,23 @@ import {
 
 // Re-export ChatSession type
 export type { ChatSession };
+
+
+const apiJson = async <T,>(path: string, options: RequestInit = {}): Promise<T> => {
+    const res = await fetch(path, {
+        ...options,
+        headers: {
+            'Content-Type': 'application/json',
+            ...(options.headers || {}),
+        },
+    });
+    if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `Request failed: ${res.status}`);
+    }
+    return res.json();
+};
+
 
 /**
  * Hook for managing chat sessions with Supabase
@@ -207,4 +224,133 @@ export function useSubscription() {
         loading,
         refresh,
     };
+}
+
+
+export interface UseGlassProject {
+    id: string;
+    user_id: string;
+    name: string;
+    description?: string | null;
+    notes?: string | null;
+    metadata?: Record<string, any> | null;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface UseGlassSavedOutput {
+    id: string;
+    user_id: string;
+    project_id?: string | null;
+    source_session_id?: string | null;
+    output_type: 'text' | 'code' | 'document' | 'research' | 'builder' | 'agent';
+    title: string;
+    content: string;
+    metadata?: Record<string, any> | null;
+    created_at: string;
+}
+
+export interface UseGlassProjectItem {
+    id: string;
+    project_id: string;
+    user_id: string;
+    item_type: 'chat' | 'document' | 'builder_output' | 'code' | 'note' | 'saved_output';
+    title: string;
+    content?: string | null;
+    reference_id?: string | null;
+    metadata?: Record<string, any> | null;
+    created_at: string;
+}
+
+export function useWorkspaceProjects() {
+    const { user } = useUser();
+    const [projects, setProjects] = useState<UseGlassProject[]>([]);
+    const [savedOutputs, setSavedOutputs] = useState<UseGlassSavedOutput[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    const refreshWorkspace = useCallback(async () => {
+        if (!user?.id) {
+            setProjects([]);
+            setSavedOutputs([]);
+            setLoading(false);
+            return;
+        }
+        setLoading(true);
+        setError(null);
+        try {
+            const data = await apiJson<{ projects: UseGlassProject[]; savedOutputs: UseGlassSavedOutput[] }>(`/api/turso/workspace?userId=${encodeURIComponent(user.id)}`);
+            setProjects(data.projects || []);
+            setSavedOutputs(data.savedOutputs || []);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to load Turso workspace');
+        } finally {
+            setLoading(false);
+        }
+    }, [user?.id]);
+
+    useEffect(() => {
+        refreshWorkspace();
+        if (!user?.id) return;
+        const interval = window.setInterval(refreshWorkspace, 15000);
+        return () => window.clearInterval(interval);
+    }, [user?.id, refreshWorkspace]);
+
+    const createProject = useCallback(async (name = 'Untitled Project', description = '') => {
+        if (!user?.id) throw new Error('Sign in required');
+        const data = await apiJson<UseGlassProject>('/api/turso/projects', {
+            method: 'POST',
+            body: JSON.stringify({ userId: user.id, name, description }),
+        });
+        await refreshWorkspace();
+        return data;
+    }, [user?.id, refreshWorkspace]);
+
+    const saveOutput = useCallback(async (input: {
+        projectId?: string | null;
+        title: string;
+        content: string;
+        outputType?: UseGlassSavedOutput['output_type'];
+        sourceSessionId?: string | null;
+        metadata?: Record<string, any>;
+    }) => {
+        if (!user?.id) throw new Error('Sign in required');
+        const data = await apiJson<UseGlassSavedOutput>('/api/turso/outputs', {
+            method: 'POST',
+            body: JSON.stringify({ userId: user.id, ...input }),
+        });
+        await refreshWorkspace();
+        return data;
+    }, [user?.id, refreshWorkspace]);
+
+    return { projects, savedOutputs, loading, error, refreshWorkspace, createProject, saveOutput };
+}
+
+export function useProjectDetail(projectId?: string) {
+    const { user } = useUser();
+    const [project, setProject] = useState<UseGlassProject | null>(null);
+    const [items, setItems] = useState<UseGlassProjectItem[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    const refreshProject = useCallback(async () => {
+        if (!user?.id || !projectId) return;
+        setLoading(true);
+        const data = await apiJson<{ project: UseGlassProject | null; items: UseGlassProjectItem[] }>(`/api/turso/projects/${projectId}?userId=${encodeURIComponent(user.id)}`);
+        setProject(data.project || null);
+        setItems(data.items || []);
+        setLoading(false);
+    }, [user?.id, projectId]);
+
+    useEffect(() => { refreshProject(); }, [refreshProject]);
+
+    const addNote = useCallback(async (content: string) => {
+        if (!user?.id || !projectId || !content.trim()) return;
+        await apiJson(`/api/turso/projects/${projectId}/notes`, {
+            method: 'POST',
+            body: JSON.stringify({ userId: user.id, content }),
+        });
+        await refreshProject();
+    }, [user?.id, projectId, refreshProject]);
+
+    return { project, items, loading, refreshProject, addNote };
 }

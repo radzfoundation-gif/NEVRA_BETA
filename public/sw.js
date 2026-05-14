@@ -1,10 +1,10 @@
 // Minimal Service Worker to satisfy PWA requirements
-const CACHE_NAME = 'noir-ai-v1';
+const CACHE_NAME = 'useglass-ai-v1';
 const urlsToCache = [
     '/',
     '/index.html',
     '/index.css',
-    '/owl-logo.png'
+    '/useglass-logo.png'
 ];
 
 self.addEventListener('install', (event) => {
@@ -63,3 +63,4 @@ self.addEventListener('activate', (event) => {
         })
     );
 });
+

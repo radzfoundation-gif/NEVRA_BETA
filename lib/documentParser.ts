@@ -1,5 +1,5 @@
 /**
- * Document Parser for NOIR AI Tutor
+ * Document Parser for UseGlass AI Tutor
  * Handles PDF, DOCX, TXT, and Markdown file parsing
  */
 

@@ -1,5 +1,5 @@
 /**
- * Code Execution Sandbox for NOIR AI Tutor
+ * Code Execution Sandbox for UseGlass AI Tutor
  * Provides safe code execution in browser for educational purposes
  */
 

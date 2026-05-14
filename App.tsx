@@ -27,6 +27,8 @@ const ArtifactsPage = React.lazy(() => import('./components/pages/ArtifactsPage'
 const ProjectsPage = React.lazy(() => import('./components/pages/ProjectsPage'));
 const SkillsPage = React.lazy(() => import('./components/pages/SkillsPage'));
 const PricingPage = React.lazy(() => import('./components/pages/PricingPage'));
+const DocumentsPage = React.lazy(() => import('./components/pages/DocumentsPage'));
+const GlassToolPage = React.lazy(() => import('./components/pages/GlassToolPage'));
 
 const Studio = React.lazy(() => import('./components/pages/Studio'));
 
@@ -48,7 +50,13 @@ const AppContent: React.FC = () => {
           <Route path="/gallery" element={<ProtectedRoute><Gallery /></ProtectedRoute>} />
           <Route path="/artifacts" element={<ProtectedRoute><ArtifactsPage /></ProtectedRoute>} />
           <Route path="/projects" element={<ProtectedRoute><ProjectsPage /></ProtectedRoute>} />
+          <Route path="/projects/:id" element={<ProtectedRoute><ProjectsPage /></ProtectedRoute>} />
+          <Route path="/documents" element={<ProtectedRoute><DocumentsPage /></ProtectedRoute>} />
           <Route path="/pricing" element={<PricingPage />} />
+          <Route path="/glass-search" element={<ProtectedRoute><GlassToolPage tool="search" /></ProtectedRoute>} />
+          <Route path="/glass-agents" element={<ProtectedRoute><GlassToolPage tool="agents" /></ProtectedRoute>} />
+          <Route path="/glass-builder" element={<ProtectedRoute><GlassToolPage tool="builder" /></ProtectedRoute>} />
+          <Route path="/glass-code" element={<ProtectedRoute><GlassToolPage tool="code" /></ProtectedRoute>} />
           <Route path="/studio" element={<Studio />} />
           <Route path="/survey" element={<SurveyPage />} />
           <Route path="/sign-in" element={<SignInPage />} />

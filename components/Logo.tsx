@@ -19,15 +19,15 @@ const Logo: React.FC<LogoProps> = ({
     <div className={`flex items-center gap-3 ${className}`}>
       <div className="relative flex-shrink-0">
         <img
-          src="/owl-logo.png"
-          alt="Noir AI"
+          src="/useglass-logo.png"
+          alt="UseGlass AI"
           style={{ width: size, height: size }}
           className="rounded-xl object-contain shadow-sm"
         />
       </div>
       {showText && (
         <span className={`font-display font-bold tracking-tight ${textClassName}`}>
-          NOIR AI
+          UseGlass AI
         </span>
       )}
     </div>
@@ -35,3 +35,4 @@ const Logo: React.FC<LogoProps> = ({
 };
 
 export default Logo;
+

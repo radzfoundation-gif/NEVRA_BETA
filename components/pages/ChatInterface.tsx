@@ -60,7 +60,7 @@ import { FREE_TOKEN_LIMIT } from '@/lib/tokenLimit';
 import { createChatSession, saveMessage, getSessionMessages, updateChatSession, getUserSessions, shareChatSession } from '@/lib/supabaseDatabase';
 import { useUser, useAuth } from '@/lib/authContext';
 import FeedbackPopup from '../FeedbackPopup';
-import { useUserPreferences, useChatSessions } from '@/hooks/useSupabase';
+import { useUserPreferences, useChatSessions, useWorkspaceProjects } from '@/hooks/useSupabase';
 import Logo from '../Logo';
 const VoiceCall = React.lazy(() => import('../VoiceCall'));
 import Sidebar from '../Sidebar';
@@ -79,7 +79,7 @@ import { CodeResponse } from '@/lib/ai';
 import { checkTypeScript, TypeError } from '@/lib/typescript';
 import { lintCode, autoFix, LintError } from '@/lib/eslint';
 import { formatCode } from '@/lib/prettier';
-import { ResearchWelcome } from '../ResearchWelcome';
+import { ResearchWelcome, BUILT_IN_GLASS_SKILLS, GLASS_CONNECTORS, WORKFLOW_MODES, GLASS_STYLES, WorkflowModeId, GlassStyleId } from '../ResearchWelcome';
 import { getVersionManager } from '@/lib/versionManager';
 import { getUndoRedoManager } from '@/lib/undoRedo';
 import { performWebSearch, combineSearchAndResponse, SearchResult } from '@/lib/webSearch';
@@ -113,6 +113,8 @@ import InteractiveQAWidget from '@/components/ui/InteractiveQAWidget';
 import { parseClarificationFromAIResponse } from '@/lib/clarificationParser';
 import { ModelType } from '@/components/ui/ModelSelector';
 import { useDualStream } from '@/hooks/useDualStream';
+import { useSettings } from '@/hooks/useSettings';
+import { routeGlassIntent, GlassRoutingResult } from '@/lib/glassAutoRouter';
 
 // --- Types ---
 
@@ -182,6 +184,7 @@ const SplashScreen: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
 // --- Main Chat Interface ---
 const ChatInterface: React.FC = () => {
   const { user } = useUser();
+  const { settings: glassSettings } = useSettings();
   const { id: sessionId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
@@ -220,6 +223,13 @@ const ChatInterface: React.FC = () => {
     const explicitMode = location.state?.mode as AppMode;
     const enableWebSearch = location.state?.enableWebSearch as boolean | undefined;
     const reasoning = location.state?.reasoning as boolean | undefined;
+    const glassMode = (location.state?.glassMode || 'chat') as 'chat' | 'search' | 'agents' | 'builder' | 'code' | 'omni' | 'documents';
+    const activeSkillId = (location.state?.activeSkillId || null) as string | null;
+    const activeConnectorId = (location.state?.activeConnectorId || null) as string | null;
+    const workflowMode = (location.state?.workflowMode || 'think') as WorkflowModeId;
+    const glassStyle = (location.state?.glassStyle || 'friendly-assistant') as GlassStyleId;
+    const routingResult = (location.state?.routingResult || null) as GlassRoutingResult | null;
+    const canvasType = (location.state?.canvasType || routingResult?.canvasType || null) as 'web' | 'document' | 'code' | 'presentation' | 'general' | null;
 
     if (initialPrompt || (initialImages && initialImages.length > 0)) {
       // Use explicit mode if provided, otherwise detect
@@ -252,7 +262,14 @@ const ChatInterface: React.FC = () => {
         targetFile: targetFile,
         codebaseMode: codebaseMode || false,
         enableWebSearch: enableWebSearch ?? false,
-        reasoning: reasoning ?? false
+        reasoning: reasoning ?? false,
+        glassMode,
+        activeSkillId,
+        activeConnectorId,
+        workflowMode,
+        glassStyle,
+        routingResult,
+        canvasType
       };
     }
 
@@ -266,14 +283,46 @@ const ChatInterface: React.FC = () => {
         initialImages: [],
         targetFile: undefined,
         codebaseMode: false,
-        enableWebSearch: enableWebSearch ?? false
+        enableWebSearch: enableWebSearch ?? false,
+        reasoning: reasoning ?? false,
+        glassMode,
+        activeSkillId,
+        activeConnectorId,
+        workflowMode,
+        glassStyle,
+        routingResult,
+        canvasType
       };
     }
     // Default to tutor mode if no prompt (auto-detect from Home.tsx)
-    return { mode: 'tutor' as AppMode, messages: [], shouldAutoSend: false, initialProvider: 'groq' as AIProvider, initialImages: [], targetFile: undefined, codebaseMode: false, enableWebSearch: enableWebSearch ?? false, reasoning: reasoning ?? false };
+    return { mode: 'tutor' as AppMode, messages: [], shouldAutoSend: false, initialProvider: 'groq' as AIProvider, initialImages: [], targetFile: undefined, codebaseMode: false, enableWebSearch: enableWebSearch ?? false, reasoning: reasoning ?? false, glassMode, activeSkillId, activeConnectorId, workflowMode, glassStyle, routingResult, canvasType }; 
   };
 
   const initialState = getInitialState();
+  const [activeGlassMode, setActiveGlassMode] = useState<'chat' | 'search' | 'agents' | 'builder' | 'code' | 'omni' | 'documents'>(((initialState as any).glassMode || 'chat') as any);
+  const [activeSkillId, setActiveSkillId] = useState<string | null>(((initialState as any).activeSkillId || null) as string | null);
+  const [activeConnectorId, setActiveConnectorId] = useState<string | null>(((initialState as any).activeConnectorId || null) as string | null);
+  const [activeWorkflowMode, setActiveWorkflowMode] = useState<WorkflowModeId>(((initialState as any).workflowMode || 'think') as WorkflowModeId);
+  const [activeGlassStyle, setActiveGlassStyle] = useState<GlassStyleId>(((initialState as any).glassStyle || 'friendly-assistant') as GlassStyleId);
+  const [routingResult, setRoutingResult] = useState<GlassRoutingResult | null>(((initialState as any).routingResult || null) as GlassRoutingResult | null);
+  const [showRoutingChips, setShowRoutingChips] = useState<boolean>(() => {
+    try { return localStorage.getItem('useglass.routingChips.hidden') !== '1'; } catch { return true; }
+  });
+  const toggleRoutingChips = () => {
+    setShowRoutingChips(prev => {
+      const next = !prev;
+      try { localStorage.setItem('useglass.routingChips.hidden', next ? '0' : '1'); } catch {}
+      return next;
+    });
+  };
+  const [glassCanvas, setGlassCanvas] = useState<{ state: 'closed' | 'opening' | 'active' | 'fullscreen' | 'collapsed' | 'error'; type: 'web' | 'document' | 'code' | 'presentation' | 'general'; title: string; content: string; sourcePrompt: string; lastUpdated: Date } | null>(null);
+  const activeWorkflow = WORKFLOW_MODES.find(item => item.id === activeWorkflowMode) || WORKFLOW_MODES[0];
+  const activeGlassStyleConfig = GLASS_STYLES.find(item => item.id === activeGlassStyle) || GLASS_STYLES[0];
+  const selectGlassMode = (mode: 'chat' | 'search' | 'agents' | 'builder' | 'code' | 'omni' | 'documents') => {
+    setActiveGlassMode(mode);
+    setIsSidebarCollapsed(true);
+    setIsMobileSidebarOpen(false);
+  };
   const [templateName, setTemplateName] = useState<string | undefined>((initialState as any).templateName);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [shareUrl, setShareUrl] = useState('');
@@ -315,6 +364,54 @@ const ChatInterface: React.FC = () => {
 
   // Token Limit Hooks
   const { hasExceeded, isSubscribed, refreshLimit, tokensUsed, incrementTokenUsage, loading: tokenLoading, checkFeatureLimit, incrementFeatureUsage, credits, softLimitReached } = useTokenLimit();
+  const { projects, createProject, saveOutput } = useWorkspaceProjects();
+  const [saveModalMessage, setSaveModalMessage] = useState<Message | null>(null);
+  const [saveProjectId, setSaveProjectId] = useState('');
+  const [newProjectName, setNewProjectName] = useState('');
+  const [isSavingOutput, setIsSavingOutput] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState('');
+
+  const detectOutputType = (content: string): 'text' | 'code' | 'document' | 'research' | 'builder' | 'agent' => {
+    const lower = content.toLowerCase();
+    if (lower.includes('```') || lower.includes('function ') || lower.includes('const ')) return 'code';
+    if (lower.includes('source') || lower.includes('research') || lower.includes('confidence')) return 'research';
+    if (lower.includes('agent') && lower.includes('step')) return 'agent';
+    if (lower.includes('<!doctype') || lower.includes('component') || lower.includes('tailwind')) return 'builder';
+    if (lower.includes('# ') || lower.includes('outline') || lower.includes('document')) return 'document';
+    return 'text';
+  };
+
+  const handleSaveOutput = async () => {
+    if (!saveModalMessage) return;
+    setIsSavingOutput(true);
+    setSaveSuccess('');
+    try {
+      let projectId = saveProjectId || null;
+      if (!projectId && newProjectName.trim()) {
+        const project = await createProject(newProjectName.trim(), 'Created from saved AI output');
+        projectId = project.id;
+      }
+      await saveOutput({
+        projectId,
+        sourceSessionId: currentSessionId || sessionId || null,
+        title: saveModalMessage.content.split('\n').find(Boolean)?.slice(0, 80) || 'Saved AI output',
+        content: saveModalMessage.content,
+        outputType: detectOutputType(saveModalMessage.content),
+        metadata: { source: 'chat', messageId: saveModalMessage.id },
+      });
+      setSaveSuccess('Saved to project successfully.');
+      setTimeout(() => {
+        setSaveModalMessage(null);
+        setSaveProjectId('');
+        setNewProjectName('');
+        setSaveSuccess('');
+      }, 900);
+    } catch (error) {
+      setSaveSuccess(error instanceof Error ? error.message : 'Unable to save output.');
+    } finally {
+      setIsSavingOutput(false);
+    }
+  };
 
   // Check chat limit before sending message
   const checkChatLimit = async (): Promise<boolean> => {
@@ -583,7 +680,7 @@ const ChatInterface: React.FC = () => {
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const handleStop = useCallback(() => {
-    console.log('🛑 [NoirSync] Stopping generation...');
+    console.log('🛑 [GlassSync] Stopping generation...');
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
@@ -598,6 +695,7 @@ const ChatInterface: React.FC = () => {
   }, [dualStream]);
 
   const hasAutoSent = useRef(false);
+  const lastRouteAutoSendKey = useRef<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showImageMenu, setShowImageMenu] = useState(false);
   const imageMenuRef = useRef<HTMLDivElement>(null);
@@ -699,7 +797,7 @@ const ChatInterface: React.FC = () => {
     console.log('🔄 Attempting to copy text:', text.substring(0, 50) + '...');
 
     // Add watermark
-    const watermarkedText = `${text}\n\nCopied from Noir AI`;
+    const watermarkedText = `${text}\n\nCopied from UseGlass AI`;
 
     try {
       // Method 1: Modern Clipboard API (works in secure contexts)
@@ -1125,12 +1223,6 @@ const ChatInterface: React.FC = () => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    if (attachedImages.length >= MAX_IMAGES) {
-      alert(`Maximum ${MAX_IMAGES} images per message.`);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      return;
-    }
-
     const filesArray = Array.from(files);
     const MAX_SIZE_MB = 10;
     const validFiles = filesArray.filter(file => {
@@ -1140,8 +1232,26 @@ const ChatInterface: React.FC = () => {
       }
       return true;
     });
+    const imageFiles = validFiles.filter(file => file.type.startsWith('image/'));
+    const documentFiles = validFiles.filter(file => !file.type.startsWith('image/'));
 
-    const filesToProcess = validFiles.slice(0, MAX_IMAGES - attachedImages.length);
+    if (documentFiles.length > 0) {
+      setAttachedFiles(prev => [...prev, ...documentFiles]);
+    }
+
+    if (imageFiles.length === 0) {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      setShowAttachmentMenu(false);
+      return;
+    }
+
+    if (attachedImages.length >= MAX_IMAGES) {
+      alert(`Maximum ${MAX_IMAGES} images per message.`);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    const filesToProcess = imageFiles.slice(0, MAX_IMAGES - attachedImages.length);
 
     if (filesToProcess.length === 0) {
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -1479,7 +1589,7 @@ const ChatInterface: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = url;
-    anchor.download = 'noir-ai-app.html';
+    anchor.download = 'useglass-ai-app.html';
     anchor.click();
     URL.revokeObjectURL(url);
   };
@@ -1641,14 +1751,24 @@ const ChatInterface: React.FC = () => {
           messages[messages.indexOf(msg) - 1]?.content || '',
           msg.contentA || '',
           msg.contentB || '',
-          msg.modelA || 'noir-1',
-          msg.modelB || 'noir-2',
+          msg.modelA || 'glass-1',
+          msg.modelB || 'glass-2',
           version
         )
       );
     } catch (error) {
       console.error('Error saving comparison:', error);
     }
+  };
+
+  const detectGlassCanvasType = (text: string): 'web' | 'document' | 'code' | 'presentation' | 'general' | null => {
+    const lower = text.toLowerCase();
+    if (/pitch deck|slide|presentasi|presentation|deck structure/.test(lower)) return 'presentation';
+    if (/generate code panjang|kode panjang|component|komponen|refactor|script|config|terminal error/.test(lower)) return 'code';
+    if (/landing page|dashboard|buat ui|app layout|pricing page|auth page|portfolio|website|halaman web/.test(lower)) return 'web';
+    if (/prd|proposal|laporan|artikel panjang|essay|dokumen|script|sop|markdown panjang/.test(lower)) return 'document';
+    if (/buat file|output besar|canvas/.test(lower)) return 'general';
+    return null;
   };
 
   const handleSend = async (textOverride?: string | boolean, modeOverride?: AppMode, historyOverride?: Message[], deepDiveOverride?: boolean, attachmentsOverride?: Attachment[], imagesOverride?: string[]) => {
@@ -1663,8 +1783,69 @@ const ChatInterface: React.FC = () => {
       deepDive = deepDiveOverride || deepResearchMode;
     }
     const imagesToSend = imagesOverride || (historyOverride ? (historyOverride[historyOverride.length - 1]?.images || []) : attachedImages);
+    const fileAttachments: Attachment[] = await Promise.all(
+      attachedFiles.map(file => new Promise<Attachment>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error(`Failed to read file: ${file.name}`));
+        reader.onload = () => resolve({
+          type: 'file',
+          name: file.name,
+          content: String(reader.result || ''),
+          mimeType: file.type || 'application/octet-stream',
+        });
+        reader.readAsDataURL(file);
+      }))
+    );
+    const attachmentsToSend = attachmentsOverride || fileAttachments;
 
-    if ((!text.trim() && imagesToSend.length === 0 && (!attachmentsOverride || attachmentsOverride.length === 0)) || isTyping) return;
+    if ((!text.trim() && imagesToSend.length === 0 && attachmentsToSend.length === 0) || isTyping) return;
+
+    // ── Fast UI: show user bubble + clear input IMMEDIATELY ──────────────
+    // Heavy stuff (routing, mode detect, credit check, session create) used
+    // to block this. Now we mount the bubble first so the user sees their
+    // prompt land instantly and then we run the rest.
+    const isInitialAutoSendEarly = historyOverride && historyOverride.length > 0 && historyOverride[0].content === text;
+    const earlyMessage: Message = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: text,
+      images: imagesToSend,
+      attachments: attachmentsToSend,
+      timestamp: new Date(),
+      isDeepDive: deepDive,
+      isWebSearch: enableWebSearch,
+    };
+    if (!isInitialAutoSendEarly) {
+      setMessages(prev => [...prev, earlyMessage]);
+    }
+    if (!textOverride || typeof textOverride === 'boolean') {
+      setInput('');
+      setAttachedImages([]);
+      setAttachedFiles([]);
+    }
+    setIsTyping(true);
+
+    const currentRouting = routeGlassIntent(text, { webSearchConnected: true, githubConnected: false, localDocumentsConnected: !!uploadedDocument });
+    setRoutingResult(currentRouting);
+    setActiveGlassMode(currentRouting.selectedTool as any);
+    setActiveWorkflowMode(currentRouting.selectedWorkflowMode as WorkflowModeId);
+    setActiveGlassStyle(currentRouting.selectedStyle as GlassStyleId);
+    setActiveSkillId(currentRouting.selectedSkill);
+    setActiveConnectorId(currentRouting.selectedConnector === 'Web Search' ? 'web-search' : currentRouting.selectedConnector === 'GitHub' ? 'github' : currentRouting.selectedConnector === 'Local Documents' ? 'local-documents' : null);
+    if (currentRouting.selectedConnector === 'Web Search') setEnableWebSearch(true);
+
+    const detectedCanvasType = currentRouting.canvasType || detectGlassCanvasType(text);
+    if (detectedCanvasType && (!glassCanvas || glassCanvas.state === 'closed')) {
+      const shouldDream = detectedCanvasType === 'web' || detectedCanvasType === 'code';
+      setGlassCanvas({
+        state: shouldDream ? 'opening' : 'active',
+        type: detectedCanvasType,
+        title: detectedCanvasType === 'web' ? 'Web Canvas' : detectedCanvasType === 'code' ? 'Code Canvas' : `${detectedCanvasType[0].toUpperCase()}${detectedCanvasType.slice(1)} Canvas`,
+        content: '',
+        sourcePrompt: text,
+        lastUpdated: new Date()
+      });
+    }
 
     // Check credit limit
     if (!await checkChatLimit()) return;
@@ -1680,6 +1861,22 @@ const ChatInterface: React.FC = () => {
 
     // Always detect mode from user input (unless explicitly overridden)
     let detectedMode = modeOverride || detectMode(text) || 'tutor';
+    const uiBuildIntent = /\b(buat|buatkan|bikin|create|generate|build)\b.*\b(login page|pricing page|landing page|dashboard|website|web page|halaman|ui|component|komponen|form|auth page|register page|checkout page)\b/i.test(text)
+      || /\b(login page|pricing page|landing page|dashboard|website|web page|halaman|ui|component|komponen|form|auth page|register page|checkout page)\b.*\b(buat|buatkan|bikin|create|generate|build)\b/i.test(text);
+    if (!modeOverride && uiBuildIntent) {
+      detectedMode = 'builder';
+      setActiveGlassMode('builder');
+      setActiveWorkflowMode('build');
+      if (!glassCanvas || glassCanvas.state === 'closed') {
+        setGlassCanvas({ state: 'opening', type: 'web', title: 'Web Canvas', content: '', sourcePrompt: text, lastUpdated: new Date() });
+      }
+    }
+
+    // NOTE: do NOT prepend glass routing metadata to `text` — that mutates the
+    // user-visible message and leaks "Active Tool: chat / Workflow Mode: ..."
+    // into the chat bubble. Routing context is delivered to the AI via
+    // `promptToSend` (built below from currentRouting). Auto Pilot active or
+    // not, the user's chat bubble must show only what they typed.
 
     // Debug logging
     console.log(`🔍 Mode Detection Debug:`, {
@@ -1745,35 +1942,24 @@ const ChatInterface: React.FC = () => {
     // Ensure appMode is set (should already be set above if auto-switched)
     if (!appMode) setAppMode(mode);
 
-    const newMessage: Message = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: text,
-      images: imagesToSend,
-      attachments: attachmentsOverride,
-      timestamp: new Date(),
-      isDeepDive: deepDive,
-      isWebSearch: enableWebSearch
-    };
+    const newMessage: Message = earlyMessage;
 
     // Add message to UI only if it's not already the initial message being auto-sent
     const isInitialAutoSend = historyOverride && historyOverride.length > 0 && historyOverride[0].content === text;
-    
-    if (!isInitialAutoSend) {
-      setMessages(prev => [...prev, newMessage]);
-    } else {
+
+    if (isInitialAutoSend) {
       console.log('📝 Auto-send detected, syncing mode flags to existing initial user message');
       // Update the existing initial message in state with the correct flags
-      setMessages(prev => prev.map((msg, idx) => 
+      setMessages(prev => prev.map((msg, idx) =>
         idx === 0 ? { ...msg, isDeepDive: deepDive, isWebSearch: enableWebSearch } : msg
       ));
     }
-    
-    // Only clear main input box if this wasn't an override action
+    // (else: bubble already pushed above via earlyMessage — skip duplicate setMessages)
+
+    // Input/attachments already cleared above. Keep block as-is for compat
+    // in case future code expects this gate, but it's a no-op now.
     if (!textOverride || typeof textOverride === 'boolean') {
-      setInput('');
-      setAttachedImages([]);
-      setAttachedFiles([]);
+      // intentional no-op (cleared earlier)
     }
 
     // Track feedback conditions
@@ -1785,7 +1971,8 @@ const ChatInterface: React.FC = () => {
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
-    // Reset states for new message
+    // Reset states for new message (already set above for instant feedback;
+    // re-asserting is harmless and keeps flow stable for downstream checks).
     setIsTyping(true);
     
     // Detect image/video generation request for specialized loading UI
@@ -1856,35 +2043,22 @@ const ChatInterface: React.FC = () => {
           throw new Error('AI did not return document content. Please try rephrasing your request.');
         }
 
-        // Client-side PDF generation using html2pdf.js
-        const html2pdf = (await import('html2pdf.js')).default;
-        const container = document.createElement('div');
-        container.innerHTML = pdfData.html;
-        container.style.position = 'absolute';
-        container.style.left = '-9999px';
-        container.style.top = '0';
-        container.style.width = '794px';
-        container.style.background = 'white';
-        container.style.color = 'black';
-        container.style.padding = '20px';
-        document.body.appendChild(container);
-
-        const opt = {
-          margin: 10,
-          filename: `noir-document-${Date.now()}.pdf`,
-          image: { type: 'jpeg' as const, quality: 0.98 },
-          html2canvas: { scale: 2, useCORS: true, logging: false },
-          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const },
-        } as any;
-
-        await html2pdf().set(opt).from(container).save();
-        document.body.removeChild(container);
+        // 1. Show the generated document in the Glass Canvas preview immediately,
+        //    so the user can see the result even before the PDF download fires.
+        setGlassCanvas({
+          state: 'active',
+          type: 'document',
+          title: 'Generated PDF Document',
+          content: pdfData.html,
+          sourcePrompt: text,
+          lastUpdated: new Date(),
+        });
 
         // Add success message to chat
         const aiSuccessMsg: Message = {
           id: (Date.now() + 1).toString(),
           role: 'ai',
-          content: '✅ **PDF berhasil di-generate dan di-download!**\n\nDokumen PDF telah dibuat berdasarkan permintaan Anda dan otomatis ter-download. Silakan cek folder download Anda.\n\nJika Anda ingin membuat perubahan, cukup kirim pesan baru dengan instruksi yang lebih spesifik.',
+          content: '✅ **Dokumen PDF siap di Canvas.**\n\nPreview dokumen sudah tersedia di panel kanan. Klik tombol **Download PDF** di Canvas jika ingin mengunduhnya.\n\nJika ingin membuat perubahan, kirim instruksi baru sebelum download.',
           timestamp: new Date(),
         };
         setMessages(prev => [...prev, aiSuccessMsg]);
@@ -1924,12 +2098,30 @@ const ChatInterface: React.FC = () => {
     let searchResults: any[] = [];
 
     // Construct prompt with attachments for AI (hidden from UI)
-    let promptToSend = text;
+    const glassModeInstructions: Record<string, string> = {
+      chat: 'Use Glass Chat mode: answer naturally, clearly, and helpfully.',
+      search: 'Use Glass Search mode: produce a research-style answer with quick summary, detailed answer, key points, source/citation notes if available, related questions, and confidence level.',
+      agents: 'Use Glass Agents mode: act like an agent workflow. Provide status, plan, step-by-step execution, review, final output, and suggested next actions.',
+      builder: 'Use Glass Builder mode: produce UI/page structure, preview description, code output, responsive improvements, and export-ready next actions.',
+      code: 'Use Glass Code mode: provide problem summary, suggested fix, final code, explanation, commands if needed, and next steps.',
+      omni: 'Use Glass Omni mode: combine idea, chat, research, plan, build, code, save-to-project recommendations, and export plan into one coherent workflow.',
+      documents: 'Use Glass Documents mode: summarize, extract key points, Q&A, action items, notes, and save-to-project suggestions.',
+    };
+    const routedWorkflow = WORKFLOW_MODES.find(item => item.id === currentRouting.selectedWorkflowMode) || activeWorkflow;
+    const routedStyle = GLASS_STYLES.find(item => item.id === currentRouting.selectedStyle) || activeGlassStyleConfig;
+    const activeSkill = BUILT_IN_GLASS_SKILLS.find(skill => skill.name === currentRouting.selectedSkill || skill.id === currentRouting.selectedSkill) || null;
+    const activeConnector = GLASS_CONNECTORS.find(connector => connector.name === currentRouting.selectedConnector || connector.id === currentRouting.selectedConnector) || null;
+    const skillInstruction = activeSkill ? `\n[ACTIVE SKILL: ${activeSkill.name}] ${activeSkill.instructions} Best for: ${activeSkill.bestFor}.` : '';
+    const connectorInstruction = activeConnector ? `\n[ACTIVE CONNECTOR: ${activeConnector.name}] Status: ${activeConnector.status}. Capabilities: ${activeConnector.capabilities.join(', ')}. Permission summary: ${activeConnector.permissions}. ${activeConnector.status !== 'connected' ? 'Do not claim you accessed this connector. Treat it as requested context only and explain connection is required for live data.' : 'Use only available connector context; do not fabricate private data.'}` : '';
+    const routingInstruction = `\n[GLASS AUTO ROUTER] Intent: ${currentRouting.detectedIntent}. Output format: ${currentRouting.outputFormat}. Confidence: ${Math.round(currentRouting.confidence * 100)}%. Reason: ${currentRouting.reason}`;
+    const workflowInstruction = `\n[WORKFLOW MODE: ${routedWorkflow.label}] ${routedWorkflow.description}. Internal flow: ${routedWorkflow.flow}.`;
+    const styleInstruction = `\n[GLASS STYLE: ${routedStyle.label}] ${routedStyle.prompt}`;
+    let promptToSend = glassModeInstructions[currentRouting.selectedTool as keyof typeof glassModeInstructions] ? `[${currentRouting.selectedTool.toUpperCase()} MODE] ${glassModeInstructions[currentRouting.selectedTool as keyof typeof glassModeInstructions]}${routingInstruction}${workflowInstruction}${styleInstruction}${skillInstruction}${connectorInstruction}\n\nUser prompt: ${text}` : text;
     if (newMessage.attachments && newMessage.attachments.length > 0) {
       const attachmentText = newMessage.attachments.map(att =>
         `\n\n--- ${att.name} (${att.type}) ---\n${att.content}`
       ).join('\n');
-      promptToSend = `${text}\n\n[Attached Content]:${attachmentText}`;
+      promptToSend = `${promptToSend}\n\n[Attached Content]:${attachmentText}`;
     }
 
     try {
@@ -1953,9 +2145,11 @@ const ChatInterface: React.FC = () => {
         }
       }
 
-      // 2. Save User Message
+      // 2. Save User Message (fire-and-forget so AI request can start immediately)
       if (activeSessionId && user) {
-        await saveMessage(activeSessionId, 'user', text, undefined, imagesToSend);
+        saveMessage(activeSessionId, 'user', text, undefined, imagesToSend).catch(err =>
+          console.warn('⚠️ saveMessage (user) failed, continuing:', err?.message || err)
+        );
       }
 
       if (historyOverride) {
@@ -2002,7 +2196,7 @@ const ChatInterface: React.FC = () => {
           isComparison: true,
           contentA: '',
           contentB: '',
-          modelA: 'kimi-k2-thinking', // Placeholder models, will be handled by NoirSync
+          modelA: 'kimi-k2-thinking', // Placeholder models, will be handled by GlassSync
           modelB: 'seed-2-0-lite-free',
           timestamp: new Date()
         };
@@ -2013,7 +2207,7 @@ const ChatInterface: React.FC = () => {
         try {
           // Prepare messages format for hook
           const hookMessages = [
-            { role: 'system' as const, content: 'You are Noir AI, a helpful assistant.' },
+            { role: 'system' as const, content: 'You are UseGlass AI, a helpful assistant.' },
             ...historyForAI.map(m => ({
               role: (m.role === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
               content: m.parts[0].text
@@ -2042,7 +2236,7 @@ const ChatInterface: React.FC = () => {
       if (shouldSearch) {
         try {
           // Show searching indicator
-          console.log(`🔍 [NoirSync] Starting ${deepDive ? 'ADVANCED' : 'BASIC'} web search for:`, text);
+          console.log(`🔍 [GlassSync] Starting ${deepDive ? 'ADVANCED' : 'BASIC'} web search for:`, text);
           if (deepDive) {
             setActiveLoadingPhase('deep_research');
             setDeepResearchPhase('searching');
@@ -2075,7 +2269,7 @@ const ChatInterface: React.FC = () => {
             if (deepDive) {
               promptToSend = `${text}\n\n[🔬 DEEP RESEARCH CONTEXT - TAVILY ADVANCED]\n${searchContext}\n\nINSTRUCTION: Provide a comprehensive, research-grade answer. You have 10 sources above. Cross-reference them to identify patterns, consensus, or conflicts. Use formal citations (e.g. [1][3]).`;
             } else {
-              promptToSend = `${text}\n\n[Web Search Results]\n${searchContext}\n\nPlease use the above search results to provide a comprehensive answer with citations.`;
+              promptToSend = `${promptToSend}\n\n[Web Search Results]\n${searchContext}\n\nPlease use the above search results to provide a comprehensive answer with citations.`;
             }
 
             // For builder mode, also append context
@@ -2421,6 +2615,8 @@ const ChatInterface: React.FC = () => {
         const buildRequestPatterns = [
           /^(buat|build|create|make|generate)\s+(web|website|app|aplikasi|page|halaman|site|situs)/i,
           /^(buatkan|buat|build|create|make|generate)\s+(saya|aku|me|i)\s+(web|website|app|aplikasi|page|halaman)/i,
+          /\b(generate|buat|buatkan|bikin|create|write)\b.*\b(code|kode|component|komponen|function|script|html|css|react|tsx|jsx)\b/i,
+          /\b(code|kode|component|komponen|function|script|html|css|react|tsx|jsx)\b.*\b(generate|buat|buatkan|bikin|create|write)\b/i,
         ];
         const isBuildRequest = buildRequestPatterns.some(pattern => pattern.test(text.trim()));
 
@@ -2433,7 +2629,7 @@ const ChatInterface: React.FC = () => {
               .catch(error => console.error('Error updating session mode:', error));
           }
           // Recursively call handleSend with builder mode
-          return handleSend(text, 'builder', historyOverride);
+          return handleSend(text, 'builder', historyOverride || [earlyMessage]);
         }
 
         // For tutor mode, generate text response (no code)
@@ -2811,6 +3007,34 @@ const ChatInterface: React.FC = () => {
           finalResponseText = "Done.";
         }
       }
+      if (mode === 'builder' || uiBuildIntent || currentRouting.canvasType === 'web' || currentRouting.canvasType === 'code') {
+        const escapeHtml = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const extractedForCanvas = extractCode(responseText || finalResponseText || '');
+        const renderable = code || extractedForCanvas.code || '';
+        const promptTitle = escapeHtml((text || 'UseGlass landing page').replace(/^(buat|buatkan|bikin|create|generate|build)\s+/i, '').slice(0, 90) || 'UseGlass landing page');
+        const fallbackHtml = `<!doctype html><html><head><meta charset=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"/><title>UseGlass Preview</title><style>*{box-sizing:border-box}body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,sans-serif;background:radial-gradient(circle at 20% 10%,rgba(56,189,248,.22),transparent 34%),radial-gradient(circle at 80% 0%,rgba(99,102,241,.18),transparent 30%),linear-gradient(135deg,#f8fafc,#fff 46%,#eef6ff);color:#0f172a}.page{min-height:100vh;padding:32px}.shell{max-width:1120px;margin:0 auto}.nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:72px}.brand{display:flex;align-items:center;gap:10px;font-weight:800}.logo{display:grid;height:34px;width:34px;place-items:center;border-radius:12px;background:linear-gradient(135deg,#38bdf8,#2563eb);color:white}.links{display:flex;gap:22px;color:#64748b;font-size:14px}.hero{display:grid;grid-template-columns:1.05fr .95fr;gap:34px;align-items:center}.bd{display:inline-flex;border-radius:999px;background:rgba(255,255,255,.72);border:1px solid rgba(148,163,184,.28);padding:8px 12px;color:#2563eb;font-size:13px;font-weight:700}h1{margin:18px 0;font-size:60px;line-height:.95;letter-spacing:-.06em}.lead{max-width:620px;color:#475569;font-size:18px;line-height:1.7}.actions{display:flex;gap:12px;margin-top:28px}.primary,.secondary{border:0;border-radius:999px;padding:14px 20px;font-weight:700;cursor:pointer}.primary{background:#0f172a;color:#fff}.secondary{background:rgba(255,255,255,.72);color:#0f172a;border:1px solid rgba(148,163,184,.24)}.preview{border-radius:34px;background:rgba(255,255,255,.72);border:1px solid rgba(148,163,184,.26);box-shadow:0 30px 90px rgba(15,23,42,.12);padding:22px}.panel{border-radius:26px;background:#fff;padding:22px;min-height:420px}.metric{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:18px 0}.metric div{border-radius:18px;background:#f8fafc;padding:16px}.metric b{display:block;font-size:24px}.cards{display:grid;gap:12px}.feat{border-radius:18px;background:linear-gradient(135deg,#f8fafc,#eef6ff);padding:16px;border:1px solid #e2e8f0}.feat h3{margin:0 0 6px}.feat p{margin:0;color:#64748b;font-size:14px}@media(max-width:860px){.hero{grid-template-columns:1fr}.links{display:none}h1{font-size:42px}.page{padding:20px}.nav{margin-bottom:38px}}</style></head><body><main class=\"page\"><div class=\"shell\"><nav class=\"nav\"><div class=\"brand\"><span class=\"logo\">G</span><span>UseGlass</span></div><div class=\"links\"><span>Product</span><span>Pricing</span><span>Docs</span></div></nav><section class=\"hero\"><div><span class=\"bd\">Generated Web Preview</span><h1>${promptTitle}</h1><p class=\"lead\">Landing page modern bergaya glassmorphism dengan hero kuat, CTA jelas, dan struktur siap dikembangkan. Preview ini dibuat otomatis saat model belum mengirim kode HTML lengkap.</p><div class=\"actions\"><button class=\"primary\">Get Started</button><button class=\"secondary\">View Demo</button></div></div><div class=\"preview\"><div class=\"panel\"><span class=\"bd\">Glass Workspace</span><div class=\"metric\"><div><b>3x</b><span>Faster flow</span></div><div><b>AI</b><span>Auto routing</span></div><div><b>Live</b><span>Canvas</span></div></div><div class=\"cards\"><article class=\"feat\"><h3>Prompt-first workspace</h3><p>Chat, research, build, code, dan dokumen dalam satu alur kerja.</p></article><article class=\"feat\"><h3>Canvas preview</h3><p>Output besar tampil langsung sebagai preview rapi, bukan teks mentah.</p></article><article class=\"feat\"><h3>Save to project</h3><p>Simpan hasil penting ke project untuk dipakai ulang.</p></article></div></div></div></section></div></main></body></html>`;
+        const isReactLikeCode = /\b(import|export|interface|type|useState|useEffect|React\.|const\s+\w+\s*=\s*\(|function\s+\w+|className=|onClick=|onSubmit=|\{[^}]+\})/i.test(renderable);
+        const isStandaloneHtml = !!renderable && /<\s*!doctype|<html|<body/i.test(renderable) && !isReactLikeCode;
+        const canvasContent = isStandaloneHtml ? renderable : fallbackHtml;
+        setGlassCanvas({
+          state: 'active',
+          type: 'web',
+          title: 'Web Canvas',
+          content: canvasContent,
+          sourcePrompt: text,
+          lastUpdated: new Date(),
+        });
+        await new Promise<void>((resolve) => {
+          if (typeof window === 'undefined') {
+            resolve();
+            return;
+          }
+          window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));
+        });
+        const canvasKind = 'Web Canvas';
+        finalResponseText = `Selesai. Preview sudah siap di ${canvasKind} kanan.\n\n- Code dan preview tersedia di Canvas.\n- Kamu bisa minta revisi seperti ubah warna, tambah section, atau rapikan layout.`;
+      }
+
       if (searchResults.length > 0) {
         // Embed sources as hidden HTML comment for UI rendering
         const sourcesJson = JSON.stringify(searchResults);
@@ -2947,6 +3171,30 @@ const ChatInterface: React.FC = () => {
         // Auto-save version
         const versionManager = getVersionManager();
         versionManager.saveVersion(fileManager.getAllFiles(), 'Auto-save after generation');
+
+        // Always mirror generated code into the Glass Code Canvas so user gets
+        // a live preview on the right panel without manually opening canvas.
+        try {
+          const renderable = code || fileManager.getFile(fileManager.getEntry())?.content || '';
+          if (renderable && renderable.trim().length > 0) {
+            const isHtmlDoc = /<\s*!doctype|<html|<body|<head|<\s*main|<section|<article/i.test(renderable);
+            const isReactish = /export\s+default|return\s*\(/.test(renderable);
+            const canvasTitle = isHtmlDoc ? 'Web Canvas' : isReactish ? 'Code Canvas (React)' : 'Code Canvas';
+            const canvasContent = isHtmlDoc
+              ? renderable
+              : `<!doctype html><html><head><meta charset="utf-8" /><style>body{font-family:'JetBrains Mono','Fira Code',monospace;background:#fafafa;color:#111;padding:24px;font-size:13px;line-height:1.6;}pre{white-space:pre-wrap;word-break:break-word;background:#fff;border:1px solid #e4e4e7;border-radius:12px;padding:16px;}h2{margin:0 0 12px;font-size:14px;font-weight:600;color:#71717a;}</style></head><body><h2>${canvasTitle}</h2><pre>${renderable.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre></body></html>`;
+            setGlassCanvas({
+              state: 'active',
+              type: isHtmlDoc ? 'web' : 'code',
+              title: canvasTitle,
+              content: canvasContent,
+              sourcePrompt: text,
+              lastUpdated: new Date(),
+            });
+          }
+        } catch (canvasErr) {
+          console.warn('Glass canvas auto-open failed:', canvasErr);
+        }
 
         setLogs(prev => [...prev, '> Server running at http://localhost:3000', '> Ready.']);
 
@@ -3404,6 +3652,31 @@ const ChatInterface: React.FC = () => {
   }, [handleSend]);
 
   useEffect(() => {
+    const routeState = location.state as any;
+    const prompt = routeState?.initialPrompt as string | undefined;
+    const autoSend = routeState?.autoSend !== false;
+    if (!prompt || !autoSend) return;
+    const autoKey = String(location.key) + ':' + prompt;
+    if (lastRouteAutoSendKey.current === autoKey) return;
+    lastRouteAutoSendKey.current = autoKey;
+    hasAutoSent.current = true;
+    const images = (routeState.initialImages || []) as string[];
+    const attachments = (routeState.initialAttachments || []) as Attachment[];
+    const routeMode = (routeState.mode || initialState.mode || detectMode(prompt)) as AppMode;
+    handleSendRef.current(prompt, routeMode, [{
+      id: Date.now().toString(),
+      role: 'user',
+      content: prompt,
+      images,
+      attachments,
+      timestamp: new Date(),
+      isDeepDive: !!routeState.reasoning,
+      isWebSearch: !!routeState.enableWebSearch,
+    }], !!routeState.reasoning, attachments, images);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.key]);
+
+  useEffect(() => {
     if (initialState.shouldAutoSend && !hasAutoSent.current && initialState.messages.length > 0) {
       hasAutoSent.current = true;
       // Use ref to get latest handleSend without adding it to dependencies
@@ -3499,6 +3772,51 @@ const ChatInterface: React.FC = () => {
   const showBottomClarification = activeClarification?.hasClarification && !isTyping;
 
   // --- Render Content ---
+  const downloadGlassCanvasPdf = async () => {
+    if (!glassCanvas?.content) return;
+    const html2pdf = (await import('html2pdf.js')).default;
+    const escapeHtml = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    const bodyText = glassCanvas.content.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+    const contentForPdf = bodyText.length < 20 || /PDF\s+berhasil|download|folder download/i.test(bodyText)
+      ? `<!doctype html><html><head><meta charset="utf-8"/><style>@page{size:A4;margin:20mm}body{background:#fff;color:#111;font-family:Arial,Helvetica,sans-serif;line-height:1.6;font-size:12pt}h1{font-size:22pt;text-align:center;margin:0 0 12pt}h2{font-size:15pt;margin:18pt 0 8pt}p{margin:0 0 10pt}</style></head><body><h1>${escapeHtml(glassCanvas.title || 'Dokumen UseGlass AI')}</h1><h2>Pendahuluan</h2><p>Dokumen ini dibuat berdasarkan permintaan: ${escapeHtml(glassCanvas.sourcePrompt || 'Generate dokumen PDF')}</p><h2>Pembahasan</h2><p>Isi dokumen dapat diedit di Canvas sebelum diunduh sebagai PDF.</p><h2>Kesimpulan</h2><p>Gunakan instruksi lanjutan untuk memperbaiki struktur, gaya, atau isi dokumen.</p></body></html>`
+      : glassCanvas.content;
+    const container = document.createElement('div');
+    container.innerHTML = contentForPdf;
+    Object.assign(container.style, {
+      position: 'fixed',
+      left: '-100000px',
+      top: '0',
+      width: '794px',
+      minHeight: '1123px',
+      background: '#ffffff',
+      color: '#111111',
+      padding: '0',
+      pointerEvents: 'none',
+      zIndex: '2147483647',
+    } as Partial<CSSStyleDeclaration>);
+    document.body.appendChild(container);
+
+    try {
+      await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+      const images = Array.from(container.querySelectorAll('img'));
+      if (images.length > 0) {
+        await Promise.all(images.map((image) => image.complete && image.naturalWidth > 0 ? Promise.resolve() : new Promise<void>((resolve) => {
+          image.addEventListener('load', () => resolve(), { once: true });
+          image.addEventListener('error', () => resolve(), { once: true });
+        })));
+      }
+      await html2pdf().set({
+        margin: 10,
+        filename: `useglass-document-${Date.now()}.pdf`,
+        image: { type: 'jpeg' as const, quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff', windowWidth: 794 },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const },
+      }).from(container).save();
+    } finally {
+      if (container.parentNode) document.body.removeChild(container);
+    }
+  };
+
   const chatContent = (
     <div className="flex flex-col h-full bg-transparent relative overflow-hidden transition-colors duration-500">
       <DynamicBackground />
@@ -3520,10 +3838,10 @@ const ChatInterface: React.FC = () => {
           )}
 
           {/* Desktop Sidebar Toggle (when collapsed) */}
-          {!isMobile && isSidebarCollapsed && (
+          {!isMobile && isSidebarCollapsed && isSidebarOpen && (
             <button
               onClick={toggleSidebarCollapse}
-              className="p-2 -ml-2 mr-2 rounded-lg hover:bg-black/5 text-zinc-500 hover:text-zinc-900 transition-colors"
+              className="p-2 rounded-lg hover:bg-black/5 text-zinc-500 hover:text-zinc-900 transition-colors"
               title="Expand Sidebar"
             >
               <PanelLeft size={20} className="text-zinc-500" strokeWidth={1.5} />
@@ -3599,7 +3917,7 @@ const ChatInterface: React.FC = () => {
           "relative flex-1 overflow-y-auto overflow-x-visible overscroll-y-contain scroll-smooth",
           messages.length === 0
             ? "flex flex-col items-center justify-center text-center p-0"
-            : "px-3 sm:px-4 md:px-5 lg:px-6 pt-20 md:pt-24 block " + (showBottomClarification ? "pb-[350px] md:pb-[400px]" : "pb-64 sm:pb-72 md:pb-80")
+            : "px-3 sm:px-4 md:px-5 lg:px-6 pt-20 md:pt-24 block " + (showBottomClarification ? "pb-[420px] md:pb-[460px]" : "pb-[280px] sm:pb-[320px] md:pb-[360px]")
         )
       } >
         <AnimatePresence mode="wait">
@@ -3639,7 +3957,13 @@ const ChatInterface: React.FC = () => {
                 <div className="w-full flex items-center justify-center h-full">
                   <ResearchWelcome
                     userName={user?.fullName || 'User'}
-                    initialQuery=""
+                    mode={activeGlassMode}
+                    onModeChange={setActiveGlassMode}
+                    activeSkillId={activeSkillId}
+                    onSkillChange={setActiveSkillId}
+                    activeConnectorId={activeConnectorId}
+                    onConnectorChange={setActiveConnectorId}
+                    initialQuery={(location.state?.draftPrompt as string) || ''}
                     onSearch={(query, attachments, model, reasoning) => {
                       // Separate images from other attachments
                       const images = attachments?.filter(a => a.type === 'file' && a.mimeType?.startsWith('image/'))
@@ -3653,8 +3977,29 @@ const ChatInterface: React.FC = () => {
                           mimeType: a.mimeType
                         })) as Attachment[];
 
-                      // Send
-                      handleSend(query, 'tutor', undefined, reasoning, otherAttachments, images);
+                      const welcomeRouting = routeGlassIntent(query, { webSearchConnected: true, githubConnected: false, localDocumentsConnected: !!uploadedDocument });
+                      const targetMode = welcomeRouting.selectedTool === 'builder' || welcomeRouting.canvasType === 'web' || welcomeRouting.canvasType === 'code' ? 'builder' : 'tutor';
+                      const shouldReason = reasoning || welcomeRouting.selectedTool === 'search' || welcomeRouting.selectedTool === 'omni';
+                      if ((welcomeRouting.selectedConnector === 'Web Search' || welcomeRouting.selectedTool === 'search' || welcomeRouting.selectedTool === 'omni') && !enableWebSearch) setEnableWebSearch(true);
+                      setRoutingResult(welcomeRouting);
+                      setActiveGlassMode(welcomeRouting.selectedTool as any);
+                      setActiveWorkflowMode(welcomeRouting.selectedWorkflowMode as WorkflowModeId);
+                      setActiveGlassStyle(welcomeRouting.selectedStyle as GlassStyleId);
+                      setActiveSkillId(welcomeRouting.selectedSkill);
+                      setActiveConnectorId(welcomeRouting.selectedConnector === 'Web Search' ? 'web-search' : welcomeRouting.selectedConnector === 'GitHub' ? 'github' : welcomeRouting.selectedConnector === 'Local Documents' ? 'local-documents' : null);
+                      const optimisticMessage: Message = {
+                        id: Date.now().toString(),
+                        role: 'user',
+                        content: query,
+                        images,
+                        attachments: otherAttachments,
+                        timestamp: new Date(),
+                        isDeepDive: !!shouldReason,
+                        isWebSearch: welcomeRouting.selectedConnector === 'Web Search' || enableWebSearch,
+                      };
+                      setMessages([optimisticMessage]);
+                      setIsTyping(true);
+                      handleSend(query, targetMode, [optimisticMessage], shouldReason, otherAttachments, images);
                     }}
                     isWebSearchEnabled={enableWebSearch}
                     onToggleWebSearch={setEnableWebSearch}
@@ -3688,7 +4033,7 @@ const ChatInterface: React.FC = () => {
                     <div className="w-6 h-6 rounded-full bg-zinc-100 border border-zinc-200 flex items-center justify-center">
                       <Bot size={14} className="text-zinc-500" />
                     </div>
-                    <span className="text-xs text-zinc-400">NOIR BUILDER</span>
+                    <span className="text-xs text-zinc-400">GLASS BUILDER</span>
                   </div>
                   <div className="max-w-[85%] bg-white border border-zinc-200 rounded-xl p-4 shadow-sm">
                     <CodebaseExplorer
@@ -3698,7 +4043,21 @@ const ChatInterface: React.FC = () => {
                   </div>
                 </div>
               )}
-              
+
+              {isTyping && glassSettings.planningBeforeAnswer && (
+                <div className="rounded-[24px] border border-white/80 bg-white/70 p-4 shadow-xl shadow-blue-900/5 backdrop-blur-2xl">
+                  <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-zinc-900">
+                    <Brain size={16} className="text-blue-600" />
+                    Glass Thinking Mode
+                  </div>
+                  <div className="grid gap-2 text-sm text-zinc-600 md:grid-cols-3">
+                    <div className="rounded-2xl bg-blue-50/70 p-3">Understand the user's goal</div>
+                    <div className="rounded-2xl bg-zinc-50 p-3">Break the task into useful steps</div>
+                    <div className="rounded-2xl bg-white p-3 ring-1 ring-zinc-100">Choose a clear final answer strategy</div>
+                  </div>
+                </div>
+              )}
+               
               {messages.map((msg, idx) => {
                 const clarification = msg.role === 'ai' ? parseClarificationFromAIResponse(msg.content) : null;
                 const showClarification = clarification?.hasClarification && !answeredClarifications[msg.id];
@@ -3711,7 +4070,7 @@ const ChatInterface: React.FC = () => {
                         <Bot size={14} className="text-zinc-500" />
                       </div>
                       <span className="text-xs text-zinc-500 font-medium">
-                        Noir AI
+                        UseGlass AI
                       </span>
                     </div>
                   )}
@@ -3935,6 +4294,34 @@ const ChatInterface: React.FC = () => {
                               </>
                             )}
                           </button>
+                          {[
+                            { label: 'Continue', prompt: 'Continue the previous answer with the next useful section.' },
+                            { label: 'Summarize', prompt: `Summarize this answer clearly:\n\n${msg.content}` },
+                            { label: 'Shorter', prompt: `Make this answer shorter:\n\n${msg.content}` },
+                            { label: 'Longer', prompt: `Expand this answer with more useful detail:\n\n${msg.content}` },
+                            { label: 'Simpler', prompt: `Explain this in simpler language:\n\n${msg.content}` },
+                            { label: 'To document', prompt: `Turn this into a polished document:\n\n${msg.content}` },
+                            { label: 'To code', prompt: `Turn this into implementation-ready code where possible:\n\n${msg.content}` },
+                          ].map((action) => (
+                            <button
+                              key={action.label}
+                              onClick={() => {
+                                setInput(action.prompt);
+                                setTimeout(() => handleSend(action.prompt), 0);
+                              }}
+                              className="rounded-full border border-zinc-200 bg-white/70 px-2.5 py-1 text-xs text-zinc-500 transition hover:border-blue-200 hover:text-blue-700"
+                              title={action.label}
+                            >
+                              {action.label}
+                            </button>
+                          ))}
+                          <button
+                            onClick={() => { setSaveModalMessage(msg); setSaveProjectId(projects[0]?.id || ''); }}
+                            className="rounded-full border border-zinc-200 bg-white/70 px-2.5 py-1 text-xs text-zinc-500 transition hover:border-blue-200 hover:text-blue-700"
+                            title="Save to project"
+                          >
+                            Save
+                          </button>
                           <button
                             onClick={async () => {
                               const newFeedback = messageFeedback[msg.id] === 'like' ? null : 'like';
@@ -4117,23 +4504,6 @@ const ChatInterface: React.FC = () => {
         </AnimatePresence >
       </div >
 
-      {/* Soft Limit Warning Banner */}
-      {
-        softLimitReached && !isSubscribed && (
-          <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-50 pointer-events-none w-full max-w-md px-4">
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-yellow-500/90 text-white text-xs px-4 py-2 rounded-full backdrop-blur-md shadow-lg flex items-center justify-center gap-2 pointer-events-auto mx-auto"
-            >
-              <AlertTriangle size={14} className="fill-white/20" />
-              <span className="font-medium">⚡ Low Credits: {credits} remaining today (Reset at 00:00)</span>
-              <Link to="/pricing" className="underline hover:no-underline ml-1">Upgrade</Link>
-            </motion.div>
-          </div>
-        )
-      }
-
       {/* Clarification Widget Area (Claude Style) */}
       <AnimatePresence>
         {showBottomClarification && activeClarification?.question && activeClarification?.options && (
@@ -4163,11 +4533,36 @@ const ChatInterface: React.FC = () => {
       {/* Input Area - ChatGPT Style - Show after first message or always for tutor mode */}
       {
         !showBottomClarification && messages.length > 0 && (
+          <>
+          {routingResult && showRoutingChips ? (
+            <div className="pointer-events-none absolute bottom-[104px] left-0 right-0 z-20 flex justify-center px-4">
+              <div className="pointer-events-auto flex max-w-3xl flex-wrap items-center gap-2 rounded-2xl border border-zinc-200 bg-white/85 px-3 py-2 text-xs text-zinc-600 shadow-sm backdrop-blur">
+                <span className="inline-flex items-center gap-1 rounded-full border border-stone-200 bg-white px-2 py-1 font-medium text-stone-600"><Sparkles size={12} />Auto Pilot</span>
+                <span className="rounded-full bg-sky-50 px-2 py-1 font-medium text-sky-700">{WORKFLOW_MODES.find(item => item.id === routingResult.selectedWorkflowMode)?.label || routingResult.selectedWorkflowMode}</span>
+                <span className="rounded-full bg-orange-50 px-2 py-1 font-medium text-orange-700">{GLASS_STYLES.find(item => item.id === routingResult.selectedStyle)?.label || routingResult.selectedStyle}</span>
+                {routingResult.selectedSkill && <span className="rounded-full bg-violet-50 px-2 py-1 font-medium text-violet-700">{routingResult.selectedSkill}</span>}
+                {routingResult.canvasType && <span className="rounded-full bg-cyan-50 px-2 py-1 font-medium text-cyan-700">{routingResult.canvasType} Canvas</span>}
+                <details className="relative">
+                  <summary className="cursor-pointer list-none rounded-full px-2 py-1 text-zinc-500 hover:bg-zinc-50">Details</summary>
+                  <div className="absolute bottom-full right-0 mb-2 w-72 rounded-2xl border border-zinc-200 bg-white p-3 text-[11px] leading-5 text-zinc-600 shadow-xl">
+                    <div><b>Intent:</b> {routingResult.detectedIntent}</div>
+                    <div><b>Tool:</b> {routingResult.selectedTool}</div>
+                    <div><b>Connector:</b> {routingResult.selectedConnector || 'none'}</div>
+                    <div><b>Confidence:</b> {Math.round(routingResult.confidence * 100)}%</div>
+                    <div><b>Reason:</b> {routingResult.reason}</div>
+                  </div>
+                </details>
+                <button type="button" onClick={toggleRoutingChips} className="ml-auto rounded-full px-2 py-1 text-zinc-400 hover:bg-zinc-50 hover:text-zinc-600" title="Hide routing chips">Hide</button>
+              </div>
+            </div>
+          ) : routingResult ? (
+            <button type="button" onClick={toggleRoutingChips} className="absolute bottom-[110px] right-6 z-20 rounded-full border border-zinc-200 bg-white px-3 py-1 text-[11px] font-medium text-zinc-500 shadow-sm hover:bg-zinc-50" title="Show routing chips">Show routing</button>
+          ) : null}
           <ChatInput
             input={input}
             setInput={setInput}
-            activeStyle={activeStyle}
-            onStyleChange={setActiveStyle}
+            activeStyle={activeGlassStyle as any}
+            onStyleChange={(style: any) => setActiveGlassStyle((typeof style === 'string' ? style : style?.id || 'normal') as GlassStyleId)}
             handleSend={(deepDive?: boolean) => handleSend(deepDive)}
             handleStop={handleStop}
             isTyping={isTyping}
@@ -4191,25 +4586,12 @@ const ChatInterface: React.FC = () => {
               if (appMode === 'builder') {
                 setActiveTab(activeTab === 'preview' ? 'code' : 'preview');
               } else {
-                // For now, simple console log or switch mode if applicable
-                console.log("Toggle Canvas triggered");
+                setGlassCanvas(prev => prev && prev.state !== 'closed' ? { ...prev, state: 'closed' } : { state: 'active', type: 'general', title: 'General Canvas', content: '', sourcePrompt: input, lastUpdated: new Date() });
               }
             }}
             fileInputRef={fileInputRef}
             documentInputRef={documentInputRef}
-            handleFileChange={(e) => {
-              if (e.target.files && e.target.files.length > 0) {
-                const files = Array.from(e.target.files);
-                files.forEach(file => {
-                  const reader = new FileReader();
-                  reader.onload = (ev) => {
-                    const dataUrl = ev.target?.result as string;
-                    if (dataUrl) setAttachedImages(prev => [...prev, dataUrl]);
-                  };
-                  reader.readAsDataURL(file);
-                });
-              }
-            }}
+            handleFileChange={handleFileChange}
             handleCameraCapture={handleCameraCapture}
             setUploadedDocument={setUploadedDocument}
             setShowDocumentViewer={setShowDocumentViewer}
@@ -4230,7 +4612,20 @@ const ChatInterface: React.FC = () => {
             // Deep Research Props
             deepResearchMode={deepResearchMode}
             onToggleDeepResearch={setDeepResearchMode}
+            activeToolMode={activeGlassMode}
+            onToolModeChange={setActiveGlassMode}
+            activeSkillId={activeSkillId}
+            onSkillChange={setActiveSkillId}
+            activeConnectorId={activeConnectorId}
+            onConnectorChange={setActiveConnectorId}
+            activeWorkflowMode={activeWorkflowMode}
+            onWorkflowModeChange={setActiveWorkflowMode}
+            activeCanvasType={glassCanvas && glassCanvas.state !== 'closed' ? glassCanvas.type : null}
+            routingResult={routingResult}
+            lowCredits={softLimitReached && !isSubscribed}
+            creditBalance={credits}
           />
+          </>
         )
       }
     </div >
@@ -5142,6 +5537,8 @@ const ChatInterface: React.FC = () => {
                   {/* Sidebar Panel */}
                   <div className="relative w-4/5 max-w-[300px] h-full bg-white shadow-2xl animate-in slide-in-from-left duration-300">
                     <Sidebar
+                      activeToolMode={activeGlassMode}
+                      onToolModeSelect={selectGlassMode}
                       activeSessionId={sessionId}
                       onNewChat={() => {
                         handleNewChat();
@@ -5223,18 +5620,27 @@ const ChatInterface: React.FC = () => {
             </div>
           ) : (
             /* DESKTOP LAYOUT */
-            <PanelGroup direction="horizontal" className="h-full">
+            <PanelGroup
+              key={`pg-${(isSidebarOpen && !isSidebarCollapsed) ? 'sb' : 'no'}-${(glassCanvas && glassCanvas.state !== 'closed') ? 'gc' : ((appMode === 'builder' || appMode === 'canvas') && isCanvasOpen) ? 'bc' : 'no'}`}
+              direction="horizontal"
+              className="h-full"
+              id="chat-interface-group"
+            >
               {/* Sidebar - Hidden completely when collapsed, only toggle icon in header */}
               {isSidebarOpen && !isSidebarCollapsed && (
                 <>
                   <Panel
-                    defaultSize={25}
-                    minSize={20}
-                    maxSize={35}
+                    id="sidebar-panel"
+                    order={1}
+                    defaultSize={16}
+                    minSize={14}
+                    maxSize={18}
                     collapsible={false}
                     className="hidden md:block border-r border-zinc-200 transition-all duration-300 ease-in-out"
                   >
                     <Sidebar
+                      activeToolMode={activeGlassMode}
+                      onToolModeSelect={selectGlassMode}
                       activeSessionId={sessionId}
                       onNewChat={handleNewChat}
                       onSelectSession={handleSelectSession}
@@ -5253,27 +5659,119 @@ const ChatInterface: React.FC = () => {
 
               {/* Panel 1: Chat - Full width when sidebar collapsed */}
               <Panel
+                id="chat-panel"
+                order={2}
                 defaultSize={
-                  appMode === 'builder' && isCanvasOpen
+                  ((appMode === 'builder' && isCanvasOpen) || (glassCanvas && glassCanvas.state !== 'closed'))
                     ? 45
                     : (isSidebarOpen && !isSidebarCollapsed)
-                      ? 75
+                      ? 84
                       : 100
                 }
-                minSize={appMode === 'builder' && isCanvasOpen ? 30 : 50}
-                maxSize={appMode === 'builder' && isCanvasOpen ? 60 : 100}
+                minSize={((appMode === 'builder' && isCanvasOpen) || (glassCanvas && glassCanvas.state !== 'closed')) ? 30 : 50}
+                maxSize={((appMode === 'builder' && isCanvasOpen) || (glassCanvas && glassCanvas.state !== 'closed')) ? 60 : 100}
                 className="flex flex-col bg-transparent"
               >
                 {chatContent}
               </Panel>
 
               {/* Panel 2: Canvas (Orak Orek) - Replacing Workbench */}
-              {(appMode === 'builder' || appMode === 'canvas') && isCanvasOpen && (
+              {glassCanvas && glassCanvas.state !== 'closed' ? (
                 <>
                   <PanelResizeHandle className="w-1 bg-zinc-200 hover:w-2 hover:bg-purple-500/50 transition-all duration-200 cursor-col-resize z-50 relative group">
                     <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-0.5 bg-purple-500/0 group-hover:bg-purple-500 transition-colors" />
                   </PanelResizeHandle>
-                  <Panel defaultSize={65} minSize={50} className="flex flex-col bg-white overflow-hidden relative">
+                  <Panel
+                    id="glass-canvas-panel"
+                    order={3}
+                    defaultSize={60}
+                    minSize={40}
+                    className={cn("flex flex-col bg-white overflow-hidden relative", glassCanvas.state === 'fullscreen' && "fixed inset-4 z-[80] rounded-2xl shadow-2xl")}
+                  >
+                    <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3">
+                      <div>
+                        <div className="text-sm font-semibold text-zinc-900">{glassCanvas.title}</div>
+                        <div className="text-xs text-zinc-500">Canvas: {glassCanvas.type} • {activeWorkflow.label} • {activeGlassStyleConfig.label}</div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => navigator.clipboard?.writeText(glassCanvas.content || messages.filter(m => m.role === 'ai').slice(-1)[0]?.content || '')} className="rounded-lg border border-zinc-200 px-3 py-1 text-xs hover:bg-zinc-50">Copy</button>
+                        {glassCanvas.type === 'document' && (
+                          <button onClick={downloadGlassCanvasPdf} className="rounded-lg border border-zinc-200 px-3 py-1 text-xs hover:bg-zinc-50">Download PDF</button>
+                        )}
+                        <button onClick={() => setGlassCanvas(prev => prev ? { ...prev, state: prev.state === 'fullscreen' ? 'active' : 'fullscreen' } : prev)} className="rounded-lg border border-zinc-200 px-3 py-1 text-xs hover:bg-zinc-50">Fullscreen</button>
+                        <button onClick={() => setGlassCanvas(prev => prev ? { ...prev, state: 'closed' } : prev)} className="rounded-lg border border-zinc-200 px-3 py-1 text-xs hover:bg-zinc-50">Close</button>
+                      </div>
+                    </div>
+                    <div className="flex border-b border-zinc-100 px-4 py-2 text-xs text-zinc-500 gap-3">
+                      <span>Preview</span><span>Code</span><span>Structure</span><span>Notes</span><span>Save to Project</span>
+                    </div>
+                    <div className="flex-1 overflow-auto p-6">
+                      {(() => {
+                        if (glassCanvas.state === 'opening') {
+                          return (
+                            <div className="flex h-full min-h-[520px] items-center justify-center">
+                              <div className="flex flex-col items-center gap-5 text-center">
+                                <div className="relative h-24 w-24">
+                                  <div className="absolute inset-0 rounded-[28px] bg-zinc-50 shadow-inner" />
+                                  <div className="absolute inset-5 grid grid-cols-4 gap-1.5">
+                                    {Array.from({ length: 16 }).map((_, index) => (
+                                      <motion.span
+                                        key={index}
+                                        className="rounded-[3px] bg-zinc-900"
+                                        animate={{ opacity: [0.18, 1, 0.18], scale: [0.82, 1.12, 0.82] }}
+                                        transition={{ duration: 1.6, repeat: Infinity, delay: index * 0.055, ease: 'easeInOut' }}
+                                      />
+                                    ))}
+                                  </div>
+                                  <motion.div
+                                    className="absolute -right-1 -top-1 h-5 w-5 rounded-full bg-sky-400"
+                                    animate={{ y: [0, -4, 0], opacity: [0.7, 1, 0.7] }}
+                                    transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+                                  />
+                                </div>
+                                <div>
+                                  <div className="text-sm font-semibold text-zinc-900">Dreaming interface...</div>
+                                  <div className="mt-1 text-xs text-zinc-500">UseGlass is building code and preparing preview.</div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        }
+                        const raw = glassCanvas.content || messages.filter(m => m.role === 'ai').slice(-1)[0]?.content || '';
+                        const isHtml = /<\/?(html|body|div|table|h[1-6]|p|section|article|header|footer|main)\b/i.test(raw.trim());
+                        if (isHtml && raw.trim().length > 0) {
+                          return (
+                            <iframe
+                              key={glassCanvas.lastUpdated?.toString() || 'canvas-iframe'}
+                              srcDoc={raw}
+                              title="Canvas preview"
+                              sandbox="allow-same-origin"
+                              className="h-full w-full rounded-2xl border border-zinc-200 bg-white"
+                              style={{ minHeight: '600px' }}
+                            />
+                          );
+                        }
+                        return (
+                          <pre className="whitespace-pre-wrap rounded-2xl bg-zinc-50 p-4 text-sm text-zinc-800">
+                            {raw || 'Canvas ready. Main generated output will appear here.'}
+                          </pre>
+                        );
+                      })()}
+                    </div>
+                  </Panel>
+                </>
+              ) : (appMode === 'builder' || appMode === 'canvas') && isCanvasOpen && (
+                <>
+                  <PanelResizeHandle className="w-1 bg-zinc-200 hover:w-2 hover:bg-purple-500/50 transition-all duration-200 cursor-col-resize z-50 relative group">
+                    <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-0.5 bg-purple-500/0 group-hover:bg-purple-500 transition-colors" />
+                  </PanelResizeHandle>
+                  <Panel
+                    id="builder-canvas-panel"
+                    order={4}
+                    defaultSize={65}
+                    minSize={50}
+                    className="flex flex-col bg-white overflow-hidden relative"
+                  >
                     <CanvasBoard
                       onAnalyze={handleCanvasAnalysis}
                       isAnalyzing={isTyping}
@@ -5319,7 +5817,7 @@ const ChatInterface: React.FC = () => {
         onClose={() => setShowGitHubIntegration(false)}
         files={fileManager.getAllFiles()}
         framework={fileManager.exportAsProject().framework}
-        projectName={`noir-ai-${sessionId || Date.now()}`}
+        projectName={`useglass-ai-${sessionId || Date.now()}`}
       />
 
       {/* Version History Modal */}

@@ -7,7 +7,7 @@ const Studio: React.FC = () => {
             {/* Top Navigation Bar */}
             <nav className="fixed top-0 w-full z-50 bg-[#131313]/60 backdrop-blur-xl flex justify-between items-center px-12 py-6 shadow-[0_20px_40px_rgba(0,0,0,0.5)]">
                 <div className="text-2xl font-serif tracking-[0.2em] uppercase text-white">
-                    <Link to="/studio">NOIR VISION</Link>
+                    <Link to="/studio">USEGLASS VISION</Link>
                 </div>
                 <div className="hidden md:flex items-center gap-6 font-label text-[10px] tracking-[0.1em] uppercase">
                     <Link className="text-[#919191] hover:text-white transition-all duration-300" to="/redesign">Explore</Link>
@@ -44,7 +44,7 @@ const Studio: React.FC = () => {
             <section className="relative h-screen w-full flex items-center overflow-hidden">
                 <div className="absolute inset-0 z-0">
                     <img 
-                        alt="Noir Cinema Eye" 
+                        alt="UseGlass Cinema Eye" 
                         className="w-full h-full object-cover grayscale opacity-60 brightness-50" 
                         src="https://lh3.googleusercontent.com/aida-public/AB6AXuAS6AnFj2suOO8p9aOIeaXAcGu49Bi8VdcVkEfba1CXoOL2R8IrWb3wP10xqFvoP3PbEW3PBad54trSVhynVomzEwhA_Oy3kQm-ciDCLMd4f2sGHOGti8YQVJInTy8JGOII2XGJP22EkBRKK6NLaFrt7kU5wYtIlXvXgXXrHJO2a7kxwrPMbdOeuZ2VL0-YD83mYr_2B4jfYY_JTtxIf4lMZArjRUTCrjm-1cBQND0QbHLlIOKTKe4XfXFX6IMFU-f0pwwQVCMQ2RZh"
                     />
@@ -182,16 +182,16 @@ const Studio: React.FC = () => {
                     <p className="font-headline text-4xl md:text-6xl text-on-surface leading-tight italic">
                         "We do not create images; we capture the echoes of light that have escaped the void."
                     </p>
-                    <p className="font-label text-[12px] tracking-[0.4em] text-tertiary-fixed uppercase mt-12">— Noir Vision Manifesto</p>
+                    <p className="font-label text-[12px] tracking-[0.4em] text-tertiary-fixed uppercase mt-12">— UseGlass Vision Manifesto</p>
                 </div>
             </section>
 
             {/* Footer */}
             <footer className="bg-[#0e0e0e] w-full py-16 px-12 flex flex-col md:flex-row justify-between items-end gap-8">
                 <div className="w-full md:w-auto text-left">
-                    <div className="text-lg font-serif tracking-tighter text-white opacity-50 mb-4">NOIR VISION</div>
+                    <div className="text-lg font-serif tracking-tighter text-white opacity-50 mb-4">USEGLASS VISION</div>
                     <div className="font-mono text-[10px] tracking-widest uppercase text-[#919191]">
-                        © 2024 NOIR VISION. THE SHADOW & THE LIGHT.
+                        © 2024 USEGLASS VISION. THE SHADOW & THE LIGHT.
                     </div>
                 </div>
                 <div className="flex gap-12 font-mono text-[10px] tracking-widest uppercase text-[#474747]">

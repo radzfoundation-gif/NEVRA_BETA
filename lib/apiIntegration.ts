@@ -1,5 +1,5 @@
 /**
- * API Integration Wizard for NOIR AI Builder
+ * API Integration Wizard for UseGlass AI Builder
  * Connect to external APIs (REST, GraphQL) and auto-generate client code
  */
 

@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
     Plus, X, FileText, Camera, Image as ImageIcon,
     ArrowUp, Globe, Paperclip, ChevronDown, Mic,
-    Code2, Target, Sparkles, PenLine, BookOpen, AudioLines, Search, Square, Wrench, Check, Brain, Palette, Folder, Github, Plug, SquareTerminal, ChevronRight, Wand2, Play
+    Code2, Target, Sparkles, PenLine, BookOpen, AudioLines, Search, Square, Wrench, Check, Brain, Palette, Folder, Github, Plug, SquareTerminal, ChevronRight, Wand2, Play, MessageSquare, Bot, LayoutTemplate, AlertTriangle, Zap
 } from 'lucide-react';
 import { useSettings } from '@/hooks/useSettings';
 
@@ -30,18 +31,21 @@ import { useTokenLimit } from '@/hooks/useTokenLimit';
 import { FREE_TOKEN_LIMIT } from '@/lib/tokenLimit';
 import { ParsedDocument } from '@/lib/documentParser';
 import { AppMode } from '@/lib/modeDetector';
+import { BUILT_IN_GLASS_SKILLS, GLASS_CONNECTORS, WORKFLOW_MODES, GLASS_STYLES, WorkflowModeId, GlassStyleId } from '@/components/ResearchWelcome';
 import ModelSelector, { ModelType } from '@/components/ui/ModelSelector';
 import VoiceDictationModal from './VoiceDictationModal';
 import FileUploadButton from './FileUploadButton';
 import AlertModal from '@/components/ui/AlertModal';
-import ConnectorsModal from './ConnectorsModal';
 import { getSkills, UserSkill } from '@/lib/skillsApi';
 import { useUser } from '@/lib/authContext';
 import { getModelDisplayName } from '@/lib/ai';
+import type { GlassRoutingResult } from '@/lib/glassAutoRouter';
 
 function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs));
 }
+
+type GlassToolMode = 'chat' | 'search' | 'agents' | 'builder' | 'code' | 'omni' | 'documents';
 
 interface ChatInputProps {
     input: string;
@@ -93,6 +97,18 @@ interface ChatInputProps {
     // Style — controlled from parent
     activeStyle: string | null;
     onStyleChange: (style: string | null) => void;
+    activeToolMode?: GlassToolMode;
+    onToolModeChange?: (mode: GlassToolMode) => void;
+    activeSkillId?: string | null;
+    onSkillChange?: (skillId: string | null) => void;
+    activeConnectorId?: string | null;
+    onConnectorChange?: (connectorId: string | null) => void;
+    activeWorkflowMode?: WorkflowModeId;
+    onWorkflowModeChange?: (mode: WorkflowModeId) => void;
+    activeCanvasType?: 'web' | 'document' | 'code' | 'presentation' | 'general' | null;
+    routingResult?: GlassRoutingResult | null;
+    lowCredits?: boolean;
+    creditBalance?: number;
 }
 
 // Tool groups for the segmented + dropdown
@@ -107,7 +123,6 @@ const TOOL_GROUPS = [
     ],
     [
         { id: 'skills', label: 'Skills', icon: SquareTerminal, hasChevron: true },
-        { id: 'connectors', label: 'Add connectors', icon: Plug },
     ],
     [
         { id: 'web', label: 'Web search', icon: Globe },
@@ -130,7 +145,7 @@ const SHORT_MODEL_LABELS: Record<string, string> = {
     'sonnet': 'Fast Thinking',
     'opus': 'Pro',
     'haiku': 'Haiku',
-    'philos': 'Noir Philos',
+    'philos': 'Glass Philos',
 };
 
 const ChatInput: React.FC<ChatInputProps> = ({
@@ -175,14 +190,43 @@ const ChatInput: React.FC<ChatInputProps> = ({
     onToggleDeepResearch,
     activeStyle,
     onStyleChange,
+    activeToolMode = 'chat',
+    onToolModeChange,
+    activeSkillId = null,
+    onSkillChange,
+    activeConnectorId = null,
+    onConnectorChange,
+    activeWorkflowMode = 'think',
+    onWorkflowModeChange,
+    activeCanvasType = null,
+    routingResult = null,
+    lowCredits = false,
+    creditBalance = 0,
 }) => {
+
+    const toolModeConfig: Record<GlassToolMode, { label: string; icon: React.ElementType; placeholder: string; color: string }> = {
+        chat: { label: 'Glass Chat', icon: MessageSquare, placeholder: 'How can I help you today?', color: 'bg-zinc-950 text-white border-zinc-900' },
+        search: { label: 'Glass Search', icon: Search, placeholder: 'Ask a research question...', color: 'bg-blue-50 text-blue-700 border-blue-100' },
+        agents: { label: 'Glass Agents', icon: Bot, placeholder: 'Describe the agent task...', color: 'bg-violet-50 text-violet-700 border-violet-100' },
+        builder: { label: 'Glass Builder', icon: LayoutTemplate, placeholder: 'Describe the UI or page to build...', color: 'bg-cyan-50 text-cyan-700 border-cyan-100' },
+        code: { label: 'Glass Code', icon: Code2, placeholder: 'Paste code, error logs, or coding task...', color: 'bg-emerald-50 text-emerald-700 border-emerald-100' },
+        omni: { label: 'Glass Omni', icon: Sparkles, placeholder: 'Describe the full workflow you want...', color: 'bg-orange-50 text-orange-700 border-orange-100' },
+        documents: { label: 'Glass Documents', icon: FileText, placeholder: 'Ask about a document...', color: 'bg-amber-50 text-amber-700 border-amber-100' },
+    };
+    const activeTool = toolModeConfig[activeToolMode] || toolModeConfig.chat;
+    const ActiveToolIcon = activeTool.icon;
+    const activeSkill = BUILT_IN_GLASS_SKILLS.find(skill => skill.id === activeSkillId || skill.name === activeSkillId) || null;
+    const activeConnector = GLASS_CONNECTORS.find(connector => connector.id === activeConnectorId || connector.name === activeConnectorId) || null;
+    const activeWorkflow = WORKFLOW_MODES.find(workflow => workflow.id === activeWorkflowMode) || WORKFLOW_MODES[0];
+    const activeGlassStyleConfig = GLASS_STYLES.find(style => style.id === activeStyle) || GLASS_STYLES[0];
+
     const { credits } = useTokenLimit();
     const { settings, isLoaded: settingsLoaded } = useSettings();
     const navigate = useNavigate();
     const { user } = useUser();
     const [showDictation, setShowDictation] = useState(false);
     const [showToolsMenu, setShowToolsMenu] = useState(false);
-    const [showConnectors, setShowConnectors] = useState(false);
+    const [autoPilot, setAutoPilot] = useState(true);
     const [showStyleSubmenu, setShowStyleSubmenu] = useState(false);
     const [showSkillSubmenu, setShowSkillSubmenu] = useState(false);
     const [showVisualSubmenu, setShowVisualSubmenu] = useState<'image' | 'video' | null>(null);
@@ -215,7 +259,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
         type: 'development'
     });
 
-    // NoirSync handles model routing automatically - no manual deep dive model check needed
+    // GlassSync handles model routing automatically - no manual deep dive model check needed
     const isDeepDiveModel = false;
 
     // Close tools menu on click outside
@@ -246,7 +290,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
         switch (toolId) {
             case 'upload_file':
                 setShowToolsMenu(false);
-                combinedInputRef.current?.click();
+                fileInputRef.current?.click();
                 break;
             case 'camera':
                 setShowToolsMenu(false);
@@ -264,15 +308,11 @@ const ChatInput: React.FC<ChatInputProps> = ({
                 break;
             case 'project':
                 setShowToolsMenu(false);
-                setAlertConfig({ isOpen: true, title: 'Projects', message: 'Noir Workspace akan segera hadir! Nantikan fitur kolaborasi proyek yang lebih canggih.', type: 'development' });
+                setAlertConfig({ isOpen: true, title: 'Projects', message: 'UseGlass Workspace akan segera hadir! Nantikan fitur kolaborasi proyek yang lebih canggih.', type: 'development' });
                 break;
             case 'github':
                 setShowToolsMenu(false);
-                setAlertConfig({ isOpen: true, title: 'GitHub Integration', message: 'Hubungkan repositori GitHub Anda langsung ke Noir untuk analisis kode yang lebih mendalam.', type: 'development' });
-                break;
-            case 'connectors':
-                setShowToolsMenu(false);
-                setShowConnectors(true);
+                setAlertConfig({ isOpen: true, title: 'GitHub Integration', message: 'Hubungkan repositori GitHub Anda langsung ke UseGlass untuk analisis kode yang lebih mendalam.', type: 'development' });
                 break;
             case 'skills':
                 setShowSkillSubmenu(prev => !prev);
@@ -328,7 +368,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
                 ref={fileInputRef}
                 className="hidden"
                 multiple
-                accept="image/*"
+                accept="image/*,.pdf,.docx,.txt,.md,.csv,.doc,.zip"
                 onChange={handleFileChange}
             />
             <input
@@ -453,31 +493,65 @@ const ChatInput: React.FC<ChatInputProps> = ({
 
     const modelDisplayName = SHORT_MODEL_LABELS[selectedModel] ?? getModelDisplayName(selectedModel);
 
+    const improvePrompt = () => {
+        const raw = input.trim();
+        if (!raw) {
+            setAlertConfig({
+                isOpen: true,
+                title: 'Improve Prompt',
+                message: 'Write a rough prompt first, then UseGlass AI can reshape it into a clearer request.',
+                type: 'info'
+            });
+            return;
+        }
+
+        const enhanced = [
+            'Goal:',
+            raw,
+            '',
+            'Context:',
+            '- I want a clear, useful response tailored to the task.',
+            '',
+            'Desired output:',
+            '- Provide the best answer with structure, examples, and next steps when helpful.',
+            '',
+            'Constraints:',
+            '- Be accurate, concise, and avoid unnecessary filler.',
+            '',
+            'Format:',
+            '- Use headings, bullets, tables, or code blocks when they improve clarity.'
+        ].join('\n');
+
+        setInput(enhanced);
+        window.setTimeout(() => textareaRef.current?.focus(), 0);
+    };
+
     return (
         <div className="absolute bottom-0 left-0 right-0 p-4 pb-safe md:pb-4 bg-transparent z-20">
             {renderHiddenInputs()}
 
-            <div className="max-w-2xl mx-auto w-full px-4 md:px-0">
+            <div className="mx-auto w-full max-w-3xl px-3 md:px-0">
                 {/* Main Input Container — Claude-style */}
                 <div className={cn(
-                    "w-full bg-white rounded-2xl flex flex-col transition-all duration-200 relative border",
+                    "w-full bg-[#f4f4f3] flex flex-col transition-all duration-200 relative",
+                    attachedImages.length > 0 || attachedFiles.length > 0 || input.length > 80 || input.includes('\n') ? "rounded-[28px]" : "rounded-[999px]",
                     isFocused
-                        ? "shadow-[0_8px_40px_-8px_rgba(0,0,0,0.12)] border-stone-300"
-                        : "shadow-[0_2px_12px_-2px_rgba(0,0,0,0.08)] border-stone-200"
+                        ? "shadow-[0_10px_30px_-22px_rgba(20,20,19,0.55)] ring-1 ring-stone-200/70"
+                        : "shadow-[0_4px_18px_-16px_rgba(20,20,19,0.35)] ring-1 ring-transparent"
                 )}>
 
                     {/* Attached Images Preview */}
                     {attachedImages.length > 0 && (
-                        <div className="w-full px-4 pt-3">
-                            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
+                        <div className="w-full px-3 pt-3">
+                            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none">
                                 {attachedImages.map((img, idx) => (
-                                    <div key={idx} className="relative group shrink-0">
-                                        <img src={img} alt="Preview" className="w-16 h-16 object-cover rounded-xl border border-black/5" />
+                                    <div key={idx} className="relative group shrink-0 rounded-xl border border-zinc-200 bg-white p-1 shadow-sm">
+                                        <img src={img} alt="Preview" className="h-28 w-28 object-cover rounded-lg" />
                                         <button
                                             onClick={() => removeImage(idx)}
-                                            className="absolute -top-1.5 -right-1.5 bg-zinc-900 text-white rounded-full p-1 shadow-md hover:bg-zinc-700 transition-all z-10"
+                                            className="absolute -right-2 -top-2 z-10 rounded-full bg-zinc-950 p-1.5 text-white shadow-md transition-all hover:bg-zinc-700"
                                         >
-                                            <X size={10} strokeWidth={2.5} />
+                                            <X size={12} strokeWidth={2.5} />
                                         </button>
                                     </div>
                                 ))}
@@ -506,8 +580,74 @@ const ChatInput: React.FC<ChatInputProps> = ({
                     )}
 
                     {/* Active Mode Badges */}
-                    {(enableWebSearch || !!activeStyle) && (
-                        <div className="px-4 pt-2 flex gap-2 flex-wrap">
+                    {false && (routingResult || activeToolMode !== 'chat' || activeWorkflowMode !== 'think' || activeStyle !== 'normal' || !!activeSkill || !!activeConnector || !!activeCanvasType || enableWebSearch || settings.planningBeforeAnswer || settings.defaultTone !== 'professional') && (
+                        <div className="flex max-w-full flex-nowrap gap-2 overflow-x-auto px-4 pt-2 scrollbar-none">
+                            {activeToolMode !== 'chat' && <button
+                                type="button"
+                                onClick={() => onToolModeChange?.('chat')}
+                                className={cn("inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold transition", activeTool.color)}
+                                title="Reset to Glass Chat"
+                            >
+                                <ActiveToolIcon size={12} />
+                                {activeTool.label}
+                                {activeToolMode !== 'chat' && <X size={12} />}
+                            </button>}
+                            {activeWorkflowMode !== 'think' && <button
+                                type="button"
+                                onClick={() => onWorkflowModeChange?.('think')}
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-sky-100 bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700 transition hover:bg-sky-100"
+                                title={activeWorkflow.flow}
+                            >
+                                <Brain size={12} />
+                                {activeWorkflow.label}
+                                {activeWorkflowMode !== 'think' && <X size={12} />}
+                            </button>}
+                            {activeStyle !== 'normal' && <button
+                                onClick={() => onStyleChange('normal')}
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-orange-100 bg-orange-50 px-2.5 py-1 text-xs font-medium text-orange-700 transition hover:bg-orange-100"
+                            >
+                                <Wand2 size={12} />
+                                {activeGlassStyleConfig.label}
+                                {activeStyle !== 'normal' && <X size={12} />}
+                            </button>}
+                            {activeCanvasType && (
+                                <span className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-100 bg-cyan-50 px-2.5 py-1 text-xs font-medium text-cyan-700">
+                                    <LayoutTemplate size={12} />Canvas: {activeCanvasType}
+                                </span>
+                            )}
+                            {activeSkill && (
+                                <button
+                                    type="button"
+                                    onClick={() => onSkillChange?.(null)}
+                                    className="inline-flex items-center gap-1.5 rounded-lg border border-violet-100 bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700 transition hover:bg-violet-100"
+                                >
+                                    <SquareTerminal size={12} />
+                                    Skill: {activeSkill.name}
+                                    <X size={12} />
+                                </button>
+                            )}
+                            {activeConnector && (
+                                <button
+                                    type="button"
+                                    onClick={() => onConnectorChange?.(null)}
+                                    className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 transition hover:bg-emerald-100"
+                                >
+                                    {React.createElement(activeConnector.icon, { size: 12 })}
+                                    Connector: {activeConnector.name}
+                                    <X size={12} />
+                                </button>
+                            )}
+                            {settings.planningBeforeAnswer && (
+                                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-sky-50 text-sky-700 rounded-lg text-xs font-medium">
+                                    <Brain size={12} />
+                                    Glass Thinking
+                                </div>
+                            )}
+                            {settings.defaultTone !== 'professional' && (
+                                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-zinc-50 text-zinc-600 rounded-lg text-xs font-medium">
+                                    Tone: {settings.defaultTone}
+                                </div>
+                            )}
                             {enableWebSearch && (
                                 <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 text-blue-600 rounded-lg text-xs font-medium">
                                     <Globe size={12} />
@@ -517,59 +657,58 @@ const ChatInput: React.FC<ChatInputProps> = ({
                                     </button>
                                 </div>
                             )}
-                            {activeStyle && (
-                                <button
-                                    onClick={() => onStyleChange(null)}
-                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-orange-50 text-orange-600 rounded-lg text-xs font-medium hover:bg-orange-100 transition-colors"
-                                >
-                                    <Wand2 size={12} />
-                                    Style: {WRITING_STYLES.find(s => s.id === activeStyle)?.label}
-                                    <X size={12} className="ml-1" />
-                                </button>
-                            )}
                         </div>
                     )}
 
                     {/* Textarea */}
-                    <div className="flex-1 min-w-0 py-3 px-4">
+                    <div className={cn(
+                        attachedImages.length > 0 || attachedFiles.length > 0 || input.length > 80 || input.includes('\n')
+                            ? "min-w-0 px-5 pt-4 pb-1 sm:px-6 sm:pt-4 sm:pb-1"
+                            : "flex h-[58px] min-w-0 items-center pl-14 pr-32 sm:pl-16 sm:pr-44"
+                    )}>
                         <textarea
                             ref={textareaRef}
                             value={input}
                             onChange={(e) => {
                                 setInput(e.target.value);
                                 e.target.style.height = 'auto';
-                                e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
+                                e.target.style.height = `${Math.min(e.target.scrollHeight, 96)}px`;
                             }}
                             onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSend(isDeepDiveModel && withReasoning))}
                             onFocus={(e) => {
                                 setIsFocused(true);
                                 if (input) {
                                     e.target.style.height = 'auto';
-                                    e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
+                                    e.target.style.height = `${Math.min(e.target.scrollHeight, 96)}px`;
                                 }
                             }}
                             onBlur={() => setIsFocused(false)}
-                            placeholder={isTyping ? "AI is processing..." : "How can I help you today?"}
+                            placeholder={isTyping ? "AI is processing..." : "What do you want to know?"}
                             disabled={isTyping}
                             className={cn(
-                                "w-full bg-transparent border-0 text-gray-800 placeholder-stone-400 focus:outline-none resize-none max-h-[200px] text-base leading-relaxed font-normal scrollbar-none",
+                                "block h-[22px] max-h-24 min-h-[22px] w-full resize-none overflow-y-auto border-0 bg-transparent py-0 text-base font-medium leading-[22px] text-gray-800 placeholder-stone-500 focus:outline-none scrollbar-none break-words",
                                 isTyping && "opacity-60 cursor-not-allowed"
                             )}
-                            style={{ height: '28px', minHeight: '28px' }}
+                            style={{ height: '22px', minHeight: '22px' }}
                         />
                     </div>
 
                     {/* Bottom Bar — Claude Layout */}
-                    <div className="w-full flex items-center justify-between px-3 pb-3 gap-2">
+                    <div className={cn(
+                        "pointer-events-none flex items-center justify-between gap-2 px-4",
+                        attachedImages.length > 0 || attachedFiles.length > 0 || input.length > 80 || input.includes('\n')
+                            ? "pb-3 pt-1"
+                            : "absolute inset-x-0 bottom-1/2 translate-y-1/2"
+                    )}>
                         {/* Left: + Button with Dropdown */}
-                        <div className="flex items-center gap-1 relative" ref={toolsMenuRef}>
+                        <div className="pointer-events-auto flex items-center gap-1 relative" ref={toolsMenuRef}>
                             <button
                                 onClick={() => setShowToolsMenu(!showToolsMenu)}
                                 className={cn(
-                                    "w-8 h-8 flex items-center justify-center rounded-lg transition-all",
+                                    "w-8 h-8 flex items-center justify-center rounded-full transition-all",
                                     isTyping ? "opacity-30 cursor-not-allowed" : showToolsMenu
-                                        ? "bg-stone-200 text-stone-700"
-                                        : "text-stone-400 hover:text-stone-600 hover:bg-stone-100"
+                                        ? "bg-white text-stone-800 shadow-sm"
+                                        : "text-stone-500 hover:text-stone-900 hover:bg-white/80"
                                 )}
                                 disabled={isTyping}
                                 title="Attach menu"
@@ -577,13 +716,40 @@ const ChatInput: React.FC<ChatInputProps> = ({
                                 <Plus size={20} strokeWidth={1.8} />
                             </button>
 
+                            {false && (
+                            <button
+                                onClick={improvePrompt}
+                                disabled={isTyping}
+                                className="flex h-8 items-center gap-1.5 rounded-lg px-2 text-xs font-medium text-stone-500 transition-colors hover:bg-stone-100 hover:text-stone-700 disabled:opacity-30"
+                                title="Improve Prompt"
+                            >
+                                <Wand2 size={15} strokeWidth={1.8} />
+                                <span className="hidden sm:inline">Improve Prompt</span>
+                            </button>
+                            )}
+
 
 
                             {/* Tools Dropdown */}
                             {showToolsMenu && (
-                                <div className="absolute bottom-full left-0 md:left-0 mb-2 flex flex-col md:flex-row items-start md:items-end gap-1 z-50">
+                                <div className="absolute bottom-full left-0 mb-3 flex flex-col md:flex-row items-start gap-1 z-50">
                                     {/* Main menu */}
-                                    <div className="w-[85vw] max-w-[224px] sm:w-56 bg-white border border-stone-200 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-150 py-1.5">
+                                    <div className="w-[85vw] max-w-[224px] sm:w-56 bg-white/95 backdrop-blur-xl border border-stone-200 rounded-2xl shadow-[0_12px_40px_rgba(0,0,0,0.12)] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-150 py-1.5">
+                                        <button type="button" onClick={() => setAutoPilot((value) => !value)} className="mx-1.5 mb-1 flex w-[calc(100%-12px)] items-center justify-between rounded-xl px-3 py-2 text-left text-[13px] text-stone-700 transition-colors hover:bg-stone-50">
+                                            <span>Auto Pilot</span>
+                                            <span className={cn("relative h-4 w-7 rounded-full transition-colors duration-300", autoPilot ? "bg-blue-500" : "bg-stone-200")}>
+                                                <span className={cn("absolute left-0.5 top-0.5 h-3 w-3 rounded-full bg-white shadow-sm transition-transform duration-300", autoPilot && "translate-x-3")} />
+                                            </span>
+                                        </button>
+                                        {lowCredits && (
+                                            <div className="mx-1.5 mb-1 flex w-[calc(100%-12px)] items-center gap-2 rounded-xl px-3 py-2 text-[12px] text-stone-500">
+                                                <AlertTriangle size={14} /> {creditBalance} credits left
+                                            </div>
+                                        )}
+                                        <button type="button" onClick={improvePrompt} disabled={isTyping} className="mx-1.5 mb-1 flex w-[calc(100%-12px)] items-center gap-2 rounded-xl px-3 py-2 text-left text-[13px] text-stone-700 transition-colors hover:bg-stone-50 disabled:opacity-30">
+                                            <Wand2 size={14} strokeWidth={1.8} /> Improve Prompt
+                                        </button>
+                                        <div className="mx-3 mb-1 h-px bg-stone-100" />
                                         {TOOL_GROUPS.map((group, groupIdx) => (
                                             <React.Fragment key={groupIdx}>
                                                 <div className="flex flex-col">
@@ -723,7 +889,12 @@ const ChatInput: React.FC<ChatInputProps> = ({
                         </div>
 
                         {/* Right: Model Selector + Voice + Send */}
-                        <div className="flex items-center gap-1.5">
+                        <div className="pointer-events-auto flex items-center gap-1.5">
+                            {false && lowCredits && (
+                                <span className="hidden h-8 items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-2 text-xs font-medium text-stone-500 sm:inline-flex" title={`${creditBalance} credits left`}>
+                                    <AlertTriangle size={14} /> Low
+                                </span>
+                            )}
                             {/* Model Name Button (Claude style: "Sonnet 4.6 ∨") */}
                             <ModelSelector
                                 selectedModel={selectedModel}
@@ -738,28 +909,53 @@ const ChatInput: React.FC<ChatInputProps> = ({
                                 comparisonMode={comparisonMode}
                                 onComparisonModeToggle={onComparisonModeToggle}
                             >
-                                <button className="flex items-center gap-1 px-2 py-1.5 text-stone-400 hover:text-stone-600 transition-colors text-sm font-medium">
-                                    <span className="hidden sm:inline">{modelDisplayName}</span>
-                                    <span className="sm:hidden text-xs">AI</span>
-                                    <ChevronDown size={14} strokeWidth={2} />
+                                <button className="flex items-center gap-1 px-2 py-1.5 text-stone-500 hover:text-stone-800 transition-colors text-[13px] font-semibold">
+                                    {input.trim() ? (
+                                        <Zap size={16} className="text-zinc-950" fill="currentColor" strokeWidth={2.2} />
+                                    ) : (
+                                        <>
+                                            <span className="hidden sm:inline">{modelDisplayName}</span>
+                                            <span className="sm:hidden text-xs">AI</span>
+                                            <ChevronDown size={14} strokeWidth={2} />
+                                        </>
+                                    )}
                                 </button>
                             </ModelSelector>
 
-                            {/* Voice Button */}
-                            <button
-                                onClick={() => setShowDictation(true)}
-                                disabled={isTyping}
+                            {/* Voice / Send Button */}
+                            <motion.button
+                                onClick={() => {
+                                    if (isTyping) handleStop?.();
+                                    else if (input.trim() || attachedImages.length > 0 || attachedFiles.length > 0) handleSend(isDeepDiveModel && withReasoning);
+                                    else setShowDictation(true);
+                                }}
+                                disabled={!isTyping && !input.trim() && attachedImages.length === 0 && attachedFiles.length === 0 ? false : false}
+                                whileTap={{ scale: 0.92 }}
                                 className={cn(
-                                    "w-8 h-8 flex items-center justify-center text-stone-400 hover:text-stone-600 rounded-lg transition-colors hover:bg-stone-100",
-                                    isTyping && "opacity-30 cursor-not-allowed"
+                                    "w-9 h-9 flex items-center justify-center rounded-full bg-zinc-950 text-white shadow-sm transition-colors hover:bg-zinc-800",
+                                    isTyping && "hover:bg-red-600"
                                 )}
-                                title="Voice Input"
+                                title={isTyping ? "Stop generating" : input.trim() || attachedImages.length > 0 || attachedFiles.length > 0 ? "Send message" : "Voice Input"}
                             >
-                                <AudioLines size={18} strokeWidth={1.8} />
-                            </button>
+                                <AnimatePresence mode="wait" initial={false}>
+                                    {isTyping ? (
+                                        <motion.span key="stop" initial={{ opacity: 0, scale: 0.65, rotate: -45 }} animate={{ opacity: 1, scale: 1, rotate: 0 }} exit={{ opacity: 0, scale: 0.65, rotate: 45 }} transition={{ type: 'spring', stiffness: 420, damping: 24 }}>
+                                            <Square size={14} fill="currentColor" strokeWidth={0} />
+                                        </motion.span>
+                                    ) : input.trim() || attachedImages.length > 0 || attachedFiles.length > 0 ? (
+                                        <motion.span key="send" initial={{ opacity: 0, scale: 0.65, rotate: -45 }} animate={{ opacity: 1, scale: 1, rotate: 0 }} exit={{ opacity: 0, scale: 0.65, rotate: 45 }} transition={{ type: 'spring', stiffness: 420, damping: 24 }}>
+                                            <ArrowUp size={18} strokeWidth={2.5} />
+                                        </motion.span>
+                                    ) : (
+                                        <motion.span key="voice" initial={{ opacity: 0, scale: 0.65, rotate: 45 }} animate={{ opacity: 1, scale: 1, rotate: 0 }} exit={{ opacity: 0, scale: 0.65, rotate: -45 }} transition={{ type: 'spring', stiffness: 420, damping: 24 }}>
+                                            <AudioLines size={18} strokeWidth={1.8} />
+                                        </motion.span>
+                                    )}
+                                </AnimatePresence>
+                            </motion.button>
 
                             {/* Send / Stop Button */}
-                            <button
+                            {false && <button
                                 onClick={() => isTyping ? handleStop?.() : handleSend(isDeepDiveModel && withReasoning)}
                                 disabled={!isTyping && (!input.trim() && attachedImages.length === 0 && attachedFiles.length === 0)}
                                 className={cn(
@@ -777,7 +973,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
                                 ) : (
                                     <ArrowUp size={18} strokeWidth={2.5} />
                                 )}
-                            </button>
+                            </button>}
                         </div>
                     </div>
                 </div>
@@ -803,7 +999,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
 
                 {/* Footer Disclaimer */}
                 <div className="text-center mt-2">
-                    <p className="text-[11px] text-stone-400">Noir is AI and can make mistakes. Please double-check responses.</p>
+                    <p className="text-[11px] text-stone-400">UseGlass is AI and can make mistakes. Please double-check responses.</p>
                 </div>
             </div>
 
@@ -815,10 +1011,6 @@ const ChatInput: React.FC<ChatInputProps> = ({
                 }}
             />
 
-            <ConnectorsModal
-                isOpen={showConnectors}
-                onClose={() => setShowConnectors(false)}
-            />
 
             <AlertModal
                 isOpen={alertConfig.isOpen}
@@ -833,3 +1025,5 @@ const ChatInput: React.FC<ChatInputProps> = ({
 };
 
 export default ChatInput;
+
+

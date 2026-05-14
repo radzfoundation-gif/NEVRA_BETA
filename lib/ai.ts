@@ -45,7 +45,7 @@ export const MODEL_DISPLAY_NAMES: Record<AIProvider, string> = {
   'anthropic': 'Claude Sonnet',
   'gemini': 'Gemini Pro',
   'qwen-free': 'Qwen 3.6 Plus',
-  'philos': 'Noir Philos',
+  'philos': 'Glass Philos',
   'nemotron-free': 'Nemotron 3 Super 120B',
   'nemotron-nano-free': 'Nemotron 3 Nano 30B',
   'minimax-free': 'MiniMax M2.5',
@@ -90,7 +90,7 @@ export const isProOnlyModel = (provider: AIProvider): boolean => {
 
 // --- ENHANCED SYSTEM PROMPTS (Bolt.new / v0.app Level) ---
 export const BUILDER_PROMPT = `
-You are NOIR BUILDER, an elite Frontend Engineer/UX Architect. Your mission is to generate production-ready web applications.
+You are GLASS BUILDER, an elite Frontend Engineer/UX Architect. Your mission is to generate production-ready web applications.
 `;
 
 /**
@@ -118,14 +118,98 @@ export interface CodeResponse {
 
 export async function generateCode(
   prompt: string,
-  provider: AIProvider,
+  historyOrProvider: any = [],
+  modeOrUserId: any = 'builder',
+  providerOrImages: any = 'groq',
+  imagesArg: string[] = [],
+  framework: Framework | string = 'react',
+  _workflowOptions?: any,
+  _onChunk?: (chunk: string) => void,
+  sessionId?: string,
   userId?: string,
-  images: string[] = []
+  userName?: string,
+  userEmail?: string,
+  tier?: 'free' | 'pro',
+  deepDive?: boolean,
+  selectedModel?: string,
+  signal?: AbortSignal
 ): Promise<CodeResponse> {
-  // Logic to include active skills prompt would go here in the actual implementation
-  // For now, returning a mock response structure
+  const legacyCall = !Array.isArray(historyOrProvider);
+  const history = legacyCall ? [] : historyOrProvider;
+  const mode = legacyCall ? 'builder' : (modeOrUserId || 'builder');
+  const provider = legacyCall ? historyOrProvider : (providerOrImages || 'groq');
+  const images = legacyCall ? (providerOrImages || []) : (imagesArg || []);
+  const effectiveUserId = legacyCall ? modeOrUserId : userId;
+
+  const systemPrompt = mode === 'builder'
+    ? `${BUILDER_PROMPT}
+
+You are Glass Builder inside UseGlass AI. Generate production-ready UI/code, prefer clean white glassmorphism, responsive layouts, accessible controls, and concise implementation notes when returning code.`
+    : `You are UseGlass AI, an intelligent glass workspace assistant.
+
+Modes supported: fast answer, Glass Thinking, creative writing, coding assistant, academic research, document understanding, and lightweight answers.
+Use Markdown, code blocks, tables, math, and citations when helpful. Keep answers clear, structured, and useful.`;
+
+  const response = await fetch('/api/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    signal,
+    body: JSON.stringify({
+      prompt,
+      history,
+      mode,
+      provider,
+      images,
+      framework,
+      systemPrompt,
+      sessionId,
+      userId: effectiveUserId,
+      userName,
+      userEmail,
+      tier,
+      deepDive,
+      model: selectedModel,
+      glassMode: mode,
+      planningEnabled: deepDive,
+    }),
+  });
+
+  const contentType = response.headers.get('content-type') || '';
+  const data = contentType.includes('application/json')
+    ? await response.json().catch(() => ({}))
+    : { error: await response.text().catch(() => response.statusText) };
+
+  if (!response.ok) {
+    const setupHint = data?.setup?.required ? ` Required env: ${data.setup.required.join(', ')}.` : '';
+    throw new Error(data?.message || data?.error || `${response.status} ${response.statusText}${setupHint}`);
+  }
+
+  const content = data?.content ?? '';
+
+  if (typeof content === 'object' && content?.type) {
+    return content as CodeResponse;
+  }
+
+  if (typeof content === 'string') {
+    const trimmed = content.trim();
+    if (trimmed.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (parsed?.type) return parsed as CodeResponse;
+      } catch {
+        // Use raw content below.
+      }
+    }
+    return {
+      type: 'single-file',
+      content,
+      framework: String(framework || 'react'),
+    };
+  }
+
   return {
     type: 'single-file',
-    content: `Code generated with ${provider} for prompt: ${prompt}`
+    content: '',
+    framework: String(framework || 'react'),
   };
 }

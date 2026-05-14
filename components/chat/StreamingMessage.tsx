@@ -1,6 +1,6 @@
 /**
  * StreamingMessage.tsx
- * Real-time streaming AI response component for Noir AI Chat
+ * Real-time streaming AI response component for UseGlass AI Chat
  * 
  * Features:
  * - Skeleton shimmer while waiting

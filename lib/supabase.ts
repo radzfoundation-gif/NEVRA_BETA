@@ -1,36 +1,52 @@
-import { createClient } from '@supabase/supabase-js';
+﻿// Turso-only compatibility module.
+// Supabase client creation was removed so the app no longer requires VITE_SUPABASE_URL.
 
-// Get Supabase configuration from environment
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || import.meta.env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-// Validate configuration
-if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    
-    
-}
-
-// Create Supabase client
-export const supabase = createClient(
-    SUPABASE_URL || '',
-    SUPABASE_ANON_KEY || ''
-);
-
-/**
- * Set the Supabase Auth session using a custom token (e.g. from Clerk)
- */
-export const setSupabaseToken = async (token: string) => {
-    if (token) {
-        await supabase.auth.setSession({
-            access_token: token,
-            refresh_token: '', // Clerk tokens don't come with a refresh token for Supabase
-        });
-    }
+const unsupported = (feature: string) => {
+    throw new Error(`${feature} is disabled. Use Turso API routes instead.`);
 };
 
-// =====================================================
-// TypeScript Interfaces
-// =====================================================
+const emptyQuery: any = {
+    select: () => emptyQuery,
+    insert: () => emptyQuery,
+    update: () => emptyQuery,
+    delete: () => emptyQuery,
+    upsert: () => emptyQuery,
+    eq: () => emptyQuery,
+    neq: () => emptyQuery,
+    gte: () => emptyQuery,
+    order: () => emptyQuery,
+    limit: () => emptyQuery,
+    single: async () => ({ data: null, error: null }),
+    maybeSingle: async () => ({ data: null, error: null }),
+    then: (resolve: any) => Promise.resolve(resolve({ data: [], error: null })),
+};
+
+const channel = {
+    on: () => channel,
+    subscribe: () => channel,
+    unsubscribe: () => undefined,
+};
+
+export const supabase: any = {
+    from: () => emptyQuery,
+    rpc: async () => ({ data: null, error: null }),
+    channel: () => channel,
+    removeChannel: () => undefined,
+    functions: { invoke: async () => ({ data: null, error: new Error('Supabase functions disabled') }) },
+    auth: {
+        getSession: async () => ({ data: { session: null }, error: null }),
+        onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => undefined } } }),
+        signInWithPassword: async () => ({ data: null, error: null }),
+        signUp: async () => ({ data: null, error: null }),
+        signOut: async () => ({ error: null }),
+        signInWithOAuth: async () => ({ data: null, error: null }),
+        resetPasswordForEmail: async () => ({ data: null, error: null }),
+        updateUser: async () => ({ data: { user: null }, error: null }),
+        setSession: async () => ({ data: null, error: null }),
+    },
+};
+
+export const setSupabaseToken = async (_token: string) => undefined;
 
 export interface User {
     id: string;
@@ -108,10 +124,6 @@ export interface TierLimits {
     allowed_models: string[];
 }
 
-// =====================================================
-// Tier Constants
-// =====================================================
-
 export const TIER_LIMITS = {
     free: {
         monthlyTokens: 150,
@@ -126,11 +138,11 @@ export const TIER_LIMITS = {
         ] as string[],
     },
     pro: {
-        monthlyTokens: -1, // Unlimited
-        monthlyCanvasAnalyzes: -1, // Unlimited
-        chatHistoryDays: -1, // Unlimited
-        allowedModels: ['groq', 'openai', 'anthropic', 'gemini']
-    }
+        monthlyTokens: -1,
+        monthlyCanvasAnalyzes: -1,
+        chatHistoryDays: -1,
+        allowedModels: ['groq', 'openai', 'anthropic', 'gemini'],
+    },
 };
 
 export default supabase;

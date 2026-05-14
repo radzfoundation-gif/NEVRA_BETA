@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X, Moon, Sun, Monitor, Check, CreditCard, Zap, Layout, Database, Github, Figma, Cloud, Book, Beaker, Link, Sparkles, Brain } from 'lucide-react';
 import { useTokenLimit } from '@/hooks/useTokenLimit';
-import { useSettings } from '@/hooks/useSettings';
+import { Settings, useSettings } from '@/hooks/useSettings';
 import McpSettings from './McpSettings';
 
 interface SettingsModalProps {
@@ -95,13 +95,70 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, isSubscr
                                                 </div>
                                                 <select 
                                                     value={settings.theme}
-                                                    onChange={(e) => updateSetting('theme', e.target.value as SettingsValues['theme'])}
+                                                    onChange={(e) => updateSetting('theme', e.target.value as Settings['theme'])}
                                                     className="bg-white border border-zinc-200 text-zinc-900 text-sm rounded-lg px-3 py-2 pr-8 focus:outline-none focus:border-purple-500 appearance-none min-w-[120px]"
                                                 >
                                                     <option value="light">Light</option>
                                                     <option value="dark">Dark</option>
                                                     <option value="system">System</option>
                                                 </select>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div>
+                                                    <div className="text-zinc-900 font-medium mb-1">Default AI mode</div>
+                                                    <select
+                                                        value={settings.defaultAIMode}
+                                                        onChange={(e) => updateSetting('defaultAIMode', e.target.value as Settings['defaultAIMode'])}
+                                                        className="w-full bg-white border border-zinc-200 text-zinc-900 text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
+                                                    >
+                                                        <option value="fast">Fast answer</option>
+                                                        <option value="reasoning">Glass Thinking</option>
+                                                        <option value="creative">Creative writing</option>
+                                                        <option value="coding">Coding assistant</option>
+                                                        <option value="academic">Academic research</option>
+                                                        <option value="document">Document understanding</option>
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <div className="text-zinc-900 font-medium mb-1">Default tone</div>
+                                                    <select
+                                                        value={settings.defaultTone}
+                                                        onChange={(e) => updateSetting('defaultTone', e.target.value as Settings['defaultTone'])}
+                                                        className="w-full bg-white border border-zinc-200 text-zinc-900 text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
+                                                    >
+                                                        <option value="professional">Professional</option>
+                                                        <option value="friendly">Friendly</option>
+                                                        <option value="direct">Direct</option>
+                                                        <option value="creative">Creative</option>
+                                                        <option value="funny">Funny</option>
+                                                        <option value="critical">Critical reviewer</option>
+                                                        <option value="tutor">Tutor mode</option>
+                                                        <option value="ceo">CEO advisor</option>
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <div className="text-zinc-900 font-medium mb-1">Response length</div>
+                                                    <select
+                                                        value={settings.defaultResponseLength}
+                                                        onChange={(e) => updateSetting('defaultResponseLength', e.target.value as Settings['defaultResponseLength'])}
+                                                        className="w-full bg-white border border-zinc-200 text-zinc-900 text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
+                                                    >
+                                                        <option value="short">Short</option>
+                                                        <option value="balanced">Balanced</option>
+                                                        <option value="detailed">Detailed</option>
+                                                    </select>
+                                                </div>
+                                                <div className="flex items-center justify-between rounded-xl border border-zinc-200 px-4 py-3">
+                                                    <div>
+                                                        <div className="text-zinc-900 font-medium mb-1">Glass Thinking Mode</div>
+                                                        <div className="text-sm text-zinc-500">Plan briefly before complex answers.</div>
+                                                    </div>
+                                                    <ToggleSwitch
+                                                        checked={settings.planningBeforeAnswer}
+                                                        onChange={(v) => updateSetting('planningBeforeAnswer', v)}
+                                                    />
+                                                </div>
                                             </div>
 
                                             <div className="flex items-center justify-between">
@@ -171,14 +228,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, isSubscr
                             {/* Subscription & Tokens Tab */}
                             {activeTab === 'subscription' && (
                                 <div className="space-y-8">
-                                    {/* Join NOIR AI Pro Banner - Top Center */}
+                                    {/* Join UseGlass AI Pro Banner - Top Center */}
                                     {!isSubscribed && (
                                         <div className="bg-gradient-to-r from-purple-600 to-blue-600 rounded-xl p-8 text-center shadow-xl">
                                             <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-semibold text-white mb-4">
                                                 <Zap size={14} className="text-yellow-300" />
                                                 PREMIUM PLAN
                                             </div>
-                                            <h2 className="text-3xl font-bold text-white mb-2">Join Noir Pro</h2>
+                                            <h2 className="text-3xl font-bold text-white mb-2">Join UseGlass Pro</h2>
                                             <p className="text-white/90 mb-6 max-w-xl mx-auto">
                                                 Unlock unlimited AI tokens, access to all premium models, priority support, and exclusive features
                                             </p>
@@ -233,7 +290,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, isSubscr
                                     {!isSubscribed && (
                                         <div className="bg-zinc-50 border border-zinc-200 rounded-xl overflow-hidden">
                                             <div className="p-6 border-b border-zinc-200">
-                                                <h3 className="text-xl font-bold text-zinc-900 mb-1">Upgrade to Noir Pro</h3>
+                                                <h3 className="text-xl font-bold text-zinc-900 mb-1">Upgrade to UseGlass Pro</h3>
                                                 <div className="flex items-baseline gap-1">
                                                     <span className="text-3xl font-bold text-zinc-900">Rp 45,000</span>
                                                     <span className="text-zinc-500">per month</span>

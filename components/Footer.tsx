@@ -10,7 +10,7 @@ const Footer: React.FC = () => {
           <div className="flex items-center justify-center w-6 h-6 rounded bg-zinc-950">
             <Command className="w-3 h-3 text-white" />
           </div>
-          <span className="font-display font-bold text-zinc-900 tracking-tight">NOIR AI</span>
+          <span className="font-display font-bold text-zinc-900 tracking-tight">UseGlass AI</span>
         </div>
 
         <div className="flex flex-wrap justify-center gap-4 md:gap-8 text-sm text-zinc-500">
@@ -21,7 +21,7 @@ const Footer: React.FC = () => {
         </div>
 
         <div className="text-sm text-zinc-400">
-          © 2024 Noir Systems. All rights reserved.
+          © 2024 UseGlass Systems. All rights reserved.
         </div>
 
       </div>

@@ -34,3 +34,6 @@ dist.zip
 *.sw?
 .vercel
 .env*.local
+
+# Local Turso/libSQL database
+useglass-turso.db*

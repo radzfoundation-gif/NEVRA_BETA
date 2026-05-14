@@ -3,7 +3,7 @@
   
   <!-- Homepage -->
   <url>
-    <loc>https://noir.biz.id/</loc>
+    <loc>https://useglass.ai/</loc>
     <lastmod>2026-03-28</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
@@ -11,7 +11,7 @@
   
   <!-- Studio Page -->
   <url>
-    <loc>https://noir.biz.id/studio</loc>
+    <loc>https://useglass.ai/studio</loc>
     <lastmod>2026-03-28</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
@@ -19,7 +19,7 @@
   
   <!-- Survey Page -->
   <url>
-    <loc>https://noir.biz.id/survey</loc>
+    <loc>https://useglass.ai/survey</loc>
     <lastmod>2026-03-28</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
@@ -27,7 +27,7 @@
   
   <!-- Sign In Page -->
   <url>
-    <loc>https://noir.biz.id/sign-in</loc>
+    <loc>https://useglass.ai/sign-in</loc>
     <lastmod>2026-03-28</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
@@ -35,7 +35,7 @@
   
   <!-- Sign Up Page -->
   <url>
-    <loc>https://noir.biz.id/sign-up</loc>
+    <loc>https://useglass.ai/sign-up</loc>
     <lastmod>2026-03-28</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>

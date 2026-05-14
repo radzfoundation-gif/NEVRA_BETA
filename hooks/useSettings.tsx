@@ -4,6 +4,10 @@ import { getUserPreferences, updateUserPreferences } from '../lib/supabaseDataba
 
 export interface Settings {
     theme: 'light' | 'dark' | 'system';
+    defaultAIMode: 'fast' | 'reasoning' | 'creative' | 'coding' | 'academic' | 'document';
+    defaultTone: 'professional' | 'friendly' | 'direct' | 'creative' | 'funny' | 'critical' | 'tutor' | 'ceo';
+    defaultResponseLength: 'short' | 'balanced' | 'detailed';
+    planningBeforeAnswer: boolean;
     showTokenUsage: boolean;
     soundNotification: boolean;
     lineWrapping: boolean;
@@ -13,6 +17,10 @@ export interface Settings {
 
 const DEFAULT_SETTINGS: Settings = {
     theme: 'system',
+    defaultAIMode: 'fast',
+    defaultTone: 'professional',
+    defaultResponseLength: 'balanced',
+    planningBeforeAnswer: true,
     showTokenUsage: false,
     soundNotification: true,
     lineWrapping: true,
@@ -20,7 +28,7 @@ const DEFAULT_SETTINGS: Settings = {
     compactMode: false,
 };
 
-const STORAGE_KEY = 'noir-settings';
+const STORAGE_KEY = 'useglass-settings';
 
 function getSystemTheme(): 'light' | 'dark' {
     if (typeof window !== 'undefined') {

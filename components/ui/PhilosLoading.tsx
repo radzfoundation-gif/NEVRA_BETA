@@ -107,7 +107,7 @@ export default function PhilosLoading({ phase, status, className }: PhilosLoadin
             {config.label}
           </motion.h3>
           <p className="text-xs text-zinc-500 font-medium h-4">
-            {status || `Noir Philos is ${phase === 'synthesizing' ? 'merging intelligence' : phase}${dots}`}
+            {status || `Glass Philos is ${phase === 'synthesizing' ? 'merging intelligence' : phase}${dots}`}
           </p>
         </div>
       </div>

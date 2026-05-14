@@ -56,7 +56,7 @@ export async function deployToVercel(
         files: code,
         zipBase64,
         platform: 'vercel',
-        projectName: projectName || `noir-${Date.now()}`,
+        projectName: projectName || `useglass-${Date.now()}`,
         apiToken,
         isMultiFile: true,
       };
@@ -65,7 +65,7 @@ export async function deployToVercel(
       payload = {
         code,
         platform: 'vercel',
-        projectName: projectName || `noir-${Date.now()}`,
+        projectName: projectName || `useglass-${Date.now()}`,
         apiToken,
         isMultiFile: false,
       };
@@ -121,7 +121,7 @@ export async function deployToNetlify(
         files: code,
         zipBase64,
         platform: 'netlify',
-        projectName: siteName || `noir-${Date.now()}`,
+        projectName: siteName || `useglass-${Date.now()}`,
         apiToken,
         isMultiFile: true,
       };
@@ -130,7 +130,7 @@ export async function deployToNetlify(
       payload = {
         code,
         platform: 'netlify',
-        projectName: siteName || `noir-${Date.now()}`,
+        projectName: siteName || `useglass-${Date.now()}`,
         apiToken,
         isMultiFile: false,
       };

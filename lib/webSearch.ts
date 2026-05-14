@@ -1,5 +1,5 @@
 /**
- * Web Search Integration for NOIR AI Tutor
+ * Web Search Integration for UseGlass AI Tutor
  * Provides real-time web search capabilities similar to Perplexity.ai
  */
 

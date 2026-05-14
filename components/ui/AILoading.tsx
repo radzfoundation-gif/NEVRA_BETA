@@ -17,7 +17,7 @@ interface AILoadingProps {
 }
 
 const DEFAULT_MESSAGES = [
-  "Noir is thinking...",
+  "UseGlass is thinking...",
   "Analyzing your question...",
   "Processing with AI...",
   "Formulating response...",

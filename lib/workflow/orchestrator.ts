@@ -572,16 +572,19 @@ export async function executeWorkflow(
     const errorMessage = error instanceof Error ? error.message : String(error);
     const errorStack = error instanceof Error ? error.stack : undefined;
 
-    // Workflow error - handled by error state
-      stack: errorStack,
-      stagesExecuted,
-      executionAttempts,
-      revisionAttempts,
-      mode: context.mode,
-      provider: context.provider,
-      framework: context.framework,
-      hadImages: (context.images?.length || 0) > 0,
-    });
+    if (WORKFLOW_CONFIG.logStages) {
+      console.error('Workflow error', {
+        error: errorMessage,
+        stack: errorStack,
+        stagesExecuted,
+        executionAttempts,
+        revisionAttempts,
+        mode: context.mode,
+        provider: context.provider,
+        framework: context.framework,
+        hadImages: (context.images?.length || 0) > 0,
+      });
+    }
 
     stateMachine.transition('ERROR', {
       error: errorMessage,

@@ -27,7 +27,7 @@ interface ExtendedModel {
 const MODEL_OPTIONS: ModelOption[] = [
     {
         id: 'philos',
-        name: 'Noir Philos',
+        name: 'Glass Philos',
         description: 'Super Agent — Multi-phase reasoning & research.',
         isSoon: true,
     },
@@ -187,8 +187,8 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                                                         if (isLocked) {
                                                             setAlertConfig({
                                                                 isOpen: true,
-                                                                title: 'Noir Pro Feature',
-                                                                message: `Model ${model.name} eksklusif untuk pengguna Noir Pro. Tingkatkan akun Anda untuk menikmati kecerdasan tingkat lanjut.`,
+                                                                title: 'UseGlass Pro Feature',
+                                                                message: `Model ${model.name} eksklusif untuk pengguna UseGlass Pro. Tingkatkan akun Anda untuk menikmati kecerdasan tingkat lanjut.`,
                                                                 type: 'upgrade'
                                                             });
                                                             return;
@@ -328,8 +328,8 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                                                     if (!isSubscribed) {
                                                         setAlertConfig({
                                                             isOpen: true,
-                                                            title: 'Noir Pro Feature',
-                                                            message: `Model ${model.name} eksklusif untuk pengguna Noir Pro. Tingkatkan akun Anda untuk mengakses model-model terbaik di dunia.`,
+                                                            title: 'UseGlass Pro Feature',
+                                                            message: `Model ${model.name} eksklusif untuk pengguna UseGlass Pro. Tingkatkan akun Anda untuk mengakses model-model terbaik di dunia.`,
                                                             type: 'upgrade'
                                                         });
                                                         return;

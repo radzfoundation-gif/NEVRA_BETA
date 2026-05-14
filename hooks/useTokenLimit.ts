@@ -3,8 +3,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useUser } from '../lib/authContext';
-import { supabase } from '../lib/supabase';
-import { getDailyUsage, incrementDailyUsage, canUseCredits, FEATURE_COSTS, getFeatureCost, subscribeToCreditUpdates } from '../lib/dailyCreditManager';
+import { FEATURE_COSTS, getFeatureCost } from '../lib/dailyCreditManager';
 
 export const DAILY_CREDIT_LIMIT = 20;
 
@@ -27,16 +26,12 @@ export function useTokenLimit() {
         setLoading(true);
 
         try {
-            const { used, limit, tier } = await getDailyUsage(user.id);
+            const res = await fetch(`/api/turso/credits?userId=${encodeURIComponent(user.id)}`);
+            if (!res.ok) throw new Error('Failed to load Turso credits');
+            const { used, limit, tier, credits } = await res.json();
             const isPro = tier === 'pro';
 
-            setUsage({
-                used,
-                limit,
-                credits: isPro ? 999999 : Math.max(0, limit - used),
-                tier
-            });
-
+            setUsage({ used, limit, credits, tier });
             setIsSubscribed(isPro);
         } catch (e) {
             console.error('Failed to refresh limits:', e);
@@ -45,27 +40,13 @@ export function useTokenLimit() {
         }
     }, [user?.id]);
 
-    // Initial fetch + Real-time subscription
+    // Initial fetch + lightweight polling for Turso-backed credit sync
     useEffect(() => {
         if (!user?.id) return;
 
         refreshLimit();
-
-        // Subscribe to real-time updates from Supabase
-        const subscription = subscribeToCreditUpdates(user.id, (newData) => {
-            const isPro = newData.tier === 'pro';
-            setUsage({
-                used: newData.used,
-                limit: newData.limit,
-                credits: isPro ? 999999 : Math.max(0, newData.limit - newData.used),
-                tier: newData.tier as 'free' | 'pro'
-            });
-            setIsSubscribed(isPro);
-        });
-
-        return () => {
-            supabase.removeChannel(subscription);
-        };
+        const interval = window.setInterval(refreshLimit, 10000);
+        return () => window.clearInterval(interval);
     }, [user?.id, refreshLimit]);
 
     // Increment usage (deduct credits)
@@ -74,8 +55,20 @@ export function useTokenLimit() {
 
         try {
             const cost = getFeatureCost(featureType);
-            await incrementDailyUsage(user.id, cost);
-            // Real-time subscription will update the state automatically
+            setUsage(prev => {
+                const nextUsed = prev.used + cost;
+                return {
+                    ...prev,
+                    used: nextUsed,
+                    credits: prev.tier === 'pro' ? 999999 : Math.max(0, prev.limit - nextUsed),
+                };
+            });
+            await fetch('/api/turso/credits/increment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: user.id, amount: cost }),
+            });
+            refreshLimit();
         } catch (e) {
             console.error('Failed to increment usage:', e);
             refreshLimit();
@@ -86,15 +79,17 @@ export function useTokenLimit() {
         if (!user?.id) return { exceeded: true, cost: 0, credits: 0 };
         if (isSubscribed) return { exceeded: false, cost: 0, credits: 999999 };
 
+        // Fast path: use cached usage from the 10s poller. Avoids a blocking
+        // network round-trip on every "send" click — the polled value is
+        // accurate within ~10s and we re-check server-side anyway.
         const cost = getFeatureCost(featureType);
-        const { allowed, remaining } = await canUseCredits(user.id, cost);
-
+        const cachedAllowed = usage.tier === 'pro' || usage.credits >= cost;
         return {
-            exceeded: !allowed,
+            exceeded: !cachedAllowed,
             cost,
-            credits: remaining
+            credits: usage.credits,
         };
-    }, [user?.id, isSubscribed]);
+    }, [user?.id, isSubscribed, usage.tier, usage.credits]);
 
     return {
         credits: isSubscribed ? 'Unlimited' : usage.credits,
@@ -107,6 +102,8 @@ export function useTokenLimit() {
         refreshLimit,
         tokensUsed: usage.used,
         hasExceeded: usage.credits <= 0 && !isSubscribed,
+        softLimitReached: !isSubscribed && usage.credits <= 5,
+        incrementTokenUsage: () => incrementFeatureUsage('chat'),
     };
 }
 

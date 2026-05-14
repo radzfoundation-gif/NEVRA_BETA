@@ -49,7 +49,7 @@ const GitHubIntegration: React.FC<GitHubIntegrationProps> = ({
   const [newRepoName, setNewRepoName] = useState('');
   const [newRepoDescription, setNewRepoDescription] = useState('');
   const [showCreateRepo, setShowCreateRepo] = useState(false);
-  const [commitMessage, setCommitMessage] = useState('Update from NOIR AI');
+  const [commitMessage, setCommitMessage] = useState('Update from UseGlass AI');
   const [branch, setBranch] = useState('main');
   const [autoSyncEnabled, setAutoSyncEnabled] = useState(false);
   const [autoSyncStatus, setAutoSyncStatus] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle');
@@ -142,7 +142,7 @@ const GitHubIntegration: React.FC<GitHubIntegrationProps> = ({
         token,
         selectedRepo,
         exportedFiles,
-        commitMessage || `Update from NOIR AI - ${new Date().toLocaleDateString()}`,
+        commitMessage || `Update from UseGlass AI - ${new Date().toLocaleDateString()}`,
         branch
       );
 

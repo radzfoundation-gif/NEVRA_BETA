@@ -137,7 +137,11 @@ const StreamingResponse: React.FC<StreamingResponseProps> = ({ content, isStream
     // Pre-process content to replace [1] or [1, 2] with custom citation tags
     // Using simple regex that matches "[1]" or "[1, 2]" or "[1,2,3]"
     // We strictly match format without spaces around brackets to avoid some code arrays
-    const processedMarkdown = mainContent.replace(
+    const normalizedMarkdown = mainContent
+        .replace(/^(\s*[-*+]\s+)[•·]\s+/gm, '$1')
+        .replace(/^(\s*[-*+]\s+)[-*+]\s+/gm, '$1');
+
+    const processedMarkdown = normalizedMarkdown.replace(
         /\[(\d+(?:,\s*\d+)*)\]/g,
         (match, capture) => {
             const ids = capture.split(',').map((s: string) => s.trim());
