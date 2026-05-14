@@ -915,8 +915,8 @@ const ChatInput: React.FC<ChatInputProps> = ({
                                     ) : (
                                         <>
                                             <span className="hidden sm:inline">{modelDisplayName}</span>
-                                            <span className="sm:hidden text-xs">AI</span>
-                                            <ChevronDown size={14} strokeWidth={2} />
+                                            <Zap size={16} className="sm:hidden text-zinc-950" fill="currentColor" strokeWidth={2.2} />
+                                            <ChevronDown size={14} strokeWidth={2} className="hidden sm:inline" />
                                         </>
                                     )}
                                 </button>

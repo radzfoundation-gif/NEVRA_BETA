@@ -1,56 +1,62 @@
-import React from 'react';
+﻿import React from 'react';
 import { motion } from 'framer-motion';
 
-const GRID_G = [
-    0, 1, 1, 1, 1, 0,
-    1, 1, 0, 0, 0, 0,
-    1, 0, 0, 0, 0, 0,
-    1, 0, 0, 1, 1, 1,
-    1, 0, 0, 0, 0, 1,
-    1, 1, 0, 0, 1, 1,
-    0, 1, 1, 1, 1, 0,
-];
+const GRID_SIZE = 7;
+
+const G_CELLS = new Set([
+    1, 2, 3, 4, 5,
+    7, 13,
+    14,
+    21,
+    28, 31, 32, 33, 34,
+    35, 41,
+    42, 48,
+    50, 51, 52, 53,
+]);
 
 const TRACE_ORDER = [
-    1, 2, 3, 4,
-    7, 6,
-    12, 18, 24, 30,
-    37, 38, 39, 40,
-    35, 29,
-    23, 22, 21,
+    5, 4, 3, 2, 1,
+    7, 14, 21, 28, 35, 42,
+    50, 51, 52, 53,
+    48, 41, 34,
+    33, 32, 31,
 ];
 
 export default function GridNLoader() {
     return (
-        <div className="flex items-center gap-1.5 py-0.5 animate-in fade-in duration-500">
-            <div className="grid grid-cols-6 gap-px">
-                {GRID_G.map((active, index) => {
+        <div className="inline-flex items-center gap-1.5 py-0.5 animate-in fade-in duration-300">
+            <div
+                className="grid shrink-0 gap-px"
+                style={{ gridTemplateColumns: `repeat(${GRID_SIZE}, 2px)` }}
+                aria-label="UseGlass loading"
+            >
+                {Array.from({ length: GRID_SIZE * GRID_SIZE }).map((_, index) => {
+                    const active = G_CELLS.has(index);
                     const order = TRACE_ORDER.indexOf(index);
                     return (
                         <motion.span
                             key={index}
-                            className={active ? 'h-[3px] w-[3px] rounded-[0.8px] bg-zinc-900' : 'h-[3px] w-[3px] rounded-[0.8px] bg-zinc-200/60'}
+                            className={active ? 'h-[2px] w-[2px] rounded-[0.5px] bg-zinc-900' : 'h-[2px] w-[2px] bg-transparent'}
+                            initial={false}
                             animate={active ? {
-                                opacity: [0.22, 1, 0.38],
-                                scale: [0.72, 1.2, 0.86],
-                            } : {
-                                opacity: 0.18,
-                                scale: 0.9,
-                            }}
+                                opacity: [0.4, 1, 0.55],
+                                scale: [0.85, 1.05, 0.95],
+                            } : { opacity: 0, scale: 1 }}
                             transition={{
-                                duration: 1.45,
+                                duration: 1.6,
                                 repeat: Infinity,
-                                delay: order >= 0 ? order * 0.055 : 0,
-                                ease: 'easeInOut',
+                                repeatType: 'loop',
+                                delay: order >= 0 ? order * 0.04 : 0,
+                                ease: [0.4, 0, 0.2, 1],
                             }}
                         />
                     );
                 })}
             </div>
             <motion.span
-                animate={{ opacity: [0.4, 0.9, 0.4] }}
+                animate={{ opacity: [0.45, 0.85, 0.45] }}
                 transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
-                className="text-[9px] font-medium uppercase tracking-[0.16em] text-zinc-400"
+                className="text-[8px] font-medium uppercase tracking-[0.16em] text-zinc-400"
             >
                 Thinking
             </motion.span>

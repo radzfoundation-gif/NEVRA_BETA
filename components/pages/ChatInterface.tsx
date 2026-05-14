@@ -2020,6 +2020,14 @@ const ChatInterface: React.FC = () => {
 
     if (isPdfRequest) {
       console.log('📄 [PDFGen] PDF generation request detected in chat!');
+      setGlassCanvas({
+        state: 'opening',
+        type: 'document',
+        title: 'Document Canvas',
+        content: '',
+        sourcePrompt: text,
+        lastUpdated: new Date(),
+      });
 
       try {
         // Call the /api/generate-pdf endpoint
@@ -5591,7 +5599,7 @@ const ChatInterface: React.FC = () => {
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
                       <button
-                        onClick={() => navigator.clipboard?.writeText(glassCanvas.content || messages.filter(m => m.role === 'ai').slice(-1)[0]?.content || '')}
+                        onClick={() => navigator.clipboard?.writeText(glassCanvas.content || '')}
                         className="rounded-lg border border-zinc-200 px-3 py-2 text-xs font-medium text-zinc-700 active:bg-zinc-100"
                       >
                         Copy
@@ -5645,7 +5653,7 @@ const ChatInterface: React.FC = () => {
                           </div>
                         );
                       }
-                      const raw = glassCanvas.content || messages.filter(m => m.role === 'ai').slice(-1)[0]?.content || '';
+                      const raw = glassCanvas.content || '';
                       const isHtml = /<\/?(html|body|div|table|h[1-6]|p|section|article|header|footer|main)\b/i.test(raw.trim());
                       if (isHtml && raw.trim().length > 0) {
                         return (
@@ -5798,7 +5806,7 @@ const ChatInterface: React.FC = () => {
                         <div className="text-xs text-zinc-500">Canvas: {glassCanvas.type} • {activeWorkflow.label} • {activeGlassStyleConfig.label}</div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <button onClick={() => navigator.clipboard?.writeText(glassCanvas.content || messages.filter(m => m.role === 'ai').slice(-1)[0]?.content || '')} className="rounded-lg border border-zinc-200 px-3 py-1 text-xs hover:bg-zinc-50">Copy</button>
+                        <button onClick={() => navigator.clipboard?.writeText(glassCanvas.content || '')} className="rounded-lg border border-zinc-200 px-3 py-1 text-xs hover:bg-zinc-50">Copy</button>
                         {glassCanvas.type === 'document' && (
                           <button onClick={downloadGlassCanvasPdf} className="rounded-lg border border-zinc-200 px-3 py-1 text-xs hover:bg-zinc-50">Download PDF</button>
                         )}
@@ -5841,7 +5849,7 @@ const ChatInterface: React.FC = () => {
                             </div>
                           );
                         }
-                        const raw = glassCanvas.content || messages.filter(m => m.role === 'ai').slice(-1)[0]?.content || '';
+                        const raw = glassCanvas.content || '';
                         const isHtml = /<\/?(html|body|div|table|h[1-6]|p|section|article|header|footer|main)\b/i.test(raw.trim());
                         if (isHtml && raw.trim().length > 0) {
                           return (
