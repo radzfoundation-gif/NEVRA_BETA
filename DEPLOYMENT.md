@@ -1,373 +1,184 @@
-# NOIR AI Production SaaS - Deployment Guide
+# UseGlass Production Deployment
 
-## 🚀 Deployment Overview
+UseGlass production uses split deployment:
 
-NOIR AI requires three separate deployments:
+- **Backend API:** Railway (`node server/index.js`)
+- **Frontend SPA:** Vercel (`npm run build` → `dist/`)
+- **Database:** Turso cloud (`libsql://useglasss-radzzz.aws-ap-south-1.turso.io`)
 
-1. **Frontend + API Routes** → Vercel
-2. **YJS Collaboration Server** → Railway/Render
-3. **Database** → Supabase
-
----
-
-## 1. Supabase Setup
-
-### Step 1: Create Supabase Project
-
-1. Go to [supabase.com](https://supabase.com)
-2. Create new project
-3. Wait for database provisioning
-
-### Step 2: Run Database Migration
-
-```bash
-# Option A: Using Supabase CLI (recommended)
-supabase db push
-
-# Option B: Manual SQL execution
-# 1. Go to Supabase Dashboard > SQL Editor
-# 2. Copy content from supabase/migrations/001_initial_schema.sql
-# 3. Execute the SQL
-```
-
-### Step 3: Get Environment Variables
-
-From Supabase Dashboard > Project Settings > API:
-
-- `NEXT_PUBLIC_SUPABASE_URL`: Your project URL
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Anon/public key
-- `SUPABASE_SERVICE_KEY`: Service role key (keep secret!)
-- `SUPABASE_JWT_SECRET`: JWT Secret (for YJS server)
-
-### Step 4: Configure RLS (Already included in migration)
-
-✅ RLS policies are automatically created by the migration script.
+This avoids Vercel serverless limits for streaming AI, MCP, upload handling, and long-running backend routes.
 
 ---
 
-## 2. Vercel Deployment (Frontend + API)
+## 1. Backend deploy: Railway
 
-### Step 1: Push to GitHub
+### 1.1 Create Railway service
 
-```bash
-git add .
-git commit -m "Production ready deployment"
-git push origin main
-```
+1. Open Railway dashboard.
+2. Create a new project from the GitHub repository.
+3. Keep root directory as repository root.
+4. Railway reads `railway.json` and runs:
+   - Build: `npm install`
+   - Start: `node server/index.js`
+   - Healthcheck: `/api/turso/health`
 
-### Step 2: Import to Vercel
+### 1.2 Set Railway environment variables
 
-1. Go to [vercel.com](https://vercel.com)
-2. Click "Add New" > "Project"
-3. Import your GitHub repository
-4. Configure build settings (auto-detected for Next.js)
-
-### Step 3: Set Environment Variables
-
-In Vercel Dashboard > Settings > Environment Variables:
+Minimum required backend variables:
 
 ```env
-# Supabase
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key
-SUPABASE_SERVICE_KEY=your-service-key
+NODE_ENV=production
+PORT=8788
 
-# Sumopod AI
-SUMOPOD_API_KEY=your-sumopod-api-key
+TURSO_DATABASE_URL=libsql://useglasss-radzzz.aws-ap-south-1.turso.io
+TURSO_AUTH_TOKEN=your_turso_database_token
+
+CLERK_SECRET_KEY=your_clerk_secret_key
+
+SUMOPOD_API_KEY=your_sumopod_api_key
 SUMOPOD_BASE_URL=https://ai.sumopod.com
-SUMOPOD_MODEL_ID=gemini/gemini-2.5-flash-lite
+SUMOPOD_MODEL_ID=gpt-5-mini
+SUMOPOD_REDESIGN_MODEL_ID=gemini/gemini-3-pro-preview
 
-# YJS Server (will be set after deploying YJS server)
-VITE_YJS_SERVER_URL=wss://your-yjs-server.railway.app
+NINEROUTER_API_KEY=your_9router_api_key
+NINEROUTER_BASE_URL=http://localhost:20128/v1
+NINEROUTER_DEFAULT_MODEL=kr/claude-sonnet-4.5
 
-# App
-VITE_APP_URL=https://noir-ai.com
-NODE_ENV=production
+OPENROUTER_API_KEY=your_openrouter_key
+OPENROUTER_SITE_URL=https://your-app.vercel.app
+OPENROUTER_SITE_NAME=UseGlass AI
+
+MIDTRANS_SERVER_KEY=your_midtrans_server_key
+MIDTRANS_IS_PRODUCTION=true
+
+ALLOWED_ORIGINS=https://your-app.vercel.app
+FRONTEND_URL=https://your-app.vercel.app
 ```
 
-### Step 4: Configure Project Settings
+For first deploy, if Vercel domain is not known yet, set:
 
-1. **Framework Preset**: Choose **Vite** (or **Other** if Vite is not available).
-2. **Build Command**: `npm run build`
-3. **Output Directory**: `dist`
-4. **Root Directory**: `.` (leave as default)
+```env
+ALLOWED_ORIGINS=
+FRONTEND_URL=http://localhost:3000
+```
 
-### Step 5: Deploy
+After Vercel deploy, update both to the Vercel domain and redeploy Railway.
 
-Click "Deploy" - Vercel will automatically build and deploy.
+### 1.3 Verify Railway backend
 
----
-
-## 3. YJS Server Deployment (Railway)
-
-### Option A: Railway (Recommended)
-
-#### Step 1: Create Railway Account
-
-1. Go to [railway.app](https://railway.app)
-2. Sign up with GitHub
-
-#### Step 2: Deploy YJS Server
+After deploy, open:
 
 ```bash
-# From your project root
-cd yjs-server
-
-# Initialize Railway project
-railway init
-
-# Set environment variables
-railway variables set SUPABASE_JWT_SECRET=your-jwt-secret
-railway variables set PORT=1234
-railway variables set NODE_ENV=production
-
-# Deploy
-railway up
+curl https://your-railway-app.up.railway.app/api/turso/health
 ```
 
-#### Step 3: Get WebSocket URL
+Expected:
 
-After deployment:
-1. Go to Railway Dashboard
-2. Click on your service
-3. Go to "Settings" > "Domains"
-4. Generate domain (e.g., `your-app.railway.app`)
-5. Your WebSocket URL: `wss://your-app.railway.app`
-
-#### Step 4: Update Vercel Environment
-
-Go back to Vercel > Environment Variables:
-```env
-NEXT_PUBLIC_YJS_SERVER_URL=wss://your-app.railway.app
+```json
+{"ok":true,"provider":"turso"}
 ```
 
-Redeploy Vercel for changes to take effect.
+If healthcheck fails:
+
+- Check `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN`.
+- Check Railway logs for boot errors.
+- Confirm server binds port: code uses `app.listen(PORT, '0.0.0.0')` outside Vercel.
 
 ---
 
-### Option B: Render
+## 2. Frontend deploy: Vercel
 
-#### Step 1: Create Render Account
+### 2.1 Create Vercel project
 
-1. Go to [render.com](https://render.com)
-2. Sign up with GitHub
+1. Import same GitHub repo into Vercel.
+2. Framework: **Vite**.
+3. Build command: `npm run build`.
+4. Output directory: `dist`.
+5. `vercel.json` keeps SPA fallback only; API runs on Railway, not Vercel.
 
-#### Step 2: Deploy YJS Server
+### 2.2 Set Vercel environment variables
 
-1. New > Web Service
-2. Connect your repository
-3. Configure:
-   - **Root Directory**: `yjs-server`
-   - **Build Command**: `npm install`
-   - **Start Command**: `npm start`
-   - **Environment**: Node
-
-#### Step 3: Set Environment Variables
+Minimum frontend variables:
 
 ```env
-SUPABASE_JWT_SECRET=your-jwt-secret
-PORT=1234
-NODE_ENV=production
+VITE_API_BASE_URL=https://your-railway-app.up.railway.app
+VITE_CLERK_PUBLISHABLE_KEY=your_clerk_publishable_key
+VITE_APP_URL=https://your-app.vercel.app
+
+VITE_MIDTRANS_CLIENT_KEY=your_midtrans_client_key
+
+VITE_SUMOPOD_API_KEY=optional_browser_sumopod_key
+VITE_OPENROUTER_API_KEY=optional_browser_openrouter_key
+VITE_GEMINI_API_KEY=optional_browser_gemini_key
+VITE_GROQ_API_KEY=optional_browser_groq_key
+
+VITE_YJS_SERVER_URL=wss://your-yjs-server.example.com
 ```
 
-#### Step 4: Get WebSocket URL
+Keep server-only secrets out of Vercel frontend variables unless they start with `VITE_` and are safe for browser exposure.
 
-After deployment, copy the service URL (e.g., `https://noir-ai-yjs.onrender.com`)
+### 2.3 Verify Vercel frontend
 
-Use WebSocket protocol: `wss://noir-ai-yjs.onrender.com`
+1. Open `https://your-app.vercel.app`.
+2. Home should load without API error.
+3. Open browser DevTools → Network.
+4. Send a chat prompt.
+5. API requests should go to `https://your-railway-app.up.railway.app`, not `/api/index.js` on Vercel.
 
 ---
 
-## 4. Environment Variables Reference
+## 3. Loop back after both deploys
 
-### Frontend (.env.local)
+After Vercel domain is known:
 
-```env
-# Supabase
-VITE_SUPABASE_URL=https://xxxxx.supabase.co
-VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-SUPABASE_SERVICE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-
-# Sumopod AI
-SUMOPOD_API_KEY=your-sumopod-api-key
-SUMOPOD_BASE_URL=https://ai.sumopod.com
-SUMOPOD_MODEL_ID=gemini/gemini-2.5-flash-lite
-
-# YJS Collaboration Server
-VITE_YJS_SERVER_URL=wss://noir-ai-yjs.railway.app
-
-# App Configuration
-VITE_APP_URL=https://noir-ai.com
-NODE_ENV=production
-```
-
-### YJS Server (.env)
+1. Update Railway:
 
 ```env
-# Supabase JWT Secret (for token verification)
-SUPABASE_JWT_SECRET=your-super-secret-jwt-secret
-
-# Server Configuration
-PORT=1234
-NODE_ENV=production
+ALLOWED_ORIGINS=https://your-app.vercel.app
+FRONTEND_URL=https://your-app.vercel.app
+OPENROUTER_SITE_URL=https://your-app.vercel.app
 ```
+
+2. Redeploy Railway.
+3. Update Clerk dashboard:
+   - Add Vercel domain to allowed origins / redirect URLs.
+   - If using custom domain, add it too.
+4. Test login and chat again.
 
 ---
 
-## 5. Post-Deployment Verification
+## 4. Production smoke test
 
-### Check Frontend
+Run these checks after deploy:
 
 ```bash
-# Test main page
-curl https://noir-ai.com
-
-# Test API endpoint
-curl -X POST https://noir-ai.com/api/analyze-canvas \
-  -H "Content-Type: application/json" \
-  -d '{"canvasJSON":{"elements":[]}}' \
-  -H "Authorization: Bearer YOUR_TOKEN"
+curl https://your-railway-app.up.railway.app/api/turso/health
+node scripts/db.mjs --counts
 ```
 
-### Check YJS Server
+Browser checks:
+
+- Home loads.
+- Login works.
+- Chat streaming works.
+- Save to Project works.
+- Canvas opens.
+- No CORS errors in console.
+
+DB check:
 
 ```bash
-# Health check
-curl https://your-yjs-server.railway.app/health
-
-# Expected response:
-# {
-#   "status": "ok",
-#   "uptime": 12345,
-#   "activeRooms": 0,
-#   "totalConnections": 0
-# }
+node scripts/db.mjs --counts
 ```
 
-### Check Supabase
-
-1. Supabase Dashboard > Table Editor
-2. Verify tables exist:
-   - user_profiles
-   - canvas_sessions
-   - ai_usage
-   - subscriptions
-   - waitlist
-   - rate_limits
+After creating data in UI, counts for `chat_sessions`, `chat_messages`, `projects`, or `saved_outputs` should increase.
 
 ---
 
-## 6. Troubleshooting
+## 5. Known production caveats
 
-### Issue: "EROFS: read-only file system"
-
-✅ **Fixed** - All filesystem writes removed, using Supabase only.
-
-### Issue: "YJS connection failed"
-
-- Check `NEXT_PUBLIC_YJS_SERVER_URL` in Vercel
-- Verify YJS server is running (health check)
-- Check CORS settings
-- Verify JWT secret matches between Supabase and YJS server
-
-### Issue: "Rate limit exceeded"
-
-- Check Supabase `rate_limits` table
-- Manually reset: Delete rows for user
-- Increase limits in `lib/rateLimiter.ts`
-
-### Issue: "Insufficient tokens"
-
-- Check user plan in `user_profiles` table
-- Manually add tokens:
-  ```sql
-  UPDATE user_profiles 
-  SET tokens_remaining = 100 
-  WHERE id = 'user-uuid';
-  ```
-
----
-
-## 7. Monitoring
-
-### Vercel
-
-- Analytics: Vercel Dashboard > Analytics
-- Logs: Vercel Dashboard > Deployments > Logs
-
-### Railway/Render
-
-- Metrics: Service Dashboard > Metrics
-- Logs: Service Dashboard > Logs
-
-### Supabase
-
-- Database Stats: Supabase Dashboard > Database
-- API Logs: Supabase Dashboard > Logs
-
----
-
-## 8. Scaling Considerations
-
-### Database
-
-- Enable connection pooling in Supabase
-- Add indexes for frequently queried columns
-- Archive old `ai_usage` records (>90 days)
-
-### YJS Server
-
-- Use Redis for document storage (instead of in-memory)
-- Deploy multiple YJS instances with load balancer
-- Implement sticky sessions for WebSocket connections
-
-### API Routes
-
-- Enable Vercel Edge Functions for faster response
-- Implement caching for read-heavy endpoints
-- Use Vercel Analytics to identify bottlenecks
-
----
-
-## 9. Security Checklist
-
-- [x] RLS enabled on all Supabase tables
-- [x] Service key only used in server-side code
-- [x] JWT verification on YJS WebSocket connections
-- [x] Rate limiting on all API endpoints
-- [x] Input validation on all user inputs
-- [x] CORS configured properly
-- [ ] SSL certificates configured
-- [ ] DDoS protection enabled (Vercel Pro)
-- [ ] Security headers configured
-
----
-
-## 10. Production Checklist
-
-Before going live:
-
-- [ ] All environment variables set in Vercel
-- [ ] Supabase migration applied successfully
-- [ ] YJS server deployed and accessible
-- [ ] Test canvas collaboration with 2+ users
-- [ ] Test AI analysis with real prompts
-- [ ] Verify rate limiting works
-- [ ] Verify token billing deducts correctly
-- [ ] Test Pro plan upgrade flow
-- [ ] Monitor logs for errors (24h)
-- [ ] Load testing completed
-- [ ] Backup strategy configured
-- [ ] Error monitoring setup (Sentry recommended)
-
----
-
-## Support
-
-For issues during deployment, check:
-- Vercel logs
-- Railway/Render logs
-- Supabase logs
-- Browser console (frontend errors)
-
-Good luck with your deployment! 🚀
+- File uploads currently use local container filesystem (`server/uploads/`). Railway storage is ephemeral across deploys/restarts. For durable uploads, move to R2/S3/Turso blob-like storage later.
+- MCP can run on Railway because it is long-lived, but not on Vercel serverless.
+- Turso schema initialization is lazy via `/api/turso/*` route readiness. DB already has production schema applied.
+- Rotate the leaked historical `NINEROUTER_API_KEY` if still active.
+- Add Turso backup automation separately.

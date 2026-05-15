@@ -10,8 +10,6 @@
                     "api":  "node server/index.js",
                     "mcp:dev":  "cd mcp-server \u0026\u0026 node index.js",
                     "test:mcp":  "node scripts/test-mcp.js",
-                    "deploy":  "bash scripts/deploy.sh",
-                    "deploy:prod":  "bash scripts/deploy.sh --prod",
                     "check:env":  "bash scripts/check-env.sh",
                     "skills":  "node scripts/skills.js",
                     "dev:api":  "node server/index.js",

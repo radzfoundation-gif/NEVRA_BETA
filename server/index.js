@@ -184,16 +184,25 @@ const getUseGlassAIConfigIssue = () => {
   };
 };
 
+app.set('trust proxy', 1);
+
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 // 1. CORS Configuration (MUST BE FIRST)
 app.use(
   cors({
     origin: function (origin, callback) {
       if (!origin) return callback(null, true);
-      return callback(null, origin);
+      if (allowedOrigins.length === 0) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      return callback(new Error('CORS blocked'));
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'x-user-id']
   })
 );
 
@@ -5121,9 +5130,8 @@ if (process.env.VERCEL !== '1' && !process.env.VERCEL_ENV) {
 
   // // console.log(`🔗 [OpenClaw] Bridge ${OPENCLAW_API_KEY ? '✅ Enabled' : '❌ No API Key'} → /v1/chat/completions`);
 
-  // Start server locally (not on Vercel)
-  if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
-    app.listen(PORT, () => {
+  if (!process.env.VERCEL) {
+    app.listen(PORT, '0.0.0.0', () => {
       // // console.log(`API proxy listening on ${PORT}`);
     });
   }
