@@ -1,15 +1,23 @@
 ﻿import express from 'express';
 import {
   addProjectNote,
+  createChatSession,
   createDocument,
   createProject,
+  deleteChatSession,
+  getChatMessages,
+  getChatSession,
   getCreditUsage,
   getProjectDetail,
   incrementCreditUsage,
   initTursoSchema,
+  listChatSessions,
   listDocuments,
   listWorkspace,
+  saveChatMessage,
   saveOutput,
+  shareChatSession,
+  updateChatSession,
 } from './turso.js';
 
 export const tursoRouter = express.Router();
@@ -85,6 +93,61 @@ tursoRouter.post('/outputs', asyncRoute(async (req, res) => {
   const userId = requireUser(req, res);
   if (!userId) return;
   res.json(await saveOutput(userId, req.body));
+}));
+
+tursoRouter.get('/sessions', asyncRoute(async (req, res) => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  res.json({ sessions: await listChatSessions(userId) });
+}));
+
+tursoRouter.post('/sessions', asyncRoute(async (req, res) => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  res.json(await createChatSession(userId, req.body));
+}));
+
+tursoRouter.get('/sessions/:id', asyncRoute(async (req, res) => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  const session = await getChatSession(userId, req.params.id);
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+  res.json(session);
+}));
+
+tursoRouter.patch('/sessions/:id', asyncRoute(async (req, res) => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  const session = await updateChatSession(userId, req.params.id, req.body);
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+  res.json(session);
+}));
+
+tursoRouter.delete('/sessions/:id', asyncRoute(async (req, res) => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  res.json(await deleteChatSession(userId, req.params.id));
+}));
+
+tursoRouter.get('/sessions/:id/messages', asyncRoute(async (req, res) => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  res.json({ messages: await getChatMessages(userId, req.params.id) });
+}));
+
+tursoRouter.post('/sessions/:id/messages', asyncRoute(async (req, res) => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  const message = await saveChatMessage(userId, req.params.id, req.body);
+  if (!message) return res.status(404).json({ error: 'Session not found' });
+  res.json(message);
+}));
+
+tursoRouter.post('/sessions/:id/share', asyncRoute(async (req, res) => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  const shareId = await shareChatSession(userId, req.params.id);
+  res.json({ shareId });
 }));
 
 tursoRouter.get('/documents', asyncRoute(async (req, res) => {

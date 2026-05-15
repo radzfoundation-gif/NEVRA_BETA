@@ -1,4 +1,5 @@
 import { supabase, User, Subscription, ChatSession, Message, UserPreferences, TokenUsage, CanvasUsage, TIER_LIMITS } from './supabase';
+import { getApiUrl } from './utils';
 
 // =====================================================
 // HELPER FUNCTIONS
@@ -10,6 +11,26 @@ import { supabase, User, Subscription, ChatSession, Message, UserPreferences, To
 export function getCurrentMonth(): string {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
+async function tursoChatRequest<T>(path: string, userId?: string, init: RequestInit = {}): Promise<T> {
+    const headers = new Headers(init.headers);
+    headers.set('Content-Type', 'application/json');
+    if (userId) headers.set('x-user-id', userId);
+
+    const apiBase = getApiUrl();
+    const tursoBase = apiBase.endsWith('/api') ? `${apiBase}/turso` : `${apiBase}/api/turso`;
+    const response = await fetch(`${tursoBase}${path}`, { ...init, headers });
+    if (!response.ok) throw new Error(await response.text());
+    return response.json();
+}
+
+function chatUserIdFromStorage(): string | null {
+    try {
+        return localStorage.getItem('useglass-last-user-id');
+    } catch {
+        return null;
+    }
 }
 
 // =====================================================
@@ -210,16 +231,13 @@ export async function createChatSession(
     title: string = 'New Chat'
 ): Promise<ChatSession | null> {
     try {
-        const { data, error } = await supabase
-            .from('chat_sessions')
-            .insert({ user_id: userId, mode, provider, title })
-            .select()
-            .maybeSingle();
-
-        if (error) throw error;
-        return data;
+        localStorage.setItem('useglass-last-user-id', userId);
+        return await tursoChatRequest<ChatSession>('/sessions', userId, {
+            method: 'POST',
+            body: JSON.stringify({ mode, provider, title })
+        });
     } catch (error) {
-        
+
         return null;
     }
 }
@@ -229,27 +247,11 @@ export async function createChatSession(
  */
 export async function getUserSessions(userId: string): Promise<ChatSession[]> {
     try {
-        const tier = await getUserTier(userId);
-        const historyDays = TIER_LIMITS[tier].chatHistoryDays;
-
-        let query = supabase
-            .from('chat_sessions')
-            .select('*')
-            .eq('user_id', userId)
-            .order('updated_at', { ascending: false });
-
-        // Apply history limit for free tier
-        if (historyDays > 0) {
-            const cutoffDate = new Date();
-            cutoffDate.setDate(cutoffDate.getDate() - historyDays);
-            query = query.gte('created_at', cutoffDate.toISOString());
-        }
-
-        const { data, error } = await query;
-        if (error) throw error;
-        return data || [];
+        localStorage.setItem('useglass-last-user-id', userId);
+        const { sessions } = await tursoChatRequest<{ sessions: ChatSession[] }>('/sessions', userId);
+        return sessions || [];
     } catch (error) {
-        
+
         return [];
     }
 }
@@ -259,16 +261,11 @@ export async function getUserSessions(userId: string): Promise<ChatSession[]> {
  */
 export async function getChatSession(sessionId: string): Promise<ChatSession | null> {
     try {
-        const { data, error } = await supabase
-            .from('chat_sessions')
-            .select('*')
-            .eq('id', sessionId)
-            .single();
-
-        if (error) throw error;
-        return data;
+        const userId = chatUserIdFromStorage();
+        if (!userId) return null;
+        return await tursoChatRequest<ChatSession>(`/sessions/${sessionId}`, userId);
     } catch (error) {
-        
+
         return null;
     }
 }
@@ -278,15 +275,15 @@ export async function getChatSession(sessionId: string): Promise<ChatSession | n
  */
 export async function updateChatSession(sessionId: string, updates: Partial<ChatSession>): Promise<boolean> {
     try {
-        const { error } = await supabase
-            .from('chat_sessions')
-            .update(updates)
-            .eq('id', sessionId);
-
-        if (error) throw error;
+        const userId = chatUserIdFromStorage();
+        if (!userId) return false;
+        await tursoChatRequest<ChatSession>(`/sessions/${sessionId}`, userId, {
+            method: 'PATCH',
+            body: JSON.stringify(updates)
+        });
         return true;
     } catch (error) {
-        
+
         return false;
     }
 }
@@ -296,16 +293,12 @@ export async function updateChatSession(sessionId: string, updates: Partial<Chat
  */
 export async function deleteChatSession(sessionId: string): Promise<boolean> {
     try {
-        // Messages will be deleted via CASCADE
-        const { error } = await supabase
-            .from('chat_sessions')
-            .delete()
-            .eq('id', sessionId);
-
-        if (error) throw error;
+        const userId = chatUserIdFromStorage();
+        if (!userId) return false;
+        await tursoChatRequest(`/sessions/${sessionId}`, userId, { method: 'DELETE' });
         return true;
     } catch (error) {
-        
+
         return false;
     }
 }
@@ -315,16 +308,12 @@ export async function deleteChatSession(sessionId: string): Promise<boolean> {
  */
 export async function shareChatSession(sessionId: string): Promise<string | null> {
     try {
-        const { error } = await supabase
-            .from('chat_sessions')
-            .update({ is_shared: true })
-            .eq('id', sessionId);
-
-        if (error) throw error;
-
-        return sessionId;
+        const userId = chatUserIdFromStorage();
+        if (!userId) return null;
+        const { shareId } = await tursoChatRequest<{ shareId: string }>(`/sessions/${sessionId}/share`, userId, { method: 'POST' });
+        return shareId;
     } catch (error) {
-        
+
         return null;
     }
 }
@@ -382,26 +371,14 @@ export async function saveMessage(
     images?: string[]
 ): Promise<Message | null> {
     try {
-        const { data, error } = await supabase
-            .from('messages')
-            .insert({
-                session_id: sessionId,
-                role,
-                content,
-                code: code || null,
-                images: images || null
-            })
-            .select()
-            .maybeSingle();
-
-        if (error) throw error;
-
-        // Update session's updated_at
-        await updateChatSession(sessionId, {});
-
-        return data;
+        const userId = chatUserIdFromStorage();
+        if (!userId) return null;
+        return await tursoChatRequest<Message>(`/sessions/${sessionId}/messages`, userId, {
+            method: 'POST',
+            body: JSON.stringify({ role, content, code: code || null, attachments: images || [] })
+        });
     } catch (error) {
-        
+
         return null;
     }
 }
@@ -411,16 +388,12 @@ export async function saveMessage(
  */
 export async function getSessionMessages(sessionId: string): Promise<Message[]> {
     try {
-        const { data, error } = await supabase
-            .from('messages')
-            .select('*')
-            .eq('session_id', sessionId)
-            .order('created_at', { ascending: true });
-
-        if (error) throw error;
-        return data || [];
+        const userId = chatUserIdFromStorage();
+        if (!userId) return [];
+        const { messages } = await tursoChatRequest<{ messages: Message[] }>(`/sessions/${sessionId}/messages`, userId);
+        return messages || [];
     } catch (error) {
-        
+
         return [];
     }
 }
@@ -722,18 +695,7 @@ export async function uploadFile(
  * Update chat session metadata (e.g. for thumbnails)
  */
 export async function updateChatSessionMetadata(sessionId: string, metadata: Record<string, any>): Promise<boolean> {
-    try {
-        const { error } = await supabase
-            .from('chat_sessions')
-            .update({ metadata })
-            .eq('id', sessionId);
-
-        if (error) throw error;
-        return true;
-    } catch (error) {
-        
-        return false;
-    }
+    return updateChatSession(sessionId, { metadata } as Partial<ChatSession>);
 }
 
 /**

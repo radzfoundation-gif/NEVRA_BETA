@@ -481,6 +481,137 @@ export async function listWorkspace(userId) {
   };
 }
 
+const mapChatSession = (row) => {
+  const mapped = mapRow(row);
+  mapped.auto_pilot = Boolean(mapped.auto_pilot);
+  mapped.pinned = Boolean(mapped.pinned);
+  mapped.archived = Boolean(mapped.archived);
+  mapped.is_shared = Boolean(mapped.is_shared);
+  return mapped;
+};
+
+const mapChatMessage = (row) => {
+  const mapped = mapRow(row);
+  mapped.reasoning = Boolean(mapped.reasoning);
+  mapped.attachments = json(mapped.attachments, []);
+  mapped.routing = json(mapped.routing, {});
+  mapped.role = mapped.role === 'assistant' ? 'ai' : mapped.role;
+  return mapped;
+};
+
+export async function createChatSession(userId, input = {}) {
+  const createdAt = now();
+  const session = {
+    id: id(),
+    user_id: userId,
+    title: input.title || 'New Chat',
+    summary: input.summary || '',
+    glass_mode: input.glassMode || input.glass_mode || input.mode || null,
+    workflow_mode: input.workflowMode || input.workflow_mode || null,
+    glass_style: input.glassStyle || input.glass_style || null,
+    active_skill_id: input.activeSkillId || input.active_skill_id || null,
+    active_connector_id: input.activeConnectorId || input.active_connector_id || null,
+    canvas_type: input.canvasType || input.canvas_type || null,
+    auto_pilot: input.autoPilot ?? input.auto_pilot ?? true,
+    pinned: input.pinned ?? false,
+    archived: input.archived ?? false,
+    is_shared: false,
+    share_id: null,
+    metadata: input.metadata || { provider: input.provider || null },
+    created_at: createdAt,
+    updated_at: createdAt,
+  };
+  await turso.execute({
+    sql: `INSERT INTO chat_sessions (id, user_id, title, summary, glass_mode, workflow_mode, glass_style, active_skill_id, active_connector_id, canvas_type, auto_pilot, pinned, archived, is_shared, share_id, metadata, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [session.id, userId, session.title, session.summary, session.glass_mode, session.workflow_mode, session.glass_style, session.active_skill_id, session.active_connector_id, session.canvas_type, session.auto_pilot ? 1 : 0, session.pinned ? 1 : 0, session.archived ? 1 : 0, 0, null, JSON.stringify(session.metadata), createdAt, createdAt],
+  });
+  return session;
+}
+
+export async function listChatSessions(userId) {
+  const result = await turso.execute({ sql: 'SELECT * FROM chat_sessions WHERE user_id = ? AND archived = 0 ORDER BY updated_at DESC', args: [userId] });
+  return result.rows.map(mapChatSession);
+}
+
+export async function getChatSession(userId, sessionId) {
+  const result = await turso.execute({ sql: 'SELECT * FROM chat_sessions WHERE id = ? AND user_id = ?', args: [sessionId, userId] });
+  return result.rows[0] ? mapChatSession(result.rows[0]) : null;
+}
+
+export async function updateChatSession(userId, sessionId, updates = {}) {
+  const existing = await getChatSession(userId, sessionId);
+  if (!existing) return null;
+  const updatedAt = now();
+  const next = {
+    title: updates.title ?? existing.title,
+    summary: updates.summary ?? existing.summary ?? '',
+    glass_mode: updates.glassMode ?? updates.glass_mode ?? existing.glass_mode ?? null,
+    workflow_mode: updates.workflowMode ?? updates.workflow_mode ?? existing.workflow_mode ?? null,
+    glass_style: updates.glassStyle ?? updates.glass_style ?? existing.glass_style ?? null,
+    active_skill_id: updates.activeSkillId ?? updates.active_skill_id ?? existing.active_skill_id ?? null,
+    active_connector_id: updates.activeConnectorId ?? updates.active_connector_id ?? existing.active_connector_id ?? null,
+    canvas_type: updates.canvasType ?? updates.canvas_type ?? existing.canvas_type ?? null,
+    auto_pilot: updates.autoPilot ?? updates.auto_pilot ?? existing.auto_pilot,
+    pinned: updates.pinned ?? existing.pinned,
+    archived: updates.archived ?? existing.archived,
+    metadata: updates.metadata ?? existing.metadata ?? {},
+  };
+  await turso.execute({
+    sql: `UPDATE chat_sessions SET title = ?, summary = ?, glass_mode = ?, workflow_mode = ?, glass_style = ?, active_skill_id = ?, active_connector_id = ?, canvas_type = ?, auto_pilot = ?, pinned = ?, archived = ?, metadata = ?, updated_at = ? WHERE id = ? AND user_id = ?`,
+    args: [next.title, next.summary, next.glass_mode, next.workflow_mode, next.glass_style, next.active_skill_id, next.active_connector_id, next.canvas_type, next.auto_pilot ? 1 : 0, next.pinned ? 1 : 0, next.archived ? 1 : 0, JSON.stringify(next.metadata), updatedAt, sessionId, userId],
+  });
+  return getChatSession(userId, sessionId);
+}
+
+export async function deleteChatSession(userId, sessionId) {
+  await turso.batch([
+    { sql: 'DELETE FROM chat_messages WHERE session_id = ? AND user_id = ?', args: [sessionId, userId] },
+    { sql: 'DELETE FROM chat_sessions WHERE id = ? AND user_id = ?', args: [sessionId, userId] },
+  ]);
+  return { ok: true };
+}
+
+export async function saveChatMessage(userId, sessionId, input = {}) {
+  const session = await getChatSession(userId, sessionId);
+  if (!session) return null;
+  const createdAt = now();
+  const message = {
+    id: id(),
+    session_id: sessionId,
+    user_id: userId,
+    role: input.role === 'ai' ? 'assistant' : input.role || 'user',
+    content: input.content || '',
+    model: input.model || null,
+    reasoning: Boolean(input.reasoning),
+    tokens: Number(input.tokens || 0),
+    attachments: input.attachments || input.images || [],
+    routing: input.routing || {},
+    metadata: input.metadata || { code: input.code || null },
+    parent_id: input.parentId || input.parent_id || null,
+    created_at: createdAt,
+  };
+  await turso.batch([
+    { sql: `INSERT INTO chat_messages (id, session_id, user_id, role, content, model, reasoning, tokens, attachments, routing, metadata, parent_id, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, args: [message.id, sessionId, userId, message.role, message.content, message.model, message.reasoning ? 1 : 0, message.tokens, JSON.stringify(message.attachments), JSON.stringify(message.routing), JSON.stringify(message.metadata), message.parent_id, createdAt] },
+    { sql: 'UPDATE chat_sessions SET updated_at = ? WHERE id = ? AND user_id = ?', args: [createdAt, sessionId, userId] },
+  ]);
+  return mapChatMessage(message);
+}
+
+export async function getChatMessages(userId, sessionId) {
+  const session = await getChatSession(userId, sessionId);
+  if (!session) return [];
+  const result = await turso.execute({ sql: 'SELECT * FROM chat_messages WHERE session_id = ? AND user_id = ? ORDER BY created_at ASC', args: [sessionId, userId] });
+  return result.rows.map(mapChatMessage);
+}
+
+export async function shareChatSession(userId, sessionId) {
+  const shareId = id();
+  await turso.execute({ sql: 'UPDATE chat_sessions SET is_shared = 1, share_id = ?, updated_at = ? WHERE id = ? AND user_id = ?', args: [shareId, now(), sessionId, userId] });
+  return shareId;
+}
+
 export async function createProject(userId, name, description = '') {
   const project = { id: id(), user_id: userId, name: name || 'Untitled Project', description, notes: '', metadata: {}, created_at: now(), updated_at: now() };
   await turso.execute({
