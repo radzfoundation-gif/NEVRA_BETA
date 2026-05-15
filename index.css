@@ -476,3 +476,181 @@
 .animate-citation-highlight {
   animation: citation-highlight 2s ease-in-out;
 }
+
+/* ============================================================
+   UseGlass — Glassmorphism Utilities (white theme)
+   ============================================================
+   Use these classes anywhere you'd put a card, modal, navbar,
+   panel, or popover that should feel like frosted glass.
+
+   Variants:
+     .glass            default frosted card (16px blur)
+     .glass-subtle     barely-there glass (8px blur)
+     .glass-strong     heavy frost for modals/overlays (24px blur)
+     .glass-panel      flat sidebar/panel surface
+     .glass-pill       rounded-full chip / button
+     .glass-hover      adds a soft hover lift
+     .glass-tint-*     optional accent tint (blue/violet/teal)
+
+   Pair with rounded-2xl + your existing layout classes.
+   Backdrop-filter falls back gracefully on unsupported browsers
+   (the @supports block hardens the background).
+   ============================================================ */
+
+:root {
+  --glass-bg:           rgba(255, 255, 255, 0.55);
+  --glass-bg-subtle:    rgba(255, 255, 255, 0.40);
+  --glass-bg-strong:    rgba(255, 255, 255, 0.72);
+  --glass-bg-panel:     rgba(255, 255, 255, 0.65);
+  --glass-border:       rgba(255, 255, 255, 0.70);
+  --glass-border-soft:  rgba(228, 228, 231, 0.60); /* zinc-200 @ 60% */
+  --glass-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.70) inset,
+    0 8px 32px -8px rgba(15, 23, 42, 0.10),
+    0 2px 8px -2px rgba(15, 23, 42, 0.06);
+  --glass-shadow-strong:
+    0 1px 0 0 rgba(255, 255, 255, 0.85) inset,
+    0 24px 64px -12px rgba(15, 23, 42, 0.18),
+    0 8px 24px -6px rgba(15, 23, 42, 0.10);
+  --glass-highlight:
+    linear-gradient(180deg,
+      rgba(255, 255, 255, 0.55) 0%,
+      rgba(255, 255, 255, 0.10) 40%,
+      rgba(255, 255, 255, 0.00) 100%);
+}
+
+/* Base glass — frosted white card */
+.glass {
+  position: relative;
+  background-color: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 1rem;
+  box-shadow: var(--glass-shadow);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  backdrop-filter: blur(16px) saturate(180%);
+}
+
+/* Top highlight sheen — pure CSS, no extra DOM */
+.glass::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--glass-highlight);
+  pointer-events: none;
+  opacity: 0.9;
+  mix-blend-mode: overlay;
+}
+
+.glass-subtle {
+  background-color: var(--glass-bg-subtle);
+  border: 1px solid var(--glass-border-soft);
+  border-radius: 1rem;
+  box-shadow: 0 4px 16px -4px rgba(15, 23, 42, 0.05);
+  -webkit-backdrop-filter: blur(8px) saturate(150%);
+  backdrop-filter: blur(8px) saturate(150%);
+}
+
+.glass-strong {
+  position: relative;
+  background-color: var(--glass-bg-strong);
+  border: 1px solid var(--glass-border);
+  border-radius: 1.25rem;
+  box-shadow: var(--glass-shadow-strong);
+  -webkit-backdrop-filter: blur(24px) saturate(200%);
+  backdrop-filter: blur(24px) saturate(200%);
+}
+
+.glass-strong::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--glass-highlight);
+  pointer-events: none;
+  opacity: 1;
+  mix-blend-mode: overlay;
+}
+
+/* Flat panel — for sidebars, navbars, fixed surfaces */
+.glass-panel {
+  background-color: var(--glass-bg-panel);
+  border: 1px solid var(--glass-border-soft);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+}
+
+/* Pill — rounded-full chips, toolbar buttons */
+.glass-pill {
+  background-color: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 9999px;
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.70) inset,
+    0 2px 8px -2px rgba(15, 23, 42, 0.08);
+  -webkit-backdrop-filter: blur(12px) saturate(160%);
+  backdrop-filter: blur(12px) saturate(160%);
+}
+
+/* Interactive hover lift */
+.glass-hover {
+  transition:
+    transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 0.2s ease;
+}
+
+.glass-hover:hover {
+  transform: translateY(-1px);
+  background-color: rgba(255, 255, 255, 0.70);
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.85) inset,
+    0 12px 36px -8px rgba(15, 23, 42, 0.14),
+    0 4px 12px -2px rgba(15, 23, 42, 0.08);
+}
+
+/* Tint variants — composable with .glass / .glass-strong */
+.glass-tint-blue {
+  background-image: linear-gradient(135deg,
+    rgba(59, 130, 246, 0.08) 0%,
+    rgba(255, 255, 255, 0.00) 60%);
+}
+
+.glass-tint-violet {
+  background-image: linear-gradient(135deg,
+    rgba(139, 92, 246, 0.08) 0%,
+    rgba(255, 255, 255, 0.00) 60%);
+}
+
+.glass-tint-teal {
+  background-image: linear-gradient(135deg,
+    rgba(20, 184, 166, 0.10) 0%,
+    rgba(255, 255, 255, 0.00) 60%);
+}
+
+/* Inner divider — pairs nicely inside .glass for header rows */
+.glass-divider {
+  border-top: 1px solid var(--glass-border-soft);
+}
+
+/* Fallback: when backdrop-filter is unsupported, beef up the bg
+   so content stays readable instead of looking washed out. */
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .glass,
+  .glass-subtle,
+  .glass-strong,
+  .glass-panel,
+  .glass-pill {
+    background-color: rgba(255, 255, 255, 0.92);
+  }
+}
+
+/* Reduce motion: disable hover lift */
+@media (prefers-reduced-motion: reduce) {
+  .glass-hover {
+    transition: none;
+  }
+  .glass-hover:hover {
+    transform: none;
+  }
+}

@@ -138,8 +138,9 @@ const StreamingResponse: React.FC<StreamingResponseProps> = ({ content, isStream
     // Using simple regex that matches "[1]" or "[1, 2]" or "[1,2,3]"
     // We strictly match format without spaces around brackets to avoid some code arrays
     const normalizedMarkdown = mainContent
-        .replace(/^(\s*[-*+]\s+)[•·]\s+/gm, '$1')
-        .replace(/^(\s*[-*+]\s+)[-*+]\s+/gm, '$1');
+        .replace(/^(\s*[-*+]\s+)[\u2022\u00B7\uFFFD•·]\s+/gm, '$1')
+        .replace(/^(\s*[-*+]\s+)[-*+]\s+/gm, '$1')
+        .replace(/^(\s*)[\u2022\u00B7\uFFFD•·]\s+/gm, '$1- ');
 
     const processedMarkdown = normalizedMarkdown.replace(
         /\[(\d+(?:,\s*\d+)*)\]/g,

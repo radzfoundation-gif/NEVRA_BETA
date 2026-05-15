@@ -33,7 +33,8 @@ const SignInPage: React.FC = () => {
         } else {
             // Logic handled by AuthProvider/ProtectedRoute usually, 
             // but explicit navigation is good.
-            navigate(from, { replace: true });
+            const surveyDone = typeof window !== 'undefined' && window.localStorage?.getItem('useglass_onboarding_survey_completed') === 'true';
+            navigate(surveyDone ? from : '/survey', { replace: true, state: { from } });
         }
     };
 
@@ -42,14 +43,14 @@ const SignInPage: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen bg-zinc-50 flex items-center justify-center p-4 font-sans">
+        <div className="min-h-dvh bg-zinc-50 flex items-center justify-center p-4 pt-safe pb-safe font-sans">
             <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="w-full max-w-md"
             >
                 {/* Card Container */}
-                <div className="bg-white rounded-3xl shadow-xl border border-zinc-100 p-8 md:p-10">
+                <div className="bg-white rounded-3xl shadow-xl border border-zinc-100 p-6 sm:p-8 md:p-10">
 
                     {/* Header */}
                     <div className="text-center mb-8">
@@ -71,7 +72,7 @@ const SignInPage: React.FC = () => {
                         type="button"
                         onClick={handleGoogleSignIn}
                         disabled={loading}
-                        className="w-full mb-6 flex items-center justify-center gap-3 px-6 py-3 bg-white border border-zinc-200 rounded-xl hover:bg-zinc-50 transition-all duration-200 shadow-sm"
+                        className="w-full mb-6 min-h-[48px] flex items-center justify-center gap-3 px-6 py-3 bg-white border border-zinc-200 rounded-xl active:bg-zinc-100 hover:bg-zinc-50 transition-all duration-200 shadow-sm [touch-action:manipulation]"
                     >
                         <svg className="w-5 h-5" viewBox="0 0 24 24">
                             <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -112,6 +113,12 @@ const SignInPage: React.FC = () => {
                                     className="w-full pl-11 pr-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all placeholder:text-zinc-400"
                                     placeholder="name@example.com"
                                     required
+                                    autoComplete="email"
+                                    autoCapitalize="none"
+                                    autoCorrect="off"
+                                    inputMode="email"
+                                    spellCheck={false}
+                                    style={{ fontSize: '16px' }}
                                 />
                             </div>
                         </div>
@@ -134,11 +141,17 @@ const SignInPage: React.FC = () => {
                                     className="w-full pl-11 pr-12 py-3 bg-zinc-50 border border-zinc-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all placeholder:text-zinc-400"
                                     placeholder="••••••••"
                                     required
+                                    autoComplete="current-password"
+                                    autoCapitalize="none"
+                                    autoCorrect="off"
+                                    spellCheck={false}
+                                    style={{ fontSize: '16px' }}
                                 />
                                 <button
                                     type="button"
                                     onClick={() => setShowPassword(!showPassword)}
-                                    className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 transition-colors p-1"
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 min-h-[40px] min-w-[40px] flex items-center justify-center text-zinc-400 hover:text-zinc-600 transition-colors p-1 [touch-action:manipulation]"
+                                    aria-label={showPassword ? 'Hide password' : 'Show password'}
                                 >
                                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                                 </button>
@@ -148,7 +161,7 @@ const SignInPage: React.FC = () => {
                         <button
                             type="submit"
                             disabled={loading || !isCaptchaVerified}
-                            className="w-full mt-2 py-3.5 bg-zinc-900 text-white rounded-xl font-medium hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-lg shadow-zinc-900/20 hover:shadow-xl hover:shadow-zinc-900/30"
+                            className="w-full mt-2 min-h-[52px] py-3.5 bg-zinc-900 text-white rounded-xl font-medium active:bg-black hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-lg shadow-zinc-900/20 hover:shadow-xl hover:shadow-zinc-900/30 [touch-action:manipulation]"
                         >
                             {loading ? (
                                 <>

@@ -12,6 +12,7 @@ import express from 'express';
 import { runAutoPilot, fallbackRouting } from './router.js';
 import { composeSystemPrompt, composeChatSummaryHint } from './promptComposer.js';
 import { formatGenerationResponse, buildErrorResponse } from './responseFormatter.js';
+import { detectTeamActivation, composeTeamAddendum } from './team.js';
 
 /**
  * Factory so the main server can inject AI clients + persistence helpers
@@ -102,7 +103,12 @@ export function createAutoPilotRouter(deps = {}) {
       const routing = runAutoPilot({ prompt, context, manualOverride });
       logRouting('route', routing);
 
-      return res.json({ success: true, routing });
+      const team = detectTeamActivation({
+        promptLower: (prompt || '').toLowerCase(),
+        routing,
+      });
+
+      return res.json({ success: true, routing, team });
     } catch (error) {
       const fallback = fallbackRouting('Auto Pilot routing crashed; using safe fallback.');
       console.error('[AutoPilot] /route failed:', error?.message || error);
@@ -245,6 +251,85 @@ export function createAutoPilotRouter(deps = {}) {
         error: 'save_failed',
         message: 'Could not save the output to the project.',
       });
+    }
+  });
+
+  // ── POST /team ─────────────────────────────────────────────────────────
+  // Multi-workstream generation. Falls back to single-pass /generate when
+  // the prompt does not warrant team mode.
+  router.post('/team', async (req, res) => {
+    let routing;
+    try {
+      const { prompt = '', context = {}, manualOverride = {} } = req.body || {};
+      if (!prompt || typeof prompt !== 'string') {
+        return res.status(400).json({ success: false, error: 'prompt is required' });
+      }
+
+      routing = runAutoPilot({ prompt, context, manualOverride });
+      const team = detectTeamActivation({
+        promptLower: prompt.toLowerCase(),
+        routing,
+      });
+      logRouting('team:routed', routing, { teamActive: team.activate });
+
+      const picked = pickClient();
+      if (!picked) {
+        return res.status(503).json({
+          success: false,
+          error: 'AI provider is not configured',
+          routing,
+          team,
+        });
+      }
+
+      const baseSystem = composeSystemPrompt({
+        routing,
+        userPrompt: prompt,
+        projectContext: context.projectContext,
+        canvasContent: context.canvasContent,
+        manualOverrideApplied: routing.manualOverrideApplied,
+      });
+
+      const systemPrompt = team.activate
+        ? `${baseSystem}\n${composeTeamAddendum({ workstreams: team.workstreams, routing })}`
+        : baseSystem;
+
+      const summaryHint = composeChatSummaryHint(routing);
+
+      const messages = [{ role: 'system', content: systemPrompt }];
+      if (Array.isArray(context.messages)) {
+        for (const m of context.messages.slice(-10)) {
+          if (!m || typeof m !== 'object') continue;
+          if (m.role && typeof m.content === 'string') {
+            messages.push({ role: m.role, content: m.content });
+          }
+        }
+      }
+      if (summaryHint) messages.push({ role: 'system', content: summaryHint });
+      messages.push({ role: 'user', content: prompt });
+
+      const completion = await picked.client.chat.completions.create({
+        model: picked.model,
+        messages,
+        temperature: routing.canvasType ? 0.55 : 0.7,
+      });
+
+      const text = completion?.choices?.[0]?.message?.content || '';
+      const response = formatGenerationResponse({ routing, completion: text });
+
+      logRouting('team:done', routing, {
+        provider: picked.name,
+        model: picked.model,
+        chars: text.length,
+        teamActive: team.activate,
+        workstreams: team.workstreams,
+      });
+
+      return res.json({ success: true, routing, response, team });
+    } catch (error) {
+      console.error('[AutoPilot] /team failed:', error?.message || error);
+      const safe = routing || fallbackRouting('Team generation crashed; using safe fallback.');
+      return res.status(200).json(buildErrorResponse({ routing: safe, error }));
     }
   });
 

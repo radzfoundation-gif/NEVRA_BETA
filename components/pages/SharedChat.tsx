@@ -62,6 +62,15 @@ const SharedChat: React.FC = () => {
         fetchChat();
     }, [id]);
 
+    useEffect(() => {
+        const defaultTitle = 'UseGlass AI | The Ultimate Intelligent App';
+        const sharedTitle = session?.title && session.title !== 'New Chat' ? session.title : null;
+        document.title = sharedTitle || defaultTitle;
+        return () => {
+            document.title = defaultTitle;
+        };
+    }, [session?.title]);
+
     const copyToClipboard = async (text: string) => {
         try {
             await navigator.clipboard.writeText(text);

@@ -1,53 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 
 interface ImageGenLoadingProps {
     type?: 'image' | 'video';
 }
 
-const LETTERS = {
-    N: [
-        1,0,0,0,1,
-        1,1,0,0,1,
-        1,0,1,0,1,
-        1,0,0,1,1,
-        1,0,0,0,1
-    ],
-    O: [
-        0,1,1,1,0,
-        1,0,0,0,1,
-        1,0,0,0,1,
-        1,0,0,0,1,
-        0,1,1,1,0
-    ],
-    I: [
-        0,1,1,1,0,
-        0,0,1,0,0,
-        0,0,1,0,0,
-        0,0,1,0,0,
-        0,1,1,1,0
-    ],
-    R: [
-        1,1,1,1,0,
-        1,0,0,0,1,
-        1,1,1,1,0,
-        1,0,1,0,0,
-        1,0,0,1,1
-    ]
-};
-
-const SEQUENCE = ['N', 'O', 'I', 'R'];
+const GRID_CELLS = Array.from({ length: 9 });
 
 const ImageGenLoading = ({ type = 'image' }: ImageGenLoadingProps) => {
-    const [letterIndex, setLetterIndex] = useState(0);
     const [elapsedTime, setElapsedTime] = useState(0);
-
-    useEffect(() => {
-        const interval = setInterval(() => {
-            setLetterIndex((prev) => (prev + 1) % SEQUENCE.length);
-        }, 1200);
-        return () => clearInterval(interval);
-    }, []);
 
     useEffect(() => {
         const timer = setInterval(() => {
@@ -62,55 +23,18 @@ const ImageGenLoading = ({ type = 'image' }: ImageGenLoadingProps) => {
         return `${m}:${s.toString().padStart(2, '0')}`;
     };
 
-    const currentLetter = LETTERS[SEQUENCE[letterIndex] as keyof typeof LETTERS];
-
-    let dotCount = 0;
-    const activeDots = currentLetter.map((isActive, i) => {
-        if (isActive) {
-            const dot = { id: `dot-${dotCount}`, index: i, x: i % 5, y: Math.floor(i / 5) };
-            dotCount++;
-            return dot;
-        }
-        return null;
-    }).filter(Boolean) as { id: string; index: number; x: number; y: number }[];
-
     return (
         <div className="flex flex-col items-start p-2 mt-2 mb-4 w-full">
             <div className="flex items-center gap-3 mb-3">
-                {/* N-O-I-R Pixel Grid Loading */}
-                <div className="relative w-[24px] h-[24px] mr-2">
-                    {/* Background faint dots */}
-                    {Array.from({ length: 25 }).map((_, i) => (
-                        <div
-                            key={`bg-${i}`}
-                            className="absolute w-[4px] h-[4px] rounded-[1px] bg-purple-200/40 dark:bg-purple-900/40"
-                            style={{ left: (i % 5) * 5, top: Math.floor(i / 5) * 5 }}
+                <div className="grid grid-cols-3 gap-[2px] rounded-[6px] bg-white/80 px-1.5 py-1 ring-1 ring-orange-200/70 dark:bg-zinc-950/70 dark:ring-orange-500/20">
+                    {GRID_CELLS.map((_, i) => (
+                        <motion.div
+                            key={i}
+                            className="h-1 w-1 rounded-[1px] bg-orange-500"
+                            animate={{ opacity: [0.24, 1, 0.34], scale: [0.82, 1.08, 0.92] }}
+                            transition={{ duration: 1.15, repeat: Infinity, delay: i * 0.055, ease: [0.4, 0, 0.2, 1] }}
                         />
                     ))}
-
-                    {/* Active morphing dots */}
-                    <AnimatePresence>
-                        {activeDots.map((dot) => (
-                            <motion.div
-                                key={dot.id}
-                                initial={{ opacity: 0, scale: 0 }}
-                                animate={{ 
-                                    opacity: 1, 
-                                    scale: 1,
-                                    left: dot.x * 5,
-                                    top: dot.y * 5
-                                }}
-                                exit={{ opacity: 0, scale: 0 }}
-                                transition={{ 
-                                    type: "spring", 
-                                    stiffness: 150, 
-                                    damping: 15,
-                                    mass: 0.8
-                                }}
-                                className="absolute w-[4px] h-[4px] rounded-[1px] bg-purple-600 dark:bg-purple-400"
-                            />
-                        ))}
-                    </AnimatePresence>
                 </div>
 
                 <div className="flex items-center gap-2">

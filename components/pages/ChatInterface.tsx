@@ -22,6 +22,7 @@ import SkillScoutLoading from '@/components/ui/SkillScoutLoading';
 import ImageGenLoading from '@/components/chat/ImageGenLoading';
 import ChatSkeleton from '@/components/chat/ChatSkeleton';
 import GridNLoader from '@/components/chat/GridNLoader';
+import GlassThinkingStream from '@/components/chat/GlassThinkingStream';
 import DynamicBackground from '@/components/ui/DynamicBackground';
 // ProviderSelector removed - orchestrator now manages models automatically
 import FrameworkSelector from '@/components/ui/FrameworkSelector';
@@ -115,6 +116,9 @@ import { ModelType } from '@/components/ui/ModelSelector';
 import { useDualStream } from '@/hooks/useDualStream';
 import { useSettings } from '@/hooks/useSettings';
 import { routeGlassIntent, GlassRoutingResult } from '@/lib/glassAutoRouter';
+import { safeFetchAutoPilotRouting, AutoPilotTeamInfo, saveAutoPilotOutput } from '@/lib/autoPilotClient';
+import { composeSkillInstruction, resolveSkillId } from '@/lib/skillInstructions';
+import RoutingChips from '@/components/chat/RoutingChips';
 
 // --- Types ---
 
@@ -155,6 +159,36 @@ type FileNode = {
 
 // --- Utility ---
 const cn = (...inputs: Parameters<typeof clsx>) => twMerge(clsx(inputs));
+
+const decodeHtmlEntities = (value: string) => value
+  .replace(/&lt;/g, '<')
+  .replace(/&gt;/g, '>')
+  .replace(/&amp;/g, '&')
+  .replace(/&quot;/g, '"')
+  .replace(/&#39;/g, "'");
+
+const getCanvasCodeSource = (raw: string) => {
+  const preMatch = raw.match(/<pre[^>]*>([\s\S]*?)<\/pre>/i);
+  return preMatch ? decodeHtmlEntities(preMatch[1]).trim() : raw.trim();
+};
+
+const isStandaloneHtmlPreview = (raw: string) => /<\s*!doctype|<html|<body/i.test(raw) && !/\b(import|export)\b|className=|useState\s*\(/i.test(raw);
+
+const buildGeneratedWebPreview = (prompt: string, raw: string) => {
+  if (isStandaloneHtmlPreview(raw)) return raw;
+
+  const text = `${prompt} ${raw}`.toLowerCase();
+  const isLogin = /login|signin|sign in|masuk/.test(text);
+  const isSchool = /sekolah|school|student|siswa|guru/.test(text);
+  const title = isLogin
+    ? (isSchool ? 'School Login Portal' : 'Welcome back')
+    : (prompt || 'Generated Web Preview').replace(/^(buat|buatkan|bikin|create|generate|build)\s+/i, '').slice(0, 80);
+  const subtitle = isLogin
+    ? (isSchool ? 'Secure access for students, teachers, and staff.' : 'Sign in to continue your workspace.')
+    : 'UseGlass generated a polished live preview from your prompt.';
+
+  return `<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>UseGlass Preview</title><style>*{box-sizing:border-box}body{margin:0;min-height:100vh;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:radial-gradient(circle at 15% 12%,rgba(251,146,60,.28),transparent 34%),radial-gradient(circle at 84% 6%,rgba(59,130,246,.18),transparent 30%),linear-gradient(135deg,#fff7ed,#ffffff 48%,#eff6ff);color:#111827}.wrap{min-height:100vh;display:grid;place-items:center;padding:32px}.card{width:min(980px,100%);display:grid;grid-template-columns:1.05fr .95fr;overflow:hidden;border-radius:34px;background:rgba(255,255,255,.78);border:1px solid rgba(255,255,255,.75);box-shadow:0 34px 90px rgba(15,23,42,.14);backdrop-filter:blur(18px)}.brand{padding:42px;background:linear-gradient(145deg,rgba(255,255,255,.55),rgba(255,237,213,.7));position:relative}.badge{display:inline-flex;align-items:center;gap:8px;border-radius:999px;background:#fff;padding:8px 12px;color:#ea580c;font-size:13px;font-weight:800;box-shadow:0 12px 30px rgba(234,88,12,.12)}.logo{width:34px;height:34px;border-radius:13px;background:linear-gradient(135deg,#fb923c,#f97316);display:grid;place-items:center;color:white;font-weight:900}h1{font-size:54px;line-height:.95;letter-spacing:-.055em;margin:30px 0 18px}.lead{color:#64748b;font-size:17px;line-height:1.7;max-width:430px}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:42px}.stat{border-radius:18px;background:rgba(255,255,255,.75);padding:16px}.stat b{display:block;font-size:22px}.form{padding:42px;background:rgba(255,255,255,.92);display:flex;align-items:center}.panel{width:100%}.panel h2{font-size:28px;margin:0 0 8px;letter-spacing:-.04em}.muted{margin:0 0 26px;color:#6b7280}.field{display:grid;gap:8px;margin-bottom:16px}.field label{font-size:13px;font-weight:700;color:#374151}.input{height:52px;border-radius:16px;border:1px solid #e5e7eb;background:#f9fafb;padding:0 16px;font-size:15px;outline:none}.input:focus{border-color:#fb923c;box-shadow:0 0 0 4px rgba(251,146,60,.14);background:#fff}.row{display:flex;justify-content:space-between;align-items:center;margin:8px 0 22px;color:#6b7280;font-size:13px}.btn{width:100%;height:54px;border:0;border-radius:18px;background:#111827;color:white;font-weight:800;font-size:15px;cursor:pointer;box-shadow:0 18px 34px rgba(17,24,39,.18)}.alt{margin-top:14px;text-align:center;color:#6b7280;font-size:13px}@media(max-width:760px){.card{grid-template-columns:1fr}.brand{padding:30px}.form{padding:30px}h1{font-size:40px}.stats{grid-template-columns:1fr}}</style></head><body><main class="wrap"><section class="card"><div class="brand"><span class="badge"><span class="logo">G</span>UseGlass Preview</span><h1>${title}</h1><p class="lead">${subtitle}</p><div class="stats"><div class="stat"><b>24/7</b><span>Access</span></div><div class="stat"><b>Safe</b><span>Portal</span></div><div class="stat"><b>Fast</b><span>Login</span></div></div></div><div class="form"><div class="panel"><h2>Sign in</h2><p class="muted">Enter your credentials to access your dashboard.</p><div class="field"><label>Email address</label><input class="input" placeholder="student@school.edu"/></div><div class="field"><label>Password</label><input class="input" type="password" placeholder="••••••••"/></div><div class="row"><span>Remember me</span><strong>Forgot password?</strong></div><button class="btn">Continue</button><div class="alt">Need help? Contact school administrator.</div></div></div></section></main></body></html>`;
+};
 
 // --- Splash Screen Component ---
 const SplashScreen: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
@@ -305,6 +339,9 @@ const ChatInterface: React.FC = () => {
   const [activeWorkflowMode, setActiveWorkflowMode] = useState<WorkflowModeId>(((initialState as any).workflowMode || 'think') as WorkflowModeId);
   const [activeGlassStyle, setActiveGlassStyle] = useState<GlassStyleId>(((initialState as any).glassStyle || 'friendly-assistant') as GlassStyleId);
   const [routingResult, setRoutingResult] = useState<GlassRoutingResult | null>(((initialState as any).routingResult || null) as GlassRoutingResult | null);
+  const [autoPilotTeam, setAutoPilotTeam] = useState<AutoPilotTeamInfo | null>(null);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [showRoutingChips, setShowRoutingChips] = useState<boolean>(() => {
     try { return localStorage.getItem('useglass.routingChips.hidden') !== '1'; } catch { return true; }
   });
@@ -316,8 +353,16 @@ const ChatInterface: React.FC = () => {
     });
   };
   const [glassCanvas, setGlassCanvas] = useState<{ state: 'closed' | 'opening' | 'active' | 'fullscreen' | 'collapsed' | 'error'; type: 'web' | 'document' | 'code' | 'presentation' | 'general'; title: string; content: string; sourcePrompt: string; lastUpdated: Date } | null>(null);
+  const [glassCanvasTab, setGlassCanvasTab] = useState<'preview' | 'code' | 'structure' | 'notes'>('preview');
   const activeWorkflow = WORKFLOW_MODES.find(item => item.id === activeWorkflowMode) || WORKFLOW_MODES[0];
   const activeGlassStyleConfig = GLASS_STYLES.find(item => item.id === activeGlassStyle) || GLASS_STYLES[0];
+
+  useEffect(() => {
+    if (glassCanvas?.state === 'opening' || glassCanvas?.state === 'active') {
+      setGlassCanvasTab('preview');
+    }
+  }, [glassCanvas?.lastUpdated, glassCanvas?.state]);
+
   const selectGlassMode = (mode: 'chat' | 'search' | 'agents' | 'builder' | 'code' | 'omni' | 'documents') => {
     setActiveGlassMode(mode);
     setIsSidebarCollapsed(true);
@@ -1176,6 +1221,34 @@ const ChatInterface: React.FC = () => {
     }
   }, [messages.length, sessionId, sessions, generateAutoTitle]);
 
+  // Sync browser tab title with active chat title (or first user prompt as fallback)
+  useEffect(() => {
+    const defaultTitle = 'UseGlass AI | The Ultimate Intelligent App';
+    const sessionTitle = sessions?.find(s => s.id === sessionId)?.title;
+    const firstUserMessage = messages.find(m => m.role === 'user')?.content;
+    const incomingPrompt = (location.state as any)?.initialPrompt as string | undefined;
+
+    const truncate = (raw: string) => {
+      const trimmed = raw.trim().replace(/\s+/g, ' ');
+      return trimmed.length > 60 ? `${trimmed.slice(0, 60)}…` : trimmed;
+    };
+
+    let nextTitle = defaultTitle;
+    if (sessionTitle && sessionTitle !== 'New Chat') {
+      nextTitle = sessionTitle;
+    } else if (firstUserMessage) {
+      nextTitle = truncate(firstUserMessage);
+    } else if (incomingPrompt) {
+      nextTitle = truncate(incomingPrompt);
+    }
+
+    document.title = nextTitle || defaultTitle;
+
+    return () => {
+      document.title = defaultTitle;
+    };
+  }, [sessionId, sessions, messages, location.state]);
+
   const handleSelectSession = (selectedSessionId: string) => {
     navigate(`/chat/${selectedSessionId}`);
     // Messages will be loaded via useEffect when sessionId changes
@@ -1828,6 +1901,22 @@ const ChatInterface: React.FC = () => {
 
     const currentRouting = routeGlassIntent(text, { webSearchConnected: true, githubConnected: false, localDocumentsConnected: !!uploadedDocument });
     setRoutingResult(currentRouting);
+    // Backend Auto Pilot is the source of truth — refresh chips when it answers.
+    // Local router result is shown immediately so the UI feels instant; backend
+    // result overwrites the chips when (and only if) it lands.
+    safeFetchAutoPilotRouting({
+      prompt: text,
+      context: {
+        webSearchConnected: true,
+        githubConnected: false,
+        localDocumentsConnected: !!uploadedDocument,
+        hasUploadedDocument: !!uploadedDocument,
+      },
+    }).then((result) => {
+      if (!result) return;
+      setRoutingResult(result.routing);
+      setAutoPilotTeam(result.team || null);
+    });
     setActiveGlassMode(currentRouting.selectedTool as any);
     setActiveWorkflowMode(currentRouting.selectedWorkflowMode as WorkflowModeId);
     setActiveGlassStyle(currentRouting.selectedStyle as GlassStyleId);
@@ -2120,12 +2209,30 @@ const ChatInterface: React.FC = () => {
     const routedStyle = GLASS_STYLES.find(item => item.id === currentRouting.selectedStyle) || activeGlassStyleConfig;
     const activeSkill = BUILT_IN_GLASS_SKILLS.find(skill => skill.name === currentRouting.selectedSkill || skill.id === currentRouting.selectedSkill) || null;
     const activeConnector = GLASS_CONNECTORS.find(connector => connector.name === currentRouting.selectedConnector || connector.id === currentRouting.selectedConnector) || null;
+
+    // Rich skill instruction (multi-paragraph: role, method, structure,
+    // quality bar, anti-patterns) — placed at the TOP so the AI starts
+    // in the skill's voice, not as a generic assistant.
+    const richSkillId = resolveSkillId(currentRouting.selectedSkill || activeSkill?.name || activeSkill?.id || null);
+    const richSkillInstruction = composeSkillInstruction(richSkillId);
+
     const skillInstruction = activeSkill ? `\n[ACTIVE SKILL: ${activeSkill.name}] ${activeSkill.instructions} Best for: ${activeSkill.bestFor}.` : '';
     const connectorInstruction = activeConnector ? `\n[ACTIVE CONNECTOR: ${activeConnector.name}] Status: ${activeConnector.status}. Capabilities: ${activeConnector.capabilities.join(', ')}. Permission summary: ${activeConnector.permissions}. ${activeConnector.status !== 'connected' ? 'Do not claim you accessed this connector. Treat it as requested context only and explain connection is required for live data.' : 'Use only available connector context; do not fabricate private data.'}` : '';
     const routingInstruction = `\n[GLASS AUTO ROUTER] Intent: ${currentRouting.detectedIntent}. Output format: ${currentRouting.outputFormat}. Confidence: ${Math.round(currentRouting.confidence * 100)}%. Reason: ${currentRouting.reason}`;
     const workflowInstruction = `\n[WORKFLOW MODE: ${routedWorkflow.label}] ${routedWorkflow.description}. Internal flow: ${routedWorkflow.flow}.`;
     const styleInstruction = `\n[GLASS STYLE: ${routedStyle.label}] ${routedStyle.prompt}`;
-    let promptToSend = glassModeInstructions[currentRouting.selectedTool as keyof typeof glassModeInstructions] ? `[${currentRouting.selectedTool.toUpperCase()} MODE] ${glassModeInstructions[currentRouting.selectedTool as keyof typeof glassModeInstructions]}${routingInstruction}${workflowInstruction}${styleInstruction}${skillInstruction}${connectorInstruction}\n\nUser prompt: ${text}` : text;
+
+    // Sandwich pattern: skill at top (sets the voice) + skill reminder at bottom
+    // (stops drift). Tool/Workflow/Style/Connector live in between.
+    const skillReminder = richSkillId
+      ? `\n\nReminder: stay in the ${activeSkill?.name || ''} voice. Do not slip into generic AI tone.`
+      : '';
+
+    let promptToSend = richSkillInstruction
+      ? `${richSkillInstruction}\n\n[GLASS TOOL: ${currentRouting.selectedTool.toUpperCase()}] ${glassModeInstructions[currentRouting.selectedTool as keyof typeof glassModeInstructions] || ''}${routingInstruction}${workflowInstruction}${styleInstruction}${connectorInstruction}\n\nUser prompt: ${text}${skillReminder}`
+      : (glassModeInstructions[currentRouting.selectedTool as keyof typeof glassModeInstructions]
+        ? `[${currentRouting.selectedTool.toUpperCase()} MODE] ${glassModeInstructions[currentRouting.selectedTool as keyof typeof glassModeInstructions]}${routingInstruction}${workflowInstruction}${styleInstruction}${skillInstruction}${connectorInstruction}\n\nUser prompt: ${text}`
+        : text);
     if (newMessage.attachments && newMessage.attachments.length > 0) {
       const attachmentText = newMessage.attachments.map(att =>
         `\n\n--- ${att.name} (${att.type}) ---\n${att.content}`
@@ -2430,7 +2537,8 @@ const ChatInterface: React.FC = () => {
           isSubscribed ? 'pro' : 'free',
           deepDive || withReasoning, // Combine deep dive param with reasoning state
           selectedModel, // NEW: Include selected model
-          abortControllerRef.current?.signal // Support cancellation
+          abortControllerRef.current?.signal, // Support cancellation
+          richSkillInstruction // Skill instruction injected at SYSTEM level
         );
 
         // Final preparation before answering
@@ -2717,7 +2825,8 @@ const ChatInterface: React.FC = () => {
             isSubscribed ? 'pro' : 'free',
             deepDive || withReasoning,
             selectedModel, // selectedModel is the last argument (model)
-            abortControllerRef.current?.signal // Support cancellation
+            abortControllerRef.current?.signal, // Support cancellation
+            richSkillInstruction // Skill instruction injected at SYSTEM level
           );
 
         } catch (error: any) {
@@ -3781,6 +3890,35 @@ const ChatInterface: React.FC = () => {
   const showBottomClarification = activeClarification?.hasClarification && !isTyping;
 
   // --- Render Content ---
+  const handleSaveCanvasToProject = async () => {
+    if (!glassCanvas?.content || !user?.id || saveStatus === 'saving') return;
+    setSaveStatus('saving');
+    setSaveError(null);
+    try {
+      const result = await saveAutoPilotOutput({
+        userId: user.id,
+        projectId: null,
+        title: glassCanvas.title || 'Auto Pilot output',
+        type: (glassCanvas.type as any) || 'document',
+        content: glassCanvas.content,
+        routing: routingResult,
+        sourcePrompt: glassCanvas.sourcePrompt || '',
+      });
+      if (result.success) {
+        setSaveStatus('saved');
+        setTimeout(() => setSaveStatus('idle'), 2200);
+      } else {
+        setSaveStatus('error');
+        setSaveError(result.message || result.error || 'Save failed');
+        setTimeout(() => setSaveStatus('idle'), 3000);
+      }
+    } catch (err) {
+      setSaveStatus('error');
+      setSaveError((err as Error)?.message || 'Network error');
+      setTimeout(() => setSaveStatus('idle'), 3000);
+    }
+  };
+
   const downloadGlassCanvasPdf = async () => {
     if (!glassCanvas?.content) return;
     const html2pdf = (await import('html2pdf.js')).default;
@@ -3991,6 +4129,20 @@ const ChatInterface: React.FC = () => {
                       const shouldReason = reasoning || welcomeRouting.selectedTool === 'search' || welcomeRouting.selectedTool === 'omni';
                       if ((welcomeRouting.selectedConnector === 'Web Search' || welcomeRouting.selectedTool === 'search' || welcomeRouting.selectedTool === 'omni') && !enableWebSearch) setEnableWebSearch(true);
                       setRoutingResult(welcomeRouting);
+                      // Backend Auto Pilot is the source of truth — refresh chips when it answers.
+                      safeFetchAutoPilotRouting({
+                        prompt: query,
+                        context: {
+                          webSearchConnected: true,
+                          githubConnected: false,
+                          localDocumentsConnected: !!uploadedDocument,
+                          hasUploadedDocument: !!uploadedDocument,
+                        },
+                      }).then((result) => {
+                        if (!result) return;
+                        setRoutingResult(result.routing);
+                        setAutoPilotTeam(result.team || null);
+                      });
                       setActiveGlassMode(welcomeRouting.selectedTool as any);
                       setActiveWorkflowMode(welcomeRouting.selectedWorkflowMode as WorkflowModeId);
                       setActiveGlassStyle(welcomeRouting.selectedStyle as GlassStyleId);
@@ -4053,18 +4205,11 @@ const ChatInterface: React.FC = () => {
                 </div>
               )}
 
-              {isTyping && glassSettings.planningBeforeAnswer && (
-                <div className="rounded-[24px] border border-white/80 bg-white/70 p-4 shadow-xl shadow-blue-900/5 backdrop-blur-2xl">
-                  <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-zinc-900">
-                    <Brain size={16} className="text-blue-600" />
-                    Glass Thinking Mode
-                  </div>
-                  <div className="grid gap-2 text-sm text-zinc-600 md:grid-cols-3">
-                    <div className="rounded-2xl bg-blue-50/70 p-3">Understand the user's goal</div>
-                    <div className="rounded-2xl bg-zinc-50 p-3">Break the task into useful steps</div>
-                    <div className="rounded-2xl bg-white p-3 ring-1 ring-zinc-100">Choose a clear final answer strategy</div>
-                  </div>
-                </div>
+              {isTyping && glassSettings.planningBeforeAnswer && selectedModel === 'thinking' && (
+                <GlassThinkingStream
+                  active={isTyping}
+                  prompt={[...messages].reverse().find(m => m.role === 'user')?.content || ''}
+                />
               )}
                
               {messages.map((msg, idx) => {
@@ -4492,7 +4637,22 @@ const ChatInterface: React.FC = () => {
                       matchedSkills={skillScoutData}
                     />
                   ) : activeLoadingPhase === 'generating' || !activeLoadingPhase || activeLoadingPhase === 'none' ? (
-                    <GridNLoader />
+                    <GridNLoader
+                      tone={(() => {
+                        const activePrompt = messages[messages.length - 1]?.content?.toLowerCase() || '';
+                        const isWebBuild = routingResult?.canvasType === 'web'
+                          || routingResult?.selectedTool === 'builder'
+                          || /login page|landing page|website|dashboard|ui|component|komponen|halaman web|pricing page|design|glassmorphism/.test(activePrompt);
+                        const isDocument = routingResult?.canvasType === 'document'
+                          || routingResult?.outputFormat === 'pdf'
+                          || /pdf|proposal|dokumen|laporan|makalah|prd|essay|surat|artikel panjang/.test(activePrompt);
+                        if (isDocument) return 'document';
+                        if (isWebBuild) return 'web';
+                        if (routingResult?.canvasType === 'code' || routingResult?.selectedTool === 'code') return 'code';
+                        if (routingResult?.canvasType === 'presentation') return 'presentation';
+                        return 'default';
+                      })()}
+                    />
                   ) : selectedModel === 'philos' ? (
                     <PhilosLoading
                       phase={
@@ -4552,28 +4712,19 @@ const ChatInterface: React.FC = () => {
         !showBottomClarification && messages.length > 0 && (
           <>
           {routingResult && showRoutingChips ? (
-            <div className="pointer-events-none absolute bottom-[104px] left-0 right-0 z-20 flex justify-center px-4">
-              <div className="pointer-events-auto flex max-w-3xl flex-wrap items-center gap-2 rounded-2xl border border-zinc-200 bg-white/85 px-3 py-2 text-xs text-zinc-600 shadow-sm backdrop-blur">
-                <span className="inline-flex items-center gap-1 rounded-full border border-stone-200 bg-white px-2 py-1 font-medium text-stone-600"><Sparkles size={12} />Auto Pilot</span>
-                <span className="rounded-full bg-sky-50 px-2 py-1 font-medium text-sky-700">{WORKFLOW_MODES.find(item => item.id === routingResult.selectedWorkflowMode)?.label || routingResult.selectedWorkflowMode}</span>
-                <span className="rounded-full bg-orange-50 px-2 py-1 font-medium text-orange-700">{GLASS_STYLES.find(item => item.id === routingResult.selectedStyle)?.label || routingResult.selectedStyle}</span>
-                {routingResult.selectedSkill && <span className="rounded-full bg-violet-50 px-2 py-1 font-medium text-violet-700">{routingResult.selectedSkill}</span>}
-                {routingResult.canvasType && <span className="rounded-full bg-cyan-50 px-2 py-1 font-medium text-cyan-700">{routingResult.canvasType} Canvas</span>}
-                <details className="relative">
-                  <summary className="cursor-pointer list-none rounded-full px-2 py-1 text-zinc-500 hover:bg-zinc-50">Details</summary>
-                  <div className="absolute bottom-full right-0 mb-2 w-72 rounded-2xl border border-zinc-200 bg-white p-3 text-[11px] leading-5 text-zinc-600 shadow-xl">
-                    <div><b>Intent:</b> {routingResult.detectedIntent}</div>
-                    <div><b>Tool:</b> {routingResult.selectedTool}</div>
-                    <div><b>Connector:</b> {routingResult.selectedConnector || 'none'}</div>
-                    <div><b>Confidence:</b> {Math.round(routingResult.confidence * 100)}%</div>
-                    <div><b>Reason:</b> {routingResult.reason}</div>
-                  </div>
-                </details>
-                <button type="button" onClick={toggleRoutingChips} className="ml-auto rounded-full px-2 py-1 text-zinc-400 hover:bg-zinc-50 hover:text-zinc-600" title="Hide routing chips">Hide</button>
+            <div className="pointer-events-none absolute bottom-[112px] sm:bottom-[104px] left-0 right-0 z-20 flex justify-center px-3 sm:px-4">
+              <div className="pointer-events-auto w-full max-w-3xl">
+                <RoutingChips
+                  routing={routingResult}
+                  autoPilotOn={autoPilot}
+                  team={autoPilotTeam || undefined}
+                  isReadingSkill={isTyping && !!routingResult.selectedSkill}
+                  onHide={toggleRoutingChips}
+                />
               </div>
             </div>
           ) : routingResult ? (
-            <button type="button" onClick={toggleRoutingChips} className="absolute bottom-[110px] right-6 z-20 rounded-full border border-zinc-200 bg-white px-3 py-1 text-[11px] font-medium text-zinc-500 shadow-sm hover:bg-zinc-50" title="Show routing chips">Show routing</button>
+            <button type="button" onClick={toggleRoutingChips} className="absolute bottom-[118px] sm:bottom-[110px] right-3 sm:right-6 z-20 min-h-[32px] rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-[11px] font-medium text-zinc-500 shadow-sm active:bg-zinc-100 hover:bg-zinc-50 [touch-action:manipulation]" title="Show routing chips">Show routing</button>
           ) : null}
           <ChatInput
             input={input}
@@ -5583,7 +5734,7 @@ const ChatInterface: React.FC = () => {
               )}
 
               {/* Mobile Glass Canvas — Fullscreen Popup */}
-              {glassCanvas && glassCanvas.state !== 'closed' && (
+              {glassCanvas && glassCanvas.state !== 'closed' && glassCanvas.state !== 'collapsed' && (
                 <motion.div
                   key="mobile-glass-canvas"
                   initial={{ opacity: 0, y: 24 }}
@@ -5613,6 +5764,28 @@ const ChatInterface: React.FC = () => {
                         </button>
                       )}
                       <button
+                        onClick={handleSaveCanvasToProject}
+                        disabled={saveStatus === 'saving' || !user?.id}
+                        className={cn(
+                          "rounded-lg border px-3 py-2 text-xs font-medium transition",
+                          saveStatus === 'saved'
+                            ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                            : saveStatus === 'error'
+                              ? 'border-red-200 bg-red-50 text-red-700'
+                              : 'border-zinc-200 text-zinc-700 active:bg-zinc-100',
+                          saveStatus === 'saving' && 'opacity-60',
+                        )}
+                      >
+                        {saveStatus === 'saving' ? '…' : saveStatus === 'saved' ? 'Saved ✓' : saveStatus === 'error' ? 'Retry' : 'Save'}
+                      </button>
+                      <button
+                        onClick={() => setGlassCanvas(prev => prev ? { ...prev, state: 'collapsed' } : prev)}
+                        aria-label="Switch to chat"
+                        className="rounded-lg border border-zinc-200 px-3 py-2 text-xs font-medium text-zinc-700 active:bg-zinc-100"
+                      >
+                        Chat
+                      </button>
+                      <button
                         onClick={() => setGlassCanvas(prev => prev ? { ...prev, state: 'closed' } : prev)}
                         aria-label="Close canvas"
                         className="rounded-lg border border-zinc-200 p-2 text-zinc-700 active:bg-zinc-100"
@@ -5624,44 +5797,46 @@ const ChatInterface: React.FC = () => {
                   <div className="flex-1 overflow-auto p-4 pb-safe">
                     {(() => {
                       if (glassCanvas.state === 'opening') {
+                        const loadingCopy = glassCanvas.type === 'document'
+                          ? { title: 'Preparing document...', subtitle: 'UseGlass is drafting your document and PDF preview.' }
+                          : glassCanvas.type === 'web'
+                            ? { title: 'Dreaming interface...', subtitle: 'UseGlass is building the web preview.' }
+                            : glassCanvas.type === 'code'
+                              ? { title: 'Preparing code...', subtitle: 'UseGlass is generating code and preview context.' }
+                              : glassCanvas.type === 'presentation'
+                                ? { title: 'Preparing slides...', subtitle: 'UseGlass is shaping your presentation canvas.' }
+                                : { title: 'Preparing canvas...', subtitle: 'UseGlass is setting up your workspace.' };
                         return (
-                          <div className="flex h-full min-h-[60vh] items-center justify-center">
-                            <div className="flex flex-col items-center gap-5 text-center">
-                              <div className="relative h-24 w-24">
-                                <div className="absolute inset-0 rounded-[28px] bg-zinc-50 shadow-inner" />
-                                <div className="absolute inset-5 grid grid-cols-4 gap-1.5">
-                                  {Array.from({ length: 16 }).map((_, index) => (
-                                    <motion.span
-                                      key={index}
-                                      className="rounded-[3px] bg-zinc-900"
-                                      animate={{ opacity: [0.18, 1, 0.18], scale: [0.82, 1.12, 0.82] }}
-                                      transition={{ duration: 1.6, repeat: Infinity, delay: index * 0.055, ease: 'easeInOut' }}
-                                    />
-                                  ))}
-                                </div>
-                                <motion.div
-                                  className="absolute -right-1 -top-1 h-5 w-5 rounded-full bg-sky-400"
-                                  animate={{ y: [0, -4, 0], opacity: [0.7, 1, 0.7] }}
-                                  transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
-                                />
+                          <div className="flex h-full min-h-[420px] items-center justify-center">
+                            <div className="flex flex-col items-center gap-4 text-center">
+                              <div className="grid grid-cols-3 gap-1.5 rounded-2xl bg-white/80 p-3 shadow-[0_12px_40px_rgba(15,23,42,0.08)] ring-1 ring-zinc-200/70">
+                                {Array.from({ length: 9 }).map((_, index) => (
+                                  <motion.span
+                                    key={index}
+                                    className="h-2 w-2 rounded-[3px] bg-zinc-900"
+                                    animate={{ opacity: [0.22, 1, 0.32], scale: [0.82, 1.08, 0.92] }}
+                                    transition={{ duration: 1.15, repeat: Infinity, delay: index * 0.055, ease: [0.4, 0, 0.2, 1] }}
+                                  />
+                                ))}
                               </div>
                               <div>
-                                <div className="text-sm font-semibold text-zinc-900">Dreaming interface...</div>
-                                <div className="mt-1 text-xs text-zinc-500">UseGlass is building code and preparing preview.</div>
+                                <div className="text-sm font-semibold text-zinc-900">{loadingCopy.title}</div>
+                                <div className="mt-1 text-xs text-zinc-500">{loadingCopy.subtitle}</div>
                               </div>
                             </div>
                           </div>
                         );
                       }
                       const raw = glassCanvas.content || '';
-                      const isHtml = /<\/?(html|body|div|table|h[1-6]|p|section|article|header|footer|main)\b/i.test(raw.trim());
-                      if (isHtml && raw.trim().length > 0) {
+                      const codeSource = getCanvasCodeSource(raw);
+                      const previewHtml = buildGeneratedWebPreview(glassCanvas.sourcePrompt, codeSource || raw);
+                      if (previewHtml.trim().length > 0) {
                         return (
                           <iframe
                             key={glassCanvas.lastUpdated?.toString() || 'canvas-iframe-mobile'}
-                            srcDoc={raw}
-                            title="Canvas preview"
-                            sandbox="allow-same-origin"
+                            srcDoc={previewHtml}
+                            title="Web preview"
+                            sandbox="allow-scripts allow-same-origin allow-forms"
                             className="h-full w-full rounded-2xl border border-zinc-200 bg-white"
                             style={{ minHeight: '70vh' }}
                           />
@@ -5675,6 +5850,18 @@ const ChatInterface: React.FC = () => {
                     })()}
                   </div>
                 </motion.div>
+              )}
+
+              {/* Mobile Glass Canvas — Floating restore pill when collapsed */}
+              {glassCanvas && glassCanvas.state === 'collapsed' && (
+                <button
+                  onClick={() => setGlassCanvas(prev => prev ? { ...prev, state: 'active' } : prev)}
+                  className="fixed bottom-24 right-4 z-[55] flex items-center gap-2 rounded-full border border-zinc-200 bg-white/95 px-4 py-2 text-xs font-medium text-zinc-800 shadow-lg backdrop-blur-md active:bg-zinc-50"
+                  aria-label="Restore canvas"
+                >
+                  <Sparkles size={14} className="text-cyan-500" />
+                  Open {glassCanvas.type[0].toUpperCase() + glassCanvas.type.slice(1)} Canvas
+                </button>
               )}
 
               <div className="flex-1 relative overflow-hidden overflow-x-hidden">
@@ -5810,55 +5997,118 @@ const ChatInterface: React.FC = () => {
                         {glassCanvas.type === 'document' && (
                           <button onClick={downloadGlassCanvasPdf} className="rounded-lg border border-zinc-200 px-3 py-1 text-xs hover:bg-zinc-50">Download PDF</button>
                         )}
+                        <button
+                          onClick={handleSaveCanvasToProject}
+                          disabled={saveStatus === 'saving' || !user?.id}
+                          className={cn(
+                            "rounded-lg border px-3 py-1 text-xs transition",
+                            saveStatus === 'saved'
+                              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                              : saveStatus === 'error'
+                                ? 'border-red-200 bg-red-50 text-red-700'
+                                : 'border-zinc-200 hover:bg-zinc-50',
+                            saveStatus === 'saving' && 'opacity-60 cursor-wait',
+                          )}
+                          title={saveStatus === 'error' ? (saveError || 'Save failed') : 'Save this canvas to a project'}
+                        >
+                          {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved ✓' : saveStatus === 'error' ? 'Retry' : 'Save to Project'}
+                        </button>
                         <button onClick={() => setGlassCanvas(prev => prev ? { ...prev, state: prev.state === 'fullscreen' ? 'active' : 'fullscreen' } : prev)} className="rounded-lg border border-zinc-200 px-3 py-1 text-xs hover:bg-zinc-50">Fullscreen</button>
                         <button onClick={() => setGlassCanvas(prev => prev ? { ...prev, state: 'closed' } : prev)} className="rounded-lg border border-zinc-200 px-3 py-1 text-xs hover:bg-zinc-50">Close</button>
                       </div>
                     </div>
-                    <div className="flex border-b border-zinc-100 px-4 py-2 text-xs text-zinc-500 gap-3">
-                      <span>Preview</span><span>Code</span><span>Structure</span><span>Notes</span><span>Save to Project</span>
+                    <div className="flex border-b border-zinc-100 px-4 py-2 text-xs text-zinc-500 gap-2">
+                      {[
+                        ['preview', 'Preview Web'],
+                        ['code', 'Code'],
+                        ['structure', 'Structure'],
+                        ['notes', 'Notes'],
+                      ].map(([tab, label]) => (
+                        <button
+                          key={tab}
+                          onClick={() => setGlassCanvasTab(tab as typeof glassCanvasTab)}
+                          className={cn(
+                            'rounded-full px-3 py-1.5 text-xs font-medium transition',
+                            glassCanvasTab === tab
+                              ? 'bg-zinc-900 text-white shadow-sm'
+                              : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900'
+                          )}
+                        >
+                          {label}
+                        </button>
+                      ))}
                     </div>
                     <div className="flex-1 overflow-auto p-6">
                       {(() => {
                         if (glassCanvas.state === 'opening') {
-                          return (
-                            <div className="flex h-full min-h-[520px] items-center justify-center">
-                              <div className="flex flex-col items-center gap-5 text-center">
-                                <div className="relative h-24 w-24">
-                                  <div className="absolute inset-0 rounded-[28px] bg-zinc-50 shadow-inner" />
-                                  <div className="absolute inset-5 grid grid-cols-4 gap-1.5">
-                                    {Array.from({ length: 16 }).map((_, index) => (
-                                      <motion.span
-                                        key={index}
-                                        className="rounded-[3px] bg-zinc-900"
-                                        animate={{ opacity: [0.18, 1, 0.18], scale: [0.82, 1.12, 0.82] }}
-                                        transition={{ duration: 1.6, repeat: Infinity, delay: index * 0.055, ease: 'easeInOut' }}
-                                      />
-                                    ))}
-                                  </div>
-                                  <motion.div
-                                    className="absolute -right-1 -top-1 h-5 w-5 rounded-full bg-sky-400"
-                                    animate={{ y: [0, -4, 0], opacity: [0.7, 1, 0.7] }}
-                                    transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+                        const loadingCopy = glassCanvas.type === 'document'
+                          ? { title: 'Preparing document...', subtitle: 'UseGlass is drafting your document and PDF preview.' }
+                          : glassCanvas.type === 'web'
+                            ? { title: 'Dreaming interface...', subtitle: 'UseGlass is building the web preview.' }
+                            : glassCanvas.type === 'code'
+                              ? { title: 'Preparing code...', subtitle: 'UseGlass is generating code and preview context.' }
+                              : glassCanvas.type === 'presentation'
+                                ? { title: 'Preparing slides...', subtitle: 'UseGlass is shaping your presentation canvas.' }
+                                : { title: 'Preparing canvas...', subtitle: 'UseGlass is setting up your workspace.' };
+                        return (
+                          <div className="flex h-full min-h-[420px] items-center justify-center">
+                            <div className="flex flex-col items-center gap-4 text-center">
+                              <div className="grid grid-cols-3 gap-1.5 rounded-2xl bg-white/80 p-3 shadow-[0_12px_40px_rgba(15,23,42,0.08)] ring-1 ring-zinc-200/70">
+                                {Array.from({ length: 9 }).map((_, index) => (
+                                  <motion.span
+                                    key={index}
+                                    className="h-2 w-2 rounded-[3px] bg-zinc-900"
+                                    animate={{ opacity: [0.22, 1, 0.32], scale: [0.82, 1.08, 0.92] }}
+                                    transition={{ duration: 1.15, repeat: Infinity, delay: index * 0.055, ease: [0.4, 0, 0.2, 1] }}
                                   />
-                                </div>
-                                <div>
-                                  <div className="text-sm font-semibold text-zinc-900">Dreaming interface...</div>
-                                  <div className="mt-1 text-xs text-zinc-500">UseGlass is building code and preparing preview.</div>
-                                </div>
+                                ))}
                               </div>
+                              <div>
+                                <div className="text-sm font-semibold text-zinc-900">{loadingCopy.title}</div>
+                                <div className="mt-1 text-xs text-zinc-500">{loadingCopy.subtitle}</div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+                        const raw = glassCanvas.content || '';
+                        const codeSource = getCanvasCodeSource(raw);
+                        const previewHtml = buildGeneratedWebPreview(glassCanvas.sourcePrompt, codeSource || raw);
+                        if (glassCanvasTab === 'code') {
+                          return (
+                            <pre className="min-h-full overflow-auto whitespace-pre-wrap rounded-2xl border border-zinc-200 bg-zinc-950 p-5 font-mono text-xs leading-relaxed text-zinc-50">
+                              {codeSource || 'Code will appear here.'}
+                            </pre>
+                          );
+                        }
+                        if (glassCanvasTab === 'structure') {
+                          return (
+                            <div className="grid gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 p-5 text-sm text-zinc-700">
+                              <div className="font-semibold text-zinc-900">Canvas Structure</div>
+                              <div>Type: {glassCanvas.type}</div>
+                              <div>Prompt: {glassCanvas.sourcePrompt || 'No source prompt'}</div>
+                              <div>Preview: {previewHtml ? 'Renderable web preview ready' : 'Waiting for renderable content'}</div>
+                              <div>Code length: {codeSource.length} characters</div>
                             </div>
                           );
                         }
-                        const raw = glassCanvas.content || '';
-                        const isHtml = /<\/?(html|body|div|table|h[1-6]|p|section|article|header|footer|main)\b/i.test(raw.trim());
-                        if (isHtml && raw.trim().length > 0) {
+                        if (glassCanvasTab === 'notes') {
+                          return (
+                            <div className="rounded-2xl border border-zinc-200 bg-white p-5 text-sm leading-7 text-zinc-700">
+                              <p className="font-semibold text-zinc-900">Preview ready.</p>
+                              <p>Use <strong>Preview Web</strong> untuk melihat hasil render. Use <strong>Code</strong> untuk melihat source yang dihasilkan.</p>
+                              <p>Kirim instruksi lanjutan untuk ubah warna, layout, copy, section, atau responsif.</p>
+                            </div>
+                          );
+                        }
+                        if (previewHtml.trim().length > 0) {
                           return (
                             <iframe
                               key={glassCanvas.lastUpdated?.toString() || 'canvas-iframe'}
-                              srcDoc={raw}
-                              title="Canvas preview"
-                              sandbox="allow-same-origin"
-                              className="h-full w-full rounded-2xl border border-zinc-200 bg-white"
+                              srcDoc={previewHtml}
+                              title="Web preview"
+                              sandbox="allow-scripts allow-same-origin allow-forms"
+                              className="h-full w-full rounded-2xl border border-zinc-200 bg-white shadow-sm"
                               style={{ minHeight: '600px' }}
                             />
                           );

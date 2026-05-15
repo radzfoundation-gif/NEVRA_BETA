@@ -424,16 +424,16 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md">
-      <div className="relative w-full max-w-2xl mx-4 bg-gradient-to-br from-[#0a0a0a] to-[#050505] border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-stretch sm:items-center justify-center bg-transparent pointer-events-none">
+      <div className="pointer-events-auto relative w-full sm:max-w-2xl sm:mx-4 max-h-[100dvh] sm:max-h-[90vh] overflow-y-auto bg-gradient-to-br from-[#0a0a0a] to-[#050505] sm:border border-white/10 sm:rounded-2xl shadow-[0_18px_60px_rgba(15,23,42,0.18)] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-white/10">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center">
-              <GraduationCap className="text-white" size={24} />
+        <div className="flex items-center justify-between p-4 sm:p-6 border-b border-white/10 pt-safe">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center">
+              <GraduationCap className="text-white" size={22} />
             </div>
-            <div>
-              <h3 className="text-lg font-semibold text-white">Voice Call with UseGlass Tutor</h3>
+            <div className="min-w-0">
+              <h3 className="text-base sm:text-lg font-semibold text-white truncate">Voice Call with UseGlass Tutor</h3>
               <p className="text-xs text-gray-400">
                 {isCalling
                   ? (isListening ? 'Listening...' : isSpeaking ? 'Speaking...' : 'Connected')
@@ -441,14 +441,15 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             {/* Language Selector */}
             <select
               value={selectedLang}
               onChange={(e) => setSelectedLang(e.target.value)}
               disabled={isCalling}
-              className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white text-sm hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+              className="px-2 sm:px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs sm:text-sm hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-purple-500/50 max-w-[120px] sm:max-w-none"
               title="Select language"
+              style={{ fontSize: '16px' }}
             >
               {languages.map(lang => (
                 <option key={lang.code} value={lang.code} className="bg-[#0a0a0a] text-white">
@@ -458,7 +459,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
             </select>
             <button
               onClick={onClose}
-              className="p-2 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+              className="min-h-[40px] min-w-[40px] p-2 rounded-lg active:bg-white/20 hover:bg-white/10 text-gray-400 hover:text-white transition-colors [touch-action:manipulation]"
             >
               <X size={20} />
             </button>
@@ -466,7 +467,7 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
         </div>
 
         {/* Call Status */}
-        <div className="p-6 space-y-4">
+        <div className="p-4 sm:p-6 space-y-4 flex-1">
           {/* Error Message */}
           {error && (
             <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4">
@@ -554,19 +555,19 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
         </div>
 
         {/* Call Controls */}
-        <div className="p-6 border-t border-white/10 bg-gradient-to-t from-[#0a0a0a] to-transparent">
-          <div className="flex items-center justify-center gap-4">
+        <div className="p-4 sm:p-6 pb-safe border-t border-white/10 bg-gradient-to-t from-[#0a0a0a] to-transparent">
+          <div className="flex items-center justify-center gap-3 sm:gap-4">
             {/* Mute/Unmute */}
             <button
               onClick={toggleMute}
               disabled={!isCalling}
-              className={`p-4 rounded-full transition-all ${isMuted
+              className={`min-h-[56px] min-w-[56px] p-3.5 sm:p-4 rounded-full transition-all [touch-action:manipulation] ${isMuted
                 ? 'bg-red-500/20 text-red-400 border border-red-500/30'
-                : 'bg-white/10 text-white border border-white/20 hover:bg-white/20'
+                : 'bg-white/10 text-white border border-white/20 active:bg-white/30 hover:bg-white/20'
                 } disabled:opacity-50 disabled:cursor-not-allowed`}
               title={isMuted ? 'Unmute' : 'Mute'}
             >
-              {isMuted ? <MicOff size={24} /> : <Mic size={24} />}
+              {isMuted ? <MicOff size={22} /> : <Mic size={22} />}
             </button>
 
             {/* Call/End Call */}
@@ -574,22 +575,22 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
               <button
                 onClick={startCall}
                 disabled={isRequestingPermission}
-                className="p-5 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 text-white hover:from-green-400 hover:to-emerald-400 transition-all shadow-lg shadow-green-500/30 hover:shadow-green-500/50 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                className="min-h-[64px] min-w-[64px] p-4 sm:p-5 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 text-white active:scale-95 hover:from-green-400 hover:to-emerald-400 transition-all shadow-lg shadow-green-500/30 hover:shadow-green-500/50 disabled:opacity-50 disabled:cursor-not-allowed [touch-action:manipulation]"
                 title="Start Call"
               >
                 {isRequestingPermission ? (
-                  <Loader2 size={28} className="animate-spin" />
+                  <Loader2 size={26} className="animate-spin" />
                 ) : (
-                  <Phone size={28} />
+                  <Phone size={26} />
                 )}
               </button>
             ) : (
               <button
                 onClick={endCall}
-                className="p-5 rounded-full bg-gradient-to-r from-red-500 to-rose-500 text-white hover:from-red-400 hover:to-rose-400 transition-all shadow-lg shadow-red-500/30 hover:shadow-red-500/50 hover:scale-105"
+                className="min-h-[64px] min-w-[64px] p-4 sm:p-5 rounded-full bg-gradient-to-r from-red-500 to-rose-500 text-white active:scale-95 hover:from-red-400 hover:to-rose-400 transition-all shadow-lg shadow-red-500/30 hover:shadow-red-500/50 [touch-action:manipulation]"
                 title="End Call"
               >
-                <PhoneOff size={28} />
+                <PhoneOff size={26} />
               </button>
             )}
 
@@ -597,21 +598,21 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
             <button
               onClick={toggleSpeaker}
               disabled={!isCalling}
-              className={`p-4 rounded-full transition-all ${isSpeakerOn
-                ? 'bg-white/10 text-white border border-white/20 hover:bg-white/20'
+              className={`min-h-[56px] min-w-[56px] p-3.5 sm:p-4 rounded-full transition-all [touch-action:manipulation] ${isSpeakerOn
+                ? 'bg-white/10 text-white border border-white/20 active:bg-white/30 hover:bg-white/20'
                 : 'bg-white/5 text-gray-500 border border-white/10'
                 } disabled:opacity-50 disabled:cursor-not-allowed`}
               title={isSpeakerOn ? 'Turn off speaker' : 'Turn on speaker'}
             >
-              {isSpeakerOn ? <Volume2 size={24} /> : <VolumeX size={24} />}
+              {isSpeakerOn ? <Volume2 size={22} /> : <VolumeX size={22} />}
             </button>
           </div>
 
           {/* Instructions */}
-          <p className="text-xs text-gray-500 text-center mt-4">
+          <p className="text-xs text-gray-500 text-center mt-4 px-2">
             {isCalling
               ? 'Speak naturally. I\'ll listen and respond with voice.'
-              : 'Click the green button to start a voice conversation with AI'}
+              : 'Tap the green button to start a voice conversation with AI'}
           </p>
         </div>
       </div>

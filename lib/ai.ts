@@ -132,7 +132,8 @@ export async function generateCode(
   tier?: 'free' | 'pro',
   deepDive?: boolean,
   selectedModel?: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  extraSystemPrompt?: string
 ): Promise<CodeResponse> {
   const legacyCall = !Array.isArray(historyOrProvider);
   const history = legacyCall ? [] : historyOrProvider;
@@ -141,7 +142,7 @@ export async function generateCode(
   const images = legacyCall ? (providerOrImages || []) : (imagesArg || []);
   const effectiveUserId = legacyCall ? modeOrUserId : userId;
 
-  const systemPrompt = mode === 'builder'
+  const baseSystemPrompt = mode === 'builder'
     ? `${BUILDER_PROMPT}
 
 You are Glass Builder inside UseGlass AI. Generate production-ready UI/code, prefer clean white glassmorphism, responsive layouts, accessible controls, and concise implementation notes when returning code.`
@@ -149,6 +150,13 @@ You are Glass Builder inside UseGlass AI. Generate production-ready UI/code, pre
 
 Modes supported: fast answer, Glass Thinking, creative writing, coding assistant, academic research, document understanding, and lightweight answers.
 Use Markdown, code blocks, tables, math, and citations when helpful. Keep answers clear, structured, and useful.`;
+
+  // Skill / style / workflow instruction (composed by ChatInterface) is
+  // prepended at SYSTEM level so the AI starts in the skill's voice rather
+  // than receiving it as user-message context (weaker signal).
+  const systemPrompt = extraSystemPrompt
+    ? `${extraSystemPrompt}\n\n${baseSystemPrompt}`
+    : baseSystemPrompt;
 
   const response = await fetch('/api/generate', {
     method: 'POST',

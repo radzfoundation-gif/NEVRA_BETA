@@ -581,7 +581,7 @@ export function ResearchWelcome({
                 const data = await response.json();
                 const imageUrl = data.data?.[0]?.url || data.data?.[0]?.b64_json;
                 if (imageUrl) {
-                    navigate('/chat/new', {
+                    navigate('/chat', {
                         state: {
                             initialPrompt: prompt,
                             generatedImage: imageUrl.startsWith('http') ? imageUrl : `data:image/png;base64,${imageUrl}`
@@ -631,7 +631,7 @@ export function ResearchWelcome({
             if (response.ok) {
                 const data = await response.json();
                 if (data.videoUrl) {
-                    navigate('/chat/new', {
+                    navigate('/chat', {
                         state: {
                             initialPrompt: prompt,
                             generatedVideo: data.videoUrl
@@ -675,7 +675,7 @@ export function ResearchWelcome({
                     handleVideoGeneration(query);
                 } else {
                     const routingResult = routeGlassIntent(query, { webSearchConnected: true });
-                    navigate('/chat/new', {
+                    navigate('/chat', {
                         state: {
                             initialPrompt: query,
                             initialAttachments: attachments,
@@ -1494,8 +1494,8 @@ export function ResearchWelcome({
                     {/* Text Area */}
                     <div className={cn(
                         attachments.length > 0 || query.length > 80 || query.includes('\n')
-                            ? "px-5 pt-4 pb-1 sm:px-6 sm:pt-4 sm:pb-1"
-                            : "flex h-[58px] items-center pl-14 pr-32 sm:pl-16 sm:pr-44"
+                            ? "px-4 pt-4 pb-1 sm:px-6 sm:pt-4 sm:pb-1"
+                            : "flex h-[58px] items-center pl-12 pr-24 sm:pl-16 sm:pr-44"
                     )}>
                         <textarea
                             value={query}
@@ -1504,6 +1504,10 @@ export function ResearchWelcome({
                             onFocus={() => setIsFocused(true)}
                             onBlur={() => setIsFocused(false)}
                             placeholder="What do you want to know?"
+                            autoCapitalize="sentences"
+                            autoCorrect="on"
+                            spellCheck="true"
+                            enterKeyHint="send"
                             className="block h-[22px] max-h-44 min-h-[22px] w-full resize-none overflow-y-auto border-none bg-transparent py-0 text-[16px] font-medium leading-[22px] text-stone-800 placeholder-stone-500 focus:outline-none break-words scrollbar-none"
                             style={{ height: '22px' }}
                         />
@@ -1521,12 +1525,12 @@ export function ResearchWelcome({
                             <button
                                 onClick={() => { setShowToolsMenu(!showToolsMenu); setShowModeToolsMenu(false); }}
                                 className={cn(
-                                    "w-8 h-8 flex items-center justify-center rounded-full transition-all",
-                                    showToolsMenu ? "bg-white text-stone-800 shadow-sm" : "text-stone-500 hover:text-stone-900 hover:bg-white/80"
+                                    "w-10 h-10 md:w-8 md:h-8 flex items-center justify-center rounded-full transition-all [touch-action:manipulation]",
+                                    showToolsMenu ? "bg-white text-stone-800 shadow-sm" : "text-stone-500 active:bg-white/90 hover:text-stone-900 hover:bg-white/80"
                                 )}
                                 title="Attach menu"
                             >
-                                <Plus size={21} strokeWidth={1.9} />
+                                <Plus size={20} strokeWidth={1.9} />
                             </button>
 
                             {false && showModeToolsMenu && (
@@ -1687,11 +1691,12 @@ export function ResearchWelcome({
                                     ) : <span>
                                         {(() => {
                                             const names: Record<string, string> = {
-                                                'sonnet': 'Fast Thinking',
-                                                'sonar': 'Fast Thinking',
+                                                'sonnet': 'Storm',
+                                                'sonar': 'Storm',
                                                 'opus': 'Pro',
                                                 'philos': 'Glass Philos',
                                                 'haiku': 'Haiku',
+                                                'thinking': 'Thinking',
                                             };
                                             const name = names[selectedModel] ?? getModelDisplayName(selectedModel);
                                             return (
@@ -1718,7 +1723,7 @@ export function ResearchWelcome({
                                         else if (isVideoRequest(query)) handleVideoGeneration(query);
                                         else {
                                             const routingResult = routeGlassIntent(query, { webSearchConnected: true });
-                                            navigate('/chat/new', { state: { initialPrompt: query, initialAttachments: attachments, model: selectedModel, reasoning: withReasoning || routingResult.selectedTool === 'search' || routingResult.selectedTool === 'omni', glassMode: routingResult.selectedTool, workflowMode: routingResult.selectedWorkflowMode, glassStyle: routingResult.selectedStyle, activeSkillId: routingResult.selectedSkill, activeConnectorId: routingResult.selectedConnector === 'Web Search' ? 'web-search' : null, canvasType: routingResult.canvasType, routingResult, autoMode: true, autoSend: true } });
+                                            navigate('/chat', { state: { initialPrompt: query, initialAttachments: attachments, model: selectedModel, reasoning: withReasoning || routingResult.selectedTool === 'search' || routingResult.selectedTool === 'omni', glassMode: routingResult.selectedTool, workflowMode: routingResult.selectedWorkflowMode, glassStyle: routingResult.selectedStyle, activeSkillId: routingResult.selectedSkill, activeConnectorId: routingResult.selectedConnector === 'Web Search' ? 'web-search' : null, canvasType: routingResult.canvasType, routingResult, autoMode: true, autoSend: true } });
                                         }
                                     } else {
                                         setShowDictation(true);
@@ -1726,7 +1731,7 @@ export function ResearchWelcome({
                                 }}
                                 disabled={isProcessing}
                                 whileTap={{ scale: 0.92 }}
-                                className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-950 text-white shadow-sm transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40"
+                                className="flex h-10 w-10 md:h-9 md:w-9 items-center justify-center rounded-full bg-zinc-950 text-white shadow-sm transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40 [touch-action:manipulation]"
                                 title={query.trim() || attachments.length > 0 ? "Send prompt" : "Voice input"}
                             >
                                 <AnimatePresence mode="wait" initial={false}>
@@ -1754,7 +1759,7 @@ export function ResearchWelcome({
                                             else if (isVideoRequest(query)) handleVideoGeneration(query);
                                             else {
                                                 const routingResult = routeGlassIntent(query, { webSearchConnected: true });
-                                                navigate('/chat/new', { state: { initialPrompt: query, initialAttachments: attachments, model: selectedModel, reasoning: withReasoning || routingResult.selectedTool === 'search' || routingResult.selectedTool === 'omni', glassMode: routingResult.selectedTool, workflowMode: routingResult.selectedWorkflowMode, glassStyle: routingResult.selectedStyle, activeSkillId: routingResult.selectedSkill, activeConnectorId: routingResult.selectedConnector === 'Web Search' ? 'web-search' : null, canvasType: routingResult.canvasType, routingResult, autoMode: true, autoSend: true } });
+                                                navigate('/chat', { state: { initialPrompt: query, initialAttachments: attachments, model: selectedModel, reasoning: withReasoning || routingResult.selectedTool === 'search' || routingResult.selectedTool === 'omni', glassMode: routingResult.selectedTool, workflowMode: routingResult.selectedWorkflowMode, glassStyle: routingResult.selectedStyle, activeSkillId: routingResult.selectedSkill, activeConnectorId: routingResult.selectedConnector === 'Web Search' ? 'web-search' : null, canvasType: routingResult.canvasType, routingResult, autoMode: true, autoSend: true } });
                                             }
                                         }}
                                         disabled={isProcessing}

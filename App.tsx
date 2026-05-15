@@ -58,7 +58,7 @@ const AppContent: React.FC = () => {
           <Route path="/glass-builder" element={<ProtectedRoute><GlassToolPage tool="builder" /></ProtectedRoute>} />
           <Route path="/glass-code" element={<ProtectedRoute><GlassToolPage tool="code" /></ProtectedRoute>} />
           <Route path="/studio" element={<Studio />} />
-          <Route path="/survey" element={<SurveyPage />} />
+          <Route path="/survey" element={<ProtectedRoute requireNickname={false}><SurveyPage /></ProtectedRoute>} />
           <Route path="/sign-in" element={<SignInPage />} />
           <Route path="/sign-up" element={<SignUpPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />

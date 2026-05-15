@@ -141,11 +141,12 @@ const QUICK_ACTIONS = [
 
 /** Short labels for bundled model presets; OpenRouter slugs fall back via getModelDisplayName. */
 const SHORT_MODEL_LABELS: Record<string, string> = {
-    'sonar': 'Fast Thinking',
-    'sonnet': 'Fast Thinking',
+    'sonar': 'Storm',
+    'sonnet': 'Storm',
     'opus': 'Pro',
     'haiku': 'Haiku',
     'philos': 'Glass Philos',
+    'thinking': 'Thinking',
 };
 
 const ChatInput: React.FC<ChatInputProps> = ({
@@ -663,8 +664,8 @@ const ChatInput: React.FC<ChatInputProps> = ({
                     {/* Textarea */}
                     <div className={cn(
                         attachedImages.length > 0 || attachedFiles.length > 0 || input.length > 80 || input.includes('\n')
-                            ? "min-w-0 px-5 pt-4 pb-1 sm:px-6 sm:pt-4 sm:pb-1"
-                            : "flex h-[58px] min-w-0 items-center pl-14 pr-32 sm:pl-16 sm:pr-44"
+                            ? "min-w-0 px-4 pt-4 pb-1 sm:px-6 sm:pt-4 sm:pb-1"
+                            : "flex h-[58px] min-w-0 items-center pl-12 pr-24 sm:pl-16 sm:pr-44"
                     )}>
                         <textarea
                             ref={textareaRef}
@@ -685,11 +686,16 @@ const ChatInput: React.FC<ChatInputProps> = ({
                             onBlur={() => setIsFocused(false)}
                             placeholder={isTyping ? "AI is processing..." : "What do you want to know?"}
                             disabled={isTyping}
+                            autoCapitalize="sentences"
+                            autoCorrect="on"
+                            autoComplete="off"
+                            spellCheck="true"
+                            enterKeyHint="send"
                             className={cn(
                                 "block h-[22px] max-h-24 min-h-[22px] w-full resize-none overflow-y-auto border-0 bg-transparent py-0 text-base font-medium leading-[22px] text-gray-800 placeholder-stone-500 focus:outline-none scrollbar-none break-words",
                                 isTyping && "opacity-60 cursor-not-allowed"
                             )}
-                            style={{ height: '22px', minHeight: '22px' }}
+                            style={{ height: '22px', minHeight: '22px', fontSize: '16px' }}
                         />
                     </div>
 
@@ -732,10 +738,10 @@ const ChatInput: React.FC<ChatInputProps> = ({
 
                             {/* Tools Dropdown */}
                             {showToolsMenu && (
-                                <div className="absolute bottom-full left-0 mb-3 flex flex-col md:flex-row items-start gap-1 z-50">
+                                <div className="absolute bottom-full left-0 mb-2 sm:mb-3 flex flex-col md:flex-row items-start gap-1 z-50">
                                     {/* Main menu */}
-                                    <div className="w-[85vw] max-w-[224px] sm:w-56 bg-white/95 backdrop-blur-xl border border-stone-200 rounded-2xl shadow-[0_12px_40px_rgba(0,0,0,0.12)] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-150 py-1.5">
-                                        <button type="button" onClick={() => setAutoPilot((value) => !value)} className="mx-1.5 mb-1 flex w-[calc(100%-12px)] items-center justify-between rounded-xl px-3 py-2 text-left text-[13px] text-stone-700 transition-colors hover:bg-stone-50">
+                                    <div className="w-[min(88vw,260px)] sm:w-56 bg-white/95 backdrop-blur-xl border border-stone-200 rounded-2xl shadow-[0_12px_40px_rgba(0,0,0,0.12)] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-150 py-1.5 max-h-[60vh] overflow-y-auto">
+                                        <button type="button" onClick={() => setAutoPilot((value) => !value)} className="mx-1.5 mb-1 flex w-[calc(100%-12px)] items-center justify-between rounded-xl px-3 py-2.5 sm:py-2 text-left text-[13px] text-stone-700 transition-colors active:bg-stone-100 hover:bg-stone-50 [touch-action:manipulation]">
                                             <span>Auto Pilot</span>
                                             <span className={cn("relative h-4 w-7 rounded-full transition-colors duration-300", autoPilot ? "bg-blue-500" : "bg-stone-200")}>
                                                 <span className={cn("absolute left-0.5 top-0.5 h-3 w-3 rounded-full bg-white shadow-sm transition-transform duration-300", autoPilot && "translate-x-3")} />
@@ -764,7 +770,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
                                                                 key={tool.id}
                                                                 onClick={() => handleToolSelect(tool.id)}
                                                                 className={cn(
-                                                                    "w-full flex items-center gap-3 px-3 py-2 text-[13px] transition-colors mx-1.5 rounded-lg text-left",
+                                                                    "w-full flex items-center gap-3 px-3 py-2.5 sm:py-2 text-[13px] transition-colors mx-1.5 rounded-lg text-left active:bg-stone-100 [touch-action:manipulation]",
                                                                     (tool.id === 'styles' && showStyleSubmenu) || (tool.id === 'skills' && showSkillSubmenu) || isVisualActive ? "bg-stone-100" : "hover:bg-stone-50"
                                                                 )}
                                                                 style={{ width: 'calc(100% - 12px)' }}
@@ -799,7 +805,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
 
                                     {/* Skill submenu */}
                                     {showSkillSubmenu && (
-                                        <div className="w-44 bg-white border border-stone-200 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden animate-in fade-in slide-in-from-left-1 duration-150 py-1.5">
+                                        <div className="w-[min(88vw,260px)] md:w-44 bg-white border border-stone-200 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden animate-in fade-in slide-in-from-left-1 duration-150 py-1.5 max-h-[40vh] overflow-y-auto">
                                             {userSkills.filter(s => s.enabled).length === 0 ? (
                                                 <div className="px-3 py-3 text-[12px] text-stone-400 text-center">
                                                     Belum ada skill aktif
@@ -826,7 +832,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
 
                                     {/* Style submenu */}
                                     {showStyleSubmenu && (
-                                        <div className="w-44 bg-white border border-stone-200 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden animate-in fade-in slide-in-from-left-1 duration-150 py-1.5">
+                                        <div className="w-[min(88vw,260px)] md:w-44 bg-white border border-stone-200 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden animate-in fade-in slide-in-from-left-1 duration-150 py-1.5 max-h-[40vh] overflow-y-auto">
                                             {WRITING_STYLES.map((style) => {
                                                 const isSelected = activeStyle === style.id || (!activeStyle && style.id === 'normal');
                                                 return (
@@ -856,7 +862,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
 
                                     {/* Visual Model submenu */}
                                     {showVisualSubmenu && (
-                                        <div className="w-48 bg-white border border-stone-200 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden animate-in fade-in slide-in-from-left-1 duration-150 py-1.5">
+                                        <div className="w-[min(88vw,260px)] md:w-48 bg-white border border-stone-200 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden animate-in fade-in slide-in-from-left-1 duration-150 py-1.5 max-h-[40vh] overflow-y-auto">
                                             <div className="px-3 py-1.5 text-[11px] font-bold text-stone-400 uppercase tracking-wider">
                                                 {showVisualSubmenu === 'image' ? 'Image Models' : 'Video Models'}
                                             </div>

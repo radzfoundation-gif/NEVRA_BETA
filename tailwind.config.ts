@@ -93,6 +93,23 @@ export default {
                     DEFAULT: "var(--card)",
                     foreground: "var(--card-foreground)",
                 },
+                // UseGlass — glassmorphism color tokens
+                'glass': 'rgba(255, 255, 255, 0.55)',
+                'glass-subtle': 'rgba(255, 255, 255, 0.40)',
+                'glass-strong': 'rgba(255, 255, 255, 0.72)',
+                'glass-panel': 'rgba(255, 255, 255, 0.65)',
+                'glass-border': 'rgba(255, 255, 255, 0.70)',
+                'glass-border-soft': 'rgba(228, 228, 231, 0.60)',
+            },
+            backdropBlur: {
+                'glass': '16px',
+                'glass-sm': '8px',
+                'glass-lg': '24px',
+            },
+            boxShadow: {
+                'glass': '0 1px 0 0 rgba(255,255,255,0.70) inset, 0 8px 32px -8px rgba(15,23,42,0.10), 0 2px 8px -2px rgba(15,23,42,0.06)',
+                'glass-strong': '0 1px 0 0 rgba(255,255,255,0.85) inset, 0 24px 64px -12px rgba(15,23,42,0.18), 0 8px 24px -6px rgba(15,23,42,0.10)',
+                'glass-hover': '0 1px 0 0 rgba(255,255,255,0.85) inset, 0 12px 36px -8px rgba(15,23,42,0.14), 0 4px 12px -2px rgba(15,23,42,0.08)',
             },
             borderRadius: {
                 DEFAULT: '0rem',

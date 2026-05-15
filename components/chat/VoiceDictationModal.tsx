@@ -216,13 +216,13 @@ export default function VoiceDictationModal({
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[100] flex flex-col items-center justify-end md:justify-center bg-black/60 backdrop-blur-sm p-4 pb-safe"
+                className="fixed inset-0 z-[100] flex flex-col items-center justify-end md:justify-center bg-transparent p-4 pb-safe pointer-events-none"
             >
                 <motion.div
                     initial={{ y: 50, scale: 0.95 }}
                     animate={{ y: 0, scale: 1 }}
                     exit={{ y: 50, scale: 0.95 }}
-                    className="w-full max-w-md bg-white dark:bg-zinc-900 rounded-3xl shadow-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800"
+                    className="pointer-events-auto w-full max-w-md bg-white dark:bg-zinc-900 rounded-3xl shadow-[0_18px_60px_rgba(15,23,42,0.14)] overflow-hidden border border-zinc-200 dark:border-zinc-800"
                 >
                     {/* Header / Visualizer Area */}
                     <div className="relative h-48 bg-gradient-to-br from-zinc-900 to-black flex flex-col items-center justify-center overflow-hidden">
@@ -268,14 +268,14 @@ export default function VoiceDictationModal({
                         <div className="flex gap-3 mt-8">
                             <button
                                 onClick={onClose}
-                                className="flex-1 py-3 px-4 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 font-semibold hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                                className="flex-1 min-h-[48px] py-3 px-4 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 font-semibold active:bg-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors [touch-action:manipulation]"
                             >
                                 Cancel
                             </button>
                             <button
                                 onClick={handleDone}
                                 disabled={!transcript}
-                                className="flex-1 py-3 px-4 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-semibold shadow-lg hover:bg-black dark:hover:bg-zinc-100 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                className="flex-1 min-h-[48px] py-3 px-4 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-semibold shadow-lg active:scale-[0.98] hover:bg-black dark:hover:bg-zinc-100 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 [touch-action:manipulation]"
                             >
                                 <Check size={18} />
                                 Done

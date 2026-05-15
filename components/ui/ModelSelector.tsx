@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import AlertModal from './AlertModal';
 
-export type ModelType = 'sonar' | 'opus' | 'sonnet' | 'philos' | string;
+export type ModelType = 'sonar' | 'opus' | 'sonnet' | 'philos' | 'thinking' | string;
 
 interface ModelOption {
     id: ModelType;
@@ -33,8 +33,14 @@ const MODEL_OPTIONS: ModelOption[] = [
     },
     {
         id: 'sonnet',
-        name: 'Fast Thinking',
+        name: 'Storm',
         description: 'fast & smart for daily work',
+        isSoon: false,
+    },
+    {
+        id: 'thinking',
+        name: 'Thinking',
+        description: 'Streams realtime reasoning before answering',
         isSoon: false,
     },
     {
@@ -275,9 +281,9 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                                     <div className="flex items-center gap-2 px-3 py-2.5 border-b border-stone-100">
                                         <button
                                             onClick={() => setShowMoreModels(false)}
-                                            className="p-1 rounded-lg hover:bg-stone-100 text-stone-500 transition-colors"
+                                            className="min-h-[36px] min-w-[36px] p-1.5 rounded-lg active:bg-stone-200 hover:bg-stone-100 text-stone-500 transition-colors [touch-action:manipulation]"
                                         >
-                                            <ChevronLeft size={15} />
+                                            <ChevronLeft size={16} />
                                         </button>
                                         <span className="text-[13px] font-semibold text-stone-700">More Models</span>
                                     </div>
@@ -357,7 +363,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                                         <div className="border-t border-stone-100 p-3">
                                             <button
                                                 onClick={() => { window.location.href = '/subscription'; }}
-                                                className="w-full py-2 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 text-white text-[12px] font-semibold hover:opacity-90 transition-opacity"
+                                                className="w-full min-h-[40px] py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 text-white text-[12px] font-semibold active:opacity-80 hover:opacity-90 transition-opacity [touch-action:manipulation]"
                                             >
                                                 Upgrade to Pro
                                             </button>

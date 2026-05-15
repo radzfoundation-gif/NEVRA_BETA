@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import {
     ClerkProvider,
     useAuth as useClerkAuth,
@@ -118,7 +118,7 @@ export function useAuth() {
     };
 
     const signInWithGoogle = async () => {
-        await clerk.openSignIn({ redirectUrl: window.location.href, signUpUrl: '/sign-up' });
+        await clerk.openSignIn({ redirectUrl: `${window.location.origin}/survey`, signUpUrl: '/sign-up' });
     };
 
     const resetPassword = async (email: string) => {

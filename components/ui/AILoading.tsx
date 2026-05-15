@@ -93,35 +93,19 @@ export default function AILoading({ mode = 'tutor', status, loadingMessages, cla
     <div className={cn("flex flex-col gap-1.5 py-2 select-none", className)}>
       {/* Main loading row */}
       <div className="flex items-center gap-3">
-        {/* Pixel N Grid Logo */}
-        <div className="grid grid-cols-5 gap-[1.5px] w-fit">
-          {[
-            1,0,0,0,1,
-            1,1,0,0,1,
-            1,0,1,0,1,
-            1,0,0,1,1,
-            1,0,0,0,1
-          ].map((isN, i) => (
-            <motion.div
-              key={i}
-              className={cn(
-                "w-[2.5px] h-[2.5px] rounded-[0.5px]",
-                isN ? "bg-indigo-500 shadow-[0_0_3px_rgba(99,102,241,0.4)]" : "bg-stone-200"
-              )}
-              animate={isN ? {
-                opacity: [0.35, 1, 0.35],
-                scale: [0.95, 1.15, 0.95],
-              } : {
-                opacity: [0.1, 0.2, 0.1],
-              }}
-              transition={{
-                duration: 2,
-                repeat: Infinity,
-                delay: i * 0.08,
-                ease: "easeInOut"
-              }}
-            />
-          ))}
+        {/* Pixel Grid Loader */}
+        <div className="grid grid-cols-3 gap-[2px] w-fit rounded-[6px] bg-white/80 px-1.5 py-1 ring-1 ring-zinc-200/70">
+          {Array.from({ length: 9 }).map((_, i) => {
+            const toneClass = mode === 'builder' ? 'bg-orange-500' : mode === 'canvas' ? 'bg-blue-600' : 'bg-zinc-900';
+            return (
+              <motion.div
+                key={i}
+                className={cn("w-1 h-1 rounded-[1px]", toneClass)}
+                animate={{ opacity: [0.24, 1, 0.34], scale: [0.82, 1.08, 0.92] }}
+                transition={{ duration: 1.15, repeat: Infinity, delay: i * 0.055, ease: [0.4, 0, 0.2, 1] }}
+              />
+            );
+          })}
         </div>
 
         {/* Text + ETA */}

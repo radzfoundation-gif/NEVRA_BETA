@@ -3,31 +3,23 @@ import { motion } from 'framer-motion';
 import { FileText, Zap, Check, Search } from 'lucide-react';
 
 
-/**
- * 5x5 Animated Grid Icon
- */
 const ScoutGrid = () => {
     return (
-        <div className="grid grid-cols-5 gap-0.5 w-4 h-4 mr-2 relative">
-            {[...Array(25)].map((_, i) => {
-                const row = Math.floor(i / 5);
-                const col = i % 5;
-                const distance = Math.sqrt(Math.pow(row - 2, 2) + Math.pow(col - 2, 2));
-                
+        <div className="grid grid-cols-3 gap-[2px] mr-2 rounded-[6px] bg-white/80 px-1.5 py-1 ring-1 ring-orange-200/70 dark:bg-zinc-950/70 dark:ring-orange-500/20">
+            {[...Array(9)].map((_, i) => {
                 return (
                     <motion.div
                         key={i}
-                        className="w-0.5 h-0.5 rounded-full bg-orange-500/80 dark:bg-orange-400"
+                        className="h-1 w-1 rounded-[1px] bg-orange-500"
                         animate={{
-                            opacity: [0.3, 1, 0.3],
-                            scale: [0.8, 1.5, 0.8],
-                            backgroundColor: ["#f97316", "#14b8a6", "#f97316"]
+                            opacity: [0.24, 1, 0.34],
+                            scale: [0.82, 1.08, 0.92]
                         }}
                         transition={{
-                            duration: 2,
+                            duration: 1.15,
                             repeat: Infinity,
-                            delay: distance * 0.15,
-                            ease: "easeInOut"
+                            delay: i * 0.055,
+                            ease: [0.4, 0, 0.2, 1]
                         }}
                     />
                 );

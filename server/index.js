@@ -1953,7 +1953,7 @@ const OPENROUTER_STREAM_MODEL_MAPPING = {
   'claude-sonnet-4-5': 'anthropic/claude-3.5-sonnet', // User requested alias
   'claude-opus': 'anthropic/claude-3-opus',
   'grok': 'x-ai/grok-2-1212',
-  'nevrasync': 'stepfun/step-3.5-flash:free', // Also update alternate ID if pointing to same thing
+  'glasssync': 'stepfun/step-3.5-flash:free', // UseGlass alias
 };
 
 app.post('/api/chat/stream', async (req, res) => {
@@ -2685,7 +2685,7 @@ Always provide information based on your training data AND the current date cont
       let completion;
 
       const isDevEnv = (process.env.NODE_ENV || 'development') !== 'production';
-      // Fast Thinking (sonar/sonnet) — always route to 9Router when available
+      // Storm (sonar/sonnet) — always route to 9Router when available
       const isFastThinking = selectedModel === 'sonar' || selectedModel === 'sonnet' || selectedModel === 'gemini-flash';
       const prefer9Router = ninerouterClient && (isDevEnv || isFastThinking);
 
@@ -2854,6 +2854,93 @@ Always provide information based on your training data AND the current date cont
 // Other orphan code removed (was dead code from old deepseek/gemini handlers)
 
 // Health check endpoints
+// =====================================================
+// GLASS THINKING STREAM
+// =====================================================
+// Streams 3-section realtime reasoning for the prompt the user just sent.
+// Used by the "Glass Thinking Mode" loader on the chat screen so the steps
+// reflect the actual prompt instead of a static mock.
+app.post('/api/thinking-stream', async (req, res) => {
+  const prompt = (req.body?.prompt || '').toString().trim();
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+
+  const send = (event, data) => {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+
+  if (!prompt) {
+    send('error', { message: 'prompt is required' });
+    res.write('data: [DONE]\n\n');
+    return res.end();
+  }
+
+  if (!sumopodClient) {
+    send('error', { message: 'thinking provider unavailable' });
+    res.write('data: [DONE]\n\n');
+    return res.end();
+  }
+
+  const systemPrompt = withBrevity(`You are Glass Thinking, an inline reasoning narrator that runs while a separate AI is preparing the real answer.
+
+Your job: produce a fast, concrete plan for the user's prompt in EXACTLY this format and nothing else.
+
+[GOAL]
+One short sentence about what the user actually wants.
+
+[STEPS]
+- step one (very short, action verb)
+- step two
+- step three (4-6 steps total max)
+
+[STRATEGY]
+One short sentence describing how the final answer will be shaped (format, depth, tools, tradeoffs).
+
+Rules:
+- Match the user's language (Bahasa Indonesia or English) automatically.
+- No greetings, no preamble, no closing line.
+- Do NOT answer the prompt itself — only plan it.
+- Keep the whole response under ~80 words.`);
+
+  const aborted = { value: false };
+  req.on('close', () => { aborted.value = true; });
+
+  try {
+    const stream = await sumopodClient.chat.completions.create({
+      model: 'gpt-4o-mini',
+      stream: true,
+      temperature: 0.4,
+      max_tokens: 220,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: prompt },
+      ],
+    });
+
+    for await (const chunk of stream) {
+      if (aborted.value) break;
+      const delta = chunk.choices?.[0]?.delta?.content || '';
+      if (delta) send('delta', { content: delta });
+    }
+
+    if (!aborted.value) {
+      send('done', {});
+      res.write('data: [DONE]\n\n');
+    }
+  } catch (err) {
+    if (!aborted.value) {
+      send('error', { message: err?.message || 'thinking stream failed' });
+      res.write('data: [DONE]\n\n');
+    }
+  } finally {
+    if (!res.writableEnded) res.end();
+  }
+});
+
 // =====================================================
 // USEGLASS PHILOS PIPELINE HELPER
 // =====================================================

@@ -35,6 +35,14 @@ const Home: React.FC<{ defaultMode?: 'chat' | 'redesign' }> = () => {
     if (location.state?.glassStyle) setActiveGlassStyle(location.state.glassStyle as GlassStyleId);
   }, [location.state]);
 
+  React.useEffect(() => {
+    const defaultTitle = 'UseGlass AI | The Ultimate Intelligent App';
+    document.title = defaultTitle;
+    return () => {
+      document.title = defaultTitle;
+    };
+  }, []);
+
   const submitPrompt = (query: string, _attachments?: any[], model?: any, reasoning?: boolean) => {
     const routingResult = routeGlassIntent(query, { webSearchConnected: true });
     const routedTool = routingResult.selectedTool as GlassToolMode;
@@ -61,13 +69,13 @@ const Home: React.FC<{ defaultMode?: 'chat' | 'redesign' }> = () => {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[linear-gradient(135deg,#f8fbff_0%,#ffffff_45%,#edf6ff_100%)]">
+    <div className="flex h-dvh overflow-hidden bg-[linear-gradient(135deg,#f8fbff_0%,#ffffff_45%,#edf6ff_100%)]">
       <div className="hidden md:flex md:flex-shrink-0">
         <Sidebar activeToolMode={activeToolMode} onToolModeSelect={selectToolMode} isCollapsed={!sidebarOpen} onCollapse={() => setSidebarOpenState((open) => !open)} />
       </div>
       <div className="flex-1 overflow-y-auto">
-        <main className="relative min-h-screen w-full px-4 py-6 md:px-10 md:py-8">
-          <section className="absolute left-1/2 top-1/2 flex w-full max-w-4xl -translate-x-1/2 -translate-y-1/2 flex-col items-center text-center md:top-[48%]">
+        <main className="relative min-h-full w-full px-4 py-6 pt-safe pb-safe md:px-10 md:py-8">
+          <section className="flex min-h-full w-full flex-col items-center justify-center text-center md:absolute md:left-1/2 md:top-[48%] md:max-w-4xl md:-translate-x-1/2 md:-translate-y-1/2">
             <div className="w-full max-w-3xl">
               <ResearchWelcome
                 mode={activeToolMode}
