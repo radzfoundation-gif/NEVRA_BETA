@@ -4,6 +4,7 @@ import { Check, Youtube, Instagram, Twitter, MessageCircle, Globe, ChevronRight,
 import { motion } from 'framer-motion';
 import { useUser } from '@/lib/authContext';
 import { updateUserPreferences } from '@/lib/supabaseDatabase';
+import WelcomeEcosystemModal from '@/components/onboarding/WelcomeEcosystemModal';
 
 const referralOptions = [
     { id: 'tiktok', label: 'TikTok', icon: MessageCircle },
@@ -31,6 +32,7 @@ const SurveyPage = () => {
     const [referralSource, setReferralSource] = useState<string | null>(null);
     const [performanceFocus, setPerformanceFocus] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [showWelcomeModal, setShowWelcomeModal] = useState(false);
 
     const canContinue = Boolean(referralSource && performanceFocus);
 
@@ -49,13 +51,18 @@ const SurveyPage = () => {
                 });
             }
             localStorage.setItem('useglass_onboarding_survey_completed', 'true');
-            navigate('/chat', { replace: true });
+            setShowWelcomeModal(true);
         } catch (error) {
             localStorage.setItem('useglass_onboarding_survey_completed', 'true');
-            navigate('/chat', { replace: true });
+            setShowWelcomeModal(true);
         } finally {
             setIsSubmitting(false);
         }
+    };
+
+    const handleWelcomeClose = () => {
+        setShowWelcomeModal(false);
+        navigate('/chat', { replace: true });
     };
 
     return (
@@ -138,6 +145,7 @@ const SurveyPage = () => {
                     </button>
                 </div>
             </motion.div>
+            <WelcomeEcosystemModal isOpen={showWelcomeModal} onClose={handleWelcomeClose} />
         </div>
     );
 };
