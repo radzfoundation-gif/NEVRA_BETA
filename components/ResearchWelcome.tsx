@@ -533,12 +533,26 @@ export function ResearchWelcome({
         onSearch(fullQuery, [], undefined, undefined, selectedFeature.label);
     };
 
+    // Guard media routing so UI phrases like "animasi hover" stay in Build Mode.
+    const isWebBuildRequest = (text: string): boolean => {
+        const lowerText = ` ${text.toLowerCase()} `;
+        const webKeywords = [
+            'landing page', 'website', 'web page', 'web app', ' web ', 'situs',
+            'dashboard', 'admin panel', 'ui', 'component', 'komponen', 'halaman',
+            'navbar', 'sidebar', 'hero section', 'card', 'bento grid', 'tailwind',
+            'glassmorphism', 'pricing page', 'login page', 'auth page', 'frontend',
+            'react', 'next.js', 'nextjs', 'html', 'css', 'jsx', 'tsx'
+        ];
+        return webKeywords.some(keyword => lowerText.includes(keyword));
+    };
+
     // Detect if query is an image generation request
     const isImageRequest = (text: string): boolean => {
+        if (isWebBuildRequest(text)) return false;
         const imageKeywords = [
             'buatkan gambar', 'buat gambar', 'generate image', 'create image',
             'gambarkan', 'draw', 'ilustrasi', 'illustration', 'make an image',
-            'buat foto', 'generate a picture', 'make a picture', 'design image'
+            'buat foto', 'generate a picture', 'make a picture'
         ];
         const lowerText = text.toLowerCase();
         return imageKeywords.some(keyword => lowerText.includes(keyword));
@@ -546,11 +560,15 @@ export function ResearchWelcome({
 
     // Detect if query is a video generation request
     const isVideoRequest = (text: string): boolean => {
+        if (isWebBuildRequest(text)) return false;
+        const lowerText = text.toLowerCase();
+        const explicitVideoPattern = /\b(buat|buatkan|bikin|bikinin|generate|ganerate|create|make|render)\b[\s\S]{0,40}\b(video|klip|clip|film|reel|short)\b/i;
+        if (explicitVideoPattern.test(lowerText)) return true;
         const videoKeywords = [
             'buatkan video', 'buat video', 'generate video', 'create video',
-            'bikin video', 'make a video', 'animasi', 'animation'
+            'bikin video', 'make a video', 'video animasi', 'animasi video',
+            'animated video'
         ];
-        const lowerText = text.toLowerCase();
         return videoKeywords.some(keyword => lowerText.includes(keyword));
     };
 

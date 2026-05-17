@@ -1518,13 +1518,28 @@ app.post('/api/transcribe-audio', upload.single('file'), async (req, res) => {
 // MCP (Model Context Protocol) ENDPOINTS
 // =====================================================
 
+const requireMcpAdmin = (req, res, next) => {
+  const adminToken = process.env.MCP_ADMIN_TOKEN?.trim();
+  if (!adminToken) {
+    return res.status(503).json({ error: 'MCP server management is disabled' });
+  }
+
+  const authHeader = req.headers.authorization || '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+  if (token !== adminToken) {
+    return res.status(403).json({ error: 'MCP admin access required' });
+  }
+
+  next();
+};
+
 // List MCP Servers
-app.get('/api/mcp/servers', (req, res) => {
+app.get('/api/mcp/servers', requireMcpAdmin, (req, res) => {
   res.json(mcpManager.getServers());
 });
 
 // Add MCP Server
-app.post('/api/mcp/servers', async (req, res) => {
+app.post('/api/mcp/servers', requireMcpAdmin, async (req, res) => {
   const { name, url } = req.body;
   if (!name || !url) {
     return res.status(400).json({ error: 'Name and URL are required' });
@@ -1534,7 +1549,7 @@ app.post('/api/mcp/servers', async (req, res) => {
 });
 
 // Remove MCP Server
-app.delete('/api/mcp/servers/:id', async (req, res) => {
+app.delete('/api/mcp/servers/:id', requireMcpAdmin, async (req, res) => {
   await mcpManager.removeServer(req.params.id);
   res.json({ success: true });
 });
@@ -1594,77 +1609,12 @@ app.post('/api/payment/create-transaction', async (req, res) => {
   }
 });
 
-// Activate subscription after payment
-app.post('/api/payment/activate', async (req, res) => {
-  try {
-    const { userId, orderId } = req.body;
-
-    if (!userId || !orderId) {
-      return res.status(400).json({ error: 'User ID and Order ID required' });
-    }
-
-    // Calculate expiry (1 month from now)
-    const expiresAt = new Date();
-    expiresAt.setMonth(expiresAt.getMonth() + 1);
-
-    // Save subscription
-    const success = await saveSubscription(userId, 'pro', expiresAt.toISOString(), orderId);
-
-    if (success) {
-      // // console.log(`✅ Pro subscription activated for ${userId} until ${expiresAt.toISOString()}`);
-      res.json({ success: true, tier: 'pro', expiresAt: expiresAt.toISOString() });
-    } else {
-      throw new Error('Failed to save subscription');
-    }
-  } catch (error) {
-    // // console.error('Activation error:', error);
-    res.status(500).json({ error: 'Failed to activate subscription', details: error.message });
-  }
-});
-
-// Midtrans webhook (for server-side verification)
-app.post('/api/payment/webhook', async (req, res) => {
-  try {
-    const notification = req.body;
-    const orderId = notification.order_id;
-    const transactionStatus = notification.transaction_status;
-    const fraudStatus = notification.fraud_status;
-
-    // // console.log(`📬 Midtrans webhook: ${orderId} - ${transactionStatus}`);
-
-    // Extract userId from orderId (format: USEGLASS-PRO-timestamp-userId)
-    const parts = orderId.split('-');
-    const userId = parts.length >= 4 ? parts[3] : null;
-
-    if (!userId) {
-      // // console.error('Invalid order ID format:', orderId);
-      return res.status(400).json({ error: 'Invalid order ID' });
-    }
-
-    // Check transaction status
-    // // console.log(`🔍 Processing status: ${transactionStatus} for user: ${userId}`);
-    if (transactionStatus === 'capture' && (fraudStatus === 'accept' || !fraudStatus)) {
-      // Credit card payment success
-      const expiresAt = new Date();
-      expiresAt.setMonth(expiresAt.getMonth() + 1);
-      await saveSubscription(userId, 'pro', expiresAt.toISOString(), orderId);
-      // // console.log(`✅ Webhook: Pro activated for ${userId} (Credit Card)`);
-    } else if (transactionStatus === 'settlement') {
-      // Bank transfer, e-wallet success
-      const expiresAt = new Date();
-      expiresAt.setMonth(expiresAt.getMonth() + 1);
-      await saveSubscription(userId, 'pro', expiresAt.toISOString(), orderId);
-      // // console.log(`✅ Webhook: Pro activated for ${userId} (Settlement)`);
-    } else if (['deny', 'cancel', 'expire'].includes(transactionStatus)) {
-      // // console.log(`❌ Payment failed for ${userId}: ${transactionStatus}`);
-    }
-
-    res.status(200).json({ received: true });
-  } catch (error) {
-    // // console.error('Webhook error:', error);
-    res.status(500).json({ error: 'Webhook processing failed' });
-  }
-});
+// NOTE: Duplicate `/api/payment/activate` and `/api/payment/webhook` handlers
+// were removed here. The hardened versions live further below in this file
+// (around `app.post('/api/payment/webhook', ...)` and `/api/payment/activate`).
+// Express picks the FIRST registered route, so the duplicates were silently
+// shadowing the verified versions — they have been deleted to make the
+// verified ones primary.
 
 
 // SumoPod API Key (OpenAI-compatible API)
@@ -2625,6 +2575,28 @@ Always provide information based on your training data AND the current date cont
 - Always include proper error handling and React best practices`;
     }
 
+    enhancedSystemPrompt += `
+
+AMBIGUOUS OR INCOMPLETE PROMPT RULE:
+- If the user prompt is missing the actual topic, target, object, app idea, file, requirement, or context needed to answer well, do not guess.
+- Do not answer normally.
+- Return exactly this hidden clarification block and no other content:
+<!--CLARIFY {"question":"Apa yang ingin kamu lakukan hari ini?","options":["Tulis atau buat dokumen","Cari informasi / riset","Bantu coding / teknis","Ngobrol / tanya jawab"]} -->
+- Match the question and options to the user's language when the user clearly uses another language.
+- The options array must contain exactly 4 options.
+- Do not provide examples, tutorials, or final answer until the user answers.`;
+
+    const requestedModel = body.model || 'sonnet';
+    if (requestedModel === 'thinking') {
+      enhancedSystemPrompt += `
+
+GLASS THINKING MODE:
+- Think and plan internally before answering.
+- Do not expose hidden chain-of-thought.
+- Give a brief approach only when it helps the user.
+- Then provide the final answer clearly and concisely.`;
+    }
+
     const messagesBase = [
       { role: 'system', content: withBrevity(enhancedSystemPrompt) },
       ...formatHistory(truncateHistory(history, 2)), // Truncate history for speed
@@ -2685,7 +2657,7 @@ Always provide information based on your training data AND the current date cont
       };
 
       const isDeepDive = body.deepDive === true || mode === 'deep_dive';
-      const selectedModel = body.model || 'sonar'; // Default to sonar (NoirSync)
+      const selectedModel = body.model || 'sonnet';
 
       // Determine which client to use based on selected model
       // Override: force 'claude-sonnet-4-5' to use Sumopod (via Gemini)
@@ -2694,14 +2666,16 @@ Always provide information based on your training data AND the current date cont
       let completion;
 
       const isDevEnv = (process.env.NODE_ENV || 'development') !== 'production';
-      // Storm (sonar/sonnet) — always route to 9Router when available
-      const isFastThinking = selectedModel === 'sonar' || selectedModel === 'sonnet' || selectedModel === 'gemini-flash';
-      const prefer9Router = ninerouterClient && (isDevEnv || isFastThinking);
+      const fastModel = process.env.NINEROUTER_FAST_MODEL?.trim() || 'kr/claude-sonnet-4.5';
+      const thinkingModel = process.env.NINEROUTER_THINKING_MODEL?.trim() || fastModel;
+      const prefers9RouterModel = selectedModel === 'sonar' || selectedModel === 'sonnet' || selectedModel === 'thinking' || selectedModel === 'gemini-flash';
+      const prefer9Router = ninerouterClient && (isDevEnv || prefers9RouterModel);
 
       const NINEROUTER_MODEL_MAPPING = {
-        'sonar': process.env.NINEROUTER_FAST_MODEL?.trim() || 'kr/claude-sonnet-4.5',
-        'sonnet': process.env.NINEROUTER_FAST_MODEL?.trim() || 'kr/claude-sonnet-4.5',
-        'gemini-flash': process.env.NINEROUTER_FAST_MODEL?.trim() || 'kr/claude-sonnet-4.5',
+        'sonar': fastModel,
+        'sonnet': fastModel,
+        'thinking': thinkingModel,
+        'gemini-flash': fastModel,
       };
 
       if (prefer9Router) {
@@ -2888,7 +2862,7 @@ app.post('/api/thinking-stream', async (req, res) => {
     return res.end();
   }
 
-  if (!sumopodClient) {
+  if (!ninerouterClient) {
     send('error', { message: 'thinking provider unavailable' });
     res.write('data: [DONE]\n\n');
     return res.end();
@@ -2919,8 +2893,12 @@ Rules:
   req.on('close', () => { aborted.value = true; });
 
   try {
-    const stream = await sumopodClient.chat.completions.create({
-      model: 'gpt-4o-mini',
+    const thinkingStreamModel =
+      process.env.NINEROUTER_THINKING_MODEL?.trim() ||
+      process.env.NINEROUTER_FAST_MODEL?.trim() ||
+      ninerouterDefaultModel;
+    const stream = await ninerouterClient.chat.completions.create({
+      model: thinkingStreamModel,
       stream: true,
       temperature: 0.4,
       max_tokens: 220,
@@ -2943,6 +2921,80 @@ Rules:
   } catch (err) {
     if (!aborted.value) {
       send('error', { message: err?.message || 'thinking stream failed' });
+      res.write('data: [DONE]\n\n');
+    }
+  } finally {
+    if (!res.writableEnded) res.end();
+  }
+});
+
+// =====================================================
+// STATUS NARRATE STREAM (loader caption beside grid)
+// =====================================================
+app.post('/api/status-narrate', async (req, res) => {
+  const prompt = (req.body?.prompt || '').toString().trim();
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+
+  const send = (event, data) => {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+
+  if (!prompt) {
+    send('error', { message: 'prompt is required' });
+    res.write('data: [DONE]\n\n');
+    return res.end();
+  }
+
+  if (!ninerouterClient) {
+    send('error', { message: 'narrator provider unavailable' });
+    res.write('data: [DONE]\n\n');
+    return res.end();
+  }
+
+  const systemPrompt = withBrevity(`You are Glass Narrator, a tiny status caption beside a loader. Output ONE short present-continuous status line about what the assistant is doing for the user's prompt. Examples: "Understanding your request", "Drafting the layout", "Pulling references", "Composing the answer". Rules:
+- 3 to 6 words.
+- Start with a verb in -ing form.
+- Match the user's language (Bahasa Indonesia or English).
+- No quotes, no punctuation at the end, no preamble, no closing.
+- Only output the status line, nothing else.`);
+
+  const aborted = { value: false };
+  req.on('close', () => { aborted.value = true; });
+
+  try {
+    const narrateModel =
+      process.env.NINEROUTER_THINKING_MODEL?.trim() ||
+      process.env.NINEROUTER_FAST_MODEL?.trim() ||
+      ninerouterDefaultModel;
+    const stream = await ninerouterClient.chat.completions.create({
+      model: narrateModel,
+      stream: true,
+      temperature: 0.5,
+      max_tokens: 24,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: prompt },
+      ],
+    });
+
+    for await (const chunk of stream) {
+      if (aborted.value) break;
+      const delta = chunk.choices?.[0]?.delta?.content || '';
+      if (delta) send('delta', { content: delta });
+    }
+
+    if (!aborted.value) {
+      send('done', {});
+      res.write('data: [DONE]\n\n');
+    }
+  } catch (err) {
+    if (!aborted.value) {
+      send('error', { message: err?.message || 'narrate failed' });
       res.write('data: [DONE]\n\n');
     }
   } finally {
@@ -3892,6 +3944,13 @@ app.post('/api/verify-waitlist', async (req, res) => {
 
 // Code execution endpoint (Python)
 app.post('/api/execute-code', async (req, res) => {
+  // SECURE PRE-RELEASE: Disabled Python execution until proper sandbox and auth is implemented
+  return res.status(403).json({
+    error: 'Code execution is temporarily disabled in beta for security reasons.',
+    output: '',
+    executionTime: 0
+  });
+
   const { code, language = 'python' } = req.body || {};
 
   if (!code) {
@@ -4344,7 +4403,7 @@ app.post('/api/payment/checkout', async (req, res) => {
   }
 });
 
-// Midtrans notification webhook endpoint 
+// Midtrans notification webhook endpoint
 app.post('/api/payment/webhook', async (req, res) => {
   try {
     const notification = req.body;
@@ -4359,12 +4418,26 @@ app.post('/api/payment/webhook', async (req, res) => {
       }
     });
 
-    // Verify notification (optional but recommended)
-    // const statusResponse = await snap.transaction.notification(notification);
+    if (!snap) {
+      return res.status(503).json({ error: 'Payment system not configured' });
+    }
 
-    const orderId = notification.order_id;
-    const transactionStatus = notification.transaction_status;
-    const fraudStatus = notification.fraud_status;
+    // Server-side verification with Midtrans before trusting the payload.
+    let verified;
+    try {
+      verified = await snap.transaction.notification(notification);
+    } catch (verifyError) {
+      debugLog({
+        location: 'server/index.js:/api/payment/webhook',
+        message: 'Midtrans signature verification failed',
+        data: { message: verifyError?.message }
+      });
+      return res.status(400).json({ error: 'Invalid Midtrans notification' });
+    }
+
+    const orderId = verified.order_id;
+    const transactionStatus = verified.transaction_status;
+    const fraudStatus = verified.fraud_status;
 
     // Handle payment status
     let isSuccess = false;
@@ -4385,21 +4458,34 @@ app.post('/api/payment/webhook', async (req, res) => {
     }
 
     if (isSuccess) {
-      // Extract userId from orderId (format: USEGLASS-{userId}-{timestamp})
-      const userId = orderId.split('-')[1];
+      // Resolve real userId via stored mapping when available; fallback to
+      // a parsed segment only as last resort. Order ID format used by checkout
+      // is `USEGLASS-{userId.slice(0,8)}-{timestamp}`, which truncates the user.
+      let userId = null;
+      try {
+        if (typeof getUserIdForOrder === 'function') {
+          userId = await getUserIdForOrder(orderId);
+        }
+      } catch (lookupError) {
+        debugLog({
+          location: 'server/index.js:/api/payment/webhook',
+          message: 'Order lookup failed',
+          data: { message: lookupError?.message }
+        });
+      }
+      if (!userId) {
+        return res.status(202).json({ received: true, message: 'Payment verified, but order mapping is unavailable' });
+      }
 
       // Calculate expiry (30 days from now for monthly subscription)
       const expiryDate = new Date();
       expiryDate.setDate(expiryDate.getDate() + 30);
 
       // Activate subscription immediately
-      const activated = saveSubscription(userId, 'pro', expiryDate.toISOString());
+      const activated = await saveSubscription(userId, 'pro', expiryDate.toISOString(), orderId);
 
       if (activated) {
         // // console.log(`✅ Subscription activated for user ${userId}`);
-        // // console.log(`   Order ID: ${orderId}`);
-        // // console.log(`   Transaction ID: ${notification.transaction_id}`);
-        // // console.log(`   Expires: ${expiryDate.toISOString()}`);
       } else {
         // // console.error(`❌ Failed to activate subscription for user ${userId}`);
       }
@@ -4745,9 +4831,28 @@ If no image is provided, just create a professional HTML document/table based so
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
 
+    const deriveDocumentTitle = (rawPrompt = '') => {
+      const promptText = String(rawPrompt || '');
+      const hasAI = /\b(ai|artificial intelligence|kecerdasan buatan)\b/i.test(promptText);
+      const documentType = promptText.match(/\b(proposal|laporan|makalah|artikel|essay|skripsi|prd|sop)\b/i)?.[1] || 'Dokumen';
+      const topic = promptText
+        .replace(/\b(tolong|please|mohon|bantu|saya|aku|dong|dulu|ya)\b/gi, ' ')
+        .replace(/\b(buatkan|buat|generate|create|bikin|pdf|dokumen|document|tentang|mengenai|untuk)\b/gi, ' ')
+        .replace(/[^\p{L}\p{N}\s-]/gu, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .split(/\s+/)
+        .slice(0, 5)
+        .join(' ');
+      const baseTitle = topic && !new RegExp(`^${documentType}$`, 'i').test(topic)
+        ? `${documentType} ${topic}`
+        : documentType;
+      return `${baseTitle}${hasAI && !/\bai\b/i.test(baseTitle) ? ' AI' : ''}`
+        .replace(/\b\w/g, (char) => char.toUpperCase());
+    };
+
     const buildFallbackDocument = (rawPrompt = '') => {
-      const cleanPrompt = String(rawPrompt || '').replace(/\b(buatkan|buat|generate|create|bikin|pdf|dokumen|document)\b/gi, '').trim();
-      const title = cleanPrompt ? `Makalah ${cleanPrompt}` : 'Dokumen UseGlass AI';
+      const title = deriveDocumentTitle(rawPrompt);
       return `<!doctype html>
 <html>
 <head>
@@ -4775,6 +4880,25 @@ If no image is provided, just create a professional HTML document/table based so
 </html>`;
     };
 
+    const sanitizeDocumentTitle = (html = '', rawPrompt = '') => {
+      const title = deriveDocumentTitle(rawPrompt);
+      const normalize = (value = '') => String(value)
+        .toLowerCase()
+        .replace(/\b(tolong|please|mohon|bantu|saya|aku|dong|dulu|ya)\b/g, ' ')
+        .replace(/\b(buatkan|buat|generate|create|bikin|pdf|dokumen|document|tentang|mengenai|untuk)\b/g, ' ')
+        .replace(/[^\p{L}\p{N}\s-]/gu, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      const normalizedPrompt = normalize(rawPrompt);
+      const shouldReplace = (value = '') => {
+        const normalizedValue = normalize(String(value).replace(/<[^>]+>/g, ''));
+        return !normalizedValue || normalizedValue === normalizedPrompt || String(rawPrompt).toLowerCase().includes(String(value).toLowerCase().trim());
+      };
+      return String(html)
+        .replace(/<title>([\s\S]*?)<\/title>/i, (match, value) => shouldReplace(value) ? `<title>${escapeHtml(title)}</title>` : match)
+        .replace(/<h1([^>]*)>([\s\S]*?)<\/h1>/i, (match, attrs, value) => shouldReplace(value) ? `<h1${attrs}>${escapeHtml(title)}</h1>` : match);
+    };
+
     // Clean up markdown artifacts if present
     htmlContent = String(htmlContent || '').replace(/```html\s*/g, '').replace(/```\s*$/g, '').trim();
 
@@ -4787,6 +4911,7 @@ If no image is provided, just create a professional HTML document/table based so
     } else if (!/<html\b/i.test(htmlContent)) {
       htmlContent = `<!doctype html><html><head><meta charset="utf-8" /><style>@page{size:A4;margin:20mm}body{background:#fff;color:#111;font-family:Arial,Helvetica,sans-serif;line-height:1.6;font-size:12pt}h1{font-size:22pt}h2{font-size:15pt;margin-top:18pt}p{margin:0 0 10pt}table{width:100%;border-collapse:collapse;margin:12pt 0}th,td{border:1px solid #444;padding:6pt 8pt;text-align:left;vertical-align:top}th{background:#f3f3f3}</style></head><body>${htmlContent}</body></html>`;
     }
+    htmlContent = sanitizeDocumentTitle(htmlContent, prompt);
 
     // 2. Send generated HTML back to the client for client-side PDF rendering
     // // console.log(`[PDFGen] HTML generated (${htmlContent.length} bytes). Sending to client...`);

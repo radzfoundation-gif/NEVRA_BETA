@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+﻿import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Send, Menu, Plus, MessageSquare, User,
@@ -22,6 +22,7 @@ import SkillScoutLoading from '@/components/ui/SkillScoutLoading';
 import ImageGenLoading from '@/components/chat/ImageGenLoading';
 import ChatSkeleton from '@/components/chat/ChatSkeleton';
 import GridNLoader from '@/components/chat/GridNLoader';
+import StreamingGridStatus from '@/components/chat/StreamingGridStatus';
 import GlassThinkingStream from '@/components/chat/GlassThinkingStream';
 import DynamicBackground from '@/components/ui/DynamicBackground';
 // ProviderSelector removed - orchestrator now manages models automatically
@@ -174,22 +175,125 @@ const getCanvasCodeSource = (raw: string) => {
 
 const isStandaloneHtmlPreview = (raw: string) => /<\s*!doctype|<html|<body/i.test(raw) && !/\b(import|export)\b|className=|useState\s*\(/i.test(raw);
 
-const buildGeneratedWebPreview = (prompt: string, raw: string) => {
-  if (isStandaloneHtmlPreview(raw)) return raw;
+const titleCaseWords = (value: string) => value
+  .split(/\s+/)
+  .filter(Boolean)
+  .map(word => {
+    const lower = word.toLowerCase();
+    return ['ai', 'ui', 'ux', 'saas', 'api', 'pdf', 'crm', 'erp', 'seo'].includes(lower)
+      ? lower.toUpperCase()
+      : lower.charAt(0).toUpperCase() + lower.slice(1);
+  })
+  .join(' ');
 
-  const text = `${prompt} ${raw}`.toLowerCase();
-  const isLogin = /login|signin|sign in|masuk/.test(text);
-  const isSchool = /sekolah|school|student|siswa|guru/.test(text);
-  const title = isLogin
-    ? (isSchool ? 'School Login Portal' : 'Welcome back')
-    : (prompt || 'Generated Web Preview').replace(/^(buat|buatkan|bikin|create|generate|build)\s+/i, '').slice(0, 80);
-  const subtitle = isLogin
-    ? (isSchool ? 'Secure access for students, teachers, and staff.' : 'Sign in to continue your workspace.')
-    : 'UseGlass generated a polished live preview from your prompt.';
+const deriveGeneratedTitle = (prompt: string, type: 'web' | 'document' | 'code' | 'presentation' | 'general' = 'general') => {
+  const hasAI = /\b(ai|artificial intelligence|kecerdasan buatan)\b/i.test(prompt);
+  const hasCompany = /\b(perusahaan|company|startup|bisnis|business)\b/i.test(prompt);
+  const hasLanding = /\b(landing page|landing|homepage|beranda)\b/i.test(prompt);
+  const hasLogin = /\b(login|signin|sign in|masuk|auth)\b/i.test(prompt);
+  const hasDashboard = /\b(dashboard|admin panel|analytics)\b/i.test(prompt);
+  const hasPortfolio = /\b(portfolio|portofolio)\b/i.test(prompt);
 
-  return `<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>UseGlass Preview</title><style>*{box-sizing:border-box}body{margin:0;min-height:100vh;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:radial-gradient(circle at 15% 12%,rgba(251,146,60,.28),transparent 34%),radial-gradient(circle at 84% 6%,rgba(59,130,246,.18),transparent 30%),linear-gradient(135deg,#fff7ed,#ffffff 48%,#eff6ff);color:#111827}.wrap{min-height:100vh;display:grid;place-items:center;padding:32px}.card{width:min(980px,100%);display:grid;grid-template-columns:1.05fr .95fr;overflow:hidden;border-radius:34px;background:rgba(255,255,255,.78);border:1px solid rgba(255,255,255,.75);box-shadow:0 34px 90px rgba(15,23,42,.14);backdrop-filter:blur(18px)}.brand{padding:42px;background:linear-gradient(145deg,rgba(255,255,255,.55),rgba(255,237,213,.7));position:relative}.badge{display:inline-flex;align-items:center;gap:8px;border-radius:999px;background:#fff;padding:8px 12px;color:#ea580c;font-size:13px;font-weight:800;box-shadow:0 12px 30px rgba(234,88,12,.12)}.logo{width:34px;height:34px;border-radius:13px;background:linear-gradient(135deg,#fb923c,#f97316);display:grid;place-items:center;color:white;font-weight:900}h1{font-size:54px;line-height:.95;letter-spacing:-.055em;margin:30px 0 18px}.lead{color:#64748b;font-size:17px;line-height:1.7;max-width:430px}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:42px}.stat{border-radius:18px;background:rgba(255,255,255,.75);padding:16px}.stat b{display:block;font-size:22px}.form{padding:42px;background:rgba(255,255,255,.92);display:flex;align-items:center}.panel{width:100%}.panel h2{font-size:28px;margin:0 0 8px;letter-spacing:-.04em}.muted{margin:0 0 26px;color:#6b7280}.field{display:grid;gap:8px;margin-bottom:16px}.field label{font-size:13px;font-weight:700;color:#374151}.input{height:52px;border-radius:16px;border:1px solid #e5e7eb;background:#f9fafb;padding:0 16px;font-size:15px;outline:none}.input:focus{border-color:#fb923c;box-shadow:0 0 0 4px rgba(251,146,60,.14);background:#fff}.row{display:flex;justify-content:space-between;align-items:center;margin:8px 0 22px;color:#6b7280;font-size:13px}.btn{width:100%;height:54px;border:0;border-radius:18px;background:#111827;color:white;font-weight:800;font-size:15px;cursor:pointer;box-shadow:0 18px 34px rgba(17,24,39,.18)}.alt{margin-top:14px;text-align:center;color:#6b7280;font-size:13px}@media(max-width:760px){.card{grid-template-columns:1fr}.brand{padding:30px}.form{padding:30px}h1{font-size:40px}.stats{grid-template-columns:1fr}}</style></head><body><main class="wrap"><section class="card"><div class="brand"><span class="badge"><span class="logo">G</span>UseGlass Preview</span><h1>${title}</h1><p class="lead">${subtitle}</p><div class="stats"><div class="stat"><b>24/7</b><span>Access</span></div><div class="stat"><b>Safe</b><span>Portal</span></div><div class="stat"><b>Fast</b><span>Login</span></div></div></div><div class="form"><div class="panel"><h2>Sign in</h2><p class="muted">Enter your credentials to access your dashboard.</p><div class="field"><label>Email address</label><input class="input" placeholder="student@school.edu"/></div><div class="field"><label>Password</label><input class="input" type="password" placeholder="••••••••"/></div><div class="row"><span>Remember me</span><strong>Forgot password?</strong></div><button class="btn">Continue</button><div class="alt">Need help? Contact school administrator.</div></div></div></section></main></body></html>`;
+  if (type === 'web') {
+    if (hasAI && hasCompany && hasLanding) return 'AI Company Landing Page';
+    if (hasAI && hasLanding) return 'AI Landing Page';
+    if (hasCompany && hasLanding) return 'Company Landing Page';
+    if (hasLogin) return 'Secure Login Portal';
+    if (hasDashboard) return 'Analytics Dashboard';
+    if (hasPortfolio) return 'Portfolio Website';
+    if (hasLanding) return 'Landing Page';
+    return 'Generated Website';
+  }
+
+  if (type === 'document') {
+    const match = prompt.match(/\b(proposal|laporan|makalah|artikel|essay|skripsi|prd|sop)\b/i);
+    return match ? titleCaseWords(`${match[1]}${hasAI ? ' AI' : ''}`) : 'Generated Document';
+  }
+
+  const cleaned = prompt
+    .replace(/\b(tolong|please|mohon|bantu|saya|aku|dong|dulu|ya)\b/gi, ' ')
+    .replace(/\b(buatkan|buat|bikin|generate|create|build|coding|kode|web|website|dokumen|document|pdf|untuk)\b/gi, ' ')
+    .replace(/[^\p{L}\p{N}\s-]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return titleCaseWords(cleaned).slice(0, 60) || (type === 'code' ? 'Generated Code' : 'Generated Output');
 };
 
+const normalizeGeneratedTitle = (value: string) => value
+  .toLowerCase()
+  .replace(/\b(tolong|please|mohon|bantu|saya|aku|dong|dulu|ya)\b/g, ' ')
+  .replace(/\b(buatkan|buat|bikin|generate|create|build|coding|kode|web|website|landing|page|dokumen|document|pdf|untuk)\b/g, ' ')
+  .replace(/[^\p{L}\p{N}\s-]/gu, ' ')
+  .replace(/\s+/g, ' ')
+  .trim();
+
+const sanitizeGeneratedHtmlTitle = (html: string, prompt: string, type: 'web' | 'document' = 'web') => {
+  const title = deriveGeneratedTitle(prompt, type);
+  const normalizedPrompt = normalizeGeneratedTitle(prompt);
+  const shouldReplace = (value = '') => {
+    const normalizedValue = normalizeGeneratedTitle(value);
+    return !normalizedValue || normalizedValue === normalizedPrompt || prompt.toLowerCase().includes(value.toLowerCase().trim());
+  };
+
+  let output = html;
+  output = output.replace(/<title>([\s\S]*?)<\/title>/i, (match, value) => (
+    shouldReplace(String(value || '')) ? `<title>${title}</title>` : match
+  ));
+  output = output.replace(/<h1([^>]*)>([\s\S]*?)<\/h1>/i, (match, attrs, value) => (
+    shouldReplace(String(value || '').replace(/<[^>]+>/g, '')) ? `<h1${attrs}>${title}</h1>` : match
+  ));
+  return output;
+};
+
+const escapeHtmlPreview = (value: string) => value
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#039;');
+
+const detectWebPreviewIntent = (text: string): 'login' | 'dashboard' | 'pricing' | 'portfolio' | 'landing' => {
+  const lower = text.toLowerCase();
+  if (/\b(login|signin|sign in|masuk|auth|register|sign up|signup)\b/.test(lower)) return 'login';
+  if (/\b(dashboard|admin panel|analytics|console)\b/.test(lower)) return 'dashboard';
+  if (/\b(pricing|harga|paket|plan)\b/.test(lower)) return 'pricing';
+  if (/\b(portfolio|portofolio|profile site)\b/.test(lower)) return 'portfolio';
+  return 'landing';
+};
+
+const buildLandingPagePreview = (prompt: string) => {
+  const title = escapeHtmlPreview(deriveGeneratedTitle(prompt, 'web'));
+  const lower = prompt.toLowerCase();
+  const isAI = /\b(ai|artificial intelligence|kecerdasan buatan)\b/.test(lower);
+  const tagline = isAI
+    ? 'AI workspace yang cepat, rapi, dan siap diandalkan untuk tim modern.'
+    : 'Produk modern dengan pengalaman yang ringan, jelas, dan siap pakai.';
+  return `<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>${title}</title><style>*{box-sizing:border-box}body{margin:0;font-family:'Inter',ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;background:#0b0d12;color:#e5e7eb;-webkit-font-smoothing:antialiased}.bg{position:fixed;inset:0;background:radial-gradient(60% 50% at 20% 10%,rgba(99,102,241,.28),transparent 60%),radial-gradient(50% 40% at 85% 0%,rgba(56,189,248,.22),transparent 60%),radial-gradient(70% 60% at 80% 100%,rgba(236,72,153,.16),transparent 60%),#0b0d12;z-index:-1}.shell{max-width:1180px;margin:0 auto;padding:28px 28px 64px}.nav{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-radius:18px;background:rgba(255,255,255,.06);backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.08)}.brand{display:flex;align-items:center;gap:10px;font-weight:800}.logo{height:30px;width:30px;border-radius:9px;background:linear-gradient(135deg,#a78bfa,#38bdf8);display:grid;place-items:center;color:#0b0d12;font-weight:900}.links{display:flex;gap:22px;color:#a1a1aa;font-size:14px}.cta{display:flex;gap:8px}.btn{border:0;border-radius:999px;padding:10px 16px;font-weight:700;cursor:pointer;font-size:14px;transition:transform .18s ease,background .18s ease,border-color .18s ease}.btn:hover{transform:translateY(-2px)}.btn.primary{background:#fff;color:#0b0d12}.btn.ghost{background:rgba(255,255,255,.06);color:#fff;border:1px solid rgba(255,255,255,.12)}.hero{margin-top:72px;text-align:center}.tag{display:inline-flex;align-items:center;gap:8px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);padding:8px 14px;color:#c7d2fe;font-size:13px;font-weight:600}.tag .dot{width:6px;height:6px;border-radius:50%;background:#22d3ee;box-shadow:0 0 12px #22d3ee}.h1{margin:24px auto 18px;max-width:880px;font-size:62px;line-height:1.02;letter-spacing:-.045em;font-weight:800;background:linear-gradient(180deg,#fff,#a5b4fc);-webkit-background-clip:text;background-clip:text;color:transparent}.lead{max-width:680px;margin:0 auto;color:#9ca3af;font-size:18px;line-height:1.7}.actions{display:flex;gap:12px;justify-content:center;margin-top:28px}.bento{display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin-top:64px}.tile{border-radius:24px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);padding:22px;backdrop-filter:blur(20px);overflow:hidden;position:relative;transition:transform .2s ease,border-color .2s ease}.tile:hover{transform:translateY(-4px);border-color:rgba(167,139,250,.35)}.tile h3{margin:0 0 8px;font-size:18px}.tile p{margin:0;color:#9ca3af;font-size:14px;line-height:1.6}.tile.span3{grid-column:span 3}.tile.span2{grid-column:span 2}.tile.span4{grid-column:span 4}.kpi{display:flex;gap:14px;flex-wrap:wrap;margin-top:16px}.kpi div{flex:1 1 120px;border-radius:14px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);padding:14px}.kpi b{display:block;font-size:22px;color:#fff}.kpi span{color:#9ca3af;font-size:12px}.preview{margin-top:18px;height:160px;border-radius:18px;background:linear-gradient(135deg,rgba(167,139,250,.25),rgba(56,189,248,.18));border:1px solid rgba(255,255,255,.08);display:grid;place-items:center;color:#c7d2fe;font-size:13px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}.foot{margin-top:54px;text-align:center;color:#6b7280;font-size:13px}@media(max-width:900px){.bento{grid-template-columns:repeat(2,1fr)}.tile.span3,.tile.span4,.tile.span2{grid-column:span 2}.h1{font-size:42px}.links{display:none}}</style></head><body><div class="bg"></div><main class="shell"><nav class="nav"><div class="brand"><span class="logo">G</span><span>UseGlass</span></div><div class="links"><span>Product</span><span>Solusi</span><span>Pricing</span><span>Docs</span></div><div class="cta"><button class="btn ghost">Sign in</button><button class="btn primary">Get Started</button></div></nav><section class="hero"><span class="tag"><span class="dot"></span>Generated Web Preview</span><h1 class="h1">${title}</h1><p class="lead">${escapeHtmlPreview(tagline)} Tata letak modern dengan glassmorphism, bento grid, dan gradien lembut yang mudah dikembangkan.</p><div class="actions"><button class="btn primary">Coba Sekarang</button><button class="btn ghost">Lihat Demo</button></div></section><section class="bento"><article class="tile span3"><h3>Workspace prompt-first</h3><p>Chat, research, build, dan dokumen dalam satu alur tanpa berpindah-pindah.</p><div class="kpi"><div><b>3x</b><span>Lebih cepat</span></div><div><b>AI</b><span>Auto routing</span></div><div><b>Live</b><span>Canvas</span></div></div></article><article class="tile span3"><h3>Canvas hidup</h3><p>Output besar tampil langsung sebagai preview rapi, bukan teks mentah.</p><div class="preview">Live Preview</div></article><article class="tile span2"><h3>Bento Grid</h3><p>Layout fleksibel untuk fitur, metrik, dan testimoni.</p></article><article class="tile span2"><h3>Glassmorphism</h3><p>Permukaan kaca dengan blur halus dan border tipis.</p></article><article class="tile span2"><h3>Dark Mode</h3><p>Tema gelap nyaman dengan aksen gradien yang fokus.</p></article><article class="tile span4"><h3>Siap dikembangkan</h3><p>Komponen modular, mudah disambung ke React, Next.js, atau HTML statis sesuai kebutuhanmu.</p></article><article class="tile span2"><h3>Save to Project</h3><p>Simpan output untuk diteruskan menjadi versi final.</p></article></section><p class="foot">Preview ini auto-generated saat model belum mengirim kode HTML lengkap. Minta revisi untuk menyesuaikan brand dan konten.</p></main></body></html>`;
+};
+
+const buildLoginPagePreview = (prompt: string) => {
+  const title = escapeHtmlPreview(deriveGeneratedTitle(prompt, 'web'));
+  const lower = prompt.toLowerCase();
+  const isSchool = /sekolah|school|student|siswa|guru/.test(lower);
+  const heading = isSchool ? 'School Login Portal' : 'Welcome back';
+  const sub = isSchool
+    ? 'Akses aman untuk siswa, guru, dan staf.'
+    : 'Masuk untuk melanjutkan ke workspace kamu.';
+  return `<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>${title}</title><style>*{box-sizing:border-box}body{margin:0;min-height:100vh;font-family:'Inter',ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;background:radial-gradient(60% 50% at 15% 10%,rgba(167,139,250,.22),transparent 60%),radial-gradient(50% 40% at 85% 0%,rgba(56,189,248,.18),transparent 60%),#0b0d12;color:#e5e7eb}.wrap{min-height:100vh;display:grid;place-items:center;padding:32px}.card{width:min(440px,100%);border-radius:24px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(20px);padding:32px;box-shadow:0 30px 80px rgba(0,0,0,.45)}.logo{width:38px;height:38px;border-radius:12px;background:linear-gradient(135deg,#a78bfa,#38bdf8);display:grid;place-items:center;color:#0b0d12;font-weight:900;margin-bottom:18px}h1{margin:0 0 6px;font-size:26px;letter-spacing:-.02em}.muted{margin:0 0 22px;color:#9ca3af;font-size:14px}.field{display:grid;gap:8px;margin-bottom:14px}.field label{font-size:12px;color:#c7d2fe;letter-spacing:.04em;text-transform:uppercase;font-weight:700}.input{height:48px;border-radius:14px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);padding:0 14px;color:#fff;font-size:15px;outline:none}.input:focus{border-color:#a78bfa;box-shadow:0 0 0 3px rgba(167,139,250,.18)}.row{display:flex;justify-content:space-between;align-items:center;margin:6px 0 18px;color:#9ca3af;font-size:13px}.btn{width:100%;height:50px;border:0;border-radius:14px;background:#fff;color:#0b0d12;font-weight:800;font-size:15px;cursor:pointer}.alt{margin-top:18px;text-align:center;color:#6b7280;font-size:13px}.alt b{color:#a5b4fc}</style></head><body><main class="wrap"><section class="card"><div class="logo">G</div><h1>${escapeHtmlPreview(heading)}</h1><p class="muted">${escapeHtmlPreview(sub)}</p><div class="field"><label>Email</label><input class="input" placeholder="kamu@perusahaan.com"/></div><div class="field"><label>Password</label><input class="input" type="password" placeholder="••••••••"/></div><div class="row"><span>Ingat saya</span><strong style="color:#a5b4fc">Lupa password?</strong></div><button class="btn">Lanjut</button><p class="alt">Belum punya akun? <b>Daftar di sini</b></p></section></main></body></html>`;
+};
+
+const buildDashboardPreview = (prompt: string) => {
+  const title = escapeHtmlPreview(deriveGeneratedTitle(prompt, 'web'));
+  return `<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>${title}</title><style>*{box-sizing:border-box}body{margin:0;font-family:'Inter',ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;background:#0b0d12;color:#e5e7eb}.app{display:grid;grid-template-columns:240px 1fr;min-height:100vh}.side{padding:22px;border-right:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.02)}.brand{display:flex;align-items:center;gap:10px;font-weight:800;margin-bottom:24px}.logo{height:30px;width:30px;border-radius:9px;background:linear-gradient(135deg,#a78bfa,#38bdf8);display:grid;place-items:center;color:#0b0d12;font-weight:900}.menu{display:grid;gap:6px}.menu a{padding:10px 12px;border-radius:10px;color:#9ca3af;font-size:14px;text-decoration:none}.menu a.active{background:rgba(167,139,250,.15);color:#fff}.main{padding:28px}.top{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px}.h1{margin:0;font-size:24px;letter-spacing:-.02em}.kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}.k{border-radius:18px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);padding:18px}.k b{font-size:24px;display:block;color:#fff}.k span{color:#9ca3af;font-size:12px}.grid{display:grid;grid-template-columns:2fr 1fr;gap:14px}.card{border-radius:18px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);padding:18px;min-height:260px}.bar{height:8px;border-radius:999px;background:rgba(255,255,255,.06);overflow:hidden;margin:8px 0 14px}.bar i{display:block;height:100%;background:linear-gradient(90deg,#a78bfa,#38bdf8)}@media(max-width:800px){.app{grid-template-columns:1fr}.side{display:none}.kpi{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr}}</style></head><body><div class="app"><aside class="side"><div class="brand"><span class="logo">G</span><span>UseGlass</span></div><nav class="menu"><a class="active">Overview</a><a>Analytics</a><a>Project</a><a>Team</a><a>Settings</a></nav></aside><main class="main"><div class="top"><h1 class="h1">${title}</h1><button style="border:0;border-radius:12px;padding:10px 16px;background:#fff;color:#0b0d12;font-weight:700">+ New</button></div><div class="kpi"><div class="k"><b>12.4k</b><span>Active users</span></div><div class="k"><b>$48.9k</b><span>Revenue</span></div><div class="k"><b>96%</b><span>Uptime</span></div><div class="k"><b>2.1s</b><span>Avg response</span></div></div><div class="grid"><div class="card"><h3 style="margin:0 0 8px">Performance</h3><span style="color:#9ca3af;font-size:13px">Tren 7 hari terakhir</span><div class="bar"><i style="width:72%"></i></div><div class="bar"><i style="width:48%"></i></div><div class="bar"><i style="width:84%"></i></div><div class="bar"><i style="width:60%"></i></div></div><div class="card"><h3 style="margin:0 0 8px">Aktivitas</h3><span style="color:#9ca3af;font-size:13px">Update terbaru dari tim</span><ul style="margin:14px 0 0;padding:0;list-style:none;display:grid;gap:10px;color:#d4d4d8;font-size:13px"><li>• Ana update copy hero</li><li>• Bagas push fitur Bento</li><li>• Citra rilis dark mode</li><li>• Dimas merge PR #42</li></ul></div></div></main></div></body></html>`;
+};
+
+const buildGeneratedWebPreview = (prompt: string, raw: string) => {
+  if (isStandaloneHtmlPreview(raw)) return sanitizeGeneratedHtmlTitle(raw, prompt, 'web');
+  const intent = detectWebPreviewIntent(prompt);
+  if (intent === 'login') return buildLoginPagePreview(prompt);
+  if (intent === 'dashboard') return buildDashboardPreview(prompt);
+  return buildLandingPagePreview(prompt);
+};
 // --- Splash Screen Component ---
 const SplashScreen: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
   useEffect(() => {
@@ -509,7 +613,7 @@ const ChatInterface: React.FC = () => {
   //   if (appMode) {
   //     const optimalProvider = getOptimalProviderForMode(appMode, isSubscribed, false);
   //     if (provider !== optimalProvider) {
-  //       console.log(`🔄 Auto-switching provider: ${provider} → ${optimalProvider} (mode: ${appMode})`);
+  //       console.log(`ðŸ”„ Auto-switching provider: ${provider} â†’ ${optimalProvider} (mode: ${appMode})`);
   //       setProvider(optimalProvider);
   //     }
   //   }
@@ -519,7 +623,7 @@ const ChatInterface: React.FC = () => {
   // useEffect(() => {
   //   if (provider === 'gemini' && false && !isSubscribed) {
   //     const fallbackProvider = getOptimalProviderForMode(appMode, isSubscribed, false);
-  //     console.log(`🔄 Grok locked, switching to ${fallbackProvider}`);
+  //     console.log(`ðŸ”„ Grok locked, switching to ${fallbackProvider}`);
   //     setProvider(fallbackProvider);
   //   }
   // }, [false, isSubscribed, provider, appMode]);
@@ -564,7 +668,7 @@ const ChatInterface: React.FC = () => {
 
   // Model Selection State (Controlled from here)
   const [selectedModel, setSelectedModel] = useState<ModelType>(
-    (location.state?.model as ModelType) || 'sonar'
+    (location.state?.model as ModelType) || 'sonnet'
   );
   const [withReasoning, setWithReasoning] = useState<boolean>(
     initialState.reasoning
@@ -624,7 +728,7 @@ const ChatInterface: React.FC = () => {
         const wibTime = getWIBTime();
         const today = wibTime.toISOString().split('T')[0];
 
-        console.log('🔄 Resetting AI memory - Daily reset at 12:00 WIB');
+        console.log('ðŸ”„ Resetting AI memory - Daily reset at 12:00 WIB');
         setAiMemoryHistory([]);
         setLastResetTime(new Date());
         localStorage.setItem('noir_ai_memory_last_reset', today);
@@ -661,7 +765,7 @@ const ChatInterface: React.FC = () => {
         // Clear memory if tokens exhausted
         setAiMemoryHistory(prev => {
           if (prev.length > 0) {
-            console.log('⚠️ AI Memory: Cleared - Token limit reached');
+            console.log('âš ï¸ AI Memory: Cleared - Token limit reached');
             return [];
           }
           return prev;
@@ -671,7 +775,7 @@ const ChatInterface: React.FC = () => {
       // Token exceeded - clear memory
       setAiMemoryHistory(prev => {
         if (prev.length > 0) {
-          console.log('⚠️ AI Memory: Cleared - Token limit exceeded');
+          console.log('âš ï¸ AI Memory: Cleared - Token limit exceeded');
           return [];
         }
         return prev;
@@ -725,7 +829,7 @@ const ChatInterface: React.FC = () => {
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const handleStop = useCallback(() => {
-    console.log('🛑 [GlassSync] Stopping generation...');
+    console.log('ðŸ›‘ [GlassSync] Stopping generation...');
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
@@ -818,14 +922,14 @@ const ChatInterface: React.FC = () => {
     }
 
     if (userMessageToResend) {
-      console.log('🔄 Regenerating from user message:', userMessageToResend.content.substring(0, 50));
+      console.log('ðŸ”„ Regenerating from user message:', userMessageToResend.content.substring(0, 50));
       // Call handleSend with the content and current mode
       // We pass the history override to "cut off" the conversation after the user message we found
       // ensuring we regenerate from that point
       const historyUntilUserMessage = messages.slice(0, messages.indexOf(userMessageToResend));
       await handleSend(userMessageToResend.content, appMode, historyUntilUserMessage);
     } else {
-      console.warn('⚠️ Could not find a user message to regenerate from.');
+      console.warn('âš ï¸ Could not find a user message to regenerate from.');
     }
   };
 
@@ -840,7 +944,7 @@ const ChatInterface: React.FC = () => {
 
   // Helper for clipboard copy with fallback
   const copyToClipboard = async (text: string, onSuccess?: () => void) => {
-    console.log('🔄 Attempting to copy text:', text.substring(0, 50) + '...');
+    console.log('ðŸ”„ Attempting to copy text:', text.substring(0, 50) + '...');
 
     // Add watermark
     const watermarkedText = `${text}\n\nCopied from UseGlass AI`;
@@ -849,12 +953,12 @@ const ChatInterface: React.FC = () => {
       // Method 1: Modern Clipboard API (works in secure contexts)
       if (navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(watermarkedText);
-        console.log('✅ Successfully copied using Clipboard API');
+        console.log('âœ… Successfully copied using Clipboard API');
         if (onSuccess) onSuccess();
         return;
       }
     } catch (err) {
-      console.warn('⚠️ Clipboard API failed, trying fallback...', err);
+      console.warn('âš ï¸ Clipboard API failed, trying fallback...', err);
     }
 
     // Method 2: Fallback using execCommand
@@ -888,14 +992,14 @@ const ChatInterface: React.FC = () => {
       document.body.removeChild(textArea);
 
       if (successful) {
-        console.log('✅ Successfully copied using execCommand fallback');
+        console.log('âœ… Successfully copied using execCommand fallback');
         if (onSuccess) onSuccess();
       } else {
-        console.error('❌ execCommand copy failed');
+        console.error('âŒ execCommand copy failed');
         alert('Failed to copy text. Please try selecting and copying manually.');
       }
     } catch (err) {
-      console.error('❌ All copy methods failed:', err);
+      console.error('âŒ All copy methods failed:', err);
       alert('Copy failed. Please copy the text manually.');
     }
   };
@@ -1078,7 +1182,7 @@ const ChatInterface: React.FC = () => {
           // Restore AI memory from session (only if token available)
           if (!hasExceeded || isSubscribed) {
             setAiMemoryHistory(restoredMessages.slice(-20)); // Keep last 20 messages
-            console.log(`🧠 AI Memory: Restored ${restoredMessages.length} messages from session`);
+            console.log(`ðŸ§  AI Memory: Restored ${restoredMessages.length} messages from session`);
           }
         }
         restoredSessionRef.current = true;
@@ -1230,7 +1334,7 @@ const ChatInterface: React.FC = () => {
 
     const truncate = (raw: string) => {
       const trimmed = raw.trim().replace(/\s+/g, ' ');
-      return trimmed.length > 60 ? `${trimmed.slice(0, 60)}…` : trimmed;
+      return trimmed.length > 60 ? `${trimmed.slice(0, 60)}â€¦` : trimmed;
     };
 
     let nextTitle = defaultTitle;
@@ -1261,7 +1365,7 @@ const ChatInterface: React.FC = () => {
 
   // Handle Canvas Analyze
   const handleCanvasAnalyze = useCallback((blob: Blob) => {
-    console.log('🎨 Canvas analyze triggered');
+    console.log('ðŸŽ¨ Canvas analyze triggered');
 
     // Convert blob to base64
     const reader = new FileReader();
@@ -1388,7 +1492,7 @@ const ChatInterface: React.FC = () => {
       .then(newImages => {
         setAttachedImages(prev => {
           const updated = [...prev, ...newImages];
-          console.log('✅ Images added:', { count: newImages.length, total: updated.length });
+          console.log('âœ… Images added:', { count: newImages.length, total: updated.length });
           return updated;
         });
         // Reset input after all files are processed
@@ -1874,7 +1978,119 @@ const ChatInterface: React.FC = () => {
 
     if ((!text.trim() && imagesToSend.length === 0 && attachmentsToSend.length === 0) || isTyping) return;
 
-    // ── Fast UI: show user bubble + clear input IMMEDIATELY ──────────────
+    const trimmedPrompt = text.trim();
+    const words = trimmedPrompt.split(/\s+/).filter(Boolean);
+    const wordCount = words.length;
+    const lowerPrompt = trimmedPrompt.toLowerCase();
+    const askForOptions = /(berikan|kasih|beri|kasi|buatkan|bikin|give|show|list|make)\s+\d*\s*(opsi|pilihan|options?|alternatif|choices?)/i.test(lowerPrompt)
+      || /^(opsi|pilihan|options?|alternatif)\b/i.test(lowerPrompt)
+      || /\b\d+\s*(opsi|pilihan|options?|alternatif|choices?)\b/i.test(lowerPrompt);
+    const actionOnlyPrompt = /^(apa\s+itu|what\s+is|jelaskan|explain|terangkan|buatkan|bikin|buat|tolong|help|bantu|cara|how\s+to|kasih|beri|berikan|carikan|cari|riset|analisa|review|perbaiki|fix|debug|ubah|update|generate|create|write|summarize|ringkas|translate|terjemahkan)\s*[?!.]*$/i.test(lowerPrompt);
+    const vagueShortPrompt = wordCount <= 2 && !/[?]/.test(lowerPrompt);
+    const danglingReference = /\b(ini|itu|this|that|tersebut|begitu|gini|gitu|tadi)\b/i.test(lowerPrompt) && wordCount <= 5;
+    const greetingOnly = /^(p|q|test|tes|hai|halo|hello|hi|yo|woi|hey|nunggak|ping)\b\.?$/i.test(lowerPrompt);
+    const lacksTaskObject = /^(buatkan|bikin|buat|tolong|help|bantu|cara|how\s+to|kasih|beri|berikan|carikan|cari|riset|analisa|review|perbaiki|fix|debug|ubah|update|generate|create|write|summarize|ringkas|translate|terjemahkan)\b/i.test(lowerPrompt) && wordCount <= 4;
+    const looksAmbiguous = trimmedPrompt.length <= 3
+      || vagueShortPrompt
+      || askForOptions
+      || actionOnlyPrompt
+      || danglingReference
+      || greetingOnly
+      || lacksTaskObject;
+    const clarificationPayload = (() => {
+      if (/^(apa\s+itu|what\s+is|jelaskan|explain|terangkan)\b/i.test(lowerPrompt)) {
+        return {
+          question: 'Topik apa yang ingin kamu pahami?',
+          options: [
+            'Jelaskan konsep dengan contoh sederhana',
+            'Bandingkan dua istilah atau teknologi',
+            'Buat ringkasan untuk pemula',
+            'Beri contoh penggunaan nyata'
+          ]
+        };
+      }
+      if (askForOptions) {
+        return {
+          question: 'Opsi untuk kebutuhan apa?',
+          options: [
+            'Opsi ide produk atau fitur',
+            'Opsi desain UI atau halaman',
+            'Opsi solusi teknis',
+            'Opsi judul, topik, atau strategi'
+          ]
+        };
+      }
+      if (/^(perbaiki|fix|debug|ubah|update|review)\b/i.test(lowerPrompt)) {
+        return {
+          question: 'Bagian mana yang ingin kamu perbaiki?',
+          options: [
+            'Error atau bug di kode',
+            'Tampilan UI yang belum sesuai',
+            'Performa atau loading lambat',
+            'Alur fitur yang membingungkan'
+          ]
+        };
+      }
+      if (/^(buatkan|bikin|buat|generate|create|write)\b/i.test(lowerPrompt)) {
+        return {
+          question: 'Apa yang ingin kamu buat?',
+          options: [
+            'UI, website, atau komponen',
+            'Dokumen, proposal, atau artikel',
+            'Kode, API, atau fitur aplikasi',
+            'Ide, rencana, atau strategi'
+          ]
+        };
+      }
+      if (/^(cari|carikan|riset|analisa|summarize|ringkas|translate|terjemahkan)\b/i.test(lowerPrompt)) {
+        return {
+          question: 'Materi apa yang ingin kamu olah?',
+          options: [
+            'Cari informasi terbaru',
+            'Ringkas teks atau dokumen',
+            'Analisa topik atau data',
+            'Terjemahkan atau ubah gaya bahasa'
+          ]
+        };
+      }
+      return {
+        question: 'Maksud prompt ini ke arah mana?',
+        options: [
+          'Jelaskan konsepnya dengan sederhana',
+          'Cari informasi atau riset topiknya',
+          'Bantu coding atau teknis',
+          'Bantu susun ide atau rencana'
+        ]
+      };
+    })();
+    if (
+      looksAmbiguous
+      && imagesToSend.length === 0
+      && attachmentsToSend.length === 0
+      && !historyOverride
+    ) {
+      const earlyUser: Message = {
+        id: Date.now().toString(),
+        role: 'user',
+        content: text,
+        images: imagesToSend,
+        attachments: attachmentsToSend,
+        timestamp: new Date(),
+      };
+      const clarifyAi: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'ai',
+        content: `<!--CLARIFY ${JSON.stringify(clarificationPayload)} -->`,
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, earlyUser, clarifyAi]);
+      setInput('');
+      setAttachedImages([]);
+      setAttachedFiles([]);
+      return;
+    }
+
+    // â”€â”€ Fast UI: show user bubble + clear input IMMEDIATELY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // Heavy stuff (routing, mode detect, credit check, session create) used
     // to block this. Now we mount the bubble first so the user sees their
     // prompt land instantly and then we run the rest.
@@ -1901,7 +2117,7 @@ const ChatInterface: React.FC = () => {
 
     const currentRouting = routeGlassIntent(text, { webSearchConnected: true, githubConnected: false, localDocumentsConnected: !!uploadedDocument });
     setRoutingResult(currentRouting);
-    // Backend Auto Pilot is the source of truth — refresh chips when it answers.
+    // Backend Auto Pilot is the source of truth â€” refresh chips when it answers.
     // Local router result is shown immediately so the UI feels instant; backend
     // result overwrites the chips when (and only if) it lands.
     safeFetchAutoPilotRouting({
@@ -1927,10 +2143,17 @@ const ChatInterface: React.FC = () => {
     const detectedCanvasType = currentRouting.canvasType || detectGlassCanvasType(text);
     if (detectedCanvasType && (!glassCanvas || glassCanvas.state === 'closed')) {
       const shouldDream = detectedCanvasType === 'web' || detectedCanvasType === 'code';
+      const canvasTitle = detectedCanvasType === 'web'
+        ? deriveGeneratedTitle(text, 'web')
+        : detectedCanvasType === 'document'
+          ? deriveGeneratedTitle(text, 'document')
+          : detectedCanvasType === 'code'
+            ? 'Code Canvas'
+            : `${detectedCanvasType[0].toUpperCase()}${detectedCanvasType.slice(1)} Canvas`;
       setGlassCanvas({
         state: shouldDream ? 'opening' : 'active',
         type: detectedCanvasType,
-        title: detectedCanvasType === 'web' ? 'Web Canvas' : detectedCanvasType === 'code' ? 'Code Canvas' : `${detectedCanvasType[0].toUpperCase()}${detectedCanvasType.slice(1)} Canvas`,
+        title: canvasTitle,
         content: '',
         sourcePrompt: text,
         lastUpdated: new Date()
@@ -1958,18 +2181,18 @@ const ChatInterface: React.FC = () => {
       setActiveGlassMode('builder');
       setActiveWorkflowMode('build');
       if (!glassCanvas || glassCanvas.state === 'closed') {
-        setGlassCanvas({ state: 'opening', type: 'web', title: 'Web Canvas', content: '', sourcePrompt: text, lastUpdated: new Date() });
+        setGlassCanvas({ state: 'opening', type: 'web', title: deriveGeneratedTitle(text, 'web'), content: '', sourcePrompt: text, lastUpdated: new Date() });
       }
     }
 
-    // NOTE: do NOT prepend glass routing metadata to `text` — that mutates the
+    // NOTE: do NOT prepend glass routing metadata to `text` â€” that mutates the
     // user-visible message and leaks "Active Tool: chat / Workflow Mode: ..."
     // into the chat bubble. Routing context is delivered to the AI via
     // `promptToSend` (built below from currentRouting). Auto Pilot active or
     // not, the user's chat bubble must show only what they typed.
 
     // Debug logging
-    console.log(`🔍 Mode Detection Debug:`, {
+    console.log(`ðŸ” Mode Detection Debug:`, {
       text: text.substring(0, 50),
       detectedMode,
       currentAppMode: appMode,
@@ -1992,7 +2215,7 @@ const ChatInterface: React.FC = () => {
 
       if (isEditCommand) {
         detectedMode = 'builder'; // Force builder mode for edit commands
-        console.log(`🔧 Edit command detected, keeping builder mode: "${text.substring(0, 50)}..."`);
+        console.log(`ðŸ”§ Edit command detected, keeping builder mode: "${text.substring(0, 50)}..."`);
       }
     }
 
@@ -2010,19 +2233,19 @@ const ChatInterface: React.FC = () => {
 
     // Auto-switch mode if detected mode is different from current mode
     if (detectedMode !== appMode && !modeOverride) {
-      console.log(`🔄 Auto-switching mode: ${appMode} → ${detectedMode} (detected from: "${text.substring(0, 50)}...")`);
+      console.log(`ðŸ”„ Auto-switching mode: ${appMode} â†’ ${detectedMode} (detected from: "${text.substring(0, 50)}...")`);
       setAppMode(detectedMode);
 
       // When switching to tutor mode, reset activeTab to preview (hide code editor)
       if (detectedMode === 'tutor') {
         setActiveTab('preview');
-        console.log(`📚 Switched to tutor mode, resetting tab to preview`);
+        console.log(`ðŸ“š Switched to tutor mode, resetting tab to preview`);
       }
 
       // Update session mode in database if session exists (non-blocking)
       if (sessionId && user) {
         updateChatSession(sessionId, { mode: detectedMode as any })
-          .then(() => console.log(`✅ Session mode updated to ${detectedMode}`))
+          .then(() => console.log(`âœ… Session mode updated to ${detectedMode}`))
           .catch(error => console.error('Error updating session mode:', error));
       }
     }
@@ -2038,13 +2261,13 @@ const ChatInterface: React.FC = () => {
     const isInitialAutoSend = historyOverride && historyOverride.length > 0 && historyOverride[0].content === text;
 
     if (isInitialAutoSend) {
-      console.log('📝 Auto-send detected, syncing mode flags to existing initial user message');
+      console.log('ðŸ“ Auto-send detected, syncing mode flags to existing initial user message');
       // Update the existing initial message in state with the correct flags
       setMessages(prev => prev.map((msg, idx) =>
         idx === 0 ? { ...msg, isDeepDive: deepDive, isWebSearch: enableWebSearch } : msg
       ));
     }
-    // (else: bubble already pushed above via earlyMessage — skip duplicate setMessages)
+    // (else: bubble already pushed above via earlyMessage â€” skip duplicate setMessages)
 
     // Input/attachments already cleared above. Keep block as-is for compat
     // in case future code expects this gate, but it's a no-op now.
@@ -2068,21 +2291,23 @@ const ChatInterface: React.FC = () => {
     // Detect image/video generation request for specialized loading UI
     const isVisualRequest = (text: string): boolean => {
       const lowerText = text.toLowerCase();
-      // Match common intent to generate visual media including typos
-      const generateIntentRegex = /\b(buat|buatkan|bikin|bikinin|generate|ganerate|create|draw|design|gambarkan)\b.*\b(gambar|image|foto|picture|video|animasi|animation)\b/i;
-      
+      const webBuildHints = /\b(landing page|website|web app|dashboard|ui|component|komponen|halaman|navbar|hero|card|bento grid|tailwind|glassmorphism|pricing page|login page|frontend)\b/i;
+      if (webBuildHints.test(lowerText)) return false;
+
+      const imageIntent = /\b(buat|buatkan|bikin|bikinin|generate|ganerate|create|draw|gambarkan)\b[\s\S]{0,40}\b(gambar|image|foto|picture|ilustrasi|illustration)\b/i;
+      const videoIntent = /\b(buat|buatkan|bikin|bikinin|generate|ganerate|create|render|make)\b[\s\S]{0,40}\b(video|klip|clip|film|reel|short)\b/i;
       const visualKeywords = [
         'buatkan gambar', 'buat gambar', 'generate image', 'create image',
-        'gambarkan', 'draw', 'ilustrasi', 'illustration', 'make an image',
-        'buat foto', 'generate a picture', 'make a picture', 'design image',
+        'gambarkan', 'ilustrasi', 'illustration', 'make an image',
+        'buat foto', 'generate a picture', 'make a picture',
         'buatkan video', 'buat video', 'generate video', 'create video',
-        'bikin video', 'make a video', 'animasi', 'animation'
+        'bikin video', 'make a video', 'video animasi', 'animated video'
       ];
-      return generateIntentRegex.test(lowerText) || visualKeywords.some(keyword => lowerText.includes(keyword)) || ['gpt-image-1', 'flux-schnell', 'sdxl', 'openjourney', 'stable-video'].includes(selectedModel);
+      return imageIntent.test(lowerText) || videoIntent.test(lowerText) || visualKeywords.some(keyword => lowerText.includes(keyword)) || ['gpt-image-1', 'flux-schnell', 'sdxl', 'openjourney', 'stable-video'].includes(selectedModel);
     };
 
     const isVisual = isVisualRequest(text);
-    const isVideo = /\b(video|animasi|animation)\b/i.test(text.toLowerCase());
+    const isVideo = /\b(video|klip|clip|film|reel|short)\b/i.test(text.toLowerCase());
 
     if (isVisual) {
       setActiveLoadingPhase(isVideo ? 'video_gen' : 'image_gen');
@@ -2108,11 +2333,11 @@ const ChatInterface: React.FC = () => {
     const isPdfRequest = pdfPatterns.some(pattern => pattern.test(text));
 
     if (isPdfRequest) {
-      console.log('📄 [PDFGen] PDF generation request detected in chat!');
+      console.log('ðŸ“„ [PDFGen] PDF generation request detected in chat!');
       setGlassCanvas({
         state: 'opening',
         type: 'document',
-        title: 'Document Canvas',
+        title: deriveGeneratedTitle(text, 'document'),
         content: '',
         sourcePrompt: text,
         lastUpdated: new Date(),
@@ -2146,7 +2371,7 @@ const ChatInterface: React.FC = () => {
         setGlassCanvas({
           state: 'active',
           type: 'document',
-          title: 'Generated PDF Document',
+          title: deriveGeneratedTitle(text, 'document'),
           content: pdfData.html,
           sourcePrompt: text,
           lastUpdated: new Date(),
@@ -2156,7 +2381,7 @@ const ChatInterface: React.FC = () => {
         const aiSuccessMsg: Message = {
           id: (Date.now() + 1).toString(),
           role: 'ai',
-          content: '✅ **Dokumen PDF siap di Canvas.**\n\nPreview dokumen sudah tersedia di panel kanan. Klik tombol **Download PDF** di Canvas jika ingin mengunduhnya.\n\nJika ingin membuat perubahan, kirim instruksi baru sebelum download.',
+          content: 'âœ… **Dokumen PDF siap di Canvas.**\n\nPreview dokumen sudah tersedia di panel kanan. Klik tombol **Download PDF** di Canvas jika ingin mengunduhnya.\n\nJika ingin membuat perubahan, kirim instruksi baru sebelum download.',
           timestamp: new Date(),
         };
         setMessages(prev => [...prev, aiSuccessMsg]);
@@ -2167,18 +2392,18 @@ const ChatInterface: React.FC = () => {
           await saveMessage(pdfSessionId, 'ai', aiSuccessMsg.content);
         }
       } catch (pdfError: any) {
-        console.error('📄 [PDFGen] Error:', pdfError);
+        console.error('ðŸ“„ [PDFGen] Error:', pdfError);
         const aiErrorMsg: Message = {
           id: (Date.now() + 1).toString(),
           role: 'ai',
-          content: `❌ **Gagal membuat PDF.**\n\n${pdfError.message || 'Terjadi kesalahan saat membuat dokumen. Silakan coba lagi.'}\n\n💡 *Tips: Pastikan prompt Anda menjelaskan isi dokumen yang ingin dibuat dengan jelas.*`,
+          content: `âŒ **Gagal membuat PDF.**\n\n${pdfError.message || 'Terjadi kesalahan saat membuat dokumen. Silakan coba lagi.'}\n\nðŸ’¡ *Tips: Pastikan prompt Anda menjelaskan isi dokumen yang ingin dibuat dengan jelas.*`,
           timestamp: new Date(),
         };
         setMessages(prev => [...prev, aiErrorMsg]);
       } finally {
         setIsTyping(false);
       }
-      return; // Stop here — don't continue to normal AI flow
+      return; // Stop here â€” don't continue to normal AI flow
     }
     // =====================================================
     // END PDF GENERATION DETECTION
@@ -2211,7 +2436,7 @@ const ChatInterface: React.FC = () => {
     const activeConnector = GLASS_CONNECTORS.find(connector => connector.name === currentRouting.selectedConnector || connector.id === currentRouting.selectedConnector) || null;
 
     // Rich skill instruction (multi-paragraph: role, method, structure,
-    // quality bar, anti-patterns) — placed at the TOP so the AI starts
+    // quality bar, anti-patterns) â€” placed at the TOP so the AI starts
     // in the skill's voice, not as a generic assistant.
     const richSkillId = resolveSkillId(currentRouting.selectedSkill || activeSkill?.name || activeSkill?.id || null);
     const richSkillInstruction = composeSkillInstruction(richSkillId);
@@ -2254,17 +2479,17 @@ const ChatInterface: React.FC = () => {
               if (refreshSessions) refreshSessions();
             }, 1000);
           } else {
-            console.warn('⚠️ Failed to create chat session, continuing without session');
+            console.warn('âš ï¸ Failed to create chat session, continuing without session');
           }
         } catch (error) {
-          console.error('❌ Error creating chat session:', error);
+          console.error('âŒ Error creating chat session:', error);
         }
       }
 
       // 2. Save User Message (fire-and-forget so AI request can start immediately)
       if (activeSessionId && user) {
         saveMessage(activeSessionId, 'user', text, undefined, imagesToSend).catch(err =>
-          console.warn('⚠️ saveMessage (user) failed, continuing:', err?.message || err)
+          console.warn('âš ï¸ saveMessage (user) failed, continuing:', err?.message || err)
         );
       }
 
@@ -2291,14 +2516,14 @@ const ChatInterface: React.FC = () => {
           historyForAI = truncateHistory(fullHistory, OPENROUTER_PROMPT_TOKEN_LIMIT);
 
           if (historyForAI.length < fullHistory.length) {
-            console.log(`⚠️ History truncated: ${fullHistory.length} → ${historyForAI.length} messages`);
+            console.log(`âš ï¸ History truncated: ${fullHistory.length} â†’ ${historyForAI.length} messages`);
           }
         } else {
           historyForAI = fullHistory;
         }
 
         if (shouldUseMemory && historyToUse.length > 0) {
-          console.log(`🧠 AI Memory: Using ${historyForAI.length} previous messages for context`);
+          console.log(`ðŸ§  AI Memory: Using ${historyForAI.length} previous messages for context`);
         }
       }
 
@@ -2352,7 +2577,7 @@ const ChatInterface: React.FC = () => {
       if (shouldSearch) {
         try {
           // Show searching indicator
-          console.log(`🔍 [GlassSync] Starting ${deepDive ? 'ADVANCED' : 'BASIC'} web search for:`, text);
+          console.log(`ðŸ” [GlassSync] Starting ${deepDive ? 'ADVANCED' : 'BASIC'} web search for:`, text);
           if (deepDive) {
             setActiveLoadingPhase('deep_research');
             setDeepResearchPhase('searching');
@@ -2383,14 +2608,14 @@ const ChatInterface: React.FC = () => {
               .join('\n');
             
             if (deepDive) {
-              promptToSend = `${text}\n\n[🔬 DEEP RESEARCH CONTEXT - TAVILY ADVANCED]\n${searchContext}\n\nINSTRUCTION: Provide a comprehensive, research-grade answer. You have 10 sources above. Cross-reference them to identify patterns, consensus, or conflicts. Use formal citations (e.g. [1][3]).`;
+              promptToSend = `${text}\n\n[ðŸ”¬ DEEP RESEARCH CONTEXT - TAVILY ADVANCED]\n${searchContext}\n\nINSTRUCTION: Provide a comprehensive, research-grade answer. You have 10 sources above. Cross-reference them to identify patterns, consensus, or conflicts. Use formal citations (e.g. [1][3]).`;
             } else {
               promptToSend = `${promptToSend}\n\n[Web Search Results]\n${searchContext}\n\nPlease use the above search results to provide a comprehensive answer with citations.`;
             }
 
             // For builder mode, also append context
             if (mode === 'builder') {
-              console.log('🏗️ Builder mode: Adding search context to prompt');
+              console.log('ðŸ—ï¸ Builder mode: Adding search context to prompt');
             }
           }
         } catch (error) {
@@ -2477,10 +2702,10 @@ const ChatInterface: React.FC = () => {
         }
 
         // 3. Log context analysis
-        console.log(`🎯 Context Analysis: mode=${mode}, text="${text.substring(0, 50)}..."`);
+        console.log(`ðŸŽ¯ Context Analysis: mode=${mode}, text="${text.substring(0, 50)}..."`);
 
         // Debug: Log mode before generating code
-        console.log(`🎯 Generating code with mode: ${mode}, framework: ${frameworkToUse}, text: "${text.substring(0, 50)}..."`);
+        console.log(`ðŸŽ¯ Generating code with mode: ${mode}, framework: ${frameworkToUse}, text: "${text.substring(0, 50)}..."`);
 
         // Use workflow if enabled (check config)
         const { WORKFLOW_CONFIG } = await import('@/lib/workflow/config');
@@ -2546,7 +2771,7 @@ const ChatInterface: React.FC = () => {
 
         // Handle multi-file or single-file response (BUILDER MODE ONLY)
         if (!codeResponse) {
-          console.error('❌ No response received from generateCode');
+          console.error('âŒ No response received from generateCode');
           responseText = 'Error: No response received from AI. Please try again.';
           code = null;
           setIsBuildingCode(false);
@@ -2566,11 +2791,11 @@ const ChatInterface: React.FC = () => {
 
           if (hasErrorFile) {
             // Error detected in files - don't set code for preview
-            console.error('❌ Error response detected in multi-file response, not setting code for preview');
+            console.error('âŒ Error response detected in multi-file response, not setting code for preview');
             code = null;
             responseText = 'Error: Code generation failed. Please try again.';
             setIsBuildingCode(false);
-            setLogs(prev => [...prev, '⚠️ Error: Code generation failed. Please try again with a different prompt or provider.']);
+            setLogs(prev => [...prev, 'âš ï¸ Error: Code generation failed. Please try again with a different prompt or provider.']);
           } else {
             fileManager.clear();
             codeResponse.files.forEach(file => {
@@ -2641,11 +2866,11 @@ const ChatInterface: React.FC = () => {
 
           if (isErrorResponse) {
             // This is an error response - don't set as code for preview
-            console.error('❌ Error response detected in builder mode, not setting code for preview');
+            console.error('âŒ Error response detected in builder mode, not setting code for preview');
             code = null;
             responseText = extractTextFromErrorHtml(code) || 'Error: Code generation failed. Please try again.';
             setIsBuildingCode(false);
-            setLogs(prev => [...prev, '⚠️ Error: Code generation failed. Please try again with a different prompt or provider.']);
+            setLogs(prev => [...prev, 'âš ï¸ Error: Code generation failed. Please try again with a different prompt or provider.']);
           } else {
             const extracted = extractCode(code);
             responseText = extracted.text || 'Generated app successfully.';
@@ -2655,12 +2880,12 @@ const ChatInterface: React.FC = () => {
 
             // Validate code - ensure it's valid HTML and not just whitespace/newlines
             if (!code || code.trim().length === 0 || /^[\s\n\r\t]+$/.test(code)) {
-              console.error('⚠️ No valid code extracted from response (empty or whitespace only):', codeResponse.content.substring(0, 200));
+              console.error('âš ï¸ No valid code extracted from response (empty or whitespace only):', codeResponse.content.substring(0, 200));
               code = null;
               responseText = 'Error: No valid code found in response. Please try again.';
             } else if (!code.includes('<') && !code.includes('<!DOCTYPE')) {
               // Code doesn't look like HTML, might be plain text
-              console.warn('⚠️ Code doesn\'t appear to be HTML:', code.substring(0, 100));
+              console.warn('âš ï¸ Code doesn\'t appear to be HTML:', code.substring(0, 100));
               // Try to wrap in HTML if it's just text
               if (code.trim().length > 0) {
                 code = `<!DOCTYPE html>
@@ -2709,7 +2934,7 @@ const ChatInterface: React.FC = () => {
               responseFramework = (codeResponse as any).framework;
             }
             setCurrentFramework(codebaseMode ? 'react' : (responseFramework || 'react'));
-            console.log('✅ Single-file code set:', {
+            console.log('âœ… Single-file code set:', {
               codeLength: code.length,
               hasDoctype: code.includes('<!DOCTYPE'),
               preview: code.substring(0, 150),
@@ -2717,7 +2942,7 @@ const ChatInterface: React.FC = () => {
               codebaseMode: codebaseMode
             });
           } else {
-            console.error('❌ No code extracted from single-file response');
+            console.error('âŒ No code extracted from single-file response');
           }
         }
 
@@ -2725,7 +2950,7 @@ const ChatInterface: React.FC = () => {
         setIsBuildingCode(false);
       } else {
         // TUTOR MODE: Generate text response only (no code)
-        console.log(`📚 Tutor mode: Generating text response for: "${text.substring(0, 50)}..."`);
+        console.log(`ðŸ“š Tutor mode: Generating text response for: "${text.substring(0, 50)}..."`);
 
         // Check if user is asking to build/create something in tutor mode
         // If so, auto-switch to builder mode for better code generation
@@ -2738,7 +2963,7 @@ const ChatInterface: React.FC = () => {
         const isBuildRequest = buildRequestPatterns.some(pattern => pattern.test(text.trim()));
 
         if (isBuildRequest) {
-          console.log('🔄 Tutor mode detected build request, switching to builder mode...');
+          console.log('ðŸ”„ Tutor mode detected build request, switching to builder mode...');
           setAppMode('builder');
           // Update session mode
           if (activeSessionId && user) {
@@ -2832,26 +3057,26 @@ const ChatInterface: React.FC = () => {
         } catch (error: any) {
           // Ignore superseded requests (Fix for duplicate output/interleaved streams)
           if (error.name === 'AbortError' && abortControllerRef.current !== controller) {
-            console.log('🛑 Request aborted/superseded, silent return.');
+            console.log('ðŸ›‘ Request aborted/superseded, silent return.');
             setIsTyping(false);
             return;
           }
 
-          console.error('❌ Error calling generateCode in tutor mode:', error);
+          console.error('âŒ Error calling generateCode in tutor mode:', error);
           codeResponse = null;
 
           // Granular Error Messages
           let userMessage = 'An unexpected error occurred.';
           if (error.message.includes('OpenRouter API Key not configured')) {
-            userMessage = '⚠️ OpenRouter API Key Missing. Please set VITE_OPENROUTER_API_KEY in your .env file.';
+            userMessage = 'âš ï¸ OpenRouter API Key Missing. Please set VITE_OPENROUTER_API_KEY in your .env file.';
           } else if (error.message.includes('401') || error.message.includes('403')) {
-            userMessage = '⚠️ Authentication Failed. Please check your OpenRouter API Key.';
+            userMessage = 'âš ï¸ Authentication Failed. Please check your OpenRouter API Key.';
           } else if (error.message.includes('429') || error.message.includes('Credit')) {
-            userMessage = '⏳ Rate limit or credit limit exceeded. Please check your OpenRouter credits.';
+            userMessage = 'â³ Rate limit or credit limit exceeded. Please check your OpenRouter credits.';
           } else if (error.message.includes('Timeout') || error.name === 'AbortError') {
-            userMessage = '⏱️ Request timed out. The AI took too long to respond. Please try again.';
+            userMessage = 'â±ï¸ Request timed out. The AI took too long to respond. Please try again.';
           } else if (error.message.includes('empty response')) {
-            userMessage = '⚠️ AI returned an empty response. Please try rephrasing your prompt.';
+            userMessage = 'âš ï¸ AI returned an empty response. Please try rephrasing your prompt.';
           }
 
           setMessages(prev => [
@@ -2872,7 +3097,7 @@ const ChatInterface: React.FC = () => {
         let code: string | null = null;
 
         if (!codeResponse) {
-          console.error('❌ No response received from generateCode in tutor mode');
+          console.error('âŒ No response received from generateCode in tutor mode');
           responseText = 'I apologize, but I encountered an error while processing your request.\n\n' +
             '**Possible causes:**\n' +
             '- API connection issue\n' +
@@ -2888,13 +3113,13 @@ const ChatInterface: React.FC = () => {
         } else if (codeResponse.type === 'multi-file') {
           // If tutor mode returns multi-file (shouldn't happen, but handle it)
           responseText = codeResponse.files.map(f => f.content).join('\n\n');
-          console.log('📚 Tutor mode: Multi-file response (unexpected)', { fileCount: codeResponse.files.length });
+          console.log('ðŸ“š Tutor mode: Multi-file response (unexpected)', { fileCount: codeResponse.files.length });
         } else {
           // Single-file response - for tutor mode, use content directly as text
           // Tutor mode should return plain text, not code
           const content = codeResponse.content || '';
 
-          console.log('📚 Tutor mode: Processing response', {
+          console.log('ðŸ“š Tutor mode: Processing response', {
             contentLength: content.length,
             hasCodeBlocks: content.includes('```'),
             contentPreview: content.substring(0, 100),
@@ -2913,7 +3138,7 @@ const ChatInterface: React.FC = () => {
 
           if (isErrorResponse) {
             // This is an error response - extract readable text from HTML
-            console.log('📚 Tutor mode: Error response detected, extracting text from HTML');
+            console.log('ðŸ“š Tutor mode: Error response detected, extracting text from HTML');
             responseText = extractTextFromErrorHtml(content);
 
             // Ensure we have meaningful text
@@ -2926,11 +3151,11 @@ const ChatInterface: React.FC = () => {
             }
 
             // Add helpful prefix for error messages in tutor mode
-            if (responseText && !responseText.startsWith('🚫') && !responseText.startsWith('⚠️') && !responseText.startsWith('Error')) {
-              responseText = `🚫 Error: ${responseText}`;
+            if (responseText && !responseText.startsWith('ðŸš«') && !responseText.startsWith('âš ï¸') && !responseText.startsWith('Error')) {
+              responseText = `ðŸš« Error: ${responseText}`;
             }
 
-            console.log('📚 Tutor mode: Extracted error text', {
+            console.log('ðŸ“š Tutor mode: Extracted error text', {
               extractedLength: responseText.length,
               extractedPreview: responseText.substring(0, 150),
               originalLength: content.length,
@@ -2939,7 +3164,7 @@ const ChatInterface: React.FC = () => {
             });
           } else if (!content || content.trim().length === 0) {
             // Empty content
-            console.error('📚 Tutor mode: Empty content received from API', {
+            console.error('ðŸ“š Tutor mode: Empty content received from API', {
               codeResponseType: codeResponse.type,
               provider: effectiveProvider,
               mode: mode
@@ -2960,7 +3185,7 @@ const ChatInterface: React.FC = () => {
             if (content.includes('```') && content.length > 100) {
               // Has code blocks, try to extract text portion
               const extracted = extractCode(content);
-              console.log('📚 Tutor mode: Extracted from code blocks', {
+              console.log('ðŸ“š Tutor mode: Extracted from code blocks', {
                 extractedTextLength: extracted.text?.length || 0,
                 hasExtractedText: !!(extracted.text && extracted.text.trim().length > 0),
                 extractedCodeLength: extracted.code?.length || 0
@@ -2980,7 +3205,7 @@ const ChatInterface: React.FC = () => {
             // CRITICAL: Double-check that responseText is set
             // This handles edge cases where extractCode might return empty text
             if (!responseText || responseText.trim().length === 0) {
-              console.warn('⚠️ ResponseText became empty after processing, using content directly', {
+              console.warn('âš ï¸ ResponseText became empty after processing, using content directly', {
                 contentLength: content.length,
                 contentPreview: content.substring(0, 200),
                 hasCodeBlocks: content.includes('```')
@@ -3002,7 +3227,7 @@ const ChatInterface: React.FC = () => {
 
           // Final validation - ensure we have a response
           if (!responseText || responseText.trim().length === 0) {
-            console.warn('📚 Tutor mode: Response text is still empty after processing', {
+            console.warn('ðŸ“š Tutor mode: Response text is still empty after processing', {
               contentLength: content.length,
               hasContent: !!content,
               contentPreview: content.substring(0, 200),
@@ -3011,10 +3236,10 @@ const ChatInterface: React.FC = () => {
 
             // If it's an error response but we couldn't extract text, use a generic error message
             if (isErrorResponse) {
-              responseText = '🚫 Error: API returned an error response. This usually means:\n\n' +
-                '• Invalid API key - Check your OPENROUTER_API_KEY in backend environment variables\n' +
-                '• Service unavailable - The API service may be down\n' +
-                '• Model access issue - Verify the model is available in your OpenRouter account\n\n' +
+              responseText = 'ðŸš« Error: API returned an error response. This usually means:\n\n' +
+                'â€¢ Invalid API key - Check your OPENROUTER_API_KEY in backend environment variables\n' +
+                'â€¢ Service unavailable - The API service may be down\n' +
+                'â€¢ Model access issue - Verify the model is available in your OpenRouter account\n\n' +
                 '**Please try:**\n' +
                 '- Verify your OPENROUTER_API_KEY is set correctly in backend\n' +
                 '- Check if the model is available in your OpenRouter account\n' +
@@ -3030,7 +3255,7 @@ const ChatInterface: React.FC = () => {
             }
           }
 
-          console.log('📚 Tutor mode: Final responseText', {
+          console.log('ðŸ“š Tutor mode: Final responseText', {
             responseTextLength: responseText.length,
             responseTextPreview: responseText.substring(0, 100),
             isErrorResponse,
@@ -3041,7 +3266,7 @@ const ChatInterface: React.FC = () => {
 
           // CRITICAL: Ensure responseText is never empty if we have content
           if ((!responseText || responseText.trim().length === 0) && content && content.trim().length > 0) {
-            console.warn('⚠️ ResponseText is empty but content exists! Using content directly.', {
+            console.warn('âš ï¸ ResponseText is empty but content exists! Using content directly.', {
               contentLength: content.length,
               contentPreview: content.substring(0, 200)
             });
@@ -3056,7 +3281,7 @@ const ChatInterface: React.FC = () => {
           if (!responseText || responseText.trim().length === 0) {
             if (codeResponse?.type === 'single-file' && codeResponse.content) {
               // Last resort: use content directly
-              console.warn('📚 Tutor mode: responseText is empty, using content directly as fallback');
+              console.warn('ðŸ“š Tutor mode: responseText is empty, using content directly as fallback');
               responseText = codeResponse.content;
             }
           }
@@ -3074,7 +3299,7 @@ const ChatInterface: React.FC = () => {
         // Only use "Done." for builder mode, never for tutor mode
         if (mode === 'tutor') {
           // Try to get more information about why response is empty
-          console.error('📚 Tutor mode: Empty response detected after processing', {
+          console.error('ðŸ“š Tutor mode: Empty response detected after processing', {
             mode,
             provider: effectiveProvider,
             hasCodeResponse: !!codeResponse,
@@ -3086,7 +3311,7 @@ const ChatInterface: React.FC = () => {
           // Check if codeResponse has content that we might have missed
           if (codeResponse && codeResponse.type === 'single-file' && codeResponse.content) {
             const content = codeResponse.content;
-            console.log('📚 Tutor mode: Attempting to recover from codeResponse.content', {
+            console.log('ðŸ“š Tutor mode: Attempting to recover from codeResponse.content', {
               contentLength: content.length,
               contentPreview: content.substring(0, 200),
               isError: content.includes('<!-- Error') || content.includes('text-red-500')
@@ -3099,16 +3324,16 @@ const ChatInterface: React.FC = () => {
               const extractedText = tempDiv.textContent || tempDiv.innerText || '';
               if (extractedText.trim().length > 0) {
                 finalResponseText = extractedText.trim();
-                console.log('📚 Tutor mode: Successfully extracted text from HTML content');
+                console.log('ðŸ“š Tutor mode: Successfully extracted text from HTML content');
               } else {
                 // If HTML extraction failed, use content directly
                 finalResponseText = content;
-                console.log('📚 Tutor mode: Using content directly as fallback');
+                console.log('ðŸ“š Tutor mode: Using content directly as fallback');
               }
             } else {
               // Not HTML, use content directly
               finalResponseText = content;
-              console.log('📚 Tutor mode: Using non-HTML content directly');
+              console.log('ðŸ“š Tutor mode: Using non-HTML content directly');
             }
           }
 
@@ -3126,18 +3351,16 @@ const ChatInterface: React.FC = () => {
         }
       }
       if (mode === 'builder' || uiBuildIntent || currentRouting.canvasType === 'web' || currentRouting.canvasType === 'code') {
-        const escapeHtml = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         const extractedForCanvas = extractCode(responseText || finalResponseText || '');
         const renderable = code || extractedForCanvas.code || '';
-        const promptTitle = escapeHtml((text || 'UseGlass landing page').replace(/^(buat|buatkan|bikin|create|generate|build)\s+/i, '').slice(0, 90) || 'UseGlass landing page');
-        const fallbackHtml = `<!doctype html><html><head><meta charset=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"/><title>UseGlass Preview</title><style>*{box-sizing:border-box}body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,sans-serif;background:radial-gradient(circle at 20% 10%,rgba(56,189,248,.22),transparent 34%),radial-gradient(circle at 80% 0%,rgba(99,102,241,.18),transparent 30%),linear-gradient(135deg,#f8fafc,#fff 46%,#eef6ff);color:#0f172a}.page{min-height:100vh;padding:32px}.shell{max-width:1120px;margin:0 auto}.nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:72px}.brand{display:flex;align-items:center;gap:10px;font-weight:800}.logo{display:grid;height:34px;width:34px;place-items:center;border-radius:12px;background:linear-gradient(135deg,#38bdf8,#2563eb);color:white}.links{display:flex;gap:22px;color:#64748b;font-size:14px}.hero{display:grid;grid-template-columns:1.05fr .95fr;gap:34px;align-items:center}.bd{display:inline-flex;border-radius:999px;background:rgba(255,255,255,.72);border:1px solid rgba(148,163,184,.28);padding:8px 12px;color:#2563eb;font-size:13px;font-weight:700}h1{margin:18px 0;font-size:60px;line-height:.95;letter-spacing:-.06em}.lead{max-width:620px;color:#475569;font-size:18px;line-height:1.7}.actions{display:flex;gap:12px;margin-top:28px}.primary,.secondary{border:0;border-radius:999px;padding:14px 20px;font-weight:700;cursor:pointer}.primary{background:#0f172a;color:#fff}.secondary{background:rgba(255,255,255,.72);color:#0f172a;border:1px solid rgba(148,163,184,.24)}.preview{border-radius:34px;background:rgba(255,255,255,.72);border:1px solid rgba(148,163,184,.26);box-shadow:0 30px 90px rgba(15,23,42,.12);padding:22px}.panel{border-radius:26px;background:#fff;padding:22px;min-height:420px}.metric{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:18px 0}.metric div{border-radius:18px;background:#f8fafc;padding:16px}.metric b{display:block;font-size:24px}.cards{display:grid;gap:12px}.feat{border-radius:18px;background:linear-gradient(135deg,#f8fafc,#eef6ff);padding:16px;border:1px solid #e2e8f0}.feat h3{margin:0 0 6px}.feat p{margin:0;color:#64748b;font-size:14px}@media(max-width:860px){.hero{grid-template-columns:1fr}.links{display:none}h1{font-size:42px}.page{padding:20px}.nav{margin-bottom:38px}}</style></head><body><main class=\"page\"><div class=\"shell\"><nav class=\"nav\"><div class=\"brand\"><span class=\"logo\">G</span><span>UseGlass</span></div><div class=\"links\"><span>Product</span><span>Pricing</span><span>Docs</span></div></nav><section class=\"hero\"><div><span class=\"bd\">Generated Web Preview</span><h1>${promptTitle}</h1><p class=\"lead\">Landing page modern bergaya glassmorphism dengan hero kuat, CTA jelas, dan struktur siap dikembangkan. Preview ini dibuat otomatis saat model belum mengirim kode HTML lengkap.</p><div class=\"actions\"><button class=\"primary\">Get Started</button><button class=\"secondary\">View Demo</button></div></div><div class=\"preview\"><div class=\"panel\"><span class=\"bd\">Glass Workspace</span><div class=\"metric\"><div><b>3x</b><span>Faster flow</span></div><div><b>AI</b><span>Auto routing</span></div><div><b>Live</b><span>Canvas</span></div></div><div class=\"cards\"><article class=\"feat\"><h3>Prompt-first workspace</h3><p>Chat, research, build, code, dan dokumen dalam satu alur kerja.</p></article><article class=\"feat\"><h3>Canvas preview</h3><p>Output besar tampil langsung sebagai preview rapi, bukan teks mentah.</p></article><article class=\"feat\"><h3>Save to project</h3><p>Simpan hasil penting ke project untuk dipakai ulang.</p></article></div></div></div></section></div></main></body></html>`;
+        const fallbackHtml = buildGeneratedWebPreview(text, "");
         const isReactLikeCode = /\b(import|export|interface|type|useState|useEffect|React\.|const\s+\w+\s*=\s*\(|function\s+\w+|className=|onClick=|onSubmit=|\{[^}]+\})/i.test(renderable);
         const isStandaloneHtml = !!renderable && /<\s*!doctype|<html|<body/i.test(renderable) && !isReactLikeCode;
-        const canvasContent = isStandaloneHtml ? renderable : fallbackHtml;
+        const canvasContent = isStandaloneHtml ? sanitizeGeneratedHtmlTitle(renderable, text, 'web') : fallbackHtml;
         setGlassCanvas({
           state: 'active',
           type: 'web',
-          title: 'Web Canvas',
+          title: deriveGeneratedTitle(text, 'web'),
           content: canvasContent,
           sourcePrompt: text,
           lastUpdated: new Date(),
@@ -3297,9 +3520,9 @@ const ChatInterface: React.FC = () => {
           if (renderable && renderable.trim().length > 0) {
             const isHtmlDoc = /<\s*!doctype|<html|<body|<head|<\s*main|<section|<article/i.test(renderable);
             const isReactish = /export\s+default|return\s*\(/.test(renderable);
-            const canvasTitle = isHtmlDoc ? 'Web Canvas' : isReactish ? 'Code Canvas (React)' : 'Code Canvas';
+            const canvasTitle = isHtmlDoc ? deriveGeneratedTitle(text, 'web') : isReactish ? 'Code Canvas (React)' : 'Code Canvas';
             const canvasContent = isHtmlDoc
-              ? renderable
+              ? sanitizeGeneratedHtmlTitle(renderable, text, 'web')
               : `<!doctype html><html><head><meta charset="utf-8" /><style>body{font-family:'JetBrains Mono','Fira Code',monospace;background:#fafafa;color:#111;padding:24px;font-size:13px;line-height:1.6;}pre{white-space:pre-wrap;word-break:break-word;background:#fff;border:1px solid #e4e4e7;border-radius:12px;padding:16px;}h2{margin:0 0 12px;font-size:14px;font-weight:600;color:#71717a;}</style></head><body><h2>${canvasTitle}</h2><pre>${renderable.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre></body></html>`;
             setGlassCanvas({
               state: 'active',
@@ -3317,7 +3540,7 @@ const ChatInterface: React.FC = () => {
         setLogs(prev => [...prev, '> Server running at http://localhost:3000', '> Ready.']);
 
         // Debug: Log code preview info
-        console.log('✅ Code set for preview:', {
+        console.log('âœ… Code set for preview:', {
           hasCode: !!code,
           codeLength: code?.length,
           codePreview: code?.substring(0, 200),
@@ -3327,12 +3550,12 @@ const ChatInterface: React.FC = () => {
           fileManagerFiles: fileManager.getAllFiles().length
         });
       } else if (mode === 'builder' && !code) {
-        console.error('❌ No code to preview:', {
+        console.error('âŒ No code to preview:', {
           codeResponse: codeResponse || null,
           extracted: codeResponse?.type === 'single-file' ? extractCode(codeResponse.content) : null,
           files: codeResponse?.type === 'multi-file' ? codeResponse.files.map(f => ({ path: f.path, contentLength: f.content?.length })) : null
         });
-        setLogs(prev => [...prev, '⚠️ Warning: No code generated. Please try again with a clearer prompt.']);
+        setLogs(prev => [...prev, 'âš ï¸ Warning: No code generated. Please try again with a clearer prompt.']);
       }
 
       // Track token usage dengan optimistic update
@@ -3341,14 +3564,14 @@ const ChatInterface: React.FC = () => {
         trackUsage(activeSessionId, effectiveProvider)
           .then((success) => {
             if (success) {
-              console.log('✅ Token tracked successfully');
+              console.log('âœ… Token tracked successfully');
               // Delay untuk memastikan database commit, lalu sync
               setTimeout(() => {
                 refreshLimit();
                 refreshLimit(); // Also refresh Grok limit status
               }, 1000); // Increased delay untuk memastikan database commit
             } else {
-              console.warn('⚠️ Token tracking returned false');
+              console.warn('âš ï¸ Token tracking returned false');
               // Refresh untuk sync dengan database
               setTimeout(() => {
                 refreshLimit();
@@ -3356,7 +3579,7 @@ const ChatInterface: React.FC = () => {
             }
           })
           .catch((error) => {
-            console.error('❌ Error tracking usage:', error);
+            console.error('âŒ Error tracking usage:', error);
             // Rollback jika tracking gagal - refresh untuk sync dengan database
             setTimeout(() => {
               refreshLimit();
@@ -3381,7 +3604,7 @@ const ChatInterface: React.FC = () => {
 
       // Auto-retry with truncated history if prompt token limit error
       if (isPromptTokenError) {
-        console.log(`🔄 ${effectiveProvider} prompt token limit exceeded, retrying with shorter history...`);
+        console.log(`ðŸ”„ ${effectiveProvider} prompt token limit exceeded, retrying with shorter history...`);
 
         // Truncate history more aggressively
         const truncatedHistory = truncateHistory(historyForAI, 1500); // Even shorter limit
@@ -3559,9 +3782,9 @@ const ChatInterface: React.FC = () => {
         const providerName = effectiveProvider === 'openai' ? 'GPT-5-Nano' :
           effectiveProvider === 'anthropic' ? 'GPT OSS 20B' :
             effectiveProvider === 'gemini' ? 'GPT OSS 20B' : 'GPT OSS 20B';
-        console.log(`🔄 ${effectiveProvider} ${errorType}, auto-switching to Groq/SumoPod (fallback)...`);
+        console.log(`ðŸ”„ ${effectiveProvider} ${errorType}, auto-switching to Groq/SumoPod (fallback)...`);
         setProvider('groq');
-        setLogs(prev => [...prev, `⚠️ ${providerName} ${errorType}, retrying with Groq/SumoPod...`]);
+        setLogs(prev => [...prev, `âš ï¸ ${providerName} ${errorType}, retrying with Groq/SumoPod...`]);
 
         // Retry with Groq/SumoPod and shorter history
         const truncatedHistory = truncateHistory(historyForAI, 1500);
@@ -3724,7 +3947,7 @@ const ChatInterface: React.FC = () => {
         const currentModel = effectiveProvider === 'openai' ? 'GPT-5 Mini' :
           effectiveProvider === 'anthropic' ? 'Claude' :
             effectiveProvider === 'gemini' ? 'Gemini' : 'current AI model';
-        errorContent = `⚠️ **Gambar tidak didukung oleh model AI ini**\n\n` +
+        errorContent = `âš ï¸ **Gambar tidak didukung oleh model AI ini**\n\n` +
           `Model AI yang sedang digunakan (${currentModel}) tidak mendukung input gambar.\n\n` +
           `**Solusi:**\n` +
           `1. **Ganti model** - Pilih model yang mendukung gambar (misal: Claude Sonnet, GPT-4o, atau Gemini Pro)\n` +
@@ -4129,7 +4352,7 @@ const ChatInterface: React.FC = () => {
                       const shouldReason = reasoning || welcomeRouting.selectedTool === 'search' || welcomeRouting.selectedTool === 'omni';
                       if ((welcomeRouting.selectedConnector === 'Web Search' || welcomeRouting.selectedTool === 'search' || welcomeRouting.selectedTool === 'omni') && !enableWebSearch) setEnableWebSearch(true);
                       setRoutingResult(welcomeRouting);
-                      // Backend Auto Pilot is the source of truth — refresh chips when it answers.
+                      // Backend Auto Pilot is the source of truth â€” refresh chips when it answers.
                       safeFetchAutoPilotRouting({
                         prompt: query,
                         context: {
@@ -4173,7 +4396,7 @@ const ChatInterface: React.FC = () => {
                   </div>
                   <h2 className="text-2xl font-semibold text-zinc-900">Describe what you want to build</h2>
                   <p className="text-zinc-500 text-sm max-w-xl text-center">
-                    Contoh: “Buat landing page SaaS modern dengan hero, fitur grid, pricing, dan footer.”<br />
+                    Contoh: â€œBuat landing page SaaS modern dengan hero, fitur grid, pricing, dan footer.â€<br />
                     Sertakan gaya (minimalis, glassmorphism), warna, atau referensi UI jika ada.
                   </p>
                 </div>
@@ -4205,7 +4428,7 @@ const ChatInterface: React.FC = () => {
                 </div>
               )}
 
-              {isTyping && glassSettings.planningBeforeAnswer && selectedModel === 'thinking' && (
+              {isTyping && selectedModel === 'thinking' && (
                 <GlassThinkingStream
                   active={isTyping}
                   prompt={[...messages].reverse().find(m => m.role === 'user')?.content || ''}
@@ -4637,7 +4860,9 @@ const ChatInterface: React.FC = () => {
                       matchedSkills={skillScoutData}
                     />
                   ) : activeLoadingPhase === 'generating' || !activeLoadingPhase || activeLoadingPhase === 'none' ? (
-                    <GridNLoader
+                    <StreamingGridStatus
+                      active={isTyping}
+                      prompt={messages[messages.length - 1]?.content || ''}
                       tone={(() => {
                         const activePrompt = messages[messages.length - 1]?.content?.toLowerCase() || '';
                         const isWebBuild = routingResult?.canvasType === 'web'
@@ -4716,7 +4941,7 @@ const ChatInterface: React.FC = () => {
               <div className="pointer-events-auto w-full max-w-3xl">
                 <RoutingChips
                   routing={routingResult}
-                  autoPilotOn={autoPilot}
+                  autoPilotOn={true}
                   team={autoPilotTeam || undefined}
                   isReadingSkill={isTyping && !!routingResult.selectedSkill}
                   onHide={toggleRoutingChips}
@@ -5507,7 +5732,7 @@ const ChatInterface: React.FC = () => {
                 <div className="flex-1" />
                 <div className="flex items-center gap-2 text-[10px] text-gray-600">
                   <span>TypeScript</span>
-                  <span>•</span>
+                  <span>â€¢</span>
                   <span>HTML</span>
                 </div>
               </div>
@@ -5733,7 +5958,7 @@ const ChatInterface: React.FC = () => {
                 </div>
               )}
 
-              {/* Mobile Glass Canvas — Fullscreen Popup */}
+              {/* Mobile Glass Canvas â€” Fullscreen Popup */}
               {glassCanvas && glassCanvas.state !== 'closed' && glassCanvas.state !== 'collapsed' && (
                 <motion.div
                   key="mobile-glass-canvas"
@@ -5746,7 +5971,7 @@ const ChatInterface: React.FC = () => {
                   <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 pt-safe">
                     <div className="min-w-0 flex-1 pr-3">
                       <div className="text-sm font-semibold text-zinc-900 truncate">{glassCanvas.title}</div>
-                      <div className="text-[11px] text-zinc-500 truncate">Canvas: {glassCanvas.type} • {activeWorkflow.label}</div>
+                      <div className="text-[11px] text-zinc-500 truncate">Canvas: {glassCanvas.type} â€¢ {activeWorkflow.label}</div>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
                       <button
@@ -5776,7 +6001,7 @@ const ChatInterface: React.FC = () => {
                           saveStatus === 'saving' && 'opacity-60',
                         )}
                       >
-                        {saveStatus === 'saving' ? '…' : saveStatus === 'saved' ? 'Saved ✓' : saveStatus === 'error' ? 'Retry' : 'Save'}
+                        {saveStatus === 'saving' ? 'â€¦' : saveStatus === 'saved' ? 'Saved âœ“' : saveStatus === 'error' ? 'Retry' : 'Save'}
                       </button>
                       <button
                         onClick={() => setGlassCanvas(prev => prev ? { ...prev, state: 'collapsed' } : prev)}
@@ -5852,7 +6077,7 @@ const ChatInterface: React.FC = () => {
                 </motion.div>
               )}
 
-              {/* Mobile Glass Canvas — Floating restore pill when collapsed */}
+              {/* Mobile Glass Canvas â€” Floating restore pill when collapsed */}
               {glassCanvas && glassCanvas.state === 'collapsed' && (
                 <button
                   onClick={() => setGlassCanvas(prev => prev ? { ...prev, state: 'active' } : prev)}
@@ -5931,9 +6156,9 @@ const ChatInterface: React.FC = () => {
                   <Panel
                     id="sidebar-panel"
                     order={1}
-                    defaultSize={16}
-                    minSize={14}
-                    maxSize={18}
+                    defaultSize={28}
+                    minSize={24}
+                    maxSize={32}
                     collapsible={false}
                     className="hidden md:block border-r border-zinc-200 transition-all duration-300 ease-in-out"
                   >
@@ -5990,7 +6215,7 @@ const ChatInterface: React.FC = () => {
                     <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3">
                       <div>
                         <div className="text-sm font-semibold text-zinc-900">{glassCanvas.title}</div>
-                        <div className="text-xs text-zinc-500">Canvas: {glassCanvas.type} • {activeWorkflow.label} • {activeGlassStyleConfig.label}</div>
+                        <div className="text-xs text-zinc-500">Canvas: {glassCanvas.type} â€¢ {activeWorkflow.label} â€¢ {activeGlassStyleConfig.label}</div>
                       </div>
                       <div className="flex items-center gap-2">
                         <button onClick={() => navigator.clipboard?.writeText(glassCanvas.content || '')} className="rounded-lg border border-zinc-200 px-3 py-1 text-xs hover:bg-zinc-50">Copy</button>
@@ -6011,7 +6236,7 @@ const ChatInterface: React.FC = () => {
                           )}
                           title={saveStatus === 'error' ? (saveError || 'Save failed') : 'Save this canvas to a project'}
                         >
-                          {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved ✓' : saveStatus === 'error' ? 'Retry' : 'Save to Project'}
+                          {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved âœ“' : saveStatus === 'error' ? 'Retry' : 'Save to Project'}
                         </button>
                         <button onClick={() => setGlassCanvas(prev => prev ? { ...prev, state: prev.state === 'fullscreen' ? 'active' : 'fullscreen' } : prev)} className="rounded-lg border border-zinc-200 px-3 py-1 text-xs hover:bg-zinc-50">Fullscreen</button>
                         <button onClick={() => setGlassCanvas(prev => prev ? { ...prev, state: 'closed' } : prev)} className="rounded-lg border border-zinc-200 px-3 py-1 text-xs hover:bg-zinc-50">Close</button>
@@ -6435,3 +6660,5 @@ const ChatInterface: React.FC = () => {
 };
 
 export default ChatInterface;
+
+
