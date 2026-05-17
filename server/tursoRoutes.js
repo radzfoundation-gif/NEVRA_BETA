@@ -4,7 +4,9 @@ import {
   createChatSession,
   createDocument,
   createProject,
+  createUserSkill,
   deleteChatSession,
+  deleteUserSkill,
   getChatMessages,
   getChatSession,
   getCreditUsage,
@@ -13,11 +15,13 @@ import {
   initTursoSchema,
   listChatSessions,
   listDocuments,
+  listUserSkills,
   listWorkspace,
   saveChatMessage,
   saveOutput,
   shareChatSession,
   updateChatSession,
+  updateUserSkill,
 } from './turso.js';
 
 export const tursoRouter = express.Router();
@@ -160,4 +164,30 @@ tursoRouter.post('/documents', asyncRoute(async (req, res) => {
   const userId = requireUser(req, res);
   if (!userId) return;
   res.json(await createDocument(userId, req.body));
+}));
+
+tursoRouter.get('/skills', asyncRoute(async (req, res) => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  res.json({ skills: await listUserSkills(userId) });
+}));
+
+tursoRouter.post('/skills', asyncRoute(async (req, res) => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  res.json(await createUserSkill(userId, req.body));
+}));
+
+tursoRouter.patch('/skills/:id', asyncRoute(async (req, res) => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  const skill = await updateUserSkill(userId, req.params.id, req.body);
+  if (!skill) return res.status(404).json({ error: 'Skill not found' });
+  res.json(skill);
+}));
+
+tursoRouter.delete('/skills/:id', asyncRoute(async (req, res) => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  res.json(await deleteUserSkill(userId, req.params.id));
 }));

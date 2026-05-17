@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Check, ChevronDown, ChevronRight, ChevronLeft, Lock, Sparkles, Cpu } from 'lucide-react';
+import { Check, Lock, Cpu } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import AlertModal from './AlertModal';
@@ -16,31 +16,23 @@ interface ModelOption {
     locked?: boolean;
 }
 
-interface ExtendedModel {
-    name: string;
-    provider: 'OpenAI' | 'Google' | 'Anthropic' | 'Qwen' | 'Meta' | 'NVIDIA' | 'MiniMax' | 'Z.ai' | 'StepFun' | 'Nous' | 'OpenRouter' | 'Tencent';
-    description: string;
-    score: number;
-    modelId: string;
-}
-
 const MODEL_OPTIONS: ModelOption[] = [
     {
         id: 'philos',
-        name: 'Glass Philos',
+        name: 'Glass Poseidon',
         description: 'Super Agent — Multi-phase reasoning & research.',
         isSoon: true,
     },
     {
         id: 'sonnet',
         name: 'Storm',
-        description: 'fast & smart for daily work',
+        description: 'Fast, accurate answers for daily work',
         isSoon: false,
     },
     {
         id: 'thinking',
         name: 'Thinking',
-        description: 'Streams realtime reasoning before answering',
+        description: 'Plans first, then answers',
         isSoon: false,
     },
     {
@@ -49,43 +41,6 @@ const MODEL_OPTIONS: ModelOption[] = [
         description: 'Most capable for ambitious work',
         isPro: true,
     },
-];
-
-const PROVIDER_COLORS: Record<ExtendedModel['provider'], string> = {
-    OpenAI: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    Google: 'bg-blue-50 text-blue-700 border-blue-200',
-    Anthropic: 'bg-orange-50 text-orange-700 border-orange-200',
-    Qwen: 'bg-purple-50 text-purple-700 border-purple-200',
-    Meta: 'bg-yellow-50 text-yellow-700 border-yellow-200',
-    NVIDIA: 'bg-green-50 text-green-700 border-green-200',
-    MiniMax: 'bg-pink-50 text-pink-700 border-pink-200',
-    'Z.ai': 'bg-red-50 text-red-700 border-red-200',
-    StepFun: 'bg-teal-50 text-teal-700 border-teal-200',
-    Nous: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-    OpenRouter: 'bg-stone-50 text-stone-700 border-stone-200',
-    Tencent: 'bg-sky-50 text-sky-800 border-sky-200',
-};
-
-const FREE_MODELS: ExtendedModel[] = [
-    { name: 'Tencent HY3 Preview', provider: 'Tencent', description: 'Tencent open preview on OpenRouter', score: 76, modelId: 'tencent/hy3-preview:free' },
-    { name: 'Nemotron 3 Super 120B', provider: 'NVIDIA', description: 'Large NVIDIA MoE — free tier', score: 75.8, modelId: 'nvidia/nemotron-3-super-120b-a12b:free' },
-    { name: 'Gemma 4 31B', provider: 'Google', description: 'Google open Gemma instruct', score: 74, modelId: 'google/gemma-4-31b-it:free' },
-    { name: 'GPT-OSS 120B', provider: 'OpenAI', description: 'Open-source GPT-class model', score: 72, modelId: 'openai/gpt-oss-120b:free' },
-    { name: 'GLM 4.5 Air', provider: 'Z.ai', description: 'Fast Zhipu inference — free tier', score: 73.9, modelId: 'z-ai/glm-4.5-air:free' },
-];
-
-const PRO_MODELS: ExtendedModel[] = [
-    { name: 'GPT-5.4 Thinking xHigh', provider: 'OpenAI', description: 'Highest effort reasoning', score: 80.28, modelId: 'gpt-5-high' },
-    { name: 'Gemini 3.1 Pro Preview', provider: 'Google', description: 'High effort, top Google model', score: 79.93, modelId: 'gemini-3-pro' },
-    { name: 'Claude 4.6 Opus Thinking', provider: 'Anthropic', description: 'High effort, Anthropic flagship', score: 76.33, modelId: 'claude-4-opus' },
-    { name: 'Claude 4.5 Opus Thinking', provider: 'Anthropic', description: 'High effort reasoning', score: 75.96, modelId: 'claude-4-5-opus' },
-    { name: 'Claude 4.6 Sonnet Thinking', provider: 'Anthropic', description: 'Medium effort, fast & smart', score: 75.47, modelId: 'claude-4-sonnet' },
-    { name: 'GPT-5.2 High', provider: 'OpenAI', description: 'High effort GPT-5 series', score: 74.84, modelId: 'gpt-5-2-high' },
-    { name: 'GPT-5.2 Codex', provider: 'OpenAI', description: 'Optimized for code generation', score: 74.30, modelId: 'gpt-5-2-codex' },
-    { name: 'GPT-5.1 Codex Max High', provider: 'OpenAI', description: 'Max effort code model', score: 73.98, modelId: 'gpt-5-1-codex' },
-    { name: 'Gemini 3 Pro Preview', provider: 'Google', description: 'High effort Gemini 3', score: 73.39, modelId: 'gemini-3-pro-ext' },
-    { name: 'GPT-5.3 Codex High', provider: 'OpenAI', description: 'High effort code & reasoning', score: 72.76, modelId: 'gpt-5-3-codex' },
-    { name: 'Gemini 3 Flash Preview', provider: 'Google', description: 'Fast & efficient Gemini 3', score: 71.50, modelId: 'gemini-3-flash' },
 ];
 
 export interface ModelSelectorProps {
@@ -110,7 +65,6 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     children
 }) => {
     const [isOpen, setIsOpen] = useState(false);
-    const [showMoreModels, setShowMoreModels] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
     const [alertConfig, setAlertConfig] = useState<{
         isOpen: boolean;
@@ -128,7 +82,6 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
         const handleClickOutside = (event: MouseEvent) => {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
                 setIsOpen(false);
-                setShowMoreModels(false);
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
@@ -137,7 +90,6 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 
     const handleClose = () => {
         setIsOpen(false);
-        setShowMoreModels(false);
     };
 
     return (
@@ -166,20 +118,18 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, y: -10 }}
                         transition={{ duration: 0.15, ease: "easeOut" }}
-                        className="absolute bottom-full -right-4 sm:right-0 mb-2 w-[90vw] max-w-[280px] sm:w-[260px] bg-white border border-stone-200 shadow-xl rounded-[18px] overflow-hidden flex flex-col z-[100] origin-bottom-right"
+                        className="fixed bottom-[calc(6.5rem+var(--kb-offset,0px)+env(safe-area-inset-bottom))] left-3 right-3 max-h-[calc(100dvh-8rem-var(--kb-offset,0px))] overflow-y-auto rounded-[18px] border border-stone-200 bg-white shadow-xl z-[100] origin-bottom-right sm:absolute sm:bottom-full sm:left-auto sm:right-0 sm:mb-2 sm:w-[260px] sm:max-h-none sm:overflow-hidden"
                     >
                         <AnimatePresence mode="wait">
-                            {!showMoreModels ? (
-                                /* ── Main Menu ── */
-                                <motion.div
-                                    key="main"
-                                    initial={{ opacity: 0, x: -10 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    exit={{ opacity: 0, x: -10 }}
-                                    transition={{ duration: 0.12 }}
-                                    className="flex flex-col w-full py-1.5"
-                                >
-                                    {/* Models List */}
+                            <motion.div
+                                key="main"
+                                initial={{ opacity: 0, x: -10 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: -10 }}
+                                transition={{ duration: 0.12 }}
+                                className="flex flex-col w-full py-1.5"
+                            >
+                                {/* Models List */}
                                     <div className="flex flex-col">
                                         {MODEL_OPTIONS.map((model) => {
                                             const isActive = selectedModel === model.id || (selectedModel === 'sonar' && model.id === 'sonnet');
@@ -255,122 +205,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                                             </div>
                                         </button>
                                     </div>
-
-                                    <div className="h-px bg-stone-100 my-1.5 mx-4" />
-
-                                    {/* More Models Button */}
-                                    <button
-                                        onClick={() => setShowMoreModels(true)}
-                                        className="w-full flex items-center justify-between px-4 py-2 hover:bg-stone-50 transition-colors text-left"
-                                    >
-                                        <span className="text-[14px] text-stone-700 font-medium">More models</span>
-                                        <ChevronRight size={16} className="text-stone-400" />
-                                    </button>
-                                </motion.div>
-                            ) : (
-                                /* ── More Models Submenu ── */
-                                <motion.div
-                                    key="more"
-                                    initial={{ opacity: 0, x: 10 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    exit={{ opacity: 0, x: 10 }}
-                                    transition={{ duration: 0.12 }}
-                                    className="flex flex-col w-full"
-                                >
-                                    {/* Header */}
-                                    <div className="flex items-center gap-2 px-3 py-2.5 border-b border-stone-100">
-                                        <button
-                                            onClick={() => setShowMoreModels(false)}
-                                            className="min-h-[36px] min-w-[36px] p-1.5 rounded-lg active:bg-stone-200 hover:bg-stone-100 text-stone-500 transition-colors [touch-action:manipulation]"
-                                        >
-                                            <ChevronLeft size={16} />
-                                        </button>
-                                        <span className="text-[13px] font-semibold text-stone-700">More Models</span>
-                                    </div>
-
-                                    {/* Scrollable list */}
-                                    <div className="overflow-y-auto max-h-[350px]">
-                                        {/* Free Models Section — hidden until FREE_MODELS is populated */}
-                                        {FREE_MODELS.length > 0 && (
-                                            <>
-                                                <div className="px-3 py-1.5 bg-green-50/50 border-b border-green-100">
-                                                    <span className="text-[10px] font-semibold text-green-700 uppercase tracking-wider">Free Models</span>
-                                                </div>
-                                                {FREE_MODELS.map((model, i) => (
-                                                    <button
-                                                        key={`free-${i}`}
-                                                        onClick={() => {
-                                                            onModelChange(model.modelId as ModelType);
-                                                            handleClose();
-                                                        }}
-                                                        className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-stone-50 transition-colors text-left"
-                                                    >
-                                                        <div className="flex-1 min-w-0">
-                                                            <div className="flex items-center gap-1.5 flex-wrap">
-                                                                <span className="text-[13px] text-stone-900 font-medium leading-tight">{model.name}</span>
-                                                                <span className={cn("text-[9px] font-medium px-1.5 py-0.5 rounded-full border shrink-0", PROVIDER_COLORS[model.provider])}>
-                                                                    {model.provider}
-                                                                </span>
-                                                                <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full border shrink-0 bg-green-50 text-green-700 border-green-200">Free</span>
-                                                            </div>
-                                                            <span className="text-[11px] text-stone-400 mt-0.5 block truncate">{model.description}</span>
-                                                        </div>
-                                                    </button>
-                                                ))}
-                                            </>
-                                        )}
-
-                                        {/* Pro Models Section */}
-                                        <div className={cn(
-                                            'px-3 py-1.5 bg-blue-50/50 border-b border-blue-100',
-                                            FREE_MODELS.length > 0 && 'border-t mt-1'
-                                        )}>
-                                            <span className="text-[10px] font-semibold text-blue-700 uppercase tracking-wider">Pro Models</span>
-                                        </div>
-                                        {PRO_MODELS.map((model, i) => (
-                                            <button
-                                                key={`pro-${i}`}
-                                                onClick={() => {
-                                                    if (!isSubscribed) {
-                                                        setAlertConfig({
-                                                            isOpen: true,
-                                                            title: 'UseGlass Pro Feature',
-                                                            message: `Model ${model.name} eksklusif untuk pengguna UseGlass Pro. Tingkatkan akun Anda untuk mengakses model-model terbaik di dunia.`,
-                                                            type: 'upgrade'
-                                                        });
-                                                        return;
-                                                    }
-                                                    handleClose();
-                                                }}
-                                                className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-stone-50 transition-colors text-left"
-                                            >
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center gap-1.5 flex-wrap">
-                                                        <span className="text-[13px] text-stone-900 font-medium leading-tight">{model.name}</span>
-                                                        <span className={cn("text-[9px] font-medium px-1.5 py-0.5 rounded-full border shrink-0", PROVIDER_COLORS[model.provider])}>
-                                                            {model.provider}
-                                                        </span>
-                                                    </div>
-                                                    <span className="text-[11px] text-stone-400 mt-0.5 block truncate">{model.description}</span>
-                                                </div>
-                                                {!isSubscribed && <Lock size={12} className="text-stone-300 shrink-0" />}
-                                            </button>
-                                        ))}
-                                    </div>
-
-                                    {/* Upgrade CTA */}
-                                    {!isSubscribed && (
-                                        <div className="border-t border-stone-100 p-3">
-                                            <button
-                                                onClick={() => { window.location.href = '/subscription'; }}
-                                                className="w-full min-h-[40px] py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 text-white text-[12px] font-semibold active:opacity-80 hover:opacity-90 transition-opacity [touch-action:manipulation]"
-                                            >
-                                                Upgrade to Pro
-                                            </button>
-                                        </div>
-                                    )}
-                                </motion.div>
-                            )}
+                            </motion.div>
                         </AnimatePresence>
                     </motion.div>
                 )}

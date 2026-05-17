@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { getApiUrl } from './utils';
 
 export interface UserSkill {
   id: string;
@@ -12,63 +12,56 @@ export interface UserSkill {
   updated_at: string;
 }
 
-const DEFAULT_SKILLS: Omit<UserSkill, 'id' | 'user_id' | 'created_at' | 'updated_at'>[] = [
-  {
-    name: 'skill-creator',
-    description: 'Buat skill baru, modifikasi skill yang ada, dan ukur performa skill. Gunakan saat kamu ingin membuat skill dari awal atau mengoptimalkan skill yang sudah ada.',
-    system_prompt: 'You are a skill creation assistant. Help users create, modify, and optimize AI skills. Guide them through defining the skill purpose, writing clear instructions, and testing the skill with sample prompts.',
-    enabled: true,
-    is_custom: false,
-  },
-];
+const apiBase = () => getApiUrl();
 
-// Seed default skills for new users
-export async function seedDefaultSkills(userId: string): Promise<void> {
-  try {
-    const { data: existing } = await supabase
-      .from('user_skills')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('is_custom', false)
-      .limit(1);
+async function api<T>(path: string, init: RequestInit & { userId?: string } = {}): Promise<T> {
+  const { userId, ...rest } = init;
+  const headers = new Headers(rest.headers || {});
+  if (!headers.has('Content-Type') && rest.body) headers.set('Content-Type', 'application/json');
+  if (userId) headers.set('x-user-id', userId);
+  const res = await fetch(`${apiBase()}${path}`, { ...rest, headers });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Request failed (${res.status}): ${text || res.statusText}`);
+  }
+  return res.json();
+}
 
-    if (existing && existing.length > 0) return; // already seeded
-
-    await supabase.from('user_skills').insert(
-      DEFAULT_SKILLS.map(s => ({ ...s, user_id: userId }))
-    );
-  } catch {}
+function normalize(raw: any): UserSkill {
+  return {
+    id: raw.id,
+    user_id: raw.user_id,
+    name: raw.name || '',
+    description: raw.description || '',
+    system_prompt: raw.system_prompt ?? raw.instructions ?? '',
+    enabled: Boolean(raw.enabled),
+    is_custom: Boolean(raw.is_custom),
+    created_at: raw.created_at || new Date().toISOString(),
+    updated_at: raw.updated_at || raw.created_at || new Date().toISOString(),
+  };
 }
 
 export async function getSkills(userId: string): Promise<UserSkill[]> {
-  await seedDefaultSkills(userId);
-  const { data, error } = await supabase
-    .from('user_skills')
-    .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: true });
-  if (error) throw error;
-  return data || [];
+  if (!userId) return [];
+  const data = await api<{ skills: any[] }>(`/api/turso/skills?userId=${encodeURIComponent(userId)}`, { userId });
+  return (data.skills || []).map(normalize);
 }
 
 export async function createSkill(
   userId: string,
   skill: { name: string; description: string; systemPrompt: string }
 ): Promise<UserSkill> {
-  const { data, error } = await supabase
-    .from('user_skills')
-    .insert({
-      user_id: userId,
+  const data = await api<any>('/api/turso/skills', {
+    method: 'POST',
+    body: JSON.stringify({
+      userId,
       name: skill.name,
       description: skill.description,
-      system_prompt: skill.systemPrompt,
-      enabled: true,
-      is_custom: true,
-    })
-    .select()
-    .single();
-  if (error) throw error;
-  return data;
+      systemPrompt: skill.systemPrompt,
+    }),
+    userId,
+  });
+  return normalize(data);
 }
 
 export async function updateSkill(
@@ -76,35 +69,34 @@ export async function updateSkill(
   skillId: string,
   updates: Partial<{ name: string; description: string; system_prompt: string; enabled: boolean }>
 ): Promise<UserSkill> {
-  const { data, error } = await supabase
-    .from('user_skills')
-    .update({ ...updates, updated_at: new Date().toISOString() })
-    .eq('id', skillId)
-    .eq('user_id', userId)
-    .select()
-    .single();
-  if (error) throw error;
-  return data;
+  const body: Record<string, unknown> = { userId };
+  if (updates.name !== undefined) body.name = updates.name;
+  if (updates.description !== undefined) body.description = updates.description;
+  if (updates.system_prompt !== undefined) body.systemPrompt = updates.system_prompt;
+  if (updates.enabled !== undefined) body.enabled = updates.enabled;
+  const data = await api<any>(`/api/turso/skills/${encodeURIComponent(skillId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+    userId,
+  });
+  return normalize(data);
 }
 
 export async function deleteSkill(userId: string, skillId: string): Promise<void> {
-  const { error } = await supabase
-    .from('user_skills')
-    .delete()
-    .eq('id', skillId)
-    .eq('user_id', userId);
-  if (error) throw error;
+  await api<{ ok: boolean }>(`/api/turso/skills/${encodeURIComponent(skillId)}?userId=${encodeURIComponent(userId)}`, {
+    method: 'DELETE',
+    userId,
+  });
 }
 
 export async function getActiveSkillPrompts(userId: string): Promise<string> {
   try {
-    const { data } = await supabase
-      .from('user_skills')
-      .select('system_prompt')
-      .eq('user_id', userId)
-      .eq('enabled', true);
-    if (!data || data.length === 0) return '';
-    return data.map(s => s.system_prompt).filter(Boolean).join('\n\n');
+    const skills = await getSkills(userId);
+    return skills
+      .filter((s) => s.enabled)
+      .map((s) => s.system_prompt)
+      .filter(Boolean)
+      .join('\n\n');
   } catch {
     return '';
   }

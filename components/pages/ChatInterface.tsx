@@ -1055,6 +1055,26 @@ const ChatInterface: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Mobile keyboard offset via visualViewport
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const root = document.documentElement;
+    const update = () => {
+      const offset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      root.style.setProperty('--kb-offset', `${offset}px`);
+    };
+    update();
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    return () => {
+      vv.removeEventListener('resize', update);
+      vv.removeEventListener('scroll', update);
+      root.style.removeProperty('--kb-offset');
+    };
+  }, []);
+
   // Load messages when sessionId changes (for sidebar session selection)
   useEffect(() => {
     const loadSessionMessages = async () => {
@@ -4287,7 +4307,7 @@ const ChatInterface: React.FC = () => {
           "relative flex-1 overflow-y-auto overflow-x-visible overscroll-y-contain scroll-smooth",
           messages.length === 0
             ? "flex flex-col items-center justify-center text-center p-0"
-            : "px-3 sm:px-4 md:px-5 lg:px-6 pt-20 md:pt-24 block " + (showBottomClarification ? "pb-[420px] md:pb-[460px]" : "pb-[280px] sm:pb-[320px] md:pb-[360px]")
+            : "px-3 sm:px-4 md:px-5 lg:px-6 pt-20 md:pt-24 block " + (showBottomClarification ? "pb-[min(56vh,420px)] md:pb-[460px]" : "pb-[calc(9rem+var(--kb-offset,0px))] sm:pb-[320px] md:pb-[360px]")
         )
       } >
         <AnimatePresence mode="wait">
@@ -4443,9 +4463,15 @@ const ChatInterface: React.FC = () => {
                 <div key={msg.id} className={cn("flex flex-col gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300", msg.role === 'user' ? 'items-end' : 'items-start')}>
                   {msg.role === 'ai' && (
                     <div className="flex items-center gap-2 mb-1">
-                      <div className="w-6 h-6 rounded-full bg-zinc-100 border border-zinc-200 flex items-center justify-center">
-                        <Bot size={14} className="text-zinc-500" />
-                      </div>
+                      <video
+                        src="/useglass-avatar.mp4"
+                        className="h-6 w-6 rounded-full border border-zinc-200 bg-zinc-100 object-cover"
+                        autoPlay
+                        loop
+                        muted
+                        playsInline
+                        aria-label="UseGlass AI animated avatar"
+                      />
                       <span className="text-xs text-zinc-500 font-medium">
                         UseGlass AI
                       </span>
@@ -4913,7 +4939,7 @@ const ChatInterface: React.FC = () => {
             initial={{ opacity: 0, y: 20, x: "-50%" }}
             animate={{ opacity: 1, y: 0, x: "-50%" }}
             exit={{ opacity: 0, scale: 0.95, y: 10, x: "-50%" }}
-            className="absolute bottom-4 left-1/2 z-40 w-full max-w-2xl px-4"
+            className="absolute bottom-[calc(1rem+var(--kb-offset,0px)+env(safe-area-inset-bottom))] left-1/2 z-40 w-full max-w-2xl px-3 sm:px-4 max-h-[calc(100dvh-8rem-var(--kb-offset,0px))] overflow-y-auto pb-safe"
           >
             <InteractiveQAWidget
               question={activeClarification.question}
@@ -5921,14 +5947,14 @@ const ChatInterface: React.FC = () => {
             <div className="flex flex-col fixed inset-0 w-full h-dvh overflow-hidden overscroll-none">
               {/* Mobile Sidebar Overlay */}
               {isMobileSidebarOpen && (
-                <div className="fixed inset-0 z-50 flex">
+                <div className="fixed inset-0 z-50 flex overflow-hidden overscroll-none">
                   {/* Backdrop */}
                   <div
                     className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
                     onClick={() => setIsMobileSidebarOpen(false)}
                   />
                   {/* Sidebar Panel */}
-                  <div className="relative w-4/5 max-w-[300px] h-full bg-white shadow-2xl animate-in slide-in-from-left duration-300">
+                  <div className="relative h-dvh w-[min(88vw,320px)] max-w-full overflow-hidden bg-white shadow-2xl animate-in slide-in-from-left duration-300 pt-safe pb-safe">
                     <Sidebar
                       activeToolMode={activeGlassMode}
                       onToolModeSelect={selectGlassMode}
@@ -5950,7 +5976,7 @@ const ChatInterface: React.FC = () => {
                     />
                     <button
                       onClick={() => setIsMobileSidebarOpen(false)}
-                      className="absolute top-2 right-2 p-2 bg-white rounded-full shadow-sm text-zinc-500 hover:text-zinc-900 z-50"
+                      className="absolute right-3 top-[calc(env(safe-area-inset-top)+0.5rem)] z-50 rounded-full bg-white p-2 text-zinc-500 shadow-sm hover:text-zinc-900"
                     >
                       <X size={16} />
                     </button>
@@ -5966,14 +5992,14 @@ const ChatInterface: React.FC = () => {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 24 }}
                   transition={{ duration: 0.22, ease: 'easeOut' }}
-                  className="fixed inset-0 z-[60] flex flex-col bg-white"
+                  className="fixed inset-0 z-[60] flex h-dvh flex-col overflow-hidden bg-white"
                 >
-                  <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 pt-safe">
+                  <div className="flex shrink-0 items-start justify-between gap-2 border-b border-zinc-200 px-3 py-3 pt-safe sm:px-4">
                     <div className="min-w-0 flex-1 pr-3">
                       <div className="text-sm font-semibold text-zinc-900 truncate">{glassCanvas.title}</div>
                       <div className="text-[11px] text-zinc-500 truncate">Canvas: {glassCanvas.type} â€¢ {activeWorkflow.label}</div>
                     </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
+                    <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
                       <button
                         onClick={() => navigator.clipboard?.writeText(glassCanvas.content || '')}
                         className="rounded-lg border border-zinc-200 px-3 py-2 text-xs font-medium text-zinc-700 active:bg-zinc-100"

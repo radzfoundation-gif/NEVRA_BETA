@@ -528,10 +528,13 @@ const ChatInput: React.FC<ChatInputProps> = ({
     };
 
     return (
-        <div className="absolute bottom-0 left-0 right-0 p-4 pb-safe md:pb-4 bg-transparent z-20">
+        <div
+            className="absolute bottom-0 left-0 right-0 z-20 bg-transparent px-2 pt-2 sm:px-4 md:pb-4"
+            style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + var(--kb-offset, 0px) + 0.5rem)' }}
+        >
             {renderHiddenInputs()}
 
-            <div className="mx-auto w-full max-w-3xl px-3 md:px-0">
+            <div className="mx-auto w-full max-w-3xl px-0 sm:px-3 md:px-0">
                 {/* Main Input Container — Claude-style */}
                 <div className={cn(
                     "w-full bg-[#f4f4f3] flex flex-col transition-all duration-200 relative",
@@ -665,7 +668,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
                     <div className={cn(
                         attachedImages.length > 0 || attachedFiles.length > 0 || input.length > 80 || input.includes('\n')
                             ? "min-w-0 px-4 pt-4 pb-1 sm:px-6 sm:pt-4 sm:pb-1"
-                            : "flex h-[58px] min-w-0 items-center pl-12 pr-24 sm:pl-16 sm:pr-44"
+                            : "flex h-[58px] min-w-0 items-center pl-12 pr-20 sm:pl-16 sm:pr-44"
                     )}>
                         <textarea
                             ref={textareaRef}
@@ -738,9 +741,9 @@ const ChatInput: React.FC<ChatInputProps> = ({
 
                             {/* Tools Dropdown */}
                             {showToolsMenu && (
-                                <div className="absolute bottom-full left-0 mb-2 sm:mb-3 flex flex-col md:flex-row items-start gap-1 z-50">
+                                <div className="absolute bottom-full left-0 right-0 mb-2 flex max-h-[calc(100dvh-9rem)] w-[calc(100vw-1rem)] max-w-[560px] flex-col items-start gap-1 overflow-y-auto sm:mb-3 md:right-auto md:w-auto md:max-w-none md:flex-row md:overflow-visible z-50">
                                     {/* Main menu */}
-                                    <div className="w-[min(88vw,260px)] sm:w-56 bg-white/95 backdrop-blur-xl border border-stone-200 rounded-2xl shadow-[0_12px_40px_rgba(0,0,0,0.12)] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-150 py-1.5 max-h-[60vh] overflow-y-auto">
+                                    <div className="w-full sm:w-56 bg-white/95 backdrop-blur-xl border border-stone-200 rounded-2xl shadow-[0_12px_40px_rgba(0,0,0,0.12)] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-150 py-1.5 max-h-[60vh] overflow-y-auto">
                                         <button type="button" onClick={() => setAutoPilot((value) => !value)} className="mx-1.5 mb-1 flex w-[calc(100%-12px)] items-center justify-between rounded-xl px-3 py-2.5 sm:py-2 text-left text-[13px] text-stone-700 transition-colors active:bg-stone-100 hover:bg-stone-50 [touch-action:manipulation]">
                                             <span>Auto Pilot</span>
                                             <span className={cn("relative h-4 w-7 rounded-full transition-colors duration-300", autoPilot ? "bg-blue-500" : "bg-stone-200")}>
@@ -805,7 +808,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
 
                                     {/* Skill submenu */}
                                     {showSkillSubmenu && (
-                                        <div className="w-[min(88vw,260px)] md:w-44 bg-white border border-stone-200 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden animate-in fade-in slide-in-from-left-1 duration-150 py-1.5 max-h-[40vh] overflow-y-auto">
+                                        <div className="w-full md:w-44 bg-white border border-stone-200 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden animate-in fade-in slide-in-from-left-1 duration-150 py-1.5 max-h-[40vh] overflow-y-auto">
                                             {userSkills.filter(s => s.enabled).length === 0 ? (
                                                 <div className="px-3 py-3 text-[12px] text-stone-400 text-center">
                                                     Belum ada skill aktif
@@ -832,7 +835,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
 
                                     {/* Style submenu */}
                                     {showStyleSubmenu && (
-                                        <div className="w-[min(88vw,260px)] md:w-44 bg-white border border-stone-200 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden animate-in fade-in slide-in-from-left-1 duration-150 py-1.5 max-h-[40vh] overflow-y-auto">
+                                        <div className="w-full md:w-44 bg-white border border-stone-200 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden animate-in fade-in slide-in-from-left-1 duration-150 py-1.5 max-h-[40vh] overflow-y-auto">
                                             {WRITING_STYLES.map((style) => {
                                                 const isSelected = activeStyle === style.id || (!activeStyle && style.id === 'normal');
                                                 return (
@@ -862,7 +865,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
 
                                     {/* Visual Model submenu */}
                                     {showVisualSubmenu && (
-                                        <div className="w-[min(88vw,260px)] md:w-48 bg-white border border-stone-200 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden animate-in fade-in slide-in-from-left-1 duration-150 py-1.5 max-h-[40vh] overflow-y-auto">
+                                        <div className="w-full md:w-48 bg-white border border-stone-200 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden animate-in fade-in slide-in-from-left-1 duration-150 py-1.5 max-h-[40vh] overflow-y-auto">
                                             <div className="px-3 py-1.5 text-[11px] font-bold text-stone-400 uppercase tracking-wider">
                                                 {showVisualSubmenu === 'image' ? 'Image Models' : 'Video Models'}
                                             </div>

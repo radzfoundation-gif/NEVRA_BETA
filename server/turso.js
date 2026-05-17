@@ -678,3 +678,82 @@ export async function createDocument(userId, input) {
   await turso.execute({ sql: 'INSERT INTO documents (id, user_id, title, file_name, mime_type, content, summary, metadata, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', args: [doc.id, userId, doc.title, doc.file_name, doc.mime_type, doc.content, doc.summary, JSON.stringify(doc.metadata), createdAt, createdAt] });
   return doc;
 }
+
+export async function listUserSkills(userId) {
+  const result = await turso.execute({
+    sql: 'SELECT * FROM user_skills WHERE user_id = ? ORDER BY created_at ASC',
+    args: [userId],
+  });
+  return result.rows.map((row) => {
+    const mapped = mapRow(row);
+    mapped.enabled = Boolean(mapped.enabled);
+    mapped.is_custom = Boolean(mapped.is_custom);
+    mapped.example_prompts = json(mapped.example_prompts, []);
+    mapped.metadata = json(mapped.metadata, {});
+    mapped.system_prompt = mapped.instructions || '';
+    return mapped;
+  });
+}
+
+export async function createUserSkill(userId, input = {}) {
+  const createdAt = now();
+  const skill = {
+    id: id(),
+    user_id: userId,
+    skill_key: input.skillKey || input.skill_key || (input.name || 'skill').toLowerCase().replace(/[^a-z0-9_-]+/g, '-').slice(0, 80) || `skill-${Date.now()}`,
+    enabled: input.enabled === false ? 0 : 1,
+    is_custom: input.isCustom === false ? 0 : 1,
+    name: input.name || 'Untitled Skill',
+    description: input.description || '',
+    category: input.category || null,
+    instructions: input.systemPrompt || input.instructions || '',
+    example_prompts: JSON.stringify(input.examplePrompts || []),
+    metadata: JSON.stringify(input.metadata || {}),
+    created_at: createdAt,
+    updated_at: createdAt,
+  };
+  await turso.execute({
+    sql: `INSERT INTO user_skills (id, user_id, skill_key, enabled, is_custom, name, description, category, instructions, example_prompts, metadata, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [skill.id, userId, skill.skill_key, skill.enabled, skill.is_custom, skill.name, skill.description, skill.category, skill.instructions, skill.example_prompts, skill.metadata, createdAt, createdAt],
+  });
+  return {
+    ...skill,
+    enabled: Boolean(skill.enabled),
+    is_custom: Boolean(skill.is_custom),
+    example_prompts: JSON.parse(skill.example_prompts),
+    metadata: JSON.parse(skill.metadata),
+    system_prompt: skill.instructions,
+  };
+}
+
+export async function updateUserSkill(userId, skillId, updates = {}) {
+  const existing = await turso.execute({ sql: 'SELECT * FROM user_skills WHERE id = ? AND user_id = ?', args: [skillId, userId] });
+  if (!existing.rows[0]) return null;
+  const current = mapRow(existing.rows[0]);
+  const next = {
+    name: updates.name ?? current.name,
+    description: updates.description ?? current.description,
+    instructions: updates.systemPrompt ?? updates.system_prompt ?? updates.instructions ?? current.instructions,
+    enabled: updates.enabled === undefined ? current.enabled : (updates.enabled ? 1 : 0),
+    updated_at: now(),
+  };
+  await turso.execute({
+    sql: 'UPDATE user_skills SET name = ?, description = ?, instructions = ?, enabled = ?, updated_at = ? WHERE id = ? AND user_id = ?',
+    args: [next.name, next.description, next.instructions, next.enabled, next.updated_at, skillId, userId],
+  });
+  const after = await turso.execute({ sql: 'SELECT * FROM user_skills WHERE id = ? AND user_id = ?', args: [skillId, userId] });
+  const mapped = mapRow(after.rows[0]);
+  mapped.enabled = Boolean(mapped.enabled);
+  mapped.is_custom = Boolean(mapped.is_custom);
+  mapped.example_prompts = json(mapped.example_prompts, []);
+  mapped.metadata = json(mapped.metadata, {});
+  mapped.system_prompt = mapped.instructions || '';
+  return mapped;
+}
+
+export async function deleteUserSkill(userId, skillId) {
+  await turso.execute({ sql: 'DELETE FROM user_skills WHERE id = ? AND user_id = ?', args: [skillId, userId] });
+  return { ok: true };
+}
+

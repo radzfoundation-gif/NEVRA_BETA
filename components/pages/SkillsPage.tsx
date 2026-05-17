@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Search, Trash2, Edit2, X, Check, SquareTerminal, Wrench, Loader2, Github, Download, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Plus, Search, Trash2, Edit2, X, Check, SquareTerminal, Wrench, Loader2, Github, Download, AlertCircle, Upload } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '@/lib/authContext';
 import { getSkills, createSkill, updateSkill, deleteSkill, UserSkill } from '@/lib/skillsApi';
@@ -32,8 +32,18 @@ const SkillsPage: React.FC = () => {
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 bg-[#F9F9F9] overflow-y-auto p-4 md:p-8">
         <div className="max-w-5xl mx-auto w-full">
-            <h1 className="text-2xl font-bold text-zinc-900 mb-2">My Skills</h1>
-            <p className="text-zinc-500 mb-8">Manage your custom AI instructions and tools.</p>
+            <div className="flex items-start justify-between gap-4 mb-8">
+                <div>
+                    <h1 className="text-2xl font-bold text-zinc-900 mb-2">My Skills</h1>
+                    <p className="text-zinc-500">Manage your custom AI instructions and tools.</p>
+                </div>
+                <button
+                    onClick={() => navigate('/skills/import')}
+                    className="inline-flex items-center gap-2 rounded-xl bg-zinc-900 text-white px-4 py-2 text-sm hover:bg-zinc-800 shrink-0"
+                >
+                    <Upload size={14} /> Import
+                </button>
+            </div>
             {loading ? <Loader2 className="animate-spin text-zinc-400" /> : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {skills.map(skill => (

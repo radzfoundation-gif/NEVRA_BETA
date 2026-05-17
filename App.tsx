@@ -26,6 +26,7 @@ const Gallery = React.lazy(() => import('./components/pages/Gallery'));
 const ArtifactsPage = React.lazy(() => import('./components/pages/ArtifactsPage'));
 const ProjectsPage = React.lazy(() => import('./components/pages/ProjectsPage'));
 const SkillsPage = React.lazy(() => import('./components/pages/SkillsPage'));
+const ImportSkillsPage = React.lazy(() => import('./components/pages/ImportSkillsPage'));
 const PricingPage = React.lazy(() => import('./components/pages/PricingPage'));
 const DocumentsPage = React.lazy(() => import('./components/pages/DocumentsPage'));
 const GlassToolPage = React.lazy(() => import('./components/pages/GlassToolPage'));
@@ -92,6 +93,7 @@ const AppContent: React.FC = () => {
           />
           <Route path="/share/:id" element={<SharedChat />} />
           <Route path="/skills" element={<ProtectedRoute><SkillsPage /></ProtectedRoute>} />
+          <Route path="/skills/import" element={<ProtectedRoute><ImportSkillsPage /></ProtectedRoute>} />
         </Routes>
       </React.Suspense>
     </>
