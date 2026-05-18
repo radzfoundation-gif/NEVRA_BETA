@@ -1905,14 +1905,14 @@ const buildOpenAIUserContent = (prompt, images = []) => {
  * - Server detects 'close' event and aborts upstream fetch
  */
 const OPENROUTER_STREAM_MODEL_MAPPING = {
-  'sonar': 'stepfun/step-3.5-flash:free', // Replaced AllenAI with StepFun
-  'gemini-pro': 'google/gemini-2.0-flash-exp:free',
-  'gpt-5': 'openai/gpt-4o-mini',
-  'claude-sonnet': 'anthropic/claude-3.5-sonnet',
-  'claude-sonnet-4-5': 'anthropic/claude-3.5-sonnet', // User requested alias
-  'claude-opus': 'anthropic/claude-3-opus',
-  'grok': 'x-ai/grok-2-1212',
-  'glasssync': 'stepfun/step-3.5-flash:free', // UseGlass alias
+  'sonar': 'minimax/minimax-m2.5:free',
+  'gemini-pro': 'minimax/minimax-m2.5:free',
+  'gpt-5': 'minimax/minimax-m2.5:free',
+  'claude-sonnet': 'minimax/minimax-m2.5:free',
+  'claude-sonnet-4-5': 'minimax/minimax-m2.5:free',
+  'claude-opus': 'minimax/minimax-m2.5:free',
+  'grok': 'minimax/minimax-m2.5:free',
+  'glasssync': 'minimax/minimax-m2.5:free',
 };
 
 app.post('/api/chat/stream', async (req, res) => {
@@ -1933,7 +1933,7 @@ app.post('/api/chat/stream', async (req, res) => {
   // 3. Map model to OpenRouter model ID
   // 3. Determine Provider and Model
   let provider = 'openrouter';
-  let targetModel = OPENROUTER_STREAM_MODEL_MAPPING[model] || model || 'openai/gpt-4o-mini';
+  let targetModel = OPENROUTER_STREAM_MODEL_MAPPING[model] || model || 'minimax/minimax-m2.5:free';
 
   // Check if SumoPod requested (default 'groq' or explicit gemini/seed models)
   // Also force 'claude-sonnet-4-5' and all 'seed-2-0' variants to use SumoPod
@@ -2547,15 +2547,15 @@ app.post('/api/generate', async (req, res) => {
       const requestedModel = body.model || 'sonnet';
       const NR_MAP = { sonar: fastModel, sonnet: fastModel, thinking: thinkingModel, 'gemini-flash': fastModel };
       const OR_MAP = {
-        sonar: 'tngtech/deepseek-r1t2-chimera:free',
-        'gemini-pro': 'google/gemini-2.0-flash-exp:free',
-        'gpt-5': 'openai/gpt-4o-mini',
-        'claude-sonnet': 'anthropic/claude-3.5-sonnet',
-        'claude-opus': 'anthropic/claude-3-opus',
-        grok: 'x-ai/grok-2-1212',
-        sonnet: 'anthropic/claude-3.5-sonnet',
-        thinking: 'anthropic/claude-3.5-sonnet',
-        'gemini-flash': 'google/gemini-2.0-flash-exp:free',
+        sonar: 'minimax/minimax-m2.5:free',
+        'gemini-pro': 'minimax/minimax-m2.5:free',
+        'gpt-5': 'minimax/minimax-m2.5:free',
+        'claude-sonnet': 'minimax/minimax-m2.5:free',
+        'claude-opus': 'minimax/minimax-m2.5:free',
+        grok: 'minimax/minimax-m2.5:free',
+        sonnet: 'minimax/minimax-m2.5:free',
+        thinking: 'minimax/minimax-m2.5:free',
+        'gemini-flash': 'minimax/minimax-m2.5:free',
       };
 
       const userTier = await getUserTier(userId);
@@ -2764,12 +2764,12 @@ GLASS THINKING MODE:
       // OpenRouter: All Pro models (sonar/NoirSync, gemini-pro, gpt-5, claude, grok)
 
       const OPENROUTER_MODEL_MAPPING = {
-        'sonar': 'tngtech/deepseek-r1t2-chimera:free', // DeepSeek R1T2 Chimera (Free)
-        'gemini-pro': 'google/gemini-2.0-flash-exp:free',
-        'gpt-5': 'openai/gpt-4o-mini',
-        'claude-sonnet': 'anthropic/claude-3.5-sonnet',
-        'claude-opus': 'anthropic/claude-3-opus',
-        'grok': 'x-ai/grok-2-1212',
+        'sonar': 'minimax/minimax-m2.5:free',
+        'gemini-pro': 'minimax/minimax-m2.5:free',
+        'gpt-5': 'minimax/minimax-m2.5:free',
+        'claude-sonnet': 'minimax/minimax-m2.5:free',
+        'claude-opus': 'minimax/minimax-m2.5:free',
+        'grok': 'minimax/minimax-m2.5:free',
       };
 
       const isDeepDive = body.deepDive === true || mode === 'deep_dive';
@@ -5050,7 +5050,7 @@ If no image is provided, just create a professional HTML document/table based so
     } else if (aiClient === openrouterClient) {
       targetModelId = (images && images.length > 0)
         ? (process.env.OPENROUTER_VISION_MODEL?.trim() || 'google/gemini-2.0-flash-exp:free')
-        : (process.env.OPENROUTER_MODEL?.trim() || 'anthropic/claude-3.5-sonnet');
+        : (process.env.OPENROUTER_MODEL?.trim() || 'minimax/minimax-m2.5:free');
     } else {
       targetModelId = process.env.SUMOPOD_REDESIGN_MODEL_ID || process.env.SUMOPOD_MODEL_ID || 'gemini/gemini-pro';
     }
