@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './lib/authContext';
+import { useFirebaseAuthBridge } from './hooks/useFirebaseAuthBridge';
 import { SettingsProvider } from './hooks/useSettings';
 import { UIProvider } from './components/UIContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
@@ -34,6 +35,7 @@ const GlassToolPage = React.lazy(() => import('./components/pages/GlassToolPage'
 const Studio = React.lazy(() => import('./components/pages/Studio'));
 
 const AppContent: React.FC = () => {
+    useFirebaseAuthBridge();
     return (
     <>
       <DynamicBackground />
