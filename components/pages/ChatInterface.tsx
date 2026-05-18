@@ -6139,6 +6139,28 @@ const ChatInterface: React.FC = () => {
                       }
                       const raw = glassCanvas.content || '';
                       const codeSource = getCanvasCodeSource(raw);
+                      // For document canvas (PDF flow), render the PDF HTML
+                      // directly — never fall back to the web preview shell,
+                      // which would show "Generated Website" inside a PDF tab.
+                      if (glassCanvas.type === 'document') {
+                        if (raw.trim().length > 0) {
+                          return (
+                            <iframe
+                              key={glassCanvas.lastUpdated?.toString() || 'canvas-iframe-doc-mobile'}
+                              srcDoc={raw}
+                              title="Document preview"
+                              sandbox="allow-same-origin"
+                              className="h-full w-full rounded-2xl border border-zinc-200 bg-white"
+                              style={{ minHeight: '70vh' }}
+                            />
+                          );
+                        }
+                        return (
+                          <div className="flex h-full min-h-[420px] items-center justify-center text-zinc-500">
+                            <div className="text-center text-sm">Document is being prepared...</div>
+                          </div>
+                        );
+                      }
                       const previewHtml = buildGeneratedWebPreview(glassCanvas.sourcePrompt, codeSource || raw);
                       if (previewHtml.trim().length > 0) {
                         return (
@@ -6329,7 +6351,7 @@ const ChatInterface: React.FC = () => {
                     </div>
                     <div className="flex border-b border-zinc-100 px-4 py-2 text-xs text-zinc-500 gap-2">
                       {[
-                        ['preview', 'Preview Web'],
+                        ['preview', glassCanvas.type === 'document' ? 'Preview' : 'Preview Web'],
                         ['code', 'Code'],
                         ['structure', 'Structure'],
                         ['notes', 'Notes'],
@@ -6383,11 +6405,17 @@ const ChatInterface: React.FC = () => {
                       }
                         const raw = glassCanvas.content || '';
                         const codeSource = getCanvasCodeSource(raw);
-                        const previewHtml = buildGeneratedWebPreview(glassCanvas.sourcePrompt, codeSource || raw);
+                        // For document canvas (PDF flow), render the PDF HTML
+                        // directly — never fall back to the web preview shell,
+                        // which would show "Generated Website" inside a PDF tab.
+                        const isDocCanvas = glassCanvas.type === 'document';
+                        const previewHtml = isDocCanvas
+                          ? raw
+                          : buildGeneratedWebPreview(glassCanvas.sourcePrompt, codeSource || raw);
                         if (glassCanvasTab === 'code') {
                           return (
                             <pre className="min-h-full overflow-auto whitespace-pre-wrap rounded-2xl border border-zinc-200 bg-zinc-950 p-5 font-mono text-xs leading-relaxed text-zinc-50">
-                              {codeSource || 'Code will appear here.'}
+                              {codeSource || (isDocCanvas ? raw : 'Code will appear here.')}
                             </pre>
                           );
                         }
@@ -6397,7 +6425,7 @@ const ChatInterface: React.FC = () => {
                               <div className="font-semibold text-zinc-900">Canvas Structure</div>
                               <div>Type: {glassCanvas.type}</div>
                               <div>Prompt: {glassCanvas.sourcePrompt || 'No source prompt'}</div>
-                              <div>Preview: {previewHtml ? 'Renderable web preview ready' : 'Waiting for renderable content'}</div>
+                              <div>Preview: {previewHtml ? (isDocCanvas ? 'Document ready' : 'Renderable web preview ready') : 'Waiting for renderable content'}</div>
                               <div>Code length: {codeSource.length} characters</div>
                             </div>
                           );
@@ -6406,8 +6434,17 @@ const ChatInterface: React.FC = () => {
                           return (
                             <div className="rounded-2xl border border-zinc-200 bg-white p-5 text-sm leading-7 text-zinc-700">
                               <p className="font-semibold text-zinc-900">Preview ready.</p>
-                              <p>Use <strong>Preview Web</strong> untuk melihat hasil render. Use <strong>Code</strong> untuk melihat source yang dihasilkan.</p>
-                              <p>Kirim instruksi lanjutan untuk ubah warna, layout, copy, section, atau responsif.</p>
+                              {isDocCanvas ? (
+                                <>
+                                  <p>Gunakan tab <strong>Preview Web</strong> untuk melihat dokumen, tombol <strong>Download PDF</strong> di header untuk mengunduh.</p>
+                                  <p>Kirim instruksi lanjutan untuk ubah isi, judul, atau struktur dokumen sebelum download.</p>
+                                </>
+                              ) : (
+                                <>
+                                  <p>Use <strong>Preview Web</strong> untuk melihat hasil render. Use <strong>Code</strong> untuk melihat source yang dihasilkan.</p>
+                                  <p>Kirim instruksi lanjutan untuk ubah warna, layout, copy, section, atau responsif.</p>
+                                </>
+                              )}
                             </div>
                           );
                         }
@@ -6416,8 +6453,8 @@ const ChatInterface: React.FC = () => {
                             <iframe
                               key={glassCanvas.lastUpdated?.toString() || 'canvas-iframe'}
                               srcDoc={previewHtml}
-                              title="Web preview"
-                              sandbox="allow-scripts allow-same-origin allow-forms"
+                              title={isDocCanvas ? 'Document preview' : 'Web preview'}
+                              sandbox={isDocCanvas ? 'allow-same-origin' : 'allow-scripts allow-same-origin allow-forms'}
                               className="h-full w-full rounded-2xl border border-zinc-200 bg-white shadow-sm"
                               style={{ minHeight: '600px' }}
                             />
@@ -6425,7 +6462,7 @@ const ChatInterface: React.FC = () => {
                         }
                         return (
                           <pre className="whitespace-pre-wrap rounded-2xl bg-zinc-50 p-4 text-sm text-zinc-800">
-                            {raw || 'Canvas ready. Main generated output will appear here.'}
+                            {raw || (isDocCanvas ? 'Document is being prepared...' : 'Canvas ready. Main generated output will appear here.')}
                           </pre>
                         );
                       })()}
