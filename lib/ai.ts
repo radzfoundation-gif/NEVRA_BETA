@@ -161,6 +161,8 @@ Use Markdown, code blocks, tables, math, and citations when helpful. Keep answer
   // Retry transient upstream failures (503/504) up to 2 times with backoff.
   // 9Router / OpenRouter occasionally returns 503 during cold starts or
   // upstream provider hiccups — a quick retry usually succeeds.
+  // Use SSE streaming when the caller passes _onChunk so tokens render live.
+  const wantStream = typeof _onChunk === 'function';
   let response: Response | null = null;
   let lastError: any = null;
   const maxAttempts = 3;
@@ -168,7 +170,10 @@ Use Markdown, code blocks, tables, math, and citations when helpful. Keep answer
     try {
       response = await fetch('/api/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(wantStream ? { Accept: 'text/event-stream' } : {}),
+        },
         signal,
         body: JSON.stringify({
           prompt,
@@ -187,6 +192,7 @@ Use Markdown, code blocks, tables, math, and citations when helpful. Keep answer
           model: selectedModel,
           glassMode: mode,
           planningEnabled: deepDive,
+          stream: wantStream,
         }),
       });
       if (response.status === 503 || response.status === 504) {
@@ -209,6 +215,52 @@ Use Markdown, code blocks, tables, math, and citations when helpful. Keep answer
   if (!response) throw lastError || new Error('No response from /api/generate');
 
   const contentType = response.headers.get('content-type') || '';
+
+  // SSE streaming branch — read deltas, fire onChunk per token, return
+  // assembled content at the end. Server falls back to JSON when streaming
+  // isn't available, in which case we drop into the legacy path below.
+  if (wantStream && response.ok && contentType.includes('text/event-stream') && response.body) {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let assembled = '';
+    let streamErr: string | null = null;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const events = buffer.split('\n\n');
+      buffer = events.pop() || '';
+      for (const evt of events) {
+        const lines = evt.split('\n');
+        let eventName = 'message';
+        let dataLine = '';
+        for (const line of lines) {
+          if (line.startsWith('event:')) eventName = line.slice(6).trim();
+          else if (line.startsWith('data:')) dataLine = line.slice(5).trim();
+        }
+        if (!dataLine || dataLine === '[DONE]') continue;
+        try {
+          const payload = JSON.parse(dataLine);
+          if (eventName === 'delta' && typeof payload.content === 'string') {
+            assembled += payload.content;
+            try { _onChunk?.(payload.content); } catch {}
+          } else if (eventName === 'error') {
+            streamErr = payload.message || payload.error || 'stream error';
+          }
+        } catch {
+          // ignore malformed event
+        }
+      }
+    }
+    if (streamErr) throw new Error(streamErr);
+    return {
+      type: 'single-file',
+      content: assembled,
+      framework: String(framework || 'react'),
+    };
+  }
+
   const data = contentType.includes('application/json')
     ? await response.json().catch(() => ({}))
     : { error: await response.text().catch(() => response.statusText) };

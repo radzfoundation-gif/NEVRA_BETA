@@ -2521,6 +2521,122 @@ app.post('/api/generate', async (req, res) => {
   const timeoutDuration = 180_000; // Increased to 180s (3 mins) for slow vision models
   const timeout = setTimeout(() => controller.abort(), timeoutDuration);
 
+  // ── Real-time SSE streaming branch ──────────────────────────────────────
+  // When the client opts into streaming (body.stream === true), pipe tokens
+  // straight through SSE so the UI renders the answer as it's generated
+  // rather than waiting for the full response. Falls back to JSON on any
+  // hard failure inside the inner try.
+  const wantStream = body.stream === true;
+  if (wantStream) {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+
+    const sendEvent = (event, data) => {
+      try { res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); } catch {}
+    };
+
+    req.on('close', () => { try { controller.abort(); } catch {} });
+
+    try {
+      const isDevEnv = (process.env.NODE_ENV || 'development') !== 'production';
+      const fastModel = process.env.NINEROUTER_FAST_MODEL?.trim() || 'kr/claude-sonnet-4.5';
+      const thinkingModel = process.env.NINEROUTER_THINKING_MODEL?.trim() || fastModel;
+      const requestedModel = body.model || 'sonnet';
+      const NR_MAP = { sonar: fastModel, sonnet: fastModel, thinking: thinkingModel, 'gemini-flash': fastModel };
+      const OR_MAP = {
+        sonar: 'tngtech/deepseek-r1t2-chimera:free',
+        'gemini-pro': 'google/gemini-2.0-flash-exp:free',
+        'gpt-5': 'openai/gpt-4o-mini',
+        'claude-sonnet': 'anthropic/claude-3.5-sonnet',
+        'claude-opus': 'anthropic/claude-3-opus',
+        grok: 'x-ai/grok-2-1212',
+        sonnet: 'anthropic/claude-3.5-sonnet',
+        thinking: 'anthropic/claude-3.5-sonnet',
+        'gemini-flash': 'google/gemini-2.0-flash-exp:free',
+      };
+
+      const userTier = await getUserTier(userId);
+      const baseMaxTokens = getMaxTokensForTier(userTier, mode);
+      const now = new Date();
+      const dateContext = `\n📅 Current Date: ${now.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}\n`;
+      let webContext = '';
+      if (mode === 'tutor') {
+        const wr = await autoWebSearch(prompt);
+        if (wr) webContext = wr;
+      }
+      const sys = withBrevity(dateContext + webContext + systemPrompt + `
+
+AMBIGUOUS OR INCOMPLETE PROMPT RULE:
+- If the prompt is missing the actual topic, target, object, app idea, file, requirement, or context needed to answer well, do not guess.
+- Return exactly: <!--CLARIFY {"question":"Apa yang ingin kamu lakukan hari ini?","options":["Tulis atau buat dokumen","Cari informasi / riset","Bantu coding / teknis","Ngobrol / tanya jawab"]} -->
+- Match the user's language. Provide no other content until they answer.`);
+
+      const messages = [
+        { role: 'system', content: sys },
+        ...formatHistory(truncateHistory(history, 2)),
+        { role: 'user', content: buildOpenAIUserContent(prompt, images) },
+      ];
+
+      const tryStream = async (client, modelId, label) => {
+        const stream = await client.chat.completions.create({
+          model: modelId,
+          messages,
+          temperature: 0.5,
+          max_tokens: baseMaxTokens,
+          stream: true,
+        }, { signal: controller.signal });
+        for await (const chunk of stream) {
+          const delta = chunk?.choices?.[0]?.delta?.content || '';
+          if (delta) sendEvent('delta', { content: delta });
+        }
+        sendEvent('done', { provider: label });
+      };
+
+      const prefers9 = ninerouterClient && (isDevEnv || ['sonar', 'sonnet', 'thinking', 'gemini-flash'].includes(requestedModel));
+      let streamedOk = false;
+      let firstErr = null;
+
+      if (prefers9 && ninerouterClient) {
+        try {
+          await tryStream(ninerouterClient, NR_MAP[requestedModel] || ninerouterDefaultModel, '9router');
+          streamedOk = true;
+        } catch (err) {
+          firstErr = err;
+        }
+      }
+      if (!streamedOk && openrouterClient) {
+        try {
+          await tryStream(openrouterClient, OR_MAP[requestedModel] || OR_MAP.sonnet, 'openrouter');
+          streamedOk = true;
+        } catch (err) {
+          if (!firstErr) firstErr = err;
+        }
+      }
+      if (!streamedOk && sumopodClient) {
+        try {
+          await tryStream(sumopodClient, 'gemini/gemini-2.5-flash-lite', 'sumopod');
+          streamedOk = true;
+        } catch (err) {
+          if (!firstErr) firstErr = err;
+        }
+      }
+
+      if (!streamedOk) {
+        sendEvent('error', { message: firstErr?.message || 'all providers failed' });
+      }
+    } catch (err) {
+      try { res.write(`event: error\ndata: ${JSON.stringify({ message: err?.message || 'stream failed' })}\n\n`); } catch {}
+    } finally {
+      clearTimeout(timeout);
+      try { res.write('data: [DONE]\n\n'); } catch {}
+      if (!res.writableEnded) res.end();
+    }
+    return;
+  }
+
   try {
     // Inject current date/time context into system prompt for up-to-date knowledge
     const now = new Date();
@@ -2707,10 +2823,46 @@ GLASS THINKING MODE:
           }
         }
         if (nrLastErr) {
-          return sendResponse(500, {
-            error: `9Router API Error: ${nrLastErr?.message || String(nrLastErr)}`,
-            detail: nrLastErr?.error || nrLastErr?.message,
-          });
+          // Fallback to OpenRouter when 9Router fails after retries.
+          if (openrouterClient) {
+            const orModelId = OPENROUTER_MODEL_MAPPING[selectedModel] || OPENROUTER_MODEL_MAPPING['sonar'];
+            try {
+              completion = await openrouterClient.chat.completions.create({
+                model: orModelId,
+                messages,
+                temperature: 0.5,
+                max_tokens: baseMaxTokens,
+              }, { signal: controller.signal });
+            } catch (orErr) {
+              // Final fallback to SumoPod (free Gemini) so the user always
+              // gets an answer, even if both Pro providers are unhealthy.
+              if (sumopodClient) {
+                try {
+                  completion = await sumopodClient.chat.completions.create({
+                    model: 'gemini/gemini-2.5-flash-lite',
+                    messages,
+                    temperature: 0.5,
+                    max_tokens: baseMaxTokens,
+                  }, { signal: controller.signal });
+                } catch (spErr) {
+                  return sendResponse(500, {
+                    error: `All AI providers failed (9Router → OpenRouter → SumoPod). Last: ${spErr?.message || String(spErr)}`,
+                    detail: spErr?.error || spErr?.message,
+                  });
+                }
+              } else {
+                return sendResponse(500, {
+                  error: `9Router and OpenRouter both failed. ${orErr?.message || String(orErr)}`,
+                  detail: orErr?.error || orErr?.message,
+                });
+              }
+            }
+          } else {
+            return sendResponse(500, {
+              error: `9Router API Error: ${nrLastErr?.message || String(nrLastErr)}`,
+              detail: nrLastErr?.error || nrLastErr?.message,
+            });
+          }
         }
       } else if (useOpenRouter && openrouterClient) {
         // Use OpenRouter for Pro models
