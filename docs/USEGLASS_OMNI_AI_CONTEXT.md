@@ -213,11 +213,11 @@ Important behavior:
 
 Files:
 
-- `server/turso.js`
-- `server/tursoRoutes.js`
-- `supabase/migrations/005_useglass_workspace.sql`
-- `supabase/migrations/006_useglass_omni_database.sql`
-- `docs/TURSO_MIGRATION.md`
+- `server/firestore.js`
+- `server/firestoreRoutes.js`
+- `firestore/migrations/005_useglass_workspace.sql`
+- `firestore/migrations/006_useglass_omni_database.sql`
+- `docs/FIRESTORE_MIGRATION.md`
 
 Purpose:
 

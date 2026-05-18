@@ -20,7 +20,7 @@ const ArtifactsPage: React.FC = () => {
     const [showSettings, setShowSettings] = React.useState(false);
     const [loading, setLoading] = React.useState(false);
 
-    // Mock artifacts data - in real app, fetch from Supabase
+    // Mock artifacts data - in real app, fetch from Firestore
     const [artifacts, setArtifacts] = React.useState<Artifact[]>([
         // Demo items - will be empty until user generates content
     ]);

@@ -8,7 +8,7 @@ let content = fs.readFileSync(serverFile, 'utf8');
 // So that when the backend checks limits for generation, it also uses the daily credits
 
 const oldCheckFeatureUsage = `const checkFeatureUsage = async (userId, feature) => {
-  if (!supabase) return { allowed: true, limit: 999, used: 0 };
+  if (!firestore) return { allowed: true, limit: 999, used: 0 };
 
   const tier = await getUserTier(userId);
   const userLimits = FEATURE_LIMITS[tier] || FEATURE_LIMITS.free;
@@ -18,7 +18,7 @@ const oldCheckFeatureUsage = `const checkFeatureUsage = async (userId, feature) 
   const storageKey = \`\${periodKey}_\${feature}\`; // stored in 'month' column
 
   try {
-    const { data } = await supabase
+    const { data } = await firestore
       .from('token_usage')
       .select('tokens_used')
       .eq('user_id', userId)
@@ -42,11 +42,11 @@ const oldCheckFeatureUsage = `const checkFeatureUsage = async (userId, feature) 
 };`;
 
 const newCheckFeatureUsage = `const checkFeatureUsage = async (userId, feature) => {
-  if (!supabase) return { allowed: true, limit: 999, used: 0 };
+  if (!firestore) return { allowed: true, limit: 999, used: 0 };
 
   const tier = await getUserTier(userId);
   const cost = FEATURE_COSTS[feature] || 1;
-  
+
   // Free tier has 20 daily credits, Pro is unlimited
   const dailyLimit = tier === 'pro' ? 999999 : 20;
 
@@ -54,7 +54,7 @@ const newCheckFeatureUsage = `const checkFeatureUsage = async (userId, feature) 
   const storageKey = \`\${d.getFullYear()}-\${String(d.getMonth() + 1).padStart(2, '0')}_\${d.getFullYear()}-\${String(d.getMonth() + 1).padStart(2, '0')}-\${String(d.getDate()).padStart(2, '0')}\`;
 
   try {
-    const { data } = await supabase
+    const { data } = await firestore
       .from('token_usage')
       .select('tokens_used')
       .eq('user_id', userId)
@@ -78,7 +78,7 @@ const newCheckFeatureUsage = `const checkFeatureUsage = async (userId, feature) 
 };`;
 
 const oldIncrementFeatureUsage = `const incrementFeatureUsage = async (userId, feature) => {
-  if (!supabase) return;
+  if (!firestore) return;
 
   const tier = await getUserTier(userId);
   const userLimits = FEATURE_LIMITS[tier] || FEATURE_LIMITS.free;
@@ -88,7 +88,7 @@ const oldIncrementFeatureUsage = `const incrementFeatureUsage = async (userId, f
   const storageKey = \`\${periodKey}_\${feature}\`;
 
   try {
-    const { data } = await supabase
+    const { data } = await firestore
       .from('token_usage')
       .select('tokens_used')
       .eq('user_id', userId)
@@ -97,7 +97,7 @@ const oldIncrementFeatureUsage = `const incrementFeatureUsage = async (userId, f
 
     const current = data?.tokens_used || 0;
 
-    await supabase.from('token_usage').upsert({
+    await firestore.from('token_usage').upsert({
       user_id: userId,
       month: storageKey,
       tokens_used: current + 1,
@@ -110,18 +110,18 @@ const oldIncrementFeatureUsage = `const incrementFeatureUsage = async (userId, f
 };`;
 
 const newIncrementFeatureUsage = `const incrementFeatureUsage = async (userId, feature) => {
-  if (!supabase) return;
+  if (!firestore) return;
 
   const tier = await getUserTier(userId);
   if (tier === 'pro') return; // Pro users don't increment usage here if unlimited
-  
+
   const cost = FEATURE_COSTS[feature] || 1;
 
   const d = new Date();
   const storageKey = \`\${d.getFullYear()}-\${String(d.getMonth() + 1).padStart(2, '0')}_\${d.getFullYear()}-\${String(d.getMonth() + 1).padStart(2, '0')}-\${String(d.getDate()).padStart(2, '0')}\`;
 
   try {
-    const { data } = await supabase
+    const { data } = await firestore
       .from('token_usage')
       .select('tokens_used')
       .eq('user_id', userId)
@@ -130,7 +130,7 @@ const newIncrementFeatureUsage = `const incrementFeatureUsage = async (userId, f
 
     const current = data?.tokens_used || 0;
 
-    await supabase.from('token_usage').upsert({
+    await firestore.from('token_usage').upsert({
       user_id: userId,
       month: storageKey,
       tokens_used: current + cost,

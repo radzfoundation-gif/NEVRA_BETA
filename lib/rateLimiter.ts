@@ -1,4 +1,4 @@
-﻿/** Turso-only in-memory rate limiter. */
+﻿/** Firestore-only in-memory rate limiter. */
 export interface RateLimitConfig { maxRequests: number; windowMs: number; }
 export interface RateLimitResult { allowed: boolean; remaining: number; resetAt: Date; limit: number; }
 

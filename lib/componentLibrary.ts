@@ -149,7 +149,7 @@ export class ComponentLibrary {
         });
       }
     } catch (error) {
-      
+
     }
   }
 
@@ -161,7 +161,7 @@ export class ComponentLibrary {
       const components = Array.from(this.components.values());
       localStorage.setItem('noir_ai_component_library', JSON.stringify(components));
     } catch (error) {
-      
+
     }
   }
 }
@@ -172,7 +172,7 @@ let componentLibraryInstance: ComponentLibrary | null = null;
 export function getComponentLibrary(): ComponentLibrary {
   if (!componentLibraryInstance) {
     componentLibraryInstance = new ComponentLibrary();
-    // Load from localStorage or Supabase
+    // Load from localStorage or Firestore
     componentLibraryInstance.load();
   }
   return componentLibraryInstance;

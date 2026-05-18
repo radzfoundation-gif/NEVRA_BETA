@@ -1,5 +1,5 @@
 import { NormalizedKnowledge } from '../processors/KnowledgeNormalizer';
-// Supabase removed - using in-memory storage
+// Firestore removed - using in-memory storage
 import { WORKFLOW_CONFIG } from '../../workflow/config';
 
 // In-memory cache for metadata index
@@ -50,7 +50,7 @@ export class MetadataIndexService {
 
       // Metadata indexed in memory silently
     } catch (error) {
-      
+
     }
   }
 
@@ -79,7 +79,7 @@ export class MetadataIndexService {
 
       return results.slice(0, limit);
     } catch (error) {
-      
+
       return [];
     }
   }
@@ -99,7 +99,7 @@ export class MetadataIndexService {
 
       return results.slice(0, limit);
     } catch (error) {
-      
+
       return [];
     }
   }

@@ -202,7 +202,7 @@ const GlassToolPage: React.FC<GlassToolPageProps> = ({ tool }) => {
                             <div>
                                 <div className="font-semibold text-zinc-950">V1 note</div>
                                 <p className="mt-1 text-sm leading-6 text-zinc-600">
-                                    This workspace is active as a guided shell and delegates generation to the existing UseGlass AI chat/backend. Deeper persistence and automation can build on the new Supabase migration.
+                                    This workspace is active as a guided shell and delegates generation to the existing UseGlass AI chat/backend. Deeper persistence and automation can build on the new Firestore migration.
                                 </p>
                             </div>
                         </div>

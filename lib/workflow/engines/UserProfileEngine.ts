@@ -2,7 +2,7 @@
 import { IntentAnalysis } from '../analyzers/IntentAnalyzer';
 import { Message } from '../types';
 
-// Stub types (Supabase removed)
+// Stub types (Firestore removed)
 interface UserPreferences {
   default_provider?: string;
   theme?: string;
@@ -70,7 +70,7 @@ export class UserProfileEngine {
         behavior,
       };
     } catch (error) {
-      
+
       return null;
     }
   }

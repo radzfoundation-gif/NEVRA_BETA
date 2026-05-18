@@ -5,7 +5,7 @@
  * under /api/auto-pilot:
  *   POST /route         → routing decision only (no AI generation)
  *   POST /generate      → routing + AI generation (chat or canvas response)
- *   POST /save-output   → persist a finished artifact to the Turso project
+ *   POST /save-output   → persist a finished artifact to the Firestore project
  */
 
 import express from 'express';

@@ -4,7 +4,7 @@ import { AgentMemoryEntry } from '../types';
 import { AgentMemoryEngine } from './AgentMemoryEngine';
 import { IntentAnalysis } from '../analyzers/IntentAnalyzer';
 
-// Stub user data (Supabase removed)
+// Stub user data (Firestore removed)
 interface StubUser {
   id: string;
   full_name: string | null;
@@ -127,7 +127,7 @@ export class ContextAwarenessEngine {
         },
       };
     } catch (error) {
-      
+
       return null;
     }
   }

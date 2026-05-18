@@ -21,11 +21,11 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('fetch', (event) => {
     // Bypass Service Worker for non-GET requests (e.g. POST, PUT, DELETE)
-    // and for external APIs like Supabase to avoid caching/interception errors
+    // and for external APIs like Firestore to avoid caching/interception errors
     if (
         event.request.method !== 'GET' ||
         event.request.url.includes('/api/') ||
-        event.request.url.includes('supabase.co') ||
+        event.request.url.includes('firestore.co') ||
         !event.request.url.startsWith(self.location.origin)
     ) {
         return; // Let browser handle it directly
@@ -63,4 +63,3 @@ self.addEventListener('activate', (event) => {
         })
     );
 });
-

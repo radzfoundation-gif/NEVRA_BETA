@@ -134,7 +134,7 @@ import PlannerPanel from '../PlannerPanel';
 import { generatePlan, Plan } from '@/lib/agenticPlanner';
 import DesignSystemManager from '../DesignSystemManager';
 import { designSystemManager, DesignSystem } from '@/lib/designSystem';
-// DatabasePanel removed - using Firebase instead of Supabase
+// DatabasePanel removed - using Firebase instead of Firestore
 import APIIntegrationWizard from '../APIIntegrationWizard';
 const MobileGenerator = lazyWithRetry(() => import('../MobileGenerator'));
 // Learning Features
@@ -897,8 +897,8 @@ const ChatInterface: React.FC = () => {
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const cameraModalRef = useRef<HTMLElement | null>(null);
   const cameraEventListenersRef = useRef<Array<{ element: HTMLElement; event: string; handler: EventListener }>>([]);
-  // Supabase Auth handles tokens internally - no need for getToken
-  // SUPABASE_TEMPLATE removed - using Firebase
+  // Firestore Auth handles tokens internally - no need for getToken
+  // FIRESTORE_TEMPLATE removed - using Firebase
   const { trackUsage } = useTrackAIUsage();
   const [showSubscriptionPopup, setShowSubscriptionPopup] = useState(false);
 
@@ -6822,5 +6822,3 @@ const ChatInterface: React.FC = () => {
 };
 
 export default ChatInterface;
-
-

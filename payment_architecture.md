@@ -14,10 +14,10 @@ Instead of relying on the frontend to trigger activation (which is insecure and 
 5.  **Backend Webhook**:
     *   Validates Signature Key.
     *   Checks `transaction_status` (capture/settlement = success).
-    *   Updates Supabase `subscriptions` table.
+    *   Updates Firestore `subscriptions` table.
 6.  **Frontend**:
     *   User lands on "Payment Success" page.
-    *   Polls Supabase for latest subscription status (auto-updates via `useTokenLimit` hook).
+    *   Polls Firestore for latest subscription status (auto-updates via `useTokenLimit` hook).
 
 ## 2. Backend Implementation (`server/index.js`)
 
@@ -31,7 +31,7 @@ const crypto = require('crypto');
 app.post('/api/payment/notification', async (req, res) => {
   try {
     const notification = req.body;
-    
+
     // 1. Extract necessary fields
     const { order_id, status_code, gross_amount, transaction_status, signature_key } = notification;
 
@@ -63,13 +63,13 @@ app.post('/api/payment/notification', async (req, res) => {
       // Extract userId from order_id (Format: NOIR-AI-PRO-TIMESTAMP-USERIDPART)
       // Note: Typically you should store metadata in custom_field1, but extracting from order_id works if you formatted it that way.
       // Better approach: Pass userId as custom_field_1 during separate create transaction
-      
+
       // For now, let's assume we can fetch the user by order_id or pass userId in custom_field_1
-      
+
       console.log(`✅ Payment success for Order ${order_id}`);
-      
+
       // Update logic here (similar to your activate endpoint)
-      // await supabase.from('subscriptions').upsert(...)
+      // await firestore.from('subscriptions').upsert(...)
     }
 
     res.status(200).json({ status: 'ok' });
@@ -87,7 +87,7 @@ app.post('/api/payment/notification', async (req, res) => {
     - `VITE_MIDTRANS_CLIENT_KEY`: Production Client Key (starts with `Mid-client-`).
     - `MIDTRANS_IS_PRODUCTION`: `true`.
     - `VITE_APP_URL`: Your Vercel Domain (e.g., `https://noir-ai.com`).
-    - `VITE_SUPABASE_URL` & `SUPABASE_SERVICE_KEY`: Your Supabase credentials.
+    - `VITE_FIRESTORE_URL` & `FIRESTORE_SERVICE_KEY`: Your Firestore credentials.
 
 - [ ] **Midtrans Dashboard Configuration**:
     - Login to Midtrans MAP (Production).
@@ -102,4 +102,4 @@ app.post('/api/payment/notification', async (req, res) => {
 ## 4. Troubleshooting 500 Error on Activate
 
 Your previous error was likely due to `fs.writeFileSync` failing in Vercel's serverless environment (read-only filesystem).
-**Fix**: I have removed the file-system backup logic usage. Now it only relies on Supabase, which is the correct architecture for serverless.
+**Fix**: I have removed the file-system backup logic usage. Now it only relies on Firestore, which is the correct architecture for serverless.

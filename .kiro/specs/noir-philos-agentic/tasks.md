@@ -2,14 +2,14 @@
 
 ## Overview
 
-Implement the full Philos agentic system on the existing Noir stack: Supabase tables → backend services → Express API endpoints → SSE streaming → React frontend at `/philos`. Each task builds incrementally so the system is runnable and testable at every checkpoint.
+Implement the full Philos agentic system on the existing Noir stack: Firestore tables → backend services → Express API endpoints → SSE streaming → React frontend at `/philos`. Each task builds incrementally so the system is runnable and testable at every checkpoint.
 
 ## Tasks
 
-- [ ] 1. Create Supabase database schema
+- [ ] 1. Create Firestore database schema
   - Run the SQL migrations to create all seven Philos tables: `philos_runs`, `philos_tasks`, `philos_artifacts`, `philos_memory`, `philos_preferences`, `philos_integrations`, `philos_workflows`
   - Enable `pgvector` extension and add the `embedding vector(1536)` column on `philos_memory`
-  - Create the `philos-artifacts` Storage bucket in Supabase
+  - Create the `philos-artifacts` Storage bucket in Firestore
   - Write and apply Row-Level Security policies on all tables scoped to `auth.uid() = user_id`
   - Apply RLS policy on `philos_integrations` ensuring cross-user isolation (Property 16)
   - _Requirements: 6.1, 7.2_
@@ -22,7 +22,7 @@ Implement the full Philos agentic system on the existing Noir stack: Supabase ta
 
 - [ ] 3. Implement MemoryStore service
   - [ ] 3.1 Create `server/philos/memoryStore.js`
-    - Implement `saveRun(run)`, `getRelevantContext(userId, goal, limit)`, `savePreferences(userId, prefs)`, `getPreferences(userId)`, `deleteEntry(userId, entryId)`, `searchMemory(userId, query)` using the Supabase client already initialised in `server/index.js`
+    - Implement `saveRun(run)`, `getRelevantContext(userId, goal, limit)`, `savePreferences(userId, prefs)`, `getPreferences(userId)`, `deleteEntry(userId, entryId)`, `searchMemory(userId, query)` using the Firestore client already initialised in `server/index.js`
     - `getRelevantContext` performs a keyword/tag match on `philos_memory` (pgvector similarity if available, text search fallback)
     - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5_
 
@@ -201,7 +201,7 @@ Implement the full Philos agentic system on the existing Noir stack: Supabase ta
     - _Requirements: 9.1_
 
   - [ ] 12.2 Implement artifact upload and storage in `server/philos/artifactStore.js`
-    - After a file is written to the sandbox workdir, upload it to the `philos-artifacts` Supabase Storage bucket
+    - After a file is written to the sandbox workdir, upload it to the `philos-artifacts` Firestore Storage bucket
     - Insert a record into `philos_artifacts` with `storage_path` and `download_url`
     - Emit `artifact_ready` SSE event with the download URL
     - _Requirements: 9.2, 9.3_
@@ -266,7 +266,7 @@ Implement the full Philos agentic system on the existing Noir stack: Supabase ta
     - _Requirements: 8.1, 8.2, 8.6_
 
   - [ ] 14.6 Add artifact download endpoint
-    - `GET /api/philos/artifacts/:artifactId/download` — verify ownership, return signed Supabase Storage URL
+    - `GET /api/philos/artifacts/:artifactId/download` — verify ownership, return signed Firestore Storage URL
     - _Requirements: 9.2, 9.3_
 
 - [ ] 15. Checkpoint — API layer
@@ -337,7 +337,7 @@ Implement the full Philos agentic system on the existing Noir stack: Supabase ta
   - [ ] 22.1 Import and initialise all Philos services at server startup
     - Import `OrchestratorService`, `SubAgentRunner`, `ModelRouter`, `SandboxManager`, `MemoryStore`, `IntegrationManager`, `WorkflowScheduler`, `SseManager` from their respective modules
     - Initialise `WorkflowScheduler` to reload active workflows from `philos_workflows` on startup and re-register cron jobs
-    - Pass the shared Supabase client and SSE manager into each service constructor/init function
+    - Pass the shared Firestore client and SSE manager into each service constructor/init function
     - _Requirements: 8.2, 11.1_
 
 - [ ] 23. Final checkpoint — full integration
@@ -349,4 +349,4 @@ Implement the full Philos agentic system on the existing Noir stack: Supabase ta
 - Each task references specific requirements for traceability
 - Property tests use `fast-check` (add to devDependencies: `npm install --save-dev fast-check`)
 - Checkpoints ensure incremental validation before moving to the next layer
-- The existing `supabase` client, `sumopodClient`, `openrouterClient`, and `getUserTier` helpers in `server/index.js` should be reused by the Philos services rather than re-initialised
+- The existing `firestore` client, `sumopodClient`, `openrouterClient`, and `getUserTier` helpers in `server/index.js` should be reused by the Philos services rather than re-initialised

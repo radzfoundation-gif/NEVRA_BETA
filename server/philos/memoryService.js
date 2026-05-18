@@ -4,14 +4,14 @@
  */
 
 export class PhilosMemoryService {
-  constructor(supabaseClient) {
-    this.supabase = supabaseClient;
+  constructor(firestoreClient) {
+    this.firestore = firestoreClient;
   }
 
   // Save a memory fact about the user
   async saveMemory(userId, { content, type = 'fact', tags = [], importance = 5 }) {
-    if (!this.supabase) return null;
-    const { data, error } = await this.supabase
+    if (!this.firestore) return null;
+    const { data, error } = await this.firestore
       .from('philos_memory')
       .insert({ user_id: userId, content, type, tags, importance })
       .select()
@@ -22,9 +22,9 @@ export class PhilosMemoryService {
 
   // Get relevant memories for a given query (keyword match)
   async getRelevantMemories(userId, query, limit = 8) {
-    if (!this.supabase) return [];
+    if (!this.firestore) return [];
     try {
-      const { data } = await this.supabase
+      const { data } = await this.firestore
         .from('philos_memory')
         .select('content, type, tags, importance')
         .eq('user_id', userId)
@@ -56,8 +56,8 @@ export class PhilosMemoryService {
 
   // Get all memories for a user
   async getAllMemories(userId) {
-    if (!this.supabase) return [];
-    const { data } = await this.supabase
+    if (!this.firestore) return [];
+    const { data } = await this.firestore
       .from('philos_memory')
       .select('*')
       .eq('user_id', userId)
@@ -67,8 +67,8 @@ export class PhilosMemoryService {
 
   // Delete a memory entry
   async deleteMemory(userId, memoryId) {
-    if (!this.supabase) return;
-    await this.supabase
+    if (!this.firestore) return;
+    await this.firestore
       .from('philos_memory')
       .delete()
       .eq('id', memoryId)
@@ -77,8 +77,8 @@ export class PhilosMemoryService {
 
   // Get or create user profile
   async getProfile(userId) {
-    if (!this.supabase) return null;
-    const { data } = await this.supabase
+    if (!this.firestore) return null;
+    const { data } = await this.firestore
       .from('philos_profile')
       .select('*')
       .eq('user_id', userId)
@@ -88,8 +88,8 @@ export class PhilosMemoryService {
 
   // Update user profile
   async updateProfile(userId, updates) {
-    if (!this.supabase) return null;
-    const { data } = await this.supabase
+    if (!this.firestore) return null;
+    const { data } = await this.firestore
       .from('philos_profile')
       .upsert({ user_id: userId, ...updates, updated_at: new Date().toISOString() })
       .select()
@@ -144,7 +144,7 @@ Key behaviors:
  * Automates memory extraction from AI response
  */
 export async function extractAndSaveMemories(userId, userMsg, aiResponse, memoryService) {
-  if (!memoryService.supabase) return;
+  if (!memoryService.firestore) return;
 
   try {
     const extractionPrompt = `[MEMORIZER]
@@ -158,8 +158,8 @@ Return exactly 1-3 short JSON objects if found, or empty array [].
 Example: [{"content": "Likes dark mode", "tags": ["preference"]}]`;
 
     // Use a fast model for extraction
-    const { data } = await memoryService.supabase.functions.invoke('ai-proxy', {
-        body: { 
+    const { data } = await memoryService.firestore.functions.invoke('ai-proxy', {
+        body: {
             model: 'seed-2-0-pro-free', // or a faster one
             messages: [{ role: 'system', content: extractionPrompt }]
         }

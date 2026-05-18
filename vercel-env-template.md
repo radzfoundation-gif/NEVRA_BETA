@@ -7,9 +7,9 @@ Copy-paste environment variables ini ke Vercel Dashboard atau gunakan script `up
 ### Frontend (VITE_*)
 ```
 VITE_CLERK_PUBLISHABLE_KEY=pk_test_...
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your_anon_key
-VITE_CLERK_SUPABASE_TEMPLATE=supabase
+VITE_FIRESTORE_URL=https://your-project.firestore.co
+VITE_FIRESTORE_ANON_KEY=your_anon_key
+VITE_CLERK_FIRESTORE_TEMPLATE=firestore
 ```
 
 ### Backend API Keys
@@ -19,10 +19,10 @@ STRIPE_SECRET_KEY=sk_test_...
 STRIPE_WEBHOOK_SECRET=whsec_...
 ```
 
-### Supabase Service (untuk backend)
+### Firestore Service (untuk backend)
 ```
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+FIRESTORE_URL=https://your-project.firestore.co
+FIRESTORE_SERVICE_ROLE_KEY=your_service_role_key
 ```
 
 ### Optional
@@ -105,4 +105,3 @@ done
 - [ ] Semua required variables sudah di-set
 - [ ] Variables di-set untuk environment yang benar (Production/Preview/Development)
 - [ ] Redeploy setelah menambah variables baru
-

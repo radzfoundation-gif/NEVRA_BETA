@@ -35,5 +35,5 @@ dist.zip
 .vercel
 .env*.local
 
-# Local Turso/libSQL database
-useglass-turso.db*
+# Local Firestore/Firestore database
+useglass-firestore.db*

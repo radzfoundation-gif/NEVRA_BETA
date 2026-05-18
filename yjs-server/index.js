@@ -1,10 +1,10 @@
 /**
  * NOIR AI YJS WebSocket Server
  * Provides realtime collaboration for Excalidraw canvases
- * 
+ *
  * Features:
  * - Room-based architecture (noir-{canvasId})
- * - JWT authentication via Supabase
+ * - JWT authentication via Firestore
  * - Auto cleanup of inactive rooms
  * - Health check endpoint
  * - Graceful shutdown
@@ -20,11 +20,11 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const PORT = process.env.PORT || 1234;
-const JWT_SECRET = process.env.SUPABASE_JWT_SECRET;
+const JWT_SECRET = process.env.FIRESTORE_JWT_SECRET;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
 if (!JWT_SECRET) {
-    console.error('❌ SUPABASE_JWT_SECRET environment variable is required');
+    console.error('❌ FIRESTORE_JWT_SECRET environment variable is required');
     process.exit(1);
 }
 
@@ -61,7 +61,7 @@ function cleanupInactiveDocs() {
 const cleanupTimer = setInterval(cleanupInactiveDocs, CLEANUP_INTERVAL);
 
 /**
- * Verify JWT token from Supabase
+ * Verify JWT token from Firestore
  */
 function verifyToken(token) {
     try {

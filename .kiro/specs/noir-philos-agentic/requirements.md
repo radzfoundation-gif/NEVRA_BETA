@@ -12,7 +12,7 @@ Noir Philos is an agentic AI system integrated into the Noir AI platform. It acc
 - **Task_Graph**: The directed acyclic graph of tasks and subtasks produced by the Orchestrator for a given goal.
 - **Sandbox**: The isolated server-side execution environment in which Sub_Agents run code, browse the web, and manipulate files.
 - **Artifact**: A real output produced by Philos — a file, document, slide deck, email draft, code file, or report.
-- **Memory_Store**: The persistent, per-user storage layer (Supabase) that retains context, past runs, learned preferences, and intermediate results across sessions.
+- **Memory_Store**: The persistent, per-user storage layer (Firestore) that retains context, past runs, learned preferences, and intermediate results across sessions.
 - **Integration**: A configured connection to an external service (Gmail, GitHub, Slack, Google Drive, Notion, etc.) authorized by the user.
 - **Workflow**: A named, reusable sequence of tasks that can be triggered manually, on a schedule, or by an external condition.
 - **Run**: A single execution instance of Philos for a given goal, with a unique ID, status, and log.
@@ -101,7 +101,7 @@ Noir Philos is an agentic AI system integrated into the Noir AI platform. It acc
 
 #### Acceptance Criteria
 
-1. THE Memory_Store SHALL persist the Task_Graph, all Sub_Agent outputs, and all produced Artifacts for every completed Run, linked to the user's account in Supabase.
+1. THE Memory_Store SHALL persist the Task_Graph, all Sub_Agent outputs, and all produced Artifacts for every completed Run, linked to the user's account in Firestore.
 2. WHEN a new Run begins, THE Orchestrator SHALL query the Memory_Store for relevant context from prior Runs and inject it into the Orchestrator's planning prompt.
 3. THE Philos SHALL allow users to view, search, and delete entries in their Memory_Store from the Philos UI.
 4. WHEN a user deletes a memory entry, THE Memory_Store SHALL remove that entry and all associated Artifacts within 5 seconds.
@@ -116,7 +116,7 @@ Noir Philos is an agentic AI system integrated into the Noir AI platform. It acc
 #### Acceptance Criteria
 
 1. THE Philos SHALL support OAuth 2.0 authorization for Gmail, GitHub, Slack, Google Drive, and Notion integrations.
-2. WHEN a user authorizes an Integration, THE Philos SHALL store the OAuth tokens securely in Supabase using row-level security scoped to that user.
+2. WHEN a user authorizes an Integration, THE Philos SHALL store the OAuth tokens securely in Firestore using row-level security scoped to that user.
 3. THE API_Call Sub_Agent SHALL use authorized Integration tokens to send emails via Gmail, create issues via GitHub, post messages via Slack, upload files via Google Drive, and create pages via Notion.
 4. WHEN an Integration token expires, THE Philos SHALL attempt a silent token refresh and, if unsuccessful, notify the user and pause the Run until re-authorization is completed.
 5. IF a user revokes an Integration, THEN THE Philos SHALL immediately invalidate the stored tokens and prevent any Sub_Agent from using that Integration in future Runs.
@@ -146,7 +146,7 @@ Noir Philos is an agentic AI system integrated into the Noir AI platform. It acc
 #### Acceptance Criteria
 
 1. THE Document_Creation Sub_Agent SHALL produce Artifacts in at least the following formats: PDF, DOCX, PPTX, XLSX, Markdown, and plain HTML.
-2. WHEN an Artifact is produced, THE Philos SHALL store it in Supabase Storage and display a download link in the Run results panel.
+2. WHEN an Artifact is produced, THE Philos SHALL store it in Firestore Storage and display a download link in the Run results panel.
 3. WHEN a user's Workflow includes a delivery step (e.g., "send via Gmail"), THE API_Call Sub_Agent SHALL attach the Artifact to the outbound message automatically.
 4. THE Philos SHALL display a preview of text-based and slide Artifacts inline in the Run results panel without requiring a download.
 5. IF Artifact generation fails, THEN THE Philos SHALL log the error, surface a human-readable failure message in the UI, and retain any partial output for user inspection.

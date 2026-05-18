@@ -4,7 +4,7 @@ Temporary production mode: **Vercel-only**.
 
 - **Frontend SPA:** Vercel (`npm run build` → `dist/`)
 - **Backend API:** Vercel Serverless Function (`api/index.js` → `server/index.js`)
-- **Database:** Turso cloud (`libsql://useglasss-radzzz.aws-ap-south-1.turso.io`)
+- **Database:** Firestore cloud (`firestore://useglasss-radzzz.aws-ap-south-1.firestore.io`)
 
 This is used because Railway trial ended and Render requires billing. Move backend to Railway/Render later for smoother streaming, MCP, long-running requests, and durable upload handling.
 
@@ -37,8 +37,8 @@ Required:
 NODE_ENV=production
 VERCEL=1
 
-TURSO_DATABASE_URL=libsql://useglasss-radzzz.aws-ap-south-1.turso.io
-TURSO_AUTH_TOKEN=your_turso_database_token
+FIRESTORE_DATABASE_URL=firestore://useglasss-radzzz.aws-ap-south-1.firestore.io
+FIRESTORE_AUTH_TOKEN=your_firestore_database_token
 
 CLERK_SECRET_KEY=your_clerk_secret_key
 VITE_CLERK_PUBLISHABLE_KEY=your_clerk_publishable_key
@@ -98,13 +98,13 @@ After adding env vars:
 Open:
 
 ```txt
-https://your-app.vercel.app/api/turso/health
+https://your-app.vercel.app/api/firestore/health
 ```
 
 Expected:
 
 ```json
-{"ok":true,"provider":"turso"}
+{"ok":true,"provider":"firestore"}
 ```
 
 ### App smoke test
@@ -148,4 +148,4 @@ Add custom domain later if used.
 - Uploads use ephemeral filesystem and are not durable.
 - Large AI generations or team workflows may timeout.
 
-Recommended long-term architecture: Vercel frontend + Railway/Render/Fly backend + Turso DB.
+Recommended long-term architecture: Vercel frontend + Railway/Render/Fly backend + Firestore DB.

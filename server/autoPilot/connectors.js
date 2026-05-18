@@ -6,7 +6,7 @@
  */
 
 const COMING_SOON = new Set([
-  'Google Drive', 'Gmail', 'Calendar', 'Notion', 'Slack', 'Discord', 'Supabase',
+  'Google Drive', 'Gmail', 'Calendar', 'Notion', 'Slack', 'Discord', 'Firestore',
 ]);
 
 const CONNECTOR_HINTS = {

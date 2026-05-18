@@ -1,5 +1,5 @@
 import { NormalizedKnowledge } from '../processors/KnowledgeNormalizer';
-// Supabase removed - using in-memory storage
+// Firestore removed - using in-memory storage
 import { WORKFLOW_CONFIG } from '../../workflow/config';
 
 // In-memory cache for vector storage
@@ -8,7 +8,7 @@ const vectorCache: Map<string, NormalizedKnowledge> = new Map();
 /**
  * Vector Store
  * Stores knowledge as vector embeddings for semantic search
- * Note: Now uses in-memory storage (Supabase removed)
+ * Note: Now uses in-memory storage (Firestore removed)
  */
 export class VectorStore {
   /**
@@ -31,7 +31,7 @@ export class VectorStore {
 
       // Knowledge stored in memory silently
     } catch (error) {
-      
+
     }
   }
 
@@ -70,7 +70,7 @@ export class VectorStore {
 
       return results.slice(0, limit);
     } catch (error) {
-      
+
       return [];
     }
   }

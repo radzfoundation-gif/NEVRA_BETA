@@ -49,8 +49,8 @@ const OAUTH_CONFIGS = {
 };
 
 export class PhilosIntegrationService {
-  constructor(supabaseClient) {
-    this.supabase = supabaseClient;
+  constructor(firestoreClient) {
+    this.firestore = firestoreClient;
     this.frontendUrl = process.env.FRONTEND_URL || 'https://noir.biz.id';
   }
 
@@ -108,7 +108,7 @@ export class PhilosIntegrationService {
       ? new Date(Date.now() + tokens.expires_in * 1000).toISOString()
       : null;
 
-    await this.supabase.from('philos_integrations').upsert({
+    await this.firestore.from('philos_integrations').upsert({
       user_id: userId,
       provider,
       access_token: tokens.access_token,
@@ -125,9 +125,9 @@ export class PhilosIntegrationService {
 
   // Get a valid access token (auto-refresh if expired)
   async getToken(userId, provider) {
-    if (!this.supabase) throw new Error('Supabase not configured');
+    if (!this.firestore) throw new Error('Firestore not configured');
 
-    const { data } = await this.supabase
+    const { data } = await this.firestore
       .from('philos_integrations')
       .select('*')
       .eq('user_id', userId)
@@ -171,7 +171,7 @@ export class PhilosIntegrationService {
       ? new Date(Date.now() + tokens.expires_in * 1000).toISOString()
       : null;
 
-    await this.supabase.from('philos_integrations').update({
+    await this.firestore.from('philos_integrations').update({
       access_token: tokens.access_token,
       expires_at: expiresAt,
       updated_at: new Date().toISOString(),
@@ -182,8 +182,8 @@ export class PhilosIntegrationService {
 
   // Revoke an integration
   async revokeIntegration(userId, provider) {
-    if (!this.supabase) return;
-    await this.supabase
+    if (!this.firestore) return;
+    await this.firestore
       .from('philos_integrations')
       .update({ is_active: false, access_token: null, refresh_token: null })
       .eq('user_id', userId)
@@ -193,8 +193,8 @@ export class PhilosIntegrationService {
 
   // List all active integrations for a user
   async listIntegrations(userId) {
-    if (!this.supabase) return [];
-    const { data } = await this.supabase
+    if (!this.firestore) return [];
+    const { data } = await this.firestore
       .from('philos_integrations')
       .select('provider, scopes, is_active, created_at, updated_at')
       .eq('user_id', userId)

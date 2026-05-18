@@ -10,15 +10,15 @@ import { useSettings } from '@/hooks/useSettings';
 
 // Custom Shark Icon for Deep Research
 const SharkIcon = ({ size = 16, className = "" }: { size?: number, className?: string }) => (
-    <svg 
-        width={size} 
-        height={size} 
-        viewBox="0 0 24 24" 
-        fill="none" 
-        stroke="currentColor" 
-        strokeWidth="2" 
-        strokeLinecap="round" 
-        strokeLinejoin="round" 
+    <svg
+        width={size}
+        height={size}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
         className={className}
     >
         <path d="M2 12c0 0 5-3 8-3s5 2 7 2 4-2 7-2c0 0-2 6-7 6s-5-2-7-2-4 1-6 1c0 0 2-2 5-2" />
@@ -233,7 +233,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
     const [showVisualSubmenu, setShowVisualSubmenu] = useState<'image' | 'video' | null>(null);
     const [userSkills, setUserSkills] = useState<Array<{id: string; name: string; enabled: boolean; system_prompt: string}>>([]);
 
-    // Load skills from Supabase
+    // Load skills from Firestore
     useEffect(() => {
         if (!user?.id) return;
         getSkills(user.id)
@@ -416,7 +416,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
                 onChange={async (e) => {
                     const files = Array.from(e.target.files || []);
                     if (!files.length) return;
-                    
+
                     const zipFiles = files.filter(f => f.name.endsWith('.zip') || f.type === 'application/zip' || f.type === 'application/x-zip-compressed');
                     const images = files.filter(f => f.type.startsWith('image/'));
                     const docs = files.filter(f => !f.type.startsWith('image/') && !zipFiles.includes(f));
@@ -427,7 +427,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
                             for (const file of zipFiles) {
                                 const zip = await JSZip.loadAsync(file);
                                 const metadataFile = zip.file('metadata.json') || zip.file('skill.json') || zip.file('manifest.json');
-                                
+
                                 let skillData: any = null;
                                 if (metadataFile) {
                                     const metadataStr = await metadataFile.async('string');
@@ -971,8 +971,8 @@ const ChatInput: React.FC<ChatInputProps> = ({
                                     "w-9 h-9 flex items-center justify-center rounded-full transition-all duration-200 ml-0.5",
                                     !isTyping && (!input.trim() && attachedImages.length === 0 && attachedFiles.length === 0)
                                         ? "bg-stone-100 text-stone-300 cursor-not-allowed"
-                                        : isTyping 
-                                            ? "bg-stone-800 hover:bg-red-600 text-white" 
+                                        : isTyping
+                                            ? "bg-stone-800 hover:bg-red-600 text-white"
                                             : "bg-stone-800 hover:bg-stone-900 text-white transform hover:scale-105"
                                 )}
                                 title={isTyping ? "Stop generating" : "Send message"}
@@ -1034,5 +1034,3 @@ const ChatInput: React.FC<ChatInputProps> = ({
 };
 
 export default ChatInput;
-
-

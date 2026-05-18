@@ -4,7 +4,7 @@
 
 Noir Philos is a full-stack agentic AI system embedded in the Noir platform. A user submits a plain-language goal; the Orchestrator decomposes it into a directed acyclic Task_Graph; specialist Sub_Agents execute nodes in parallel inside a sandboxed environment; and real, downloadable Artifacts are delivered to the user — all with live visibility into every step.
 
-The system is built on the existing Noir stack: Express.js backend, React 19 + TypeScript frontend, Supabase (PostgreSQL + Auth + Storage), SumoPod (Gemini Flash Lite) and OpenRouter (GPT-5, Claude, Gemini Pro). It adds a `/philos` route, a set of new Express API endpoints under `/api/philos/`, and a new suite of Supabase tables.
+The system is built on the existing Noir stack: Express.js backend, React 19 + TypeScript frontend, Firestore (PostgreSQL + Auth + Storage), SumoPod (Gemini Flash Lite) and OpenRouter (GPT-5, Claude, Gemini Pro). It adds a `/philos` route, a set of new Express API endpoints under `/api/philos/`, and a new suite of Firestore tables.
 
 ---
 
@@ -20,14 +20,14 @@ flowchart TD
     ORCH -->|LLM decomposition| MR[Model Router]
     MR -->|selects model| LLM[(SumoPod / OpenRouter)]
     ORCH -->|produces| TG[Task Graph]
-    TG -->|stored| DB[(Supabase DB)]
+    TG -->|stored| DB[(Firestore DB)]
     ORCH -->|spawns| SA1[Sub_Agent: Web Research]
     ORCH -->|spawns| SA2[Sub_Agent: Code Execution]
     ORCH -->|spawns| SA3[Sub_Agent: Document Creation]
     ORCH -->|spawns| SA4[Sub_Agent: API Call]
     ORCH -->|spawns| SA5[Sub_Agent: Data Processing]
     SA1 & SA2 & SA3 & SA4 & SA5 -->|run inside| SBX[Sandbox]
-    SBX -->|artifacts| STOR[(Supabase Storage)]
+    SBX -->|artifacts| STOR[(Firestore Storage)]
     BE -->|SSE stream| FE
     FE -->|live graph + artifacts| U
 ```
@@ -48,11 +48,11 @@ Backend (Express.js)
         ├── SubAgentRunner (per-task worker)
         ├── ModelRouter
         ├── SandboxManager
-        ├── MemoryStore (Supabase adapter)
+        ├── MemoryStore (Firestore adapter)
         ├── IntegrationManager (OAuth tokens)
         └── WorkflowScheduler (node-cron)
 
-Data Layer (Supabase)
+Data Layer (Firestore)
   ├── philos_runs
   ├── philos_tasks
   ├── philos_artifacts
@@ -155,7 +155,7 @@ interface SandboxManager {
 
 ### MemoryStore
 
-Supabase-backed persistence layer for Runs, outputs, Artifacts, and user preferences.
+Firestore-backed persistence layer for Runs, outputs, Artifacts, and user preferences.
 
 ```typescript
 interface MemoryStore {
@@ -217,7 +217,7 @@ type PhilosEvent =
 
 ## Data Models
 
-### Supabase Tables
+### Firestore Tables
 
 ```sql
 -- Runs
@@ -498,7 +498,7 @@ interface UserPreferences {
 
 ### Property 16: OAuth token RLS isolation
 
-*For any* two distinct users A and B, user A must not be able to read or write the `philos_integrations` row belonging to user B, as enforced by Supabase row-level security policies.
+*For any* two distinct users A and B, user A must not be able to read or write the `philos_integrations` row belonging to user B, as enforced by Firestore row-level security policies.
 
 **Validates: Requirements 7.2**
 
@@ -554,7 +554,7 @@ interface UserPreferences {
 
 ### Property 23: Artifact storage round-trip
 
-*For any* produced Artifact, uploading it to Supabase Storage and then downloading via the returned `download_url` must yield byte-identical content.
+*For any* produced Artifact, uploading it to Firestore Storage and then downloading via the returned `download_url` must yield byte-identical content.
 
 **Validates: Requirements 9.2**
 

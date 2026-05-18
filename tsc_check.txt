@@ -18,5 +18,5 @@ lib/learning/quizGenerator.ts(79,35): error TS2339: Property 'match' does not ex
 lib/learning/quizGenerator.ts(79,84): error TS2339: Property 'match' does not exist on type 'CodeResponse'.
   Property 'match' does not exist on type 'MultiFileResponse'.
 lib/previewUtils.ts(1,24): error TS2307: Cannot find module '@babel/standalone' or its corresponding type declarations.
-lib/tokenManager.ts(209,44): error TS2339: Property 'raw' does not exist on type 'SupabaseClient<any, "public", "public", any, any>'.
+lib/tokenManager.ts(209,44): error TS2339: Property 'raw' does not exist on type 'FirestoreClient<any, "public", "public", any, any>'.
 lib/workflow/preprocessor.ts(1,38): error TS2459: Module '"./types"' declares 'Framework' locally, but it is not exported.

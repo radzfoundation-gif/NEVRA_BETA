@@ -2,7 +2,7 @@ import { AgentMemoryEntry } from '../types';
 import { SelfReflectionResult } from '../agents/SelfReflectionAgent';
 import { WorkflowResult } from '../types';
 import { IntentAnalysis } from '../analyzers/IntentAnalyzer';
-// Supabase removed - using in-memory cache
+// Firestore removed - using in-memory cache
 import { WORKFLOW_CONFIG } from '../config';
 
 // In-memory cache for agent memory
@@ -11,7 +11,7 @@ const agentMemoryCache: Map<string, AgentMemoryEntry[]> = new Map();
 /**
  * Agent Memory Engine
  * Stores and retrieves self-reflection results for continuous learning
- * Note: Now uses in-memory storage (Supabase removed)
+ * Note: Now uses in-memory storage (Firestore removed)
  */
 export class AgentMemoryEngine {
   /**
@@ -65,7 +65,7 @@ export class AgentMemoryEngine {
 
       // AgentMemoryEngine reflection saved silently
     } catch (error) {
-      
+
     }
   }
 
@@ -94,7 +94,7 @@ export class AgentMemoryEngine {
 
       return filtered;
     } catch (error) {
-      
+
       return [];
     }
   }

@@ -73,12 +73,12 @@ UI user-facing diarahkan ke UseGlass AI:
 
 Database workspace sudah diperluas untuk UseGlass Omni:
 
-- Local/server schema: `server/turso.js`
-- API routes tambahan: `server/tursoRoutes.js`
-- Supabase migrations:
-  - `supabase/migrations/005_useglass_workspace.sql`
-  - `supabase/migrations/006_useglass_omni_database.sql`
-- Detail migrasi: `docs/TURSO_MIGRATION.md`
+- Local/server schema: `server/firestore.js`
+- API routes tambahan: `server/firestoreRoutes.js`
+- Firestore migrations:
+  - `firestore/migrations/005_useglass_workspace.sql`
+  - `firestore/migrations/006_useglass_omni_database.sql`
+- Detail migrasi: `docs/FIRESTORE_MIGRATION.md`
 
 ## Key Files For AI Agents
 
@@ -91,8 +91,8 @@ Read these first when continuing work:
 - `components/Sidebar.tsx` - simplified navigation structure
 - `lib/glassAutoRouter.ts` - auto-routing rules
 - `server/index.js` - backend API, PDF generation, AI endpoints
-- `server/turso.js` - local DB schema
-- `supabase/migrations/006_useglass_omni_database.sql` - full Omni DB migration
+- `server/firestore.js` - local DB schema
+- `firestore/migrations/006_useglass_omni_database.sql` - full Omni DB migration
 
 ## Routing Examples
 
@@ -142,9 +142,9 @@ Copy `.env.local.example` to `.env.local` and fill required keys.
 
 Important environment groups:
 
-- Supabase auth/database keys
+- Firestore auth/database keys
 - AI provider keys / OpenAI-compatible keys
-- Turso or local database config if used
+- Firestore or local database config if used
 - Payment keys if pricing/subscription features are tested
 
 Do not commit real secrets.

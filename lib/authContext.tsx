@@ -166,7 +166,7 @@ export function useAuth() {
 export function useAuthContext() {
     const userState = useUser();
     const authState = useAuth();
-    return { ...userState, ...authState, supabaseUser: null, session: null };
+    return { ...userState, ...authState, firestoreUser: null, session: null };
 }
 
 export default null;

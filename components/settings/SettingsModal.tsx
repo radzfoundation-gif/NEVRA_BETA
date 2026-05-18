@@ -17,7 +17,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, isSubscr
     const [activeTab, setActiveTab] = useState<SettingsTab>('general');
     const { tokensUsed: hookTokensUsed, credits: hookCredits, isSubscribed: hookIsSubscribed } = useTokenLimit();
     const { settings, updateSetting, isLoaded } = useSettings();
-    
+
     if (!isOpen || !isLoaded) return null;
 
     const isSubscribed = propIsSubscribed !== undefined ? propIsSubscribed : hookIsSubscribed;
@@ -93,7 +93,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, isSubscr
                                                     <div className="text-zinc-900 font-medium mb-1">Theme</div>
                                                     <div className="text-sm text-zinc-500">Change the interface theme.</div>
                                                 </div>
-                                                <select 
+                                                <select
                                                     value={settings.theme}
                                                     onChange={(e) => updateSetting('theme', e.target.value as Settings['theme'])}
                                                     className="bg-white border border-zinc-200 text-zinc-900 text-sm rounded-lg px-3 py-2 pr-8 focus:outline-none focus:border-purple-500 appearance-none min-w-[120px]"
@@ -166,9 +166,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, isSubscr
                                                     <div className="text-zinc-900 font-medium mb-1">Display token usage</div>
                                                     <div className="text-sm text-zinc-500">Show token consumption above prompt field.</div>
                                                 </div>
-                                                <ToggleSwitch 
-                                                    checked={settings.showTokenUsage} 
-                                                    onChange={(v) => updateSetting('showTokenUsage', v)} 
+                                                <ToggleSwitch
+                                                    checked={settings.showTokenUsage}
+                                                    onChange={(v) => updateSetting('showTokenUsage', v)}
                                                 />
                                             </div>
 
@@ -177,9 +177,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, isSubscr
                                                     <div className="text-zinc-900 font-medium mb-1">Sound notification</div>
                                                     <div className="text-sm text-zinc-500">Play chime when AI finishes responding.</div>
                                                 </div>
-                                                <ToggleSwitch 
-                                                    checked={settings.soundNotification} 
-                                                    onChange={(v) => updateSetting('soundNotification', v)} 
+                                                <ToggleSwitch
+                                                    checked={settings.soundNotification}
+                                                    onChange={(v) => updateSetting('soundNotification', v)}
                                                 />
                                             </div>
 
@@ -188,9 +188,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, isSubscr
                                                     <div className="text-zinc-900 font-medium mb-1">Compact mode</div>
                                                     <div className="text-sm text-zinc-500">Use smaller spacing and font sizes.</div>
                                                 </div>
-                                                <ToggleSwitch 
-                                                    checked={settings.compactMode} 
-                                                    onChange={(v) => updateSetting('compactMode', v)} 
+                                                <ToggleSwitch
+                                                    checked={settings.compactMode}
+                                                    onChange={(v) => updateSetting('compactMode', v)}
                                                 />
                                             </div>
                                         </div>
@@ -204,9 +204,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, isSubscr
                                                     <div className="text-zinc-900 font-medium mb-1">Line wrapping</div>
                                                     <div className="text-sm text-zinc-500">Wrap long lines in the code editor.</div>
                                                 </div>
-                                                <ToggleSwitch 
-                                                    checked={settings.lineWrapping} 
-                                                    onChange={(v) => updateSetting('lineWrapping', v)} 
+                                                <ToggleSwitch
+                                                    checked={settings.lineWrapping}
+                                                    onChange={(v) => updateSetting('lineWrapping', v)}
                                                 />
                                             </div>
 
@@ -215,9 +215,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, isSubscr
                                                     <div className="text-zinc-900 font-medium mb-1">Auto-save</div>
                                                     <div className="text-sm text-zinc-500">Automatically save your work.</div>
                                                 </div>
-                                                <ToggleSwitch 
-                                                    checked={settings.autoSave} 
-                                                    onChange={(v) => updateSetting('autoSave', v)} 
+                                                <ToggleSwitch
+                                                    checked={settings.autoSave}
+                                                    onChange={(v) => updateSetting('autoSave', v)}
                                                 />
                                             </div>
                                         </div>
@@ -340,8 +340,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, isSubscr
                                 <div className="space-y-4">
                                     <IntegrationCard
                                         icon={<Database className="text-green-500" size={24} />}
-                                        name="Supabase"
-                                        description="Integrate Supabase to enable authentication or sync your app with a robust and scalable database effortlessly."
+                                        name="Firestore"
+                                        description="Integrate Firestore to enable authentication or sync your app with a robust and scalable database effortlessly."
                                     />
                                     <IntegrationCard
                                         icon={<Cloud className="text-blue-500" size={24} />}

@@ -133,7 +133,7 @@ KNOWLEDGE_SCHEDULER_INTERVAL=60
 
 ## Database Schema
 
-Sistem membutuhkan tabel berikut di Supabase:
+Sistem membutuhkan tabel berikut di Firestore:
 
 ```sql
 -- Knowledge base table

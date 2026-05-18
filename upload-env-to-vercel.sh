@@ -27,24 +27,24 @@ echo ""
 declare -a ENV_VARS=(
     # Frontend (VITE_*)
     "VITE_CLERK_PUBLISHABLE_KEY"
-    "VITE_SUPABASE_URL"
-    "VITE_SUPABASE_ANON_KEY"
-    "VITE_CLERK_SUPABASE_TEMPLATE"
-    
+    "VITE_FIRESTORE_URL"
+    "VITE_FIRESTORE_ANON_KEY"
+    "VITE_CLERK_FIRESTORE_TEMPLATE"
+
     # Backend API Keys
     "OPENROUTER_API_KEY"
     "STRIPE_SECRET_KEY"
     "STRIPE_WEBHOOK_SECRET"
-    
-    # Supabase Service (untuk backend)
-    "SUPABASE_URL"
-    "SUPABASE_SERVICE_ROLE_KEY"
-    
+
+    # Firestore Service (untuk backend)
+    "FIRESTORE_URL"
+    "FIRESTORE_SERVICE_ROLE_KEY"
+
     # Optional
     "CORS_ORIGIN"
     "OPENROUTER_SITE_URL"
     "OPENROUTER_SITE_NAME"
-    
+
     # Additional API Keys (jika ada)
     "DEEPSEEK_API_KEY"
     "MOONSHOT_API_KEY"
@@ -62,12 +62,12 @@ add_env_var() {
     local var_name=$1
     local var_value=$2
     local environment=${3:-production}
-    
+
     if [ -z "$var_value" ]; then
         echo "⚠️  Skipping $var_name (empty value)"
         return
     fi
-    
+
     echo "📤 Adding $var_name to $environment..."
     echo "$var_value" | vercel env add "$var_name" "$environment" --force
 }
@@ -109,12 +109,12 @@ echo ""
 # Upload each variable
 for env_var in "${ENV_VARS[@]}"; do
     var_value="${!env_var}"
-    
+
     if [ -z "$var_value" ]; then
         echo "⚠️  $env_var: Not set, skipping..."
         continue
     fi
-    
+
     for env in "${environments[@]}"; do
         echo "📤 Adding $env_var to $env..."
         echo "$var_value" | vercel env add "$env_var" "$env" --force 2>&1 | grep -v "Already exists" || echo "✅ $env_var already exists in $env"
@@ -128,4 +128,3 @@ echo ""
 echo "📋 Verifikasi di Vercel Dashboard:"
 echo "   https://vercel.com/[your-team]/[your-project]/settings/environment-variables"
 echo ""
-

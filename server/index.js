@@ -23,15 +23,15 @@ import { YoutubeTranscript } from 'youtube-transcript/dist/youtube-transcript.es
 import nodemailer from 'nodemailer';
 import { mcpManager } from './mcpManager.js';
 import { firestoreRouter } from './firestoreRoutes.js';
-import { saveOutput as tursoSaveOutput } from './turso.js';
+import { saveOutput as firestoreSaveOutput } from './firestore.js';
 import { createAutoPilotRouter } from './autoPilot/routes.js';
 import { injectBrevity, withBrevity } from './brevity.js';
 
 
 // Feature Limits handled by new configuration below
 
-// Turso-only mode: Supabase backend client removed.
-const supabase = null;
+// Optional external persistence client disabled; Firestore routes own app data.
+const externalPersistenceClient = null;
 
 // Initialize Philos Services (global scope for access in routes)
 let philosMemory = null;
@@ -40,8 +40,8 @@ const initPhilosServices = async () => {
   try {
     const { PhilosMemoryService } = await import('./philos/memoryService.js');
     const { PhilosIntegrationService } = await import('./philos/integrationService.js');
-    philosMemory = new PhilosMemoryService(supabase);
-    philosIntegration = new PhilosIntegrationService(supabase);
+    philosMemory = new PhilosMemoryService(externalPersistenceClient);
+    philosIntegration = new PhilosIntegrationService(externalPersistenceClient);
     // // console.log('🧠 [Philos] Services initialized');
   } catch (e) {
     // // console.error('❌ [Philos] Initialization failed:', e.message);
@@ -215,8 +215,8 @@ app.use(express.urlencoded({ limit: '200mb', extended: true }));
 
 // Rate Limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, 
-  max: 2000, 
+  windowMs: 15 * 60 * 1000,
+  max: 2000,
   message: { error: 'Too many requests, please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -225,8 +225,6 @@ const limiter = rateLimit({
 const PORT = process.env.PORT || 8788;
 
 app.use('/api/db', firestoreRouter);
-// Temporary alias until frontend swap is complete; removed in final cleanup.
-app.use('/api/turso', firestoreRouter);
 
 // =====================================================
 // AUTO PILOT ROUTER (intent → tool/mode/style/skill → AI generation)
@@ -243,7 +241,7 @@ app.use(
       process.env.NINEROUTER_DEFAULT_MODEL ||
       process.env.SUMOPOD_MODEL_ID ||
       'kr/claude-opus-4.7',
-    saveOutput: tursoSaveOutput,
+    saveOutput: firestoreSaveOutput,
   }),
 );
 
@@ -285,16 +283,16 @@ const upload = multer({
 
 // SumoPod only - no other API dependencies
 
-// --- Canvas Analyze Limit Management (Supabase with file fallback) ---
+// --- Canvas Analyze Limit Management (external database with file fallback) ---
 const CANVAS_ANALYZE_LIMIT = 2; // Free users: 2 analyzes per month
 
 const getCanvasAnalyzeUsage = async (userId) => {
   const month = getCurrentMonth ? getCurrentMonth() : `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
 
-  // Try Supabase
-  if (supabase) {
+  // Try external database
+  if (externalPersistenceClient) {
     try {
-      const { data } = await supabase
+      const { data } = await externalPersistenceClient
         .from('canvas_usage')
         .select('analyze_count')
         .eq('user_id', userId)
@@ -306,22 +304,22 @@ const getCanvasAnalyzeUsage = async (userId) => {
       }
       return { used: 0, limit: CANVAS_ANALYZE_LIMIT, month };
     } catch (e) {
-      // Supabase failed, use file fallback
+      // external database failed, use file fallback
     }
   }
 
-  // No file fallback - Supabase required for Vercel serverless
-  // // console.warn('⚠️ Supabase not available, returning default canvas usage');
+  // No file fallback - external database required for Vercel serverless
+  // // console.warn('⚠️ external database not available, returning default canvas usage');
   return { used: 0, limit: CANVAS_ANALYZE_LIMIT, lastReset: new Date().toISOString() };
 };
 
 const incrementCanvasAnalyzeUsage = async (userId) => {
   const month = getCurrentMonth ? getCurrentMonth() : `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
 
-  // Try Supabase
-  if (supabase) {
+  // Try external database
+  if (externalPersistenceClient) {
     try {
-      const { data: existing } = await supabase
+      const { data: existing } = await externalPersistenceClient
         .from('canvas_usage')
         .select('analyze_count')
         .eq('user_id', userId)
@@ -329,25 +327,25 @@ const incrementCanvasAnalyzeUsage = async (userId) => {
         .single();
 
       if (existing) {
-        await supabase
+        await externalPersistenceClient
           .from('canvas_usage')
           .update({ analyze_count: existing.analyze_count + 1 })
           .eq('user_id', userId)
           .eq('month', month);
       } else {
-        await supabase
+        await externalPersistenceClient
           .from('canvas_usage')
           .insert({ user_id: userId, month, analyze_count: 1 });
       }
-      // // console.log(`📊 Supabase: Canvas usage updated for ${userId}`);
+      // // console.log(`📊 external database: Canvas usage updated for ${userId}`);
       return true;
     } catch (e) {
-      // // console.warn('Canvas usage increment failed on Supabase:', e.message);
+      // // console.warn('Canvas usage increment failed on external database:', e.message);
     }
   }
 
-  // No file fallback - Supabase required for Vercel serverless
-  // // console.warn('⚠️ Supabase not available, canvas usage NOT incremented');
+  // No file fallback - external database required for Vercel serverless
+  // // console.warn('⚠️ external database not available, canvas usage NOT incremented');
   return false;
 };
 
@@ -357,12 +355,12 @@ app.get('/api/cron/reset', (req, res) => {
   // const authHeader = req.headers['authorization'];
   // if (authHeader !== \`Bearer \${process.env.CRON_SECRET}\`) return res.status(401).json({ error: 'Unauthorized' });
 
-  // // console.log('🕒 Running Daily Usage Reset (Supabase-based)...');
+  // // console.log('🕒 Running Daily Usage Reset (external database-based)...');
   try {
-    // Supabase handles daily resets via RLS and time-based queries
+    // external database handles daily resets via RLS and time-based queries
     // No file system operations needed in serverless environment
-    // // console.log('✅ Daily Reset: Supabase resets handled by database');
-    res.json({ success: true, message: 'Daily reset completed via Supabase' });
+    // // console.log('✅ Daily Reset: external database resets handled by database');
+    res.json({ success: true, message: 'Daily reset completed via external database' });
   } catch (error) {
     // // console.error('❌ Error during Daily Reset:', error);
     res.status(500).json({ error: 'Failed to reset usage', details: error.message });
@@ -409,13 +407,13 @@ const getPeriodString = (period) => {
   return month;
 };
 
-// Check Feature Usage (Supabase Only)
+// Check Feature Usage (external database Only)
 const checkFeatureUsage = async (userId, feature) => {
   // Dev bypass: all credit/feature limits disabled via env flag
   if (process.env.DISABLE_CREDIT_LIMITS === 'true') {
     return { allowed: true, limit: 999999, used: 0, tier: 'pro', limitsDisabled: true };
   }
-  if (!supabase) return { allowed: true, limit: 999, used: 0 };
+  if (!externalPersistenceClient) return { allowed: true, limit: 999, used: 0 };
 
   const tier = await getUserTier(userId);
   const cost = FEATURE_COSTS[feature] || 1;
@@ -427,7 +425,7 @@ const checkFeatureUsage = async (userId, feature) => {
   const storageKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}_${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
   try {
-    const { data } = await supabase
+    const { data } = await externalPersistenceClient
       .from('token_usage')
       .select('tokens_used')
       .eq('user_id', userId)
@@ -452,7 +450,7 @@ const checkFeatureUsage = async (userId, feature) => {
 
 // Increment Feature Usage
 const incrementFeatureUsage = async (userId, feature) => {
-  if (!supabase) return;
+  if (!externalPersistenceClient) return;
 
   const tier = await getUserTier(userId);
   if (tier === 'pro') return; // Pro users don't increment usage here if unlimited
@@ -463,7 +461,7 @@ const incrementFeatureUsage = async (userId, feature) => {
   const storageKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}_${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
   try {
-    const { data } = await supabase
+    const { data } = await externalPersistenceClient
       .from('token_usage')
       .select('tokens_used')
       .eq('user_id', userId)
@@ -472,7 +470,7 @@ const incrementFeatureUsage = async (userId, feature) => {
 
     const current = data?.tokens_used || 0;
 
-    await supabase.from('token_usage').upsert({
+    await externalPersistenceClient.from('token_usage').upsert({
       user_id: userId,
       month: storageKey,
       tokens_used: current + cost,
@@ -761,7 +759,7 @@ app.post('/api/generate-image', async (req, res) => {
 
     if (hfKey) {
       // Use Hugging Face Inference Providers (new router API - 2025+)
-      let hfModel = 'black-forest-labs/FLUX.1-schnell'; 
+      let hfModel = 'black-forest-labs/FLUX.1-schnell';
       let provider = 'hf-inference'; // Default free provider
 
       if (model === 'sdxl') {
@@ -891,9 +889,9 @@ OUTPUT TEMPLATE:
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { margin: 0; display: flex; align-items: center; justify-content: center; min-height: 100vh; background-color: #f8fafc; }
-        .canvas { 
-            width: 512px; height: 512px; 
-            padding: 0; 
+        .canvas {
+            width: 512px; height: 512px;
+            padding: 0;
             display: flex; align-items: center; justify-content: center;
             background: white; border-radius: 24px; box-shadow: 0 10px 30px -5px rgba(0,0,0,0.1);
         }
@@ -903,7 +901,7 @@ OUTPUT TEMPLATE:
     <div class="canvas">
         <!-- SVG HERE - Make it width="100%" height="100%" to fill the canvas -->
         <svg width="100%" height="100%" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
-            ... 
+            ...
         </svg>
     </div>
 </body>
@@ -1022,10 +1020,10 @@ OUTPUT REQUIREMENTS:
       suggestions.push(`Created design based on request`);
     }
 
-    // SAVE TO DATABASE (Supabase)
-    if (userId && supabase) {
+    // SAVE TO DATABASE (external database)
+    if (userId && externalPersistenceClient) {
       try {
-        await supabase.from('redesigns').insert({
+        await externalPersistenceClient.from('redesigns').insert({
           user_id: userId,
           prompt: prompt,
           content: htmlContent,
@@ -1331,11 +1329,11 @@ app.post('/api/generate-video', async (req, res) => {
     // For now, we'll return a placeholder that tells the user it's in development
     // or simulate a success with a stock video if we want to show the UI works.
     // In a real scenario, you'd call a video generation API like Runway, Luma, or Stable Video Diffusion.
-    
+
     // Check if OpenRouter has a video model (e.g. 'luma/ray-v1')
     // For this implementation, we will simulate a processing delay and then return a stock video URL
     // to demonstrate the end-to-end flow.
-    
+
     // Simulate processing
     await new Promise(resolve => setTimeout(resolve, 3000));
 
@@ -1674,7 +1672,7 @@ function getMaxTokensForTier(tier = 'free', mode) {
   return tierLimits[tier.toLowerCase()] || tierLimits.free;
 }
 
-// --- Subscription Management (Supabase Only - Vercel compatible) ---
+// --- Subscription Management (external database Only - Vercel compatible) ---
 // File storage removed for serverless compatibility
 
 // Helper: Get current month in YYYY-MM format
@@ -1683,12 +1681,12 @@ const getCurrentMonth = () => {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 };
 
-// Load/Get Subscription (Supabase Only)
-// Load/Get Subscription (Supabase Only)
+// Load/Get Subscription (external database Only)
+// Load/Get Subscription (external database Only)
 const getUserSubscription = async (userId) => {
-  if (!supabase) return null;
+  if (!externalPersistenceClient) return null;
   try {
-    const { data } = await supabase.from('user_subscriptions').select('*').eq('user_id', userId).maybeSingle();
+    const { data } = await externalPersistenceClient.from('user_subscriptions').select('*').eq('user_id', userId).maybeSingle();
     // Map centralized schema to app schema if needed, but for now returning raw data
     // The app expects { tier: 'pro' } or similar.
     // Centralized table uses 'status' = 'active' and 'tier' = 'researcher' (mapped to pro)
@@ -1702,15 +1700,15 @@ const getUserSubscription = async (userId) => {
   }
 };
 
-// Save subscription (Supabase Only)
-// Save subscription (Supabase Only - Centralized)
+// Save subscription (external database Only)
+// Save subscription (external database Only - Centralized)
 const saveSubscription = async (userId, tier, expiresAt = null, orderId = null) => {
-  if (supabase) {
+  if (externalPersistenceClient) {
     try {
       // Map 'pro' to 'researcher' for centralized table
       const dbTier = tier === 'pro' ? 'researcher' : tier;
 
-      const { error } = await supabase.from('user_subscriptions').upsert({
+      const { error } = await externalPersistenceClient.from('user_subscriptions').upsert({
         user_id: userId,
         tier: dbTier,
         status: 'active', // Explicitly set status to active
@@ -1721,13 +1719,13 @@ const saveSubscription = async (userId, tier, expiresAt = null, orderId = null) 
       }, { onConflict: 'user_id' });
 
       if (!error) {
-        // // console.log(`✅ Supabase: Subscription saved for ${userId}: ${tier} (mapped to ${dbTier})`);
+        // // console.log(`✅ external database: Subscription saved for ${userId}: ${tier} (mapped to ${dbTier})`);
         return true;
       } else {
-        // // console.error('Supabase upsert error:', error);
+        // // console.error('external database upsert error:', error);
       }
     } catch (e) {
-      // // console.warn('Supabase subscription save failed:', e.message);
+      // // console.warn('external database subscription save failed:', e.message);
     }
   }
   return false;
@@ -1894,14 +1892,14 @@ const buildOpenAIUserContent = (prompt, images = []) => {
 /**
  * POST /api/chat/stream
  * Real-time streaming endpoint for OpenRouter LLM responses
- * 
+ *
  * SSE Format Notes:
  * - OpenRouter sends SSE with "data: {JSON}" lines
  * - Comment lines start with ":" (e.g., ": OPENROUTER PROCESSING") - MUST ignore
  * - Token content is at choices[0].delta.content
  * - Stream ends with "data: [DONE]"
  * - Mid-stream errors have top-level "error" field and finish_reason: "error"
- * 
+ *
  * Cancel Support:
  * - Client can close connection to abort
  * - Server detects 'close' event and aborts upstream fetch
@@ -1941,9 +1939,9 @@ app.post('/api/chat/stream', async (req, res) => {
   // Also force 'claude-sonnet-4-5' and all 'seed-2-0' variants to use SumoPod
   // IMPORTANT: Direct OpenRouter model IDs (containing '/') should NOT be routed to SumoPod
   const isOpenRouterModelId = model && model.includes('/');
-  const isSumoPodModel = !isOpenRouterModelId && (model === 'groq' || model === 'gemini' || model === 'gemini-flash' || 
+  const isSumoPodModel = !isOpenRouterModelId && (model === 'groq' || model === 'gemini' || model === 'gemini-flash' ||
       model === 'claude-sonnet-4-5' || (model && model.includes('seed-2-0')) || !model);
-  
+
   if (isSumoPodModel) {
     provider = 'sumopod';
     // Preserve specific model IDs from frontend (e.g. seed-2-0-pro-free)
@@ -1977,10 +1975,10 @@ app.post('/api/chat/stream', async (req, res) => {
 
   // Handle client disconnect
   req.on('close', () => {
-    // INFO: specific environment issue causing premature close events. 
+    // INFO: specific environment issue causing premature close events.
     // Disabling abort for now to ensure stream completion.
     // // console.log('[Stream] Client connection closed (abort disabled)');
-    // controller.abort(); 
+    // controller.abort();
   });
 
   // --- SHARED MCP TOOL DISCOVERY (SKILL SCOUT) ---
@@ -1993,11 +1991,11 @@ app.post('/api/chat/stream', async (req, res) => {
     const lastUserMessage = messages[messages.length - 1]?.content || '';
     const { tools: matchedTools, categories } = await mcpManager.findRelevantTools(lastUserMessage);
     detectedCategories = categories;
-    
+
     if (matchedTools.length > 0) {
       // // console.log(`[Stream] Skill Scout found ${matchedTools.length} relevant tools for: ${categories.join(', ')}`);
-      res.write(`event: skill_match\ndata: ${JSON.stringify({ 
-        message: `Skill Scout found: ${categories.join(', ')}`, 
+      res.write(`event: skill_match\ndata: ${JSON.stringify({
+        message: `Skill Scout found: ${categories.join(', ')}`,
         categories,
         tools: matchedTools.map(t => t.name)
       })}\n\n`);
@@ -2041,17 +2039,17 @@ app.post('/api/chat/stream', async (req, res) => {
 
       // --- STEP 2: Tool-calling loop ---
       let currentMessages = [...messages];
-      
+
       // Inject "Agentic Nudge" if skills are found
       if (mcpTools.length > 0) {
-        const skillContext = categories.length > 0 
-          ? `[SKILL SCOUT: ${categories.join(', ').toUpperCase()} ACTIVE]` 
+        const skillContext = categories.length > 0
+          ? `[SKILL SCOUT: ${categories.join(', ').toUpperCase()} ACTIVE]`
           : `[SKILL SCOUT: EXPERT AGENT ACTIVE]`;
-          
+
         currentMessages.unshift({
           role: 'system',
-          content: `${skillContext}\nYou have discovered several specialized skills/tools relevant to this query. 
-          You are an Expert Agent capable of multi-step reasoning. You MUST prioritize using these tools (via function calls) 
+          content: `${skillContext}\nYou have discovered several specialized skills/tools relevant to this query.
+          You are an Expert Agent capable of multi-step reasoning. You MUST prioritize using these tools (via function calls)
           to provide a more robust, data-driven, and complex response. Do not settle for a surface-level answer if a tool can provide deeper insights.`
         });
       }
@@ -2168,7 +2166,7 @@ app.post('/api/chat/stream', async (req, res) => {
             contentLength += content.length;
             res.write(`data: ${JSON.stringify({ content })}\n\n`);
           }
-          
+
           // Check for error in chunk
           if (chunk.error) {
             // // console.error(`[Stream] Error in chunk: ${JSON.stringify(chunk.error)}`);
@@ -2177,15 +2175,15 @@ app.post('/api/chat/stream', async (req, res) => {
             return;
           }
         }
-        
+
         // // console.log(`[Stream] Finished streaming ${chunkCount} chunks, ${contentLength} chars total`);
-        
+
         // If we got 0 content, send an error so the frontend knows
         if (contentLength === 0) {
           // // console.error(`[Stream] WARNING: SumoPod returned 0 content chunks for model ${targetModel}`);
           res.write(`event: error\ndata: ${JSON.stringify({ message: `Model "${targetModel}" returned empty response. The model may be unavailable or overloaded. Please try again.` })}\n\n`);
         }
-        
+
         res.write('data: [DONE]\n\n');
         res.end();
         return;
@@ -2212,7 +2210,7 @@ app.post('/api/chat/stream', async (req, res) => {
 
     // 6. Fetch from OpenRouter with streaming
     res.write(`event: status\ndata: ${JSON.stringify({ message: 'Generating response...' })}\n\n`);
-    
+
     const upstreamResponse = await fetch(`${openrouterBaseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
@@ -2402,7 +2400,7 @@ app.post('/api/search', async (req, res) => {
     }
 
     const data = await response.json();
-    
+
     // Map Tavily results to our internal SearchResult format
     const results = (data.results || []).map(r => ({
       title: r.title,
@@ -3260,16 +3258,16 @@ async function handlePhilosPipeline(req, res, messages) {
   try {
     // PHASE 1: Thinking / Deep Understanding
     res.write(`event: status\ndata: ${JSON.stringify({ message: "Phase 1: Analyzing intent and recalling memories..." })}\n\n`);
-    
+
     let systemPrompt = "You are UseGlass Philos, a deeply intuitive and personalized AI companion.";
     if (philosMemory) {
       const memoryContext = await philosMemory.buildSystemPrompt(userId, lastUserMessage);
       systemPrompt = memoryContext;
     }
-    
+
     // PHASE 2: Collaborative Research (Web + Deep)
     res.write(`event: status\ndata: ${JSON.stringify({ message: "Phase 2: Performing collaborative research (Web + Deep)..." })}\n\n`);
-    
+
     // Run Web Search
     let searchResults = [];
     try {
@@ -3289,8 +3287,8 @@ async function handlePhilosPipeline(req, res, messages) {
 
     // PHASE 3: Multi-Model Synthesis (Consensus Step)
     res.write(`event: status\ndata: ${JSON.stringify({ message: "Phase 3: Synthesizing final response from multiple models..." })}\n\n`);
-    
-    const researchContext = searchResults.length > 0 
+
+    const researchContext = searchResults.length > 0
       ? `\n\n[Research Context]:\n${searchResults.map((r, i) => `[${i+1}] ${r.title}: ${r.snippet}`).join('\n')}`
       : '';
 
@@ -3316,7 +3314,7 @@ async function handlePhilosPipeline(req, res, messages) {
     const finalMessages = [
       { role: 'system', content: withBrevity(systemPrompt) },
       ...messages.slice(-10), // User context
-      { role: 'user', content: `[TASK]: Synthesize the following drafts and research into one "Super-Agentic" response. 
+      { role: 'user', content: `[TASK]: Synthesize the following drafts and research into one "Super-Agentic" response.
 ${consensusContext}
 ${researchContext}
 Original Prompt: "${lastUserMessage}"` }
@@ -3337,7 +3335,7 @@ Original Prompt: "${lastUserMessage}"` }
         res.write(`data: ${JSON.stringify({ content })}\n\n`);
       }
     }
-    
+
     res.write('data: [DONE]\n\n');
     res.end();
 
@@ -4124,7 +4122,7 @@ app.post('/api/waitlist', async (req, res) => {
 
   // Log to console only (Vercel serverless compatible)
   // // console.log(`[Waitlist] ${new Date().toISOString()} - ${email} - Code: ${code}`);
-  // TODO: Store in Supabase waitlist table for persistence
+  // TODO: Store in external database waitlist table for persistence
 
 
   // Attempt to send email
@@ -5156,17 +5154,17 @@ If no image is provided, just create a professional HTML document/table based so
 
     // 2. Send generated HTML back to the client for client-side PDF rendering
     // // console.log(`[PDFGen] HTML generated (${htmlContent.length} bytes). Sending to client...`);
-    
+
     res.json({ success: true, html: htmlContent });
 
   } catch (error) {
     // // console.error('[PDFGen] Error:', error);
-    
+
     // Check if it's an API Error from OpenAI SDK (budget limit or invalid key)
     if (error.status === 400 || error.status === 401 || error.status === 429) {
-       return res.status(error.status).json({ 
-         error: 'AI Service Error', 
-         details: error.message || 'API Limit reached or invalid API key. Please check your SumoPod balance.' 
+       return res.status(error.status).json({
+         error: 'AI Service Error',
+         details: error.message || 'API Limit reached or invalid API key. Please check your SumoPod balance.'
        });
     }
 

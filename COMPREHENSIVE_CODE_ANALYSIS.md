@@ -34,9 +34,9 @@
 - **pdf-parse 2.4.5** untuk PDF parsing
 
 #### Database & Auth
-- **Supabase (PostgreSQL)** dengan Row Level Security (RLS)
+- **Firestore (PostgreSQL)** dengan Row Level Security (RLS)
 - **Clerk 5.58.1** untuk authentication
-- **Auto-sync** Clerk user ke Supabase
+- **Auto-sync** Clerk user ke Firestore
 
 #### Infrastructure
 - **Vite Proxy** untuk API routing
@@ -79,8 +79,8 @@ NOIR AI/
 ├── lib/                     # Core Libraries (20+ files)
 │   ├── ai.ts                # AI code generation (650+ lines)
 │   ├── ai-enhanced.ts       # Enhanced prompts
-│   ├── database.ts          # Supabase operations
-│   ├── supabase.ts          # Supabase client
+│   ├── database.ts          # Firestore operations
+│   ├── firestore.ts          # Firestore client
 │   ├── tokenLimit.ts        # General token tracking
 │   ├── grokTokenLimit.ts    # Grok-specific tracking
 │   ├── fileManager.ts       # File management
@@ -100,7 +100,7 @@ NOIR AI/
 │   └── ... (more utilities)
 │
 ├── hooks/                   # Custom React Hooks
-│   ├── useSupabase.ts       # Supabase hooks
+│   ├── useFirestore.ts       # Firestore hooks
 │   ├── useTokenLimit.ts     # Token limit hook
 │   └── useGrokTokenLimit.ts # Grok token hook
 │
@@ -127,18 +127,18 @@ NOIR AI/
 
 #### Clerk Integration
 - **Setup:** `App.tsx` wraps app dengan `ClerkProvider`
-- **Auto-sync:** `UserSyncProvider` component sync Clerk user ke Supabase
+- **Auto-sync:** `UserSyncProvider` component sync Clerk user ke Firestore
 - **Protected Routes:** `ProtectedRoute` component untuk auth-required pages
-- **User Data:** Stored di Supabase `users` table
+- **User Data:** Stored di Firestore `users` table
 
 #### Flow:
 ```
-User Sign In → Clerk → UserSyncProvider → syncUser() → Supabase users table
+User Sign In → Clerk → UserSyncProvider → syncUser() → Firestore users table
 ```
 
 **Key Files:**
 - `App.tsx` - ClerkProvider setup
-- `hooks/useSupabase.ts` - `useUserSync()` hook
+- `hooks/useFirestore.ts` - `useUserSync()` hook
 - `lib/database.ts` - `syncUser()` function
 - `components/auth/ProtectedRoute.tsx`
 
@@ -326,7 +326,7 @@ User Prompt → detectMode() → Builder Mode?
 
 ### 5. Database & Storage
 
-#### Supabase Tables
+#### Firestore Tables
 
 1. **users**
    - Synced from Clerk
@@ -368,7 +368,7 @@ User Prompt → detectMode() → Builder Mode?
 
 **Key Files:**
 - `lib/database.ts` - Database operations
-- `lib/supabase.ts` - Supabase client
+- `lib/firestore.ts` - Firestore client
 - `lib/crypto.ts` - Encryption/decryption
 
 ---
@@ -512,7 +512,7 @@ User Prompt → detectMode() → Builder Mode?
 ### 11. Advanced Features
 
 #### Database Panel
-- Supabase integration
+- Firestore integration
 - Table management
 - Query builder
 - Data visualization
@@ -548,60 +548,60 @@ User Prompt → detectMode() → Builder Mode?
 ### 1. User Authentication Flow
 
 ```
-User → Sign In Page → Clerk Auth → 
-  → UserSyncProvider → useUserSync() → 
-  → syncUser() → Supabase users table → 
+User → Sign In Page → Clerk Auth →
+  → UserSyncProvider → useUserSync() →
+  → syncUser() → Firestore users table →
   → Redirect to /chat
 ```
 
 ### 2. Code Generation Flow (Builder Mode)
 
 ```
-User Prompt → ChatInterface → detectMode('builder') → 
-  → generateCode(mode='builder', provider) → 
-  → POST /api/generate → 
-  → Check Token Limit → 
-  → AI Provider (Groq/OpenAI/Grok) → 
-  → Extract Code from Response → 
-  → FileManager.addFile() → 
-  → CodeEditor Display → 
-  → Preview in iframe → 
+User Prompt → ChatInterface → detectMode('builder') →
+  → generateCode(mode='builder', provider) →
+  → POST /api/generate →
+  → Check Token Limit →
+  → AI Provider (Groq/OpenAI/Grok) →
+  → Extract Code from Response →
+  → FileManager.addFile() →
+  → CodeEditor Display →
+  → Preview in iframe →
   → Save to Database
 ```
 
 ### 3. Tutor Mode Flow
 
 ```
-User Question → ChatInterface → detectMode('tutor') → 
-  → generateCode(mode='tutor', provider) → 
-  → Optional: Web Search / Document Analysis / Code Execution → 
-  → AI Response → 
-  → Markdown Rendering → 
-  → Display in Chat → 
+User Question → ChatInterface → detectMode('tutor') →
+  → generateCode(mode='tutor', provider) →
+  → Optional: Web Search / Document Analysis / Code Execution →
+  → AI Response →
+  → Markdown Rendering →
+  → Display in Chat →
   → Save to Database
 ```
 
 ### 4. Token Limit Flow
 
 ```
-User Request → checkTokenLimit(userId) → 
-  → Query ai_usage table (today) → 
-  → Calculate tokens used → 
-  → If exceeded → Show upgrade prompt / Block request → 
-  → If OK → Allow request → 
-  → trackAIUsage() → 
+User Request → checkTokenLimit(userId) →
+  → Query ai_usage table (today) →
+  → Calculate tokens used →
+  → If exceeded → Show upgrade prompt / Block request →
+  → If OK → Allow request →
+  → trackAIUsage() →
   → Insert to ai_usage table
 ```
 
 ### 5. Grok Token Limit & Fallback Flow
 
 ```
-User Selects Grok → checkGrokTokenLimit(userId) → 
-  → Query ai_usage (provider='grok', today) → 
-  → If limit exceeded → 
-  → Auto-switch to Groq → 
-  → Update ProviderSelector UI → 
-  → Show notification → 
+User Selects Grok → checkGrokTokenLimit(userId) →
+  → Query ai_usage (provider='grok', today) →
+  → If limit exceeded →
+  → Auto-switch to Groq →
+  → Update ProviderSelector UI →
+  → Show notification →
   → Continue with Groq
 ```
 
@@ -620,7 +620,7 @@ User Selects Grok → checkGrokTokenLimit(userId) →
 
 ### 2. Row Level Security (RLS)
 
-- Supabase RLS enabled untuk semua tables
+- Firestore RLS enabled untuk semua tables
 - Users hanya bisa akses data mereka sendiri
 - Service role key untuk admin operations
 
@@ -767,7 +767,7 @@ npm run api  # Express server (port 8788)
 
 **Environment Variables Required:**
 - API keys untuk providers
-- Supabase credentials
+- Firestore credentials
 - Clerk credentials
 - CORS configuration
 
@@ -789,9 +789,9 @@ npm run api  # Express server (port 8788)
 # Clerk Authentication
 VITE_CLERK_PUBLISHABLE_KEY=pk_test_...
 
-# Supabase Database
-VITE_SUPABASE_URL=https://xxx.supabase.co
-VITE_SUPABASE_ANON_KEY=eyJhbGc...
+# Firestore Database
+VITE_FIRESTORE_URL=https://xxx.firestore.co
+VITE_FIRESTORE_ANON_KEY=eyJhbGc...
 
 # API Configuration
 VITE_API_BASE_URL=http://localhost:8788
@@ -810,9 +810,9 @@ CORS_ORIGIN=true  # or specific origin: https://yourdomain.com
 OPENROUTER_API_KEY=sk-or-v1-...  # For Groq (Claude), OpenAI (GPT-5.2), Grok (Gemini 3 Pro)
 DEEPSEEK_API_KEY=sk-...  # Optional: DeepSeek
 
-# Supabase (for server-side operations)
-SUPABASE_URL=https://xxx.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=eyJhbGc...
+# Firestore (for server-side operations)
+FIRESTORE_URL=https://xxx.firestore.co
+FIRESTORE_SERVICE_ROLE_KEY=eyJhbGc...
 
 # Optional Services
 TAVILY_API_KEY=tvly-...  # For web search
@@ -841,7 +841,7 @@ PYTHON_COMMAND=python3
 - `detectNextJS()` - Detect if user wants Next.js
 
 #### `lib/database.ts`
-- `syncUser()` - Sync Clerk user to Supabase
+- `syncUser()` - Sync Clerk user to Firestore
 - `createChatSession()` - Create new chat session
 - `saveMessage()` - Save chat message
 - `getUserSessions()` - Get user's chat sessions
@@ -951,7 +951,7 @@ Project ini memiliki dokumentasi lengkap:
 
 - `CODE_ANALYSIS.md` - Basic code analysis (existing)
 - `CLERK_SETUP.md` - Clerk authentication setup
-- `SUPABASE_SETUP.md` - Supabase database setup
+- `FIRESTORE_SETUP.md` - Firestore database setup
 - `GROK_DEFAULT_SETUP.md` - Grok provider configuration
 - `GROK_TOKEN_LOCK_FEATURE.md` - Grok token lock feature
 - `UNIFIED_API_KEYS.md` - API keys management
@@ -1017,7 +1017,7 @@ Project ini memiliki dokumentasi lengkap:
 ✅ **Modern Tech Stack**
 - React 19, TypeScript, Vite
 - Express.js backend
-- Supabase database
+- Firestore database
 - Clerk authentication
 
 ✅ **Multiple AI Providers**
@@ -1057,11 +1057,3 @@ Project ini memiliki dokumentasi lengkap:
 *Dokumen ini dibuat berdasarkan analisis komprehensif codebase pada: $(date)*
 *Total Files Analyzed: 60+ files*
 *Total Lines of Code: ~15,000+ lines*
-
-
-
-
-
-
-
-
