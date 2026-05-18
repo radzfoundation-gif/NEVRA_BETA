@@ -64,16 +64,56 @@ import { useUser, useAuth } from '@/lib/authContext';
 import FeedbackPopup from '../FeedbackPopup';
 import { useUserPreferences, useChatSessions, useWorkspaceProjects } from '@/hooks/useSupabase';
 import Logo from '../Logo';
-const VoiceCall = React.lazy(() => import('../VoiceCall'));
+
+// Wraps React.lazy with two retries (300ms, 800ms) and a one-shot full
+// reload as a last resort. After a fresh deploy, browsers holding the old
+// JS bundle reference outdated chunk hashes that 404 — without this guard
+// the user sees "Failed to fetch dynamically imported module" forever.
+const lazyWithRetry = <T extends React.ComponentType<any>>(
+  factory: () => Promise<{ default: T }>,
+): React.LazyExoticComponent<T> => React.lazy(async () => {
+  const sessionKey = 'glass:lazy-reload';
+  const delays = [300, 800];
+  let lastErr: any = null;
+  for (let attempt = 0; attempt <= delays.length; attempt++) {
+    try {
+      const mod = await factory();
+      if (typeof window !== 'undefined') {
+        try { sessionStorage.removeItem(sessionKey); } catch {}
+      }
+      return mod;
+    } catch (err: any) {
+      lastErr = err;
+      if (attempt < delays.length) {
+        await new Promise((resolve) => setTimeout(resolve, delays[attempt]));
+        continue;
+      }
+    }
+  }
+  // Stale chunk detection: refresh once per session to pick up the new bundle.
+  if (typeof window !== 'undefined') {
+    try {
+      const reloaded = sessionStorage.getItem(sessionKey);
+      if (!reloaded) {
+        sessionStorage.setItem(sessionKey, '1');
+        window.location.reload();
+        return new Promise<{ default: T }>(() => {}); // pause until reload
+      }
+    } catch {}
+  }
+  throw lastErr;
+});
+
+const VoiceCall = lazyWithRetry(() => import('../VoiceCall'));
 import Sidebar from '../Sidebar';
 // Lazy load heavy components
-const FileTree = React.lazy(() => import('../FileTree'));
-const CodeEditor = React.lazy(() => import('../CodeEditor'));
-const VisualEditor = React.lazy(() => import('../VisualEditor'));
-const CodeQualityPanel = React.lazy(() => import('../CodeQualityPanel'));
-const VersionHistory = React.lazy(() => import('../VersionHistory'));
-const ComponentLibrary = React.lazy(() => import('../ComponentLibrary'));
-const GitHubIntegration = React.lazy(() => import('../GitHubIntegration'));
+const FileTree = lazyWithRetry(() => import('../FileTree'));
+const CodeEditor = lazyWithRetry(() => import('../CodeEditor'));
+const VisualEditor = lazyWithRetry(() => import('../VisualEditor'));
+const CodeQualityPanel = lazyWithRetry(() => import('../CodeQualityPanel'));
+const VersionHistory = lazyWithRetry(() => import('../VersionHistory'));
+const ComponentLibrary = lazyWithRetry(() => import('../ComponentLibrary'));
+const GitHubIntegration = lazyWithRetry(() => import('../GitHubIntegration'));
 import WorkspaceMenu from '../WorkspaceMenu';
 import { FileManager, ProjectFile } from '@/lib/fileManager';
 import { Component, getComponentLibrary } from '@/lib/componentLibrary';
@@ -96,7 +136,7 @@ import DesignSystemManager from '../DesignSystemManager';
 import { designSystemManager, DesignSystem } from '@/lib/designSystem';
 // DatabasePanel removed - using Firebase instead of Supabase
 import APIIntegrationWizard from '../APIIntegrationWizard';
-const MobileGenerator = React.lazy(() => import('../MobileGenerator'));
+const MobileGenerator = lazyWithRetry(() => import('../MobileGenerator'));
 // Learning Features
 import { QuizPanel, NoteEditor, LearningDashboard, FlashcardReview } from '@/components/learning';
 import { useLearningProgress } from '@/hooks/useLearningProgress';
