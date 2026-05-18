@@ -2931,6 +2931,75 @@ Rules:
 // =====================================================
 // STATUS NARRATE STREAM (loader caption beside grid)
 // =====================================================
+app.post('/api/clarify', async (req, res) => {
+  const prompt = (req.body?.prompt || '').toString().trim();
+
+  if (!prompt) {
+    return res.status(400).json({ error: 'prompt is required' });
+  }
+
+  const aiClient = ninerouterClient || openrouterClient || sumopodClient;
+  if (!aiClient) {
+    return res.status(503).json({ error: 'clarify provider unavailable' });
+  }
+
+  const systemPrompt = withBrevity(`You are Glass Clarifier. The user sent a short or ambiguous prompt and you must propose ONE clarifying question with EXACTLY 4 distinct, mutually-exclusive options that are tightly tailored to the user's actual prompt.
+
+RULES:
+- Output ONLY valid JSON: {"question": string, "options": [string, string, string, string]}
+- Match the user's language (Bahasa Indonesia or English).
+- Question: 5-12 words. Specific to the user's words, not generic.
+- Each option: 3-9 words, concrete next-step the user could choose.
+- Options must NOT repeat the user's prompt verbatim.
+- Options must be different angles or scopes of the same intent — not synonyms.
+- No markdown, no preamble, no commentary, no code fences. JSON only.`);
+
+  try {
+    const model =
+      process.env.NINEROUTER_THINKING_MODEL?.trim() ||
+      process.env.NINEROUTER_FAST_MODEL?.trim() ||
+      ninerouterDefaultModel;
+    const completion = await aiClient.chat.completions.create({
+      model,
+      temperature: 0.4,
+      max_tokens: 240,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: prompt },
+      ],
+    });
+
+    const raw = completion.choices?.[0]?.message?.content || '';
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      const jsonMatch = raw.match(/\{[\s\S]*\}/);
+      parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
+    }
+
+    if (!parsed || typeof parsed.question !== 'string' || !Array.isArray(parsed.options) || parsed.options.length < 2) {
+      return res.status(502).json({ error: 'invalid clarify payload' });
+    }
+
+    const options = parsed.options
+      .filter((o) => typeof o === 'string' && o.trim().length > 0)
+      .slice(0, 4);
+
+    if (options.length < 2) {
+      return res.status(502).json({ error: 'not enough options' });
+    }
+
+    return res.json({ question: parsed.question.trim(), options });
+  } catch (err) {
+    return res.status(500).json({ error: err?.message || 'clarify failed' });
+  }
+});
+
+// =====================================================
+// STATUS NARRATE STREAM (loader caption beside grid)
+// =====================================================
 app.post('/api/status-narrate', async (req, res) => {
   const prompt = (req.body?.prompt || '').toString().trim();
 

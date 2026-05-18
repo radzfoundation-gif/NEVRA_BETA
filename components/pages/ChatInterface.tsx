@@ -2115,16 +2115,45 @@ const ChatInterface: React.FC = () => {
         attachments: attachmentsToSend,
         timestamp: new Date(),
       };
-      const clarifyAi: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'ai',
-        content: `<!--CLARIFY ${JSON.stringify(clarificationPayload)} -->`,
-        timestamp: new Date(),
-      };
-      setMessages(prev => [...prev, earlyUser, clarifyAi]);
+      // Mount the user bubble immediately and clear input so the UI feels instant.
+      setMessages(prev => [...prev, earlyUser]);
       setInput('');
       setAttachedImages([]);
       setAttachedFiles([]);
+
+      // Try AI-generated clarification first; fall back to local template if it fails.
+      let resolvedPayload = clarificationPayload;
+      try {
+        const apiUrl = (await import('@/lib/utils')).getApiUrl();
+        const clarifyRes = await fetch(`${apiUrl}/api/clarify`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: text }),
+        });
+        if (clarifyRes.ok) {
+          const aiPayload = await clarifyRes.json();
+          if (
+            aiPayload?.question
+            && Array.isArray(aiPayload.options)
+            && aiPayload.options.length >= 2
+          ) {
+            resolvedPayload = {
+              question: aiPayload.question,
+              options: aiPayload.options.slice(0, 4),
+            };
+          }
+        }
+      } catch {
+        // network failure → keep local fallback payload
+      }
+
+      const clarifyAi: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'ai',
+        content: `<!--CLARIFY ${JSON.stringify(resolvedPayload)} -->`,
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, clarifyAi]);
       return;
     }
 
