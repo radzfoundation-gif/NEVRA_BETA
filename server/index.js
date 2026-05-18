@@ -22,7 +22,7 @@ import midtransClient from 'midtrans-client';
 import { YoutubeTranscript } from 'youtube-transcript/dist/youtube-transcript.esm.js';
 import nodemailer from 'nodemailer';
 import { mcpManager } from './mcpManager.js';
-import { tursoRouter } from './tursoRoutes.js';
+import { firestoreRouter } from './firestoreRoutes.js';
 import { saveOutput as tursoSaveOutput } from './turso.js';
 import { createAutoPilotRouter } from './autoPilot/routes.js';
 import { injectBrevity, withBrevity } from './brevity.js';
@@ -224,7 +224,9 @@ const limiter = rateLimit({
 
 const PORT = process.env.PORT || 8788;
 
-app.use('/api/turso', tursoRouter);
+app.use('/api/db', firestoreRouter);
+// Temporary alias until frontend swap is complete; removed in final cleanup.
+app.use('/api/turso', firestoreRouter);
 
 // =====================================================
 // AUTO PILOT ROUTER (intent → tool/mode/style/skill → AI generation)
