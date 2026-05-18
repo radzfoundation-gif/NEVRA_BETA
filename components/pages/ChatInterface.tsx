@@ -2115,45 +2115,57 @@ const ChatInterface: React.FC = () => {
         attachments: attachmentsToSend,
         timestamp: new Date(),
       };
-      // Mount the user bubble immediately and clear input so the UI feels instant.
-      setMessages(prev => [...prev, earlyUser]);
+      const clarifyMessageId = (Date.now() + 1).toString();
+      // Mount the user bubble + a fallback clarify card immediately so the
+      // user never waits on the network. We then *upgrade* the card in place
+      // when the AI clarify response lands. If the endpoint 503s or times
+      // out, the local payload stays — no broken UI.
+      const fallbackClarify: Message = {
+        id: clarifyMessageId,
+        role: 'ai',
+        content: `<!--CLARIFY ${JSON.stringify(clarificationPayload)} -->`,
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, earlyUser, fallbackClarify]);
       setInput('');
       setAttachedImages([]);
       setAttachedFiles([]);
 
-      // Try AI-generated clarification first; fall back to local template if it fails.
-      let resolvedPayload = clarificationPayload;
-      try {
-        const apiUrl = (await import('@/lib/utils')).getApiUrl();
-        const clarifyRes = await fetch(`${apiUrl}/api/clarify`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt: text }),
-        });
-        if (clarifyRes.ok) {
+      // Fire-and-forget AI clarify with a hard timeout. Result patches the
+      // existing clarify message in place via clarifyMessageId.
+      (async () => {
+        try {
+          const apiUrl = (await import('@/lib/utils')).getApiUrl();
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 6000);
+          const clarifyRes = await fetch(`${apiUrl}/api/clarify`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt: text }),
+            signal: controller.signal,
+          });
+          clearTimeout(timeoutId);
+          if (!clarifyRes.ok) return;
           const aiPayload = await clarifyRes.json();
           if (
             aiPayload?.question
             && Array.isArray(aiPayload.options)
             && aiPayload.options.length >= 2
           ) {
-            resolvedPayload = {
+            const upgraded = {
               question: aiPayload.question,
               options: aiPayload.options.slice(0, 4),
             };
+            setMessages(prev => prev.map(m =>
+              m.id === clarifyMessageId
+                ? { ...m, content: `<!--CLARIFY ${JSON.stringify(upgraded)} -->` }
+                : m
+            ));
           }
+        } catch {
+          // 503 / timeout / network → keep the optimistic fallback payload
         }
-      } catch {
-        // network failure → keep local fallback payload
-      }
-
-      const clarifyAi: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'ai',
-        content: `<!--CLARIFY ${JSON.stringify(resolvedPayload)} -->`,
-        timestamp: new Date(),
-      };
-      setMessages(prev => [...prev, clarifyAi]);
+      })();
       return;
     }
 
