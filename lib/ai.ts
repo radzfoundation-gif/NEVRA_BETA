@@ -158,29 +158,55 @@ Use Markdown, code blocks, tables, math, and citations when helpful. Keep answer
     ? `${extraSystemPrompt}\n\n${baseSystemPrompt}`
     : baseSystemPrompt;
 
-  const response = await fetch('/api/generate', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    signal,
-    body: JSON.stringify({
-      prompt,
-      history,
-      mode,
-      provider,
-      images,
-      framework,
-      systemPrompt,
-      sessionId,
-      userId: effectiveUserId,
-      userName,
-      userEmail,
-      tier,
-      deepDive,
-      model: selectedModel,
-      glassMode: mode,
-      planningEnabled: deepDive,
-    }),
-  });
+  // Retry transient upstream failures (503/504) up to 2 times with backoff.
+  // 9Router / OpenRouter occasionally returns 503 during cold starts or
+  // upstream provider hiccups — a quick retry usually succeeds.
+  let response: Response | null = null;
+  let lastError: any = null;
+  const maxAttempts = 3;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      response = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal,
+        body: JSON.stringify({
+          prompt,
+          history,
+          mode,
+          provider,
+          images,
+          framework,
+          systemPrompt,
+          sessionId,
+          userId: effectiveUserId,
+          userName,
+          userEmail,
+          tier,
+          deepDive,
+          model: selectedModel,
+          glassMode: mode,
+          planningEnabled: deepDive,
+        }),
+      });
+      if (response.status === 503 || response.status === 504) {
+        if (attempt < maxAttempts) {
+          await new Promise((resolve) => setTimeout(resolve, 600 * attempt));
+          continue;
+        }
+      }
+      break;
+    } catch (err: any) {
+      lastError = err;
+      if (err?.name === 'AbortError') throw err; // user cancelled — bail
+      if (attempt < maxAttempts) {
+        await new Promise((resolve) => setTimeout(resolve, 600 * attempt));
+        continue;
+      }
+      throw err;
+    }
+  }
+  if (!response) throw lastError || new Error('No response from /api/generate');
 
   const contentType = response.headers.get('content-type') || '';
   const data = contentType.includes('application/json')

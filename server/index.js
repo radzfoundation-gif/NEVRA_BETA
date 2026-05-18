@@ -2681,17 +2681,35 @@ GLASS THINKING MODE:
       if (prefer9Router) {
         const ninerouterModelId = NINEROUTER_MODEL_MAPPING[selectedModel] || (body.model && body.model.includes('/') ? body.model : ninerouterDefaultModel);
         const temperature = 0.5;
-        try {
-          completion = await ninerouterClient.chat.completions.create({
-            model: ninerouterModelId,
-            messages,
-            temperature,
-            max_tokens: baseMaxTokens,
-          }, { signal: controller.signal });
-        } catch (nrErr) {
+        // 9Router occasionally returns 503/upstream errors during cold starts
+        // or provider blips. Retry once with a short backoff to recover before
+        // surfacing the error to the client.
+        let nrAttempts = 0;
+        const maxNrAttempts = 2;
+        let nrLastErr = null;
+        while (nrAttempts < maxNrAttempts) {
+          nrAttempts++;
+          try {
+            completion = await ninerouterClient.chat.completions.create({
+              model: ninerouterModelId,
+              messages,
+              temperature,
+              max_tokens: baseMaxTokens,
+            }, { signal: controller.signal });
+            nrLastErr = null;
+            break;
+          } catch (nrErr) {
+            nrLastErr = nrErr;
+            const status = nrErr?.status || nrErr?.response?.status;
+            const isTransient = status === 503 || status === 504 || status === 502 || nrErr?.code === 'ECONNRESET';
+            if (!isTransient || nrAttempts >= maxNrAttempts) break;
+            await new Promise((resolve) => setTimeout(resolve, 600 * nrAttempts));
+          }
+        }
+        if (nrLastErr) {
           return sendResponse(500, {
-            error: `9Router API Error: ${nrErr?.message || String(nrErr)}`,
-            detail: nrErr?.error || nrErr?.message,
+            error: `9Router API Error: ${nrLastErr?.message || String(nrLastErr)}`,
+            detail: nrLastErr?.error || nrLastErr?.message,
           });
         }
       } else if (useOpenRouter && openrouterClient) {
