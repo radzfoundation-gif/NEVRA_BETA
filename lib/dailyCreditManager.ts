@@ -1,7 +1,5 @@
-// Daily Credit Manager - Real-time credit tracking with Supabase sync
+// Daily Credit Manager - Firestore-backed credit tracking
 // Ensures no rate limiting and proper sync between frontend and backend
-
-import { supabase } from './supabase';
 
 // Cache for credit data to reduce API calls
 const creditCache = new Map<string, { credits: number; limit: number; tier: 'free' | 'pro'; timestamp: number }>();
@@ -33,102 +31,52 @@ export function getDailyCreditLimit(tier: 'free' | 'pro'): number {
 }
 
 /**
- * Get user's daily credit usage from Supabase
+ * Get user's daily credit usage from Firestore
  */
 export async function getDailyUsage(userId: string): Promise<{ used: number; limit: number; tier: 'free' | 'pro' }> {
     const month = getCurrentMonth();
     const day = getCurrentDay();
     const cacheKey = `${userId}_${month}_${day}`;
 
-    // Check cache first
     const cached = creditCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
         return { used: cached.credits, limit: cached.limit, tier: cached.tier };
     }
 
     try {
-        // Get user tier
-        const { data: subscription } = await supabase
-            .from('user_subscriptions')
-            .select('tier, status, valid_until')
-            .eq('user_id', userId)
-            .maybeSingle();
-
-        const tier = subscription?.status === 'active' && subscription.valid_until
-            ? new Date(subscription.valid_until) > new Date() ? 'pro' : 'free'
-            : 'free';
-
-        // Get daily usage from token_usage table
-        const { data: usage } = await supabase
-            .from('token_usage')
-            .select('tokens_used')
-            .eq('user_id', userId)
-            .eq('month', `${month}_${day}`)
-            .maybeSingle();
-
-        const used = usage?.tokens_used || 0;
-        const limit = getDailyCreditLimit(tier);
-
-        // Cache the result
+        const res = await fetch(`/api/db/credits?userId=${encodeURIComponent(userId)}`);
+        if (!res.ok) throw new Error('Failed to load credits');
+        const data = await res.json();
+        const used = Number(data.used || 0);
+        const limit = Number(data.limit || 20);
+        const tier = data.tier === 'pro' ? 'pro' : 'free';
         creditCache.set(cacheKey, { credits: used, limit, tier, timestamp: Date.now() });
-
         return { used, limit, tier };
-    } catch (error) {
+    } catch {
         return { used: 0, limit: 20, tier: 'free' };
     }
 }
 
-/**
- * Increment daily usage by amount
- */
 export async function incrementDailyUsage(userId: string, amount: number = 1): Promise<{ success: boolean; newUsage: number; remaining: number }> {
     const month = getCurrentMonth();
     const day = getCurrentDay();
     const cacheKey = `${userId}_${month}_${day}`;
 
     try {
-        // First check current usage
-        const { data: existing } = await supabase
-            .from('token_usage')
-            .select('tokens_used')
-            .eq('user_id', userId)
-            .eq('month', `${month}_${day}`)
-            .maybeSingle();
-
-        const current = existing?.tokens_used || 0;
-        const newUsage = current + amount;
-
-        // Upsert or insert
-        const { error } = await supabase
-            .from('token_usage')
-            .upsert({
-                user_id: userId,
-                month: `${month}_${day}`,
-                tokens_used: newUsage,
-                updated_at: new Date().toISOString()
-            }, { onConflict: 'user_id, month' });
-
-        if (error) throw error;
-
-        // Clear cache
+        const res = await fetch('/api/db/credits/increment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId, amount }),
+        });
+        if (!res.ok) throw new Error('Failed to increment credits');
+        const data = await res.json();
         creditCache.delete(cacheKey);
-
-        // Get tier for remaining calculation
-        const { data: subscription } = await supabase
-            .from('user_subscriptions')
-            .select('tier, status, valid_until')
-            .eq('user_id', userId)
-            .maybeSingle();
-
-        const tier = subscription?.status === 'active' && subscription.valid_until
-            ? new Date(subscription.valid_until) > new Date() ? 'pro' : 'free'
-            : 'free';
-
-        const limit = getDailyCreditLimit(tier);
-        const remaining = tier === 'pro' ? 999999 : Math.max(0, limit - newUsage);
-
-        return { success: true, newUsage, remaining };
-    } catch (error) {
+        return {
+            success: true,
+            newUsage: Number(data.used || 0),
+            remaining: Number(data.credits || 0),
+        };
+    } catch {
         return { success: false, newUsage: 0, remaining: 0 };
     }
 }
@@ -198,29 +146,8 @@ export async function canAffordFeature(userId: string, featureType: keyof typeof
  * Ensures channel is created correctly before subscribing
  */
 export function subscribeToCreditUpdates(userId: string, callback: (usage: { used: number, limit: number, tier: string }) => void) {
-    // Unique channel name per session to avoid conflicts
-    const channelName = `credits:${userId}-${Math.random().toString(36).substring(7)}`;
-    
-    const channel = supabase.channel(channelName);
-    
-    // Configure callbacks BEFORE calling subscribe()
-    channel.on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'token_usage',
-        filter: `user_id=eq.${userId}`
-    }, async () => {
-        // Clear cache and fetch fresh data
-        const month = getCurrentMonth();
-        const day = getCurrentDay();
-        creditCache.delete(`${userId}_${month}_${day}`);
-        
-        const usage = await getDailyUsage(userId);
-        callback(usage);
-    });
-
-    // Now subscribe
-    channel.subscribe();
-
-    return channel;
+    const load = async () => callback(await getDailyUsage(userId));
+    load();
+    const interval = window.setInterval(load, 10000);
+    return { unsubscribe: () => window.clearInterval(interval) };
 }

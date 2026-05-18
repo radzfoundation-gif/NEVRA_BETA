@@ -125,7 +125,7 @@ export const GLASS_CONNECTORS: GlassConnector[] = [
     { id: 'notion', name: 'Notion', category: 'Docs', status: 'coming soon', icon: FileText, description: 'Search Notion pages and notes.', capabilities: ['search', 'read', 'sync'], permissions: 'Workspace page permission required.', examples: ['Cari catatan roadmap'] },
     { id: 'slack', name: 'Slack', category: 'Team', status: 'coming soon', icon: Slack, description: 'Summarize channel context.', capabilities: ['search', 'read'], permissions: 'Workspace channel permission required.', examples: ['Ringkas diskusi channel produk'] },
     { id: 'discord', name: 'Discord', category: 'Community', status: 'coming soon', icon: MessageCircle, description: 'Read community discussion context.', capabilities: ['search', 'read'], permissions: 'Server permission required.', examples: ['Ringkas feedback komunitas'] },
-    { id: 'supabase-database', name: 'Supabase Database', category: 'Database', status: 'coming soon', icon: Database, description: 'Inspect database context when connected.', capabilities: ['read', 'deep research'], permissions: 'Database read credentials required.', examples: ['Analisis schema database'] },
+    { id: 'firebase-firestore', name: 'Firebase Firestore', category: 'Database', status: 'coming soon', icon: Database, description: 'Inspect database context when connected.', capabilities: ['read', 'deep research'], permissions: 'Database read credentials required.', examples: ['Analisis schema database'] },
     { id: 'web-search', name: 'Web Search', category: 'Research', status: 'connected', icon: Globe, description: 'Use web context for research answers.', capabilities: ['search', 'read', 'deep research'], permissions: 'Uses public web search only.', examples: ['Riset tren AI SaaS terbaru'] },
     { id: 'local-documents', name: 'Local Documents', category: 'Files', status: 'disconnected', icon: FileText, description: 'Use uploaded local documents as context.', capabilities: ['read', 'sync'], permissions: 'Only files uploaded in this session are used.', examples: ['Ringkas dokumen yang saya upload'] },
 ];
@@ -356,7 +356,7 @@ export function ResearchWelcome({
     const setActiveStyle = (styleId: GlassStyleId) => { setLocalActiveStyle(styleId); onGlassStyleChange?.(styleId); };
     const toolsMenuRef = useRef<HTMLDivElement>(null);
 
-    // Load skills from Supabase
+    // Load skills from Firestore
     useEffect(() => {
         if (!user?.id) return;
         getSkills(user.id)

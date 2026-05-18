@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import Sidebar from '../Sidebar';
 import { useUser } from '@/lib/authContext';
-import { useChatSessions } from '@/hooks/useSupabase';
+import { useChatSessions } from '@/hooks/useFirestore';
 import { LayoutGrid, Image, Code, MessageSquare, Plus, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';

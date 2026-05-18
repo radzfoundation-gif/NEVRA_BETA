@@ -341,12 +341,12 @@ export type SaveAutoPilotOutputResponse = {
 
 /**
  * POST /api/auto-pilot/save-output
- * Persists a generated artifact (chat answer or canvas) to the user's Turso
+ * Persists a generated artifact (chat answer or canvas) to the user's Firestore
  * `saved_outputs` table. If `projectId` is given, the output is also linked
  * as a project item.
  *
  * Returns `{ success: false, error: 'save_to_project_unavailable' }` when the
- * backend was not configured with a save handler (defensive — Turso is wired
+ * backend was not configured with a save handler (defensive — Firestore is wired
  * in this build, but the endpoint never throws).
  */
 export async function saveAutoPilotOutput(

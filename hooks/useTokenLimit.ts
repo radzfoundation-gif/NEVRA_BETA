@@ -1,4 +1,4 @@
-// Token limit and subscription management hooks with Supabase direct fetch
+// Token limit and subscription management hooks with Firestore-backed fetch
 // Real-time sync with daily credit management
 
 import { useState, useCallback, useEffect, useRef } from 'react';
@@ -26,8 +26,8 @@ export function useTokenLimit() {
         setLoading(true);
 
         try {
-            const res = await fetch(`/api/turso/credits?userId=${encodeURIComponent(user.id)}`);
-            if (!res.ok) throw new Error('Failed to load Turso credits');
+            const res = await fetch(`/api/db/credits?userId=${encodeURIComponent(user.id)}`);
+            if (!res.ok) throw new Error('Failed to load Firestore credits');
             const { used, limit, tier, credits } = await res.json();
             const isPro = tier === 'pro';
 
@@ -40,7 +40,7 @@ export function useTokenLimit() {
         }
     }, [user?.id]);
 
-    // Initial fetch + lightweight polling for Turso-backed credit sync
+    // Initial fetch + lightweight polling for Firestore-backed credit sync
     useEffect(() => {
         if (!user?.id) return;
 
@@ -63,7 +63,7 @@ export function useTokenLimit() {
                     credits: prev.tier === 'pro' ? 999999 : Math.max(0, prev.limit - nextUsed),
                 };
             });
-            await fetch('/api/turso/credits/increment', {
+            await fetch('/api/db/credits/increment', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId: user.id, amount: cost }),

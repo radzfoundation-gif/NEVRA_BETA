@@ -2,7 +2,7 @@
 
 export async function deductTokens(userId: string, cost: number, _requestType: RequestType): Promise<boolean> {
     try {
-        const res = await fetch('/api/turso/credits/increment', {
+        const res = await fetch('/api/db/credits/increment', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ userId, amount: cost }),
@@ -15,7 +15,7 @@ export async function deductTokens(userId: string, cost: number, _requestType: R
 
 export async function getTokenBalance(userId: string): Promise<{ balance: number; plan: string; resetAt: Date }> {
     try {
-        const res = await fetch(`/api/turso/credits?userId=${encodeURIComponent(userId)}`);
+        const res = await fetch(`/api/db/credits?userId=${encodeURIComponent(userId)}`);
         const data = res.ok ? await res.json() : { credits: 0, tier: 'free' };
         return { balance: data.credits || 0, plan: data.tier || 'free', resetAt: new Date() };
     } catch {

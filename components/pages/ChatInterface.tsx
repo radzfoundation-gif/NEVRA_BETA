@@ -40,15 +40,15 @@ import 'katex/dist/katex.min.css'; // Build error fix: Import CSS here
 
 // Custom Shark Icon for Deep Research
 const SharkIcon = ({ size = 16, className = "" }: { size?: number, className?: string }) => (
-    <svg 
-        width={size} 
-        height={size} 
-        viewBox="0 0 24 24" 
-        fill="none" 
-        stroke="currentColor" 
-        strokeWidth="2" 
-        strokeLinecap="round" 
-        strokeLinejoin="round" 
+    <svg
+        width={size}
+        height={size}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
         className={className}
     >
         <path d="M2 12c0 0 5-3 8-3s5 2 7 2 4-2 7-2c0 0-2 6-7 6s-5-2-7-2-4 1-6 1c0 0 2-2 5-2" />
@@ -59,10 +59,10 @@ const SharkIcon = ({ size = 16, className = "" }: { size?: number, className?: s
 import SubscriptionPopup from '../SubscriptionPopup';
 import { useTokenLimit, useTrackAIUsage } from '@/hooks/useTokenLimit';
 import { FREE_TOKEN_LIMIT } from '@/lib/tokenLimit';
-import { createChatSession, saveMessage, getSessionMessages, updateChatSession, getUserSessions, shareChatSession } from '@/lib/supabaseDatabase';
+import { createChatSession, saveMessage, getSessionMessages, updateChatSession, getUserSessions, shareChatSession } from '@/lib/database';
 import { useUser, useAuth } from '@/lib/authContext';
 import FeedbackPopup from '../FeedbackPopup';
-import { useUserPreferences, useChatSessions, useWorkspaceProjects } from '@/hooks/useSupabase';
+import { useUserPreferences, useChatSessions, useWorkspaceProjects } from '@/hooks/useFirestore';
 import Logo from '../Logo';
 
 // Wraps React.lazy with two retries (300ms, 800ms) and a one-shot full
@@ -369,7 +369,7 @@ const ChatInterface: React.FC = () => {
 
   // Use dynamic viewport height (dvh) for better mobile support
   // The main container will be controlled by parent layout, but we ensure content fills it
-  // We'll add a class to the outer container in the return statement if needed, 
+  // We'll add a class to the outer container in the return statement if needed,
   // but looking at Home.tsx, this component is likely rendered inside a layout.
   // We will assume the parent provides the height, but we'll ensure this component fills it.
 
@@ -473,7 +473,7 @@ const ChatInterface: React.FC = () => {
       };
     }
     // Default to tutor mode if no prompt (auto-detect from Home.tsx)
-    return { mode: 'tutor' as AppMode, messages: [], shouldAutoSend: false, initialProvider: 'groq' as AIProvider, initialImages: [], targetFile: undefined, codebaseMode: false, enableWebSearch: enableWebSearch ?? false, reasoning: reasoning ?? false, glassMode, activeSkillId, activeConnectorId, workflowMode, glassStyle, routingResult, canvasType }; 
+    return { mode: 'tutor' as AppMode, messages: [], shouldAutoSend: false, initialProvider: 'groq' as AIProvider, initialImages: [], targetFile: undefined, codebaseMode: false, enableWebSearch: enableWebSearch ?? false, reasoning: reasoning ?? false, glassMode, activeSkillId, activeConnectorId, workflowMode, glassStyle, routingResult, canvasType };
   };
 
   const initialState = getInitialState();
@@ -721,10 +721,10 @@ const ChatInterface: React.FC = () => {
         const lastMsg = prev[prev.length - 1];
         if (lastMsg && lastMsg.isComparison) {
           const newMessages = [...prev];
-          newMessages[prev.length - 1] = { 
-            ...lastMsg, 
-            contentA: dualStream.streamA.content, 
-            contentB: dualStream.streamB.content 
+          newMessages[prev.length - 1] = {
+            ...lastMsg,
+            contentA: dualStream.streamA.content,
+            contentB: dualStream.streamB.content
           };
           return newMessages;
         }
@@ -1512,9 +1512,9 @@ const ChatInterface: React.FC = () => {
               const canvas = document.createElement('canvas');
               let width = img.width;
               let height = img.height;
-              
+
               const MAX_DIMENSION = 1024; // Max width/height 1024px for great AI analysis without bloat
-              
+
               if (width > height && width > MAX_DIMENSION) {
                 height = Math.round((height * MAX_DIMENSION) / width);
                 width = MAX_DIMENSION;
@@ -1522,11 +1522,11 @@ const ChatInterface: React.FC = () => {
                 width = Math.round((width * MAX_DIMENSION) / height);
                 height = MAX_DIMENSION;
               }
-              
+
               canvas.width = width;
               canvas.height = height;
               const ctx = canvas.getContext('2d');
-              
+
               if (ctx) {
                 ctx.drawImage(img, 0, 0, width, height);
                 // Compress as JPEG with 0.7 quality to dramatically reduce size
@@ -1978,11 +1978,11 @@ const ChatInterface: React.FC = () => {
     if (!msg || !msg.isComparison || !sessionId || !user) return;
 
     try {
-      setMessages(prev => prev.map(m => 
+      setMessages(prev => prev.map(m =>
         m.id === messageId ? { ...m, selectedVersion: version } : m
       ));
 
-      await import('@/lib/supabaseDatabase').then(db => 
+      await import('@/lib/database').then(db =>
         db.saveComparisonChoice(
           user.id,
           sessionId,
@@ -2414,7 +2414,7 @@ const ChatInterface: React.FC = () => {
     // Reset states for new message (already set above for instant feedback;
     // re-asserting is harmless and keeps flow stable for downstream checks).
     setIsTyping(true);
-    
+
     // Detect image/video generation request for specialized loading UI
     const isVisualRequest = (text: string): boolean => {
       const lowerText = text.toLowerCase();
@@ -2441,7 +2441,7 @@ const ChatInterface: React.FC = () => {
     } else {
       setActiveLoadingPhase('generating');
     }
-    
+
     setWorkflowStatus(null);
     setShowSkillScout(false);
 
@@ -2622,7 +2622,7 @@ const ChatInterface: React.FC = () => {
         const shouldUseMemory = !hasExceeded || isSubscribed;
         const historyToUse = shouldUseMemory ? aiMemoryHistory : [];
 
-        // IMPORTANT: Do NOT add current message to historyForAI. 
+        // IMPORTANT: Do NOT add current message to historyForAI.
         // usage: generateCode(prompt, history) -> prompt is current, history is past.
         const fullHistory = historyToUse.map(m => ({
           role: m.role === 'user' ? 'user' : 'model',
@@ -2660,7 +2660,7 @@ const ChatInterface: React.FC = () => {
           modelB: 'seed-2-0-lite-free',
           timestamp: new Date()
         };
-        
+
         setMessages(prev => [...prev, aiMsg]);
         setAnimatingMessageId(messageId);
 
@@ -2702,17 +2702,17 @@ const ChatInterface: React.FC = () => {
             setDeepResearchPhase('searching');
             setCurrentSearchQuery(text);
           }
-          
+
           // Use advanced search (10 results + deep content) for Deep Research mode
           const searchResponse = await performWebSearch(
-            text, 
-            deepDive ? 10 : 5, 
+            text,
+            deepDive ? 10 : 5,
             deepDive ? 'advanced' : 'basic'
           );
-          
+
           searchResults = searchResponse.results;
           setSearchResults(searchResults);
-          
+
           if (deepDive) {
             setActiveSearchResults(searchResults);
             setDeepResearchPhase('synthesizing');
@@ -2725,7 +2725,7 @@ const ChatInterface: React.FC = () => {
             const searchContext = searchResults
               .map((r, i) => `[${i + 1}] ${r.title} (${r.source}): ${r.snippet}`)
               .join('\n');
-            
+
             if (deepDive) {
               promptToSend = `${text}\n\n[ðŸ”¬ DEEP RESEARCH CONTEXT - TAVILY ADVANCED]\n${searchContext}\n\nINSTRUCTION: Provide a comprehensive, research-grade answer. You have 10 sources above. Cross-reference them to identify patterns, consensus, or conflicts. Use formal citations (e.g. [1][3]).`;
             } else {
@@ -2775,11 +2775,11 @@ const ChatInterface: React.FC = () => {
         'strategi', 'brainstorm', 'ide', 'analisis', 'analysis',
         'mcp', 'skill', 'tool', 'nexus', 'ripple'
       ];
-      
-      const isSkillScoutPrompt = SKILL_SCOUT_KEYWORDS.some(keyword => 
+
+      const isSkillScoutPrompt = SKILL_SCOUT_KEYWORDS.some(keyword =>
         text.toLowerCase().includes(keyword)
       );
-      
+
       setShowSkillScout(isSkillScoutPrompt);
       if (isSkillScoutPrompt) {
         setActiveLoadingPhase('skill_scout');
@@ -4055,7 +4055,7 @@ const ChatInterface: React.FC = () => {
       setIsTyping(false); // Ensure typing state is cleared
 
       // Check for image input not supported error
-      const isImageNotSupportedError = errorMessage.toLowerCase().includes('does not support image') || 
+      const isImageNotSupportedError = errorMessage.toLowerCase().includes('does not support image') ||
         errorMessage.toLowerCase().includes('image input') ||
         errorMessage.toLowerCase().includes('does not support vision');
 
@@ -4142,8 +4142,8 @@ const ChatInterface: React.FC = () => {
       // Use ref to get latest handleSend without adding it to dependencies
       // Pass reasoning as 4th argument (deepDiveOverride) to trigger multi-agent loading
       handleSendRef.current(
-        initialState.messages[0].content, 
-        initialState.mode as AppMode, 
+        initialState.messages[0].content,
+        initialState.mode as AppMode,
         initialState.messages,
         initialState.reasoning
       );
@@ -4553,11 +4553,11 @@ const ChatInterface: React.FC = () => {
                   prompt={[...messages].reverse().find(m => m.role === 'user')?.content || ''}
                 />
               )}
-               
+
               {messages.map((msg, idx) => {
                 const clarification = msg.role === 'ai' ? parseClarificationFromAIResponse(msg.content) : null;
                 const showClarification = clarification?.hasClarification && !answeredClarifications[msg.id];
-                
+
                 return (
                 <div key={msg.id} className={cn("flex flex-col gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300", msg.role === 'user' ? 'items-end' : 'items-start')}>
                   {msg.role === 'ai' && (
@@ -4627,8 +4627,8 @@ const ChatInterface: React.FC = () => {
                           {/* Option A */}
                           <div className={cn(
                             "flex flex-col gap-3 p-4 md:p-5 rounded-[22px] border-2 transition-all duration-300",
-                            msg.selectedVersion === 'a' 
-                              ? "bg-purple-50/40 border-purple-500/30 shadow-lg shadow-purple-500/5 ring-1 ring-purple-500/20" 
+                            msg.selectedVersion === 'a'
+                              ? "bg-purple-50/40 border-purple-500/30 shadow-lg shadow-purple-500/5 ring-1 ring-purple-500/20"
                               : "bg-white/80 backdrop-blur-sm border-zinc-100/80 shadow-sm hover:border-zinc-200"
                           )}>
                             <div className="flex items-center justify-between mb-1">
@@ -4647,13 +4647,13 @@ const ChatInterface: React.FC = () => {
                             </div>
                             <div className="prose prose-sm max-w-none text-zinc-800 leading-relaxed font-normal">
                               {/* Sync from hook or use msg.contentA */}
-                              <StreamingResponse 
-                                content={msg.contentA || ''} 
-                                isStreaming={isTyping && idx === messages.length - 1 && !msg.contentA && dualStream.streamA.isStreaming} 
+                              <StreamingResponse
+                                content={msg.contentA || ''}
+                                isStreaming={isTyping && idx === messages.length - 1 && !msg.contentA && dualStream.streamA.isStreaming}
                               />
                             </div>
                             {!msg.selectedVersion && (
-                              <button 
+                              <button
                                 onClick={() => saveComparison(msg.id, 'a')}
                                 className="mt-4 w-full py-2.5 px-4 rounded-xl bg-purple-600 text-white text-[11px] font-bold hover:bg-purple-700 transition-all shadow-md shadow-purple-200 flex items-center justify-center gap-2 hover:translate-y-[-1px] active:translate-y-[0px]"
                               >
@@ -4665,8 +4665,8 @@ const ChatInterface: React.FC = () => {
                           {/* Option B */}
                           <div className={cn(
                             "flex flex-col gap-3 p-4 md:p-5 rounded-[22px] border-2 transition-all duration-300",
-                            msg.selectedVersion === 'b' 
-                              ? "bg-blue-50/40 border-blue-500/30 shadow-lg shadow-blue-500/5 ring-1 ring-blue-500/20" 
+                            msg.selectedVersion === 'b'
+                              ? "bg-blue-50/40 border-blue-500/30 shadow-lg shadow-blue-500/5 ring-1 ring-blue-500/20"
                               : "bg-white/80 backdrop-blur-sm border-zinc-100/80 shadow-sm hover:border-zinc-200"
                           )}>
                             <div className="flex items-center justify-between mb-1">
@@ -4684,13 +4684,13 @@ const ChatInterface: React.FC = () => {
                               )}
                             </div>
                             <div className="prose prose-sm max-w-none text-zinc-800 leading-relaxed font-normal">
-                              <StreamingResponse 
-                                content={msg.contentB || ''} 
-                                isStreaming={isTyping && idx === messages.length - 1 && !msg.contentB && dualStream.streamB.isStreaming} 
+                              <StreamingResponse
+                                content={msg.contentB || ''}
+                                isStreaming={isTyping && idx === messages.length - 1 && !msg.contentB && dualStream.streamB.isStreaming}
                               />
                             </div>
                             {!msg.selectedVersion && (
-                              <button 
+                              <button
                                 onClick={() => saveComparison(msg.id, 'b')}
                                 className="mt-4 w-full py-2.5 px-4 rounded-xl bg-white border-2 border-zinc-100 text-zinc-900 text-[11px] font-bold hover:bg-zinc-50 transition-all shadow-sm flex items-center justify-center gap-2 hover:translate-y-[-1px] active:translate-y-[0px]"
                               >
@@ -4726,7 +4726,7 @@ const ChatInterface: React.FC = () => {
                         {(() => {
                           const sourcesMatch = msg.content.match(/<!-- SOURCES_JSON:(.*?) -->/);
                           const sources = msg.searchResults || (sourcesMatch ? JSON.parse(sourcesMatch[1]) : null);
-                          
+
                           if (sources && sources.length > 0) {
                             return (
                               <div className="mb-4 not-prose">
@@ -4767,7 +4767,7 @@ const ChatInterface: React.FC = () => {
                       </div>
                     )}
                   </div>
-                  
+
                   {/* Action Buttons - Different for Tutor vs Builder */}
                   {
                     msg.role === 'ai' && (
@@ -4804,11 +4804,11 @@ const ChatInterface: React.FC = () => {
                               // Send to Database
                               if (sessionId && user) {
                                 try {
-                                  const { supabase } = await import('@/lib/supabase');
-                                  await supabase
-                                    .from('messages')
-                                    .update({ feedback: newFeedback })
-                                    .eq('id', msg.id);
+                                  await fetch(`/api/db/sessions/${encodeURIComponent(sessionId)}/messages/${encodeURIComponent(msg.id)}/feedback`, {
+                                    method: 'PATCH',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ userId: user.id, feedback: newFeedback }),
+                                  });
                                 } catch (err) {
                                   console.error('Error sending feedback:', err);
                                 }
@@ -4830,11 +4830,11 @@ const ChatInterface: React.FC = () => {
                               // Send to Database
                               if (sessionId && user) {
                                 try {
-                                  const { supabase } = await import('@/lib/supabase');
-                                  await supabase
-                                    .from('messages')
-                                    .update({ feedback: newFeedback })
-                                    .eq('id', msg.id);
+                                  await fetch(`/api/db/sessions/${encodeURIComponent(sessionId)}/messages/${encodeURIComponent(msg.id)}/feedback`, {
+                                    method: 'PATCH',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ userId: user.id, feedback: newFeedback }),
+                                  });
                                 } catch (err) {
                                   console.error('Error sending feedback:', err);
                                 }
@@ -5034,7 +5034,7 @@ const ChatInterface: React.FC = () => {
       {/* Clarification Widget Area (Claude Style) */}
       <AnimatePresence>
         {showBottomClarification && activeClarification?.question && activeClarification?.options && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: 20, x: "-50%" }}
             animate={{ opacity: 1, y: 0, x: "-50%" }}
             exit={{ opacity: 0, scale: 0.95, y: 10, x: "-50%" }}

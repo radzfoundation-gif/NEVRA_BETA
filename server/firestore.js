@@ -294,6 +294,15 @@ export async function getChatMessages(userId, sessionId) {
   });
 }
 
+export async function updateMessageFeedback(userId, sessionId, messageId, feedback) {
+  const ref = messagesRef(userId, sessionId).doc(messageId);
+  const snap = await ref.get();
+  if (!snap.exists) return null;
+  const normalized = feedback === 'like' || feedback === 'dislike' ? feedback : null;
+  await ref.update({ feedback: normalized, updatedAt: FieldValue.serverTimestamp() });
+  return { id: messageId, feedback: normalized };
+}
+
 export async function shareChatSession(userId, sessionId) {
   const shareId = newId();
   await sessionsRef(userId).doc(sessionId).update({

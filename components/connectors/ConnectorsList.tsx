@@ -15,7 +15,7 @@ const PROVIDERS: Record<string, string | null> = {
   notion: 'notion',
   slack: 'slack',
   discord: 'discord',
-  'supabase-database': 'supabase_database',
+  'firebase-firestore': 'firebase_firestore',
   'web-search': null,
   'local-documents': null,
 };

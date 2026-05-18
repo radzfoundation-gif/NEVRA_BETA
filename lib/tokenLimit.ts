@@ -1,9 +1,9 @@
 import {
     getUserTier,
     getTokenUsage,
-    logAIUsage as dbLogAIUsage
-} from './supabaseDatabase';
-import { TIER_LIMITS } from './supabase';
+    logAIUsage as dbLogAIUsage,
+    TIER_LIMITS
+} from './database';
 
 // Token costs per provider (estimated)
 const TOKEN_COSTS = {
@@ -26,7 +26,7 @@ export async function checkTokenLimit(userId: string, _token?: string | null): P
     isSubscribed: boolean;
 }> {
     try {
-        // 1. Get User Tier and Usage from Supabase
+        // 1. Get User Tier and Usage from Firestore
         const tier = await getUserTier(userId);
         const usageData = await getTokenUsage(userId);
 
@@ -56,7 +56,7 @@ export async function checkTokenLimit(userId: string, _token?: string | null): P
             isSubscribed: false,
         };
     } catch (error) {
-        
+
         // Fail open
         return {
             hasExceeded: false,
@@ -80,20 +80,19 @@ export async function trackAIUsage(
     try {
         const tokensToCharge = TOKEN_COSTS[provider] || 10;
 
-        // Log usage to Supabase (this handles monthly increment)
+        // Log usage to Firestore (this handles monthly increment)
         await dbLogAIUsage(
             userId,
             sessionId,
             provider,
             model || 'default',
-            tokensToCharge,
-            0
+            tokensToCharge
         );
 
-        
+
         return true;
     } catch (error) {
-        
+
         return false;
     }
 }
@@ -124,12 +123,12 @@ export async function getTokenUsageSummary(userId: string): Promise<{
 
 /**
  * Upgrade user to subscription (Legacy/Placeholder)
- * Actual upgrade happens via Midtrans/Stripe callback -> API -> supabase activateProSubscription
+ * Actual upgrade happens via Midtrans/Stripe callback -> API -> Firestore subscription update
  */
 export async function upgradeSubscription(
     _userId: string,
     _plan: 'premium' | 'pro' | 'enterprise'
 ): Promise<boolean> {
-    
+
     return true;
 }

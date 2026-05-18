@@ -25,10 +25,10 @@ const DocumentsPage: React.FC = () => {
     React.useEffect(() => {
         if (!user?.id) return;
         setLoading(true);
-        fetch(`/api/turso/documents?userId=${encodeURIComponent(user.id)}`)
+        fetch(`/api/db/documents?userId=${encodeURIComponent(user.id)}`)
             .then((res) => res.json())
             .then((data) => setDocuments((data.documents || []) as DocumentRecord[]))
-            .catch(() => setError('Turso documents API is not available. Check TURSO_DATABASE_URL and TURSO_AUTH_TOKEN.'))
+            .catch(() => setError('Documents API is not available.'))
             .finally(() => setLoading(false));
     }, [user?.id]);
 
@@ -53,12 +53,12 @@ const DocumentsPage: React.FC = () => {
                 summary: parsed.content.slice(0, 420),
                 metadata: { size: file.size },
             };
-            const res = await fetch('/api/turso/documents', {
+            const res = await fetch('/api/db/documents', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(record),
             });
-            if (!res.ok) throw new Error('Unable to save document to Turso.');
+            if (!res.ok) throw new Error('Unable to save document.');
             const data = await res.json();
             setDocuments((prev) => [data as DocumentRecord, ...prev]);
         } catch (err: any) {

@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowRight, Bot, Code2, FileSearch, FileText, FolderOpen, LayoutTemplate, Loader2, MessageSquare, Plus, StickyNote } from 'lucide-react';
 import Sidebar from '../Sidebar';
-import { useChatSessions, useProjectDetail, useWorkspaceProjects } from '@/hooks/useSupabase';
+import { useChatSessions, useProjectDetail, useWorkspaceProjects } from '@/hooks/useFirestore';
 
 const tabs = ['Overview', 'Chats', 'Research', 'Documents', 'Code', 'Builder', 'Agents', 'Notes'];
 

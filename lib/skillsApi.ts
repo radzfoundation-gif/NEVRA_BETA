@@ -43,7 +43,7 @@ function normalize(raw: any): UserSkill {
 
 export async function getSkills(userId: string): Promise<UserSkill[]> {
   if (!userId) return [];
-  const data = await api<{ skills: any[] }>(`/api/turso/skills?userId=${encodeURIComponent(userId)}`, { userId });
+  const data = await api<{ skills: any[] }>(`/api/db/skills?userId=${encodeURIComponent(userId)}`, { userId });
   return (data.skills || []).map(normalize);
 }
 
@@ -51,7 +51,7 @@ export async function createSkill(
   userId: string,
   skill: { name: string; description: string; systemPrompt: string }
 ): Promise<UserSkill> {
-  const data = await api<any>('/api/turso/skills', {
+  const data = await api<any>('/api/db/skills', {
     method: 'POST',
     body: JSON.stringify({
       userId,
@@ -74,7 +74,7 @@ export async function updateSkill(
   if (updates.description !== undefined) body.description = updates.description;
   if (updates.system_prompt !== undefined) body.systemPrompt = updates.system_prompt;
   if (updates.enabled !== undefined) body.enabled = updates.enabled;
-  const data = await api<any>(`/api/turso/skills/${encodeURIComponent(skillId)}`, {
+  const data = await api<any>(`/api/db/skills/${encodeURIComponent(skillId)}`, {
     method: 'PATCH',
     body: JSON.stringify(body),
     userId,
@@ -83,7 +83,7 @@ export async function updateSkill(
 }
 
 export async function deleteSkill(userId: string, skillId: string): Promise<void> {
-  await api<{ ok: boolean }>(`/api/turso/skills/${encodeURIComponent(skillId)}?userId=${encodeURIComponent(userId)}`, {
+  await api<{ ok: boolean }>(`/api/db/skills/${encodeURIComponent(skillId)}?userId=${encodeURIComponent(userId)}`, {
     method: 'DELETE',
     userId,
   });

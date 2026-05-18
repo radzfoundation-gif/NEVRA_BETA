@@ -5,7 +5,6 @@
 
 import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
-import { supabase } from '@/lib/supabase';
 
 export interface YJSConnection {
     doc: Y.Doc;
@@ -26,15 +25,8 @@ export async function createYJSConnection(
     onStatusChange?: (status: 'connecting' | 'connected' | 'disconnected') => void
 ): Promise<YJSConnection | null> {
     try {
-        // Get auth token from Supabase
-        const { data: { session }, error } = await supabase.auth.getSession();
-
-        if (error || !session) {
-            
-            return null;
-        }
-
-        const token = session.access_token;
+        const token = localStorage.getItem('useglass-yjs-token') || '';
+        const userId = localStorage.getItem('useglass-last-user-id') || 'anonymous';
         const yjsServerUrl = process.env.NEXT_PUBLIC_YJS_SERVER_URL || 'ws://localhost:1234';
 
         // Ensure roomId has correct format
@@ -58,29 +50,29 @@ export async function createYJSConnection(
 
         // Share user presence info via provider awareness
         provider.awareness.setLocalStateField('user', {
-            name: session.user.email || 'Anonymous',
-            color: generateUserColor(session.user.id),
+            name: userId,
+            color: generateUserColor(userId),
         });
 
         // Connection status listeners
         provider.on('status', (event: { status: string }) => {
-            
+
             onStatusChange?.(event.status as any);
         });
 
         provider.on('sync', (isSynced: boolean) => {
             if (isSynced) {
-                
+
                 onSynced?.();
             }
         });
 
         provider.on('connection-close', (event: any) => {
-            
+
         });
 
         provider.on('connection-error', (event: any) => {
-            
+
         });
 
         // Destroy function to clean up
@@ -88,7 +80,7 @@ export async function createYJSConnection(
             provider.disconnect();
             provider.destroy();
             doc.destroy();
-            
+
         };
 
         return {
@@ -98,7 +90,7 @@ export async function createYJSConnection(
             destroy,
         };
     } catch (error) {
-        
+
         return null;
     }
 }

@@ -33,8 +33,8 @@ import {
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useUser, useAuth } from '@/lib/authContext';
-import { useChatSessions, useSubscription } from '@/hooks/useSupabase';
-import { updateChatSession } from '@/lib/supabaseDatabase';
+import { useChatSessions, useSubscription } from '@/hooks/useFirestore';
+import { updateChatSession } from '@/lib/database';
 import { useUI } from './UIContext';
 import Logo from './Logo';
 import SubscriptionPopup from './SubscriptionPopup';

@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { getChatSession, getSessionMessages, getUser } from '@/lib/supabaseDatabase';
-import { ChatSession, Message, User } from '@/lib/supabase';
+import { getChatSession, getSessionMessages, getUser, ChatSession, Message, User } from '@/lib/database';
 import Logo from '@/components/Logo';
 import { Bot, User as UserIcon, Calendar, Share, Copy, Check, Info } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -30,7 +29,7 @@ const SharedChat: React.FC = () => {
 
             try {
                 setLoading(true);
-                // Supabase RLS policies should allow fetching if is_shared is true
+                // Server enforces is_shared check on /api/db/sessions
                 const [sessionData, messagesData] = await Promise.all([
                     getChatSession(id),
                     getSessionMessages(id)
@@ -52,7 +51,7 @@ const SharedChat: React.FC = () => {
                     setError("Chat not found or not shared.");
                 }
             } catch (err) {
-                
+
                 setError("Failed to load chat.");
             } finally {
                 setLoading(false);
@@ -190,10 +189,10 @@ const SharedChat: React.FC = () => {
                                         <div className="prose prose-sm md:prose-base max-w-none w-full break-words overflow-visible
                                         prose-p:text-gray-700 prose-p:leading-relaxed
                                         prose-headings:text-gray-900 prose-headings:font-bold prose-headings:tracking-tight
-                                        prose-strong:text-gray-900 
+                                        prose-strong:text-gray-900
                                         prose-code:text-indigo-600 prose-code:bg-indigo-50 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:font-medium prose-code:before:content-none prose-code:after:content-none
                                         prose-pre:bg-[#1e1e1e] prose-pre:border prose-pre:border-gray-200 prose-pre:rounded-xl prose-pre:shadow-sm
-                                        prose-li:text-gray-700 
+                                        prose-li:text-gray-700
                                         prose-ul:text-gray-700
                                         prose-blockquote:border-l-4 prose-blockquote:border-purple-300 prose-blockquote:bg-purple-50/50 prose-blockquote:py-2 prose-blockquote:px-4 prose-blockquote:rounded-r-lg prose-blockquote:text-purple-800 prose-blockquote:not-italic
                                         prose-th:text-gray-900 prose-td:text-gray-700

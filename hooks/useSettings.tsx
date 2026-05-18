@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, createContext, useContext, ReactNode } from 'react';
 import { useUser } from '../lib/authContext';
-import { getUserPreferences, updateUserPreferences } from '../lib/supabaseDatabase';
+import { getUserPreferences, updateUserPreferences } from '../lib/database';
 
 export interface Settings {
     theme: 'light' | 'dark' | 'system';

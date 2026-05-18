@@ -21,6 +21,7 @@ import {
   saveOutput,
   shareChatSession,
   updateChatSession,
+  updateMessageFeedback,
   updateUserSkill,
 } from './firestore.js';
 
@@ -150,6 +151,14 @@ firestoreRouter.post('/sessions/:id/messages', asyncRoute(async (req, res) => {
   const message = await saveChatMessage(userId, req.params.id, req.body);
   if (!message) return res.status(404).json({ error: 'Session not found' });
   res.json(message);
+}));
+
+firestoreRouter.patch('/sessions/:id/messages/:messageId/feedback', asyncRoute(async (req, res) => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  const result = await updateMessageFeedback(userId, req.params.id, req.params.messageId, req.body.feedback);
+  if (!result) return res.status(404).json({ error: 'Message not found' });
+  res.json(result);
 }));
 
 firestoreRouter.post('/sessions/:id/share', asyncRoute(async (req, res) => {

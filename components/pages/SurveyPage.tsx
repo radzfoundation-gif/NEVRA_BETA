@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Check, Youtube, Instagram, Twitter, MessageCircle, Globe, ChevronRight, Zap, Gauge, Bug, Palette, FileText, Search } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useUser } from '@/lib/authContext';
-import { updateUserPreferences } from '@/lib/supabaseDatabase';
+import { updateUserPreferences } from '@/lib/database';
 import WelcomeEcosystemModal from '@/components/onboarding/WelcomeEcosystemModal';
 
 const referralOptions = [
