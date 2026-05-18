@@ -77,7 +77,7 @@ export default function StreamingGridStatus({ prompt, active, tone = 'default' }
   }, [active, prompt]);
 
   return (
-    <div className="inline-flex max-w-full items-center gap-3 rounded-full border border-zinc-200/70 bg-white/70 px-3 py-2 shadow-sm backdrop-blur-xl">
+    <div className="inline-flex max-w-full items-center gap-2 py-1">
       <GridNLoader tone={tone} label="" />
       <motion.span
         animate={{ opacity: [0.55, 1, 0.55] }}

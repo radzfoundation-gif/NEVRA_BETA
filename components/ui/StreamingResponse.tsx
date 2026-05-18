@@ -40,7 +40,7 @@ const CitationBadge = ({ id, sources }: { id: string, sources: any }) => {
                 rel="noopener noreferrer"
                 className="inline-flex items-center justify-center w-5 h-5 ml-1 bg-white border border-zinc-200 rounded-[4px] hover:border-blue-400 hover:scale-110 shadow-sm transition-all cursor-pointer no-underline select-none overflow-hidden p-0.5"
             >
-                <img 
+                <img
                     src={`https://www.google.com/s2/favicons?domain=${domain}&sz=64`}
                     alt={id}
                     className="w-full h-full object-contain"
@@ -61,7 +61,7 @@ const CitationBadge = ({ id, sources }: { id: string, sources: any }) => {
                     >
                         <div className="flex items-start gap-3">
                             <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center shrink-0 border border-blue-100 dark:border-blue-800">
-                                <img 
+                                <img
                                     src={`https://www.google.com/s2/favicons?domain=${domain}&sz=64`}
                                     className="w-5 h-5 object-contain"
                                     alt="favicon"
@@ -104,7 +104,7 @@ const StreamingResponse: React.FC<StreamingResponseProps> = ({ content, isStream
                 // Remove sources block from content to prevent display issues
                 processedContent = processedContent.replace(sourcesMatch[0], '');
             } catch (e) {
-                
+
             }
         }
 
@@ -134,13 +134,13 @@ const StreamingResponse: React.FC<StreamingResponseProps> = ({ content, isStream
         }
     }, [content]);
 
-    // Pre-process content to replace [1] or [1, 2] with custom citation tags
-    // Using simple regex that matches "[1]" or "[1, 2]" or "[1,2,3]"
-    // We strictly match format without spaces around brackets to avoid some code arrays
+    // Pre-process content to replace [1] or [1, 2] with custom citation tags.
+    // Also strip 1+ bullet glyphs the model emits inside list items so they
+    // don't render alongside the prose CSS marker (the "two dots" bug).
     const normalizedMarkdown = mainContent
-        .replace(/^(\s*[-*+]\s+)[\u2022\u00B7\uFFFD•·]\s+/gm, '$1')
+        .replace(/^(\s*[-*+]\s+)[•·�∙◦⁃⁌⁍]+\s*/gm, '$1')
         .replace(/^(\s*[-*+]\s+)[-*+]\s+/gm, '$1')
-        .replace(/^(\s*)[\u2022\u00B7\uFFFD•·]\s+/gm, '$1- ');
+        .replace(/^(\s*)[•·�∙◦⁃⁌⁍]+\s+/gm, '$1- ');
 
     const processedMarkdown = normalizedMarkdown.replace(
         /\[(\d+(?:,\s*\d+)*)\]/g,

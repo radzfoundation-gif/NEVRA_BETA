@@ -24,6 +24,10 @@ const TONE_LABEL: Record<GridLoaderTone, string> = {
 
 export default function GridNLoader({ tone = 'default', label }: { tone?: GridLoaderTone; label?: string }) {
     const style = TONE_STYLES[tone];
+    // Empty string = caller explicitly suppresses inner label (e.g. when an
+    // outer streaming status already shows the description). undefined =
+    // use the tone's default label.
+    const showLabel = label !== '';
     const text = label || TONE_LABEL[tone];
     return (
         <div className="inline-flex items-center gap-1.5 py-1 align-middle animate-in fade-in duration-300">
@@ -49,13 +53,15 @@ export default function GridNLoader({ tone = 'default', label }: { tone?: GridLo
                     />
                 ))}
             </div>
-            <motion.span
-                animate={{ opacity: [0.45, 0.85, 0.45] }}
-                transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }}
-                className={`text-[8px] font-medium uppercase leading-none tracking-[0.16em] ${style.label}`}
-            >
-                {text}
-            </motion.span>
+            {showLabel && (
+                <motion.span
+                    animate={{ opacity: [0.45, 0.85, 0.45] }}
+                    transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }}
+                    className={`text-[8px] font-medium uppercase leading-none tracking-[0.16em] ${style.label}`}
+                >
+                    {text}
+                </motion.span>
+            )}
         </div>
     );
 }

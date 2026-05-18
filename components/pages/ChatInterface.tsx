@@ -2002,6 +2002,22 @@ const ChatInterface: React.FC = () => {
     const words = trimmedPrompt.split(/\s+/).filter(Boolean);
     const wordCount = words.length;
     const lowerPrompt = trimmedPrompt.toLowerCase();
+
+    // Early PDF intent detection — must run BEFORE the clarification gate so
+    // short prompts like "buatkan pdf" still reach the PDF flow instead of
+    // being captured as ambiguous. Also forces the canvas to switch from any
+    // previously-active web preview to a fresh document canvas.
+    const pdfIntentPatterns = [
+      /\b(buatkan|buat|generate|create|bikin)\b[\s\S]*\b(pdf|dokumen|document)\b/i,
+      /\b(pdf|dokumen|document)\b[\s\S]*\b(buatkan|buat|generate|create|bikin)\b/i,
+      /\b(edit|ubah|modify)\b[\s\S]*\bpdf\b/i,
+      /\bpdf\b[\s\S]*\b(edit|ubah|modify)\b/i,
+      /\b(export|download|unduh)\b[\s\S]*\b(pdf|dokumen)\b/i,
+      /\b(smart\s*doc|smart\s*document)\b/i,
+      /^buatkan?\s+pdf\b/i,
+      /^buat\s+pdf\b/i,
+    ];
+    const isPdfIntent = pdfIntentPatterns.some(pattern => pattern.test(lowerPrompt));
     const askForOptions = /(berikan|kasih|beri|kasi|buatkan|bikin|give|show|list|make)\s+\d*\s*(opsi|pilihan|options?|alternatif|choices?)/i.test(lowerPrompt)
       || /^(opsi|pilihan|options?|alternatif)\b/i.test(lowerPrompt)
       || /\b\d+\s*(opsi|pilihan|options?|alternatif|choices?)\b/i.test(lowerPrompt);
@@ -2010,13 +2026,15 @@ const ChatInterface: React.FC = () => {
     const danglingReference = /\b(ini|itu|this|that|tersebut|begitu|gini|gitu|tadi)\b/i.test(lowerPrompt) && wordCount <= 5;
     const greetingOnly = /^(p|q|test|tes|hai|halo|hello|hi|yo|woi|hey|nunggak|ping)\b\.?$/i.test(lowerPrompt);
     const lacksTaskObject = /^(buatkan|bikin|buat|tolong|help|bantu|cara|how\s+to|kasih|beri|berikan|carikan|cari|riset|analisa|review|perbaiki|fix|debug|ubah|update|generate|create|write|summarize|ringkas|translate|terjemahkan)\b/i.test(lowerPrompt) && wordCount <= 4;
-    const looksAmbiguous = trimmedPrompt.length <= 3
+    const looksAmbiguous = !isPdfIntent && (
+      trimmedPrompt.length <= 3
       || vagueShortPrompt
       || askForOptions
       || actionOnlyPrompt
       || danglingReference
       || greetingOnly
-      || lacksTaskObject;
+      || lacksTaskObject
+    );
     const clarificationPayload = (() => {
       if (/^(apa\s+itu|what\s+is|jelaskan|explain|terangkan)\b/i.test(lowerPrompt)) {
         return {
@@ -2160,9 +2178,15 @@ const ChatInterface: React.FC = () => {
     setActiveConnectorId(currentRouting.selectedConnector === 'Web Search' ? 'web-search' : currentRouting.selectedConnector === 'GitHub' ? 'github' : currentRouting.selectedConnector === 'Local Documents' ? 'local-documents' : null);
     if (currentRouting.selectedConnector === 'Web Search') setEnableWebSearch(true);
 
-    const detectedCanvasType = currentRouting.canvasType || detectGlassCanvasType(text);
-    if (detectedCanvasType && (!glassCanvas || glassCanvas.state === 'closed')) {
-      const shouldDream = detectedCanvasType === 'web' || detectedCanvasType === 'code';
+    const detectedCanvasType = isPdfIntent
+      ? 'document' as const
+      : (currentRouting.canvasType || detectGlassCanvasType(text));
+    // For PDF/document intent, always force a fresh document canvas — this
+    // overrides any leftover web canvas from an earlier prompt so the user
+    // sees the document, not the previously generated website.
+    const shouldOverrideCanvas = isPdfIntent;
+    if (detectedCanvasType && (shouldOverrideCanvas || !glassCanvas || glassCanvas.state === 'closed')) {
+      const shouldDream = !isPdfIntent && (detectedCanvasType === 'web' || detectedCanvasType === 'code');
       const canvasTitle = detectedCanvasType === 'web'
         ? deriveGeneratedTitle(text, 'web')
         : detectedCanvasType === 'document'
@@ -2194,8 +2218,10 @@ const ChatInterface: React.FC = () => {
 
     // Always detect mode from user input (unless explicitly overridden)
     let detectedMode = modeOverride || detectMode(text) || 'tutor';
-    const uiBuildIntent = /\b(buat|buatkan|bikin|create|generate|build)\b.*\b(login page|pricing page|landing page|dashboard|website|web page|halaman|ui|component|komponen|form|auth page|register page|checkout page)\b/i.test(text)
-      || /\b(login page|pricing page|landing page|dashboard|website|web page|halaman|ui|component|komponen|form|auth page|register page|checkout page)\b.*\b(buat|buatkan|bikin|create|generate|build)\b/i.test(text);
+    const uiBuildIntent = !isPdfIntent && (
+      /\b(buat|buatkan|bikin|create|generate|build)\b.*\b(login page|pricing page|landing page|dashboard|website|web page|halaman|ui|component|komponen|form|auth page|register page|checkout page)\b/i.test(text)
+      || /\b(login page|pricing page|landing page|dashboard|website|web page|halaman|ui|component|komponen|form|auth page|register page|checkout page)\b.*\b(buat|buatkan|bikin|create|generate|build)\b/i.test(text)
+    );
     if (!modeOverride && uiBuildIntent) {
       detectedMode = 'builder';
       setActiveGlassMode('builder');
@@ -2340,20 +2366,12 @@ const ChatInterface: React.FC = () => {
 
     // =====================================================
     // PDF GENERATION DETECTION - Intercepts before normal AI flow
+    // (intent already detected at top via `isPdfIntent`)
     // =====================================================
-    const pdfPatterns = [
-      /\b(buatkan|buat|generate|create|bikin)\b.*\b(pdf|dokumen|document)\b/i,
-      /\b(pdf|dokumen|document)\b.*\b(buatkan|buat|generate|create|bikin)\b/i,
-      /\b(edit|ubah|modify)\b.*\bpdf\b/i,
-      /\bpdf\b.*\b(edit|ubah|modify)\b/i,
-      /\b(export|download|unduh)\b.*\b(pdf|dokumen)\b/i,
-      /\b(smart\s*doc|smart\s*document)\b/i,
-    ];
-
-    const isPdfRequest = pdfPatterns.some(pattern => pattern.test(text));
-
-    if (isPdfRequest) {
-      console.log('ðŸ“„ [PDFGen] PDF generation request detected in chat!');
+    if (isPdfIntent) {
+      console.log('📄 [PDFGen] PDF generation request detected in chat!');
+      // Force-switch the canvas to a fresh document surface — even if a web
+      // canvas was already active from a previous prompt.
       setGlassCanvas({
         state: 'opening',
         type: 'document',
