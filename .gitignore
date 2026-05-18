@@ -37,3 +37,21 @@ dist.zip
 
 # Local Firestore/Firestore database
 useglass-firestore.db*
+# Local AI/editor agent state
+.agents/
+.antigravity/
+.kiro/skills/
+settings.json
+s
+
+# Local build/check artifacts
+__pycache__/
+build-check.out
+build-check.err
+
+# Local docs/drafts
+claude.ai-DESIGN*.md
+
+# Firebase service account keys
+*-firebase-adminsdk-*.json
+firebase-adminsdk-*.json
